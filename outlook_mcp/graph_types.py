@@ -9,8 +9,8 @@ class FilterParams(TypedDict, total=False):
     """메일 필터링 파라미터 (포함 조건)"""
 
     # 발신자 관련
-    from_address: Optional[str]  # from/emailAddress/address
-    sender_address: Optional[str]  # sender/emailAddress/address
+    from_address: Optional[Union[str, List[str]]]  # from/emailAddress/address - 단일 또는 여러 발신자
+    sender_address: Optional[Union[str, List[str]]]  # sender/emailAddress/address - 단일 또는 여러 발신자
 
     # 날짜/시간 관련
     # 단일 날짜 필터 (ge 연산자만 사용)
@@ -37,10 +37,14 @@ class FilterParams(TypedDict, total=False):
     sensitivity: Optional[Literal["normal", "personal", "private", "confidential"]]
     inference_classification: Optional[Literal["focused", "other"]]
 
-    # 내용 관련
-    subject: Optional[str]  # 제목 키워드
-    body_content: Optional[str]  # body/content 키워드
-    body_preview: Optional[str]  # 미리보기 키워드
+    # 내용 관련 - 단일 키워드 또는 리스트 (리스트는 OR로 연결)
+    subject: Optional[Union[str, List[str]]]  # 제목 키워드
+    body_content: Optional[Union[str, List[str]]]  # body/content 키워드
+    body_preview: Optional[Union[str, List[str]]]  # 미리보기 키워드
+
+    # 키워드 연결 방식 (리스트일 때만 적용)
+    subject_operator: Optional[Literal["or", "and"]]  # 기본값: "or"
+    body_operator: Optional[Literal["or", "and"]]  # 기본값: "or"
 
     # ID 관련
     id: Optional[str]  # 메일 고유 ID
@@ -55,9 +59,9 @@ class FilterParams(TypedDict, total=False):
 class ExcludeParams(TypedDict, total=False):
     """메일 제외 파라미터 (제외 조건)"""
 
-    # 발신자 제외
-    exclude_from_address: Optional[str]
-    exclude_sender_address: Optional[str]
+    # 발신자 제외 - 단일 문자열 또는 리스트 지원
+    exclude_from_address: Optional[Union[str, List[str]]]
+    exclude_sender_address: Optional[Union[str, List[str]]]
 
     # 키워드 제외
     exclude_subject_keywords: Optional[List[str]]  # 제목에서 제외할 키워드들
@@ -152,9 +156,9 @@ class MailQueryParams(TypedDict, total=False):
 
 # 헬퍼 함수들 - 파라미터 생성
 def create_filter_params(
-    # 발신자
-    from_address: Optional[str] = None,
-    sender_address: Optional[str] = None,
+    # 발신자 - 단일 문자열 또는 리스트 지원
+    from_address: Optional[Union[str, List[str]]] = None,
+    sender_address: Optional[Union[str, List[str]]] = None,
     # 날짜/시간 - 단일 날짜 (ge 연산자)
     received_date_time: Optional[str] = None,
     sent_date_time: Optional[str] = None,
@@ -173,10 +177,13 @@ def create_filter_params(
     importance: Optional[Literal["low", "normal", "high"]] = None,
     sensitivity: Optional[Literal["normal", "personal", "private", "confidential"]] = None,
     inference_classification: Optional[Literal["focused", "other"]] = None,
-    # 내용
-    subject: Optional[str] = None,
-    body_content: Optional[str] = None,
-    body_preview: Optional[str] = None,
+    # 내용 - 단일 키워드 또는 리스트
+    subject: Optional[Union[str, List[str]]] = None,
+    body_content: Optional[Union[str, List[str]]] = None,
+    body_preview: Optional[Union[str, List[str]]] = None,
+    # 키워드 연결 방식 (리스트일 때만 적용)
+    subject_operator: Optional[Literal["or", "and"]] = None,
+    body_operator: Optional[Literal["or", "and"]] = None,
     # ID
     id: Optional[str] = None,
     conversation_id: Optional[str] = None,
@@ -228,6 +235,10 @@ def create_filter_params(
         params['body_content'] = body_content
     if body_preview is not None:
         params['body_preview'] = body_preview
+    if subject_operator is not None:
+        params['subject_operator'] = subject_operator
+    if body_operator is not None:
+        params['body_operator'] = body_operator
     if id is not None:
         params['id'] = id
     if conversation_id is not None:
@@ -323,9 +334,26 @@ def build_filter_query(params: FilterParams) -> str:
 
     # 발신자
     if params.get('from_address'):
-        filters.append(f"from/emailAddress/address eq '{params['from_address']}'")
+        from_addr = params['from_address']
+        if isinstance(from_addr, list):
+            # 리스트인 경우 OR 조건으로 연결
+            from_filters = [f"from/emailAddress/address eq '{addr}'" for addr in from_addr]
+            if from_filters:
+                filters.append(f"({' or '.join(from_filters)})")
+        else:
+            # 단일 문자열
+            filters.append(f"from/emailAddress/address eq '{from_addr}'")
+
     if params.get('sender_address'):
-        filters.append(f"sender/emailAddress/address eq '{params['sender_address']}'")
+        sender_addr = params['sender_address']
+        if isinstance(sender_addr, list):
+            # 리스트인 경우 OR 조건으로 연결
+            sender_filters = [f"sender/emailAddress/address eq '{addr}'" for addr in sender_addr]
+            if sender_filters:
+                filters.append(f"({' or '.join(sender_filters)})")
+        else:
+            # 단일 문자열
+            filters.append(f"sender/emailAddress/address eq '{sender_addr}'")
 
     # 날짜/시간 - 단일 날짜 필터 (ge 연산자만 사용 - 이후 날짜)
     if params.get('received_date_time'):
@@ -366,11 +394,45 @@ def build_filter_query(params: FilterParams) -> str:
 
     # 키워드 검색
     if params.get('subject'):
-        filters.append(f"contains(subject, '{params['subject']}')")
+        subject = params['subject']
+        if isinstance(subject, list):
+            # 리스트인 경우 OR 또는 AND로 연결
+            operator = params.get('subject_operator', 'or')  # 기본값 'or'
+            subject_filters = [f"contains(subject, '{kw}')" for kw in subject]
+            if subject_filters:
+                if operator == 'and':
+                    filters.extend(subject_filters)  # AND는 각각 추가
+                else:  # or
+                    filters.append(f"({' or '.join(subject_filters)})")
+        else:
+            # 단일 문자열
+            filters.append(f"contains(subject, '{subject}')")
+
     if params.get('body_content'):
-        filters.append(f"contains(body/content, '{params['body_content']}')")
+        body_content = params['body_content']
+        if isinstance(body_content, list):
+            # 리스트인 경우 OR 또는 AND로 연결
+            operator = params.get('body_operator', 'or')  # 기본값 'or'
+            body_filters = [f"contains(body/content, '{kw}')" for kw in body_content]
+            if body_filters:
+                if operator == 'and':
+                    filters.extend(body_filters)  # AND는 각각 추가
+                else:  # or
+                    filters.append(f"({' or '.join(body_filters)})")
+        else:
+            # 단일 문자열
+            filters.append(f"contains(body/content, '{body_content}')")
+
     if params.get('body_preview'):
-        filters.append(f"contains(bodyPreview, '{params['body_preview']}')")
+        body_preview = params['body_preview']
+        if isinstance(body_preview, list):
+            # 리스트인 경우 OR로 연결 (preview는 보통 OR만 사용)
+            preview_filters = [f"contains(bodyPreview, '{kw}')" for kw in body_preview]
+            if preview_filters:
+                filters.append(f"({' or '.join(preview_filters)})")
+        else:
+            # 단일 문자열
+            filters.append(f"contains(bodyPreview, '{body_preview}')")
 
     # ID
     if params.get('id'):
@@ -398,9 +460,24 @@ def build_exclude_query(params: ExcludeParams) -> str:
 
     # 발신자 제외
     if params.get('exclude_from_address'):
-        excludes.append(f"from/emailAddress/address ne '{params['exclude_from_address']}'")
+        exclude_from = params['exclude_from_address']
+        if isinstance(exclude_from, list):
+            # 리스트인 경우 각각 ne 조건으로 추가
+            for addr in exclude_from:
+                excludes.append(f"from/emailAddress/address ne '{addr}'")
+        else:
+            # 단일 문자열
+            excludes.append(f"from/emailAddress/address ne '{exclude_from}'")
+
     if params.get('exclude_sender_address'):
-        excludes.append(f"sender/emailAddress/address ne '{params['exclude_sender_address']}'")
+        exclude_sender = params['exclude_sender_address']
+        if isinstance(exclude_sender, list):
+            # 리스트인 경우 각각 ne 조건으로 추가
+            for addr in exclude_sender:
+                excludes.append(f"sender/emailAddress/address ne '{addr}'")
+        else:
+            # 단일 문자열
+            excludes.append(f"sender/emailAddress/address ne '{exclude_sender}'")
 
     # 키워드 제외
     if params.get('exclude_subject_keywords'):
@@ -525,10 +602,55 @@ if __name__ == "__main__":
         "received_date_to": "2024-12-07T23:59:59Z"     # 12월 7일까지
     }
 
-    # 제외 파라미터 설정
+    # 예시 4: 여러 발신자 조회 (리스트 사용)
+    multiple_senders_params: FilterParams = {
+        "from_address": ["boss@company.com", "manager@company.com", "ceo@company.com"],
+        "received_date_from": "2024-12-01T00:00:00Z",
+        "is_read": False
+    }
+
+    # 예시 5: 단일 발신자 vs 여러 발신자
+    # 단일 발신자
+    single_sender: FilterParams = {
+        "from_address": "newsletter@company.com"
+    }
+
+    # 여러 발신자 (OR 조건으로 연결)
+    multiple_senders: FilterParams = {
+        "from_address": ["team1@company.com", "team2@company.com", "team3@company.com"]
+    }
+
+    # 예시 6: 키워드 검색 - 단일 vs 리스트
+    # 단일 키워드
+    single_keyword: FilterParams = {
+        "subject": "프로젝트"
+    }
+
+    # 여러 키워드 (OR) - 제목에 '프로젝트' 또는 '회의' 포함
+    keywords_or: FilterParams = {
+        "subject": ["프로젝트", "회의", "미팅"],
+        "subject_operator": "or"  # 기본값이므로 생략 가능
+    }
+
+    # 여러 키워드 (AND) - 제목에 '프로젝트'와 '승인' 모두 포함
+    keywords_and: FilterParams = {
+        "subject": ["프로젝트", "승인"],
+        "subject_operator": "and"
+    }
+
+    # 예시 7: 복합 키워드 검색
+    complex_keywords: FilterParams = {
+        "subject": ["긴급", "중요"],  # 제목에 '긴급' 또는 '중요'
+        "subject_operator": "or",
+        "body_content": ["승인", "결재"],  # 본문에 '승인'과 '결재' 모두
+        "body_operator": "and",
+        "received_date_from": "2024-12-01T00:00:00Z"
+    }
+
+    # 제외 파라미터 설정 - 여러 발신자 제외
     exclude_params: ExcludeParams = {
-        "exclude_from_address": "noreply@github.com",
-        "exclude_subject_keywords": ["newsletter", "광고"]
+        "exclude_from_address": ["noreply@github.com", "notification@slack.com", "no-reply@amazon.com"],
+        "exclude_subject_keywords": ["newsletter", "광고", "홍보"]
     }
 
     # 선택 필드 설정
@@ -559,6 +681,30 @@ if __name__ == "__main__":
     range_query = build_filter_query(range_params)
     print(f"\n단일 날짜 필터 (이후 모든 메일): {single_query}")
     print(f"날짜 범위 필터 (특정 기간): {range_query}")
+
+    # 여러 발신자 필터 쿼리 생성
+    multiple_senders_query = build_filter_query(multiple_senders_params)
+    print(f"\n여러 발신자 필터: {multiple_senders_query}")
+    # 출력: (from/emailAddress/address eq 'boss@company.com' or from/emailAddress/address eq 'manager@company.com' or from/emailAddress/address eq 'ceo@company.com') and receivedDateTime ge 2024-12-01T00:00:00Z and isRead eq false
+
+    # 제외 쿼리 생성
+    exclude_query = build_exclude_query(exclude_params)
+    print(f"\n제외 필터: {exclude_query}")
+    # 출력: from/emailAddress/address ne 'noreply@github.com' and from/emailAddress/address ne 'notification@slack.com' and from/emailAddress/address ne 'no-reply@amazon.com' and not contains(subject, 'newsletter') and not contains(subject, '광고') and not contains(subject, '홍보')
+
+    # 키워드 필터 예시
+    keywords_or_query = build_filter_query(keywords_or)
+    keywords_and_query = build_filter_query(keywords_and)
+    complex_query = build_filter_query(complex_keywords)
+
+    print(f"\n키워드 OR 필터: {keywords_or_query}")
+    # 출력: (contains(subject, '프로젝트') or contains(subject, '회의') or contains(subject, '미팅'))
+
+    print(f"\n키워드 AND 필터: {keywords_and_query}")
+    # 출력: contains(subject, '프로젝트') and contains(subject, '승인')
+
+    print(f"\n복합 키워드 필터: {complex_query}")
+    # 출력: (contains(subject, '긴급') or contains(subject, '중요')) and contains(body/content, '승인') and contains(body/content, '결재') and receivedDateTime ge 2024-12-01T00:00:00Z
 
     # 최종 URL 예시
     base_url = "https://graph.microsoft.com/v1.0/me/messages"
