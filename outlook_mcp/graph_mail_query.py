@@ -127,7 +127,7 @@ class GraphMailQuery:
             order_by=order_by
         )
 
-        # Use parallel fetching for all queries
+        # Use parallel fetching for all queries (no client_filter needed for quick query)
         return await self._fetch_parallel_with_url(base_url, top)
 
     async def query_filter(self,
@@ -205,14 +205,15 @@ class GraphMailQuery:
             order_by=orderby
         )
 
-        # Fetch data
-        result = await self._fetch_parallel_with_url(base_url, top)
+        # Fetch data with immediate filtering if client_filter is provided
+        result = await self._fetch_parallel_with_url(base_url, top, client_filter)
 
-        # Apply client-side filtering if provided
-        if client_filter and result.get('status') == 'success' and result.get('emails'):
-            result['emails'] = self._apply_client_side_filter(result['emails'], client_filter)
+        # No need for separate filtering as it's done during fetch
+        result['emails'] = result.get('value', [])
+        if client_filter:
             result['filtered_count'] = len(result['emails'])
             result['client_filtered'] = True
+        result['status'] = 'success'
 
         return result
 
@@ -285,16 +286,14 @@ class GraphMailQuery:
         if not await self.initialize():
             raise Exception("Failed to initialize")
 
-        # Fetch data with the provided URL
-        result = await self._fetch_parallel_with_url(url, top)
+        # Fetch data with the provided URL and apply filtering immediately
+        result = await self._fetch_parallel_with_url(url, top, client_filter)
 
-        # Apply client-side filtering if provided
-        if client_filter and result.get('value'):
-            result['emails'] = self._apply_client_side_filter(result.get('value', []), client_filter)
+        # No need for separate filtering as it's done during fetch
+        result['emails'] = result.get('value', [])
+        if client_filter:
             result['filtered_count'] = len(result['emails'])
             result['client_filtered'] = True
-        else:
-            result['emails'] = result.get('value', [])
 
         result['status'] = 'success'
 
@@ -361,17 +360,15 @@ class GraphMailQuery:
         if orderby:
             base_url += f"&$orderby={orderby}"
 
-        # Fetch data (Graph API limits search to 250 results)
+        # Fetch data (Graph API limits search to 250 results) with immediate filtering
         actual_top = min(top, 250)  # Enforce Graph API search limit
-        result = await self._fetch_parallel_with_url(base_url, actual_top)
+        result = await self._fetch_parallel_with_url(base_url, actual_top, client_filter)
 
-        # Apply client-side filtering if provided
-        if client_filter and result.get('value'):
-            filtered_emails = self._apply_client_side_filter(result['value'], client_filter)
-            result['value'] = filtered_emails
-            result['filtered_count'] = len(filtered_emails)
+        # No need for separate filtering as it's done during fetch
+        if client_filter:
+            result['filtered_count'] = len(result.get('value', []))
             result['client_filtered'] = True
-            result['@odata.count'] = len(filtered_emails)
+            result['@odata.count'] = len(result.get('value', []))
 
         # Add status for consistency
         result['status'] = 'success'
@@ -379,17 +376,19 @@ class GraphMailQuery:
 
         return result
 
-    async def _fetch_parallel_with_url(self, base_url: str, total_items: int) -> Dict[str, Any]:
+    async def _fetch_parallel_with_url(self, base_url: str, total_items: int, client_filter: Optional[ExcludeParams] = None) -> Dict[str, Any]:
         """
         Internal method to fetch with parallel pagination
         Always fetches in pages of 150 items
+        Applies client-side filtering immediately as data is received
 
         Args:
             base_url: Base URL without pagination
             total_items: Total items to fetch
+            client_filter: Optional client-side filter to apply immediately on fetch
 
         Returns:
-            All fetched emails
+            All fetched and filtered emails
         """
         page_size = 150
         max_concurrent = 3
@@ -412,7 +411,16 @@ class GraphMailQuery:
                     async with session.get(url, headers=self.mail_search.headers) as response:
                         if response.status == 200:
                             data = await response.json()
-                            print(f"  ✓ Page {page_num}: Retrieved {len(data.get('value', []))} emails")
+                            emails = data.get('value', [])
+
+                            # Apply client-side filtering immediately if provided
+                            if client_filter and emails:
+                                filtered_emails = self._apply_client_side_filter(emails, client_filter)
+                                data['value'] = filtered_emails
+                                print(f"  ✓ Page {page_num}: Retrieved {len(emails)} emails, kept {len(filtered_emails)} after filtering")
+                            else:
+                                print(f"  ✓ Page {page_num}: Retrieved {len(emails)} emails")
+
                             return data
                         else:
                             print(f"  ✗ Page {page_num}: Error {response.status}")
