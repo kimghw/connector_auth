@@ -1,0 +1,4 @@
+# Azure Authentication Module Requirements
+aiohttp>=3.8.0
+python-dotenv>=0.19.0
+cryptography>=3.4.8

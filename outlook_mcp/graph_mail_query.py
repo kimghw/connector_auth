@@ -445,18 +445,34 @@ class GraphMailQuery:
             results = await asyncio.gather(*tasks)
             elapsed = (datetime.now() - start_time).total_seconds()
 
-        # Collect all emails
+        # Collect all emails and errors
         all_emails = []
+        errors = []
         for result in results:
             all_emails.extend(result.get("value", []))
+            # Collect error information if present
+            if result.get("error"):
+                errors.append(result)
 
         print(f"✅ Fetched {len(all_emails)} emails in {elapsed:.2f}s")
+        if errors:
+            print(f"⚠️  {len(errors)} page(s) had errors")
 
-        return {
+        return_data = {
             "value": all_emails,
             "total": len(all_emails),
-            "@odata.count": len(all_emails)
+            "@odata.count": len(all_emails),
+            "request_url": base_url,  # Include the built URL
+            "pages_requested": num_pages,
+            "fetch_time": elapsed
         }
+
+        # Include error information if any errors occurred
+        if errors:
+            return_data["errors"] = errors
+            return_data["has_errors"] = True
+
+        return return_data
 
     def format_emails(self, results: Dict[str, Any], verbose: bool = False) -> str:
         """
@@ -514,6 +530,66 @@ class GraphMailQuery:
             output.append("")
 
         return "\n".join(output)
+
+    async def process_with_options(
+        self,
+        mail_data: Dict[str, Any],
+        mail_storage: str = "memory",
+        attachment_handling: str = "skip",
+        output_format: str = "combined",
+        save_directory: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        메일 데이터를 받아서 처리 옵션에 따라 처리
+
+        Args:
+            mail_data: 쿼리 결과 (fetch_parallel_with_url의 반환값)
+            mail_storage: 메일 저장 방식 ("memory", "text", "json", "database")
+            attachment_handling: 첨부파일 처리 ("skip", "download", "convert", "convert_delete")
+            output_format: 출력 형식 ("combined", "separated", "structured")
+            save_directory: 저장 디렉토리
+
+        Returns:
+            처리된 결과
+        """
+        from mail_processor_handler import MailProcessorHandler, ProcessingOptions, MailStorageOption, AttachmentOption, OutputFormat
+
+        # 옵션 매핑
+        storage_map = {
+            "memory": MailStorageOption.MEMORY,
+            "text": MailStorageOption.TEXT_FILE,
+            "json": MailStorageOption.JSON_FILE,
+            "database": MailStorageOption.DATABASE
+        }
+
+        attachment_map = {
+            "skip": AttachmentOption.SKIP,
+            "download": AttachmentOption.DOWNLOAD_ONLY,
+            "convert": AttachmentOption.DOWNLOAD_CONVERT,
+            "convert_delete": AttachmentOption.CONVERT_DELETE
+        }
+
+        format_map = {
+            "combined": OutputFormat.COMBINED,
+            "separated": OutputFormat.SEPARATED,
+            "structured": OutputFormat.STRUCTURED
+        }
+
+        # MailProcessorHandler 생성 및 처리
+        handler = MailProcessorHandler(self.access_token)
+        await handler.initialize()
+
+        options = ProcessingOptions(
+            mail_storage=storage_map.get(mail_storage, MailStorageOption.MEMORY),
+            attachment_handling=attachment_map.get(attachment_handling, AttachmentOption.SKIP),
+            output_format=format_map.get(output_format, OutputFormat.COMBINED),
+            save_directory=save_directory
+        )
+
+        try:
+            return await handler.process_mail(mail_data, options)
+        finally:
+            await handler.close()
 
     async def close(self):
         """Clean up resources"""
