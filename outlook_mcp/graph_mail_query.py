@@ -12,9 +12,6 @@ import json
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from graph_mail_filter import GraphMailFilter
-from graph_mail_search import GraphMailSearch
-from graph_filter_helpers import FilterHelpers, quick_filter
 from auth.auth_manager import AuthManager
 from graph_types import (
     FilterParams, ExcludeParams, SelectParams,
@@ -28,58 +25,73 @@ class GraphMailQuery:
     Handles authentication, filter building, and mail retrieval
     """
 
-    def __init__(self, user_email: Optional[str] = None, access_token: Optional[str] = None):
+    def __init__(self):
         """
         Initialize Graph Mail Query
+        No parameters needed - user_email will be provided per method call
+        """
+        self.auth_manager = AuthManager()
+
+    async def _get_access_token(self, user_email: str) -> Optional[str]:
+        """
+        Get or refresh access token for a user
+        Delegates to AuthManager which handles caching and refresh
 
         Args:
-            user_email: User email for authentication (optional if token provided)
-            access_token: Direct access token (optional if using auth manager)
-        """
-        self.user_email = user_email
-        self.access_token = access_token
-        self.mail_search = None
-        self.mail_filter = None
-        self.auth_manager = None
-
-    async def initialize(self) -> bool:
-        """
-        Initialize authentication and mail components
+            user_email: User email to get token for
 
         Returns:
-            True if initialization successful
+            Access token or None if failed
         """
         try:
-            # If no access token, get it via auth manager
-            if not self.access_token:
-                self.auth_manager = AuthManager()
+            # AuthManager handles all token caching and refresh logic
+            access_token = await self.auth_manager.validate_and_refresh_token(user_email)
 
-                if not self.user_email:
-                    # Get first available user
-                    users = self.auth_manager.list_users()
-                    if not users:
-                        print("No authenticated users found. Please authenticate first.")
-                        return False
-                    self.user_email = users[0]['email']
+            if not access_token:
+                print(f"Failed to get access token for {user_email}")
 
-                # Get or refresh token
-                self.access_token = await self.auth_manager.validate_and_refresh_token(self.user_email)
-
-                if not self.access_token:
-                    print(f"Failed to get access token for {self.user_email}")
-                    return False
-
-            # Initialize components
-            self.mail_search = GraphMailSearch(self.access_token, user_id=self.user_email or "me")
-            self.mail_filter = GraphMailFilter(user_id=self.user_email or "me")
-
-            return True
+            return access_token
 
         except Exception as e:
-            print(f"Initialization error: {str(e)}")
-            return False
+            print(f"Token retrieval error for {user_email}: {str(e)}")
+            return None
+
+    def _build_query_url(self,
+                         user_email: str,
+                         filter_query: Optional[str] = None,
+                         select_fields: Optional[List[str]] = None,
+                         order_by: Optional[str] = None) -> str:
+        """
+        Build complete query URL with parameters
+
+        Args:
+            user_email: User email for building URL
+            filter_query: Filter query string
+            select_fields: Fields to select
+            order_by: Sort order
+
+        Returns:
+            Complete URL with query parameters
+        """
+        base_url = f"https://graph.microsoft.com/v1.0/users/{user_email}/messages"
+        params = []
+
+        if filter_query:
+            params.append(f"$filter={filter_query}")
+
+        if select_fields:
+            params.append(f"$select={','.join(select_fields)}")
+
+        if order_by:
+            params.append(f"$orderby={order_by}")
+
+        if params:
+            base_url += "?" + "&".join(params)
+
+        return base_url
 
     async def query_filter(self,
+                          user_email: str,
                           filter: FilterParams,
                           exclude: Optional[ExcludeParams] = None,
                           select: Optional[SelectParams] = None,
@@ -90,6 +102,7 @@ class GraphMailQuery:
         Query with AND filter conditions
 
         Args:
+            user_email: User email for authentication
             filter: FilterParams for inclusion criteria (AND conditions)
             exclude: ExcludeParams for server-side exclusion (API filter)
             select: SelectParams for field selection
@@ -123,8 +136,10 @@ class GraphMailQuery:
                 client_filter=client_filter_params
             )
         """
-        if not await self.initialize():
-            raise Exception("Failed to initialize")
+        # Get access token for the user
+        access_token = await self._get_access_token(user_email)
+        if not access_token:
+            raise Exception(f"Failed to get access token for {user_email}")
 
         # Build filter parts using graph_types helper functions
         query_parts = []
@@ -148,14 +163,15 @@ class GraphMailQuery:
         select_fields = select.get('fields') if select else None
 
         # Build final URL
-        base_url = self.mail_filter.build_query_url(
+        base_url = self._build_query_url(
+            user_email=user_email,
             filter_query=combined_filter,
             select_fields=select_fields,
             order_by=orderby
         )
 
         # Fetch data with immediate filtering if client_filter is provided
-        return await self._fetch_parallel_with_url(base_url, top, client_filter)
+        return await self._fetch_parallel_with_url(user_email, access_token, base_url, top, client_filter)
 
     def _apply_client_side_filter(self, emails: List[Dict], exclude: ExcludeParams) -> List[Dict]:
         """
@@ -204,6 +220,7 @@ class GraphMailQuery:
         return filtered_emails
 
     async def query_url(self,
+                        user_email: str,
                         url: str,
                         top: int = 450,
                         client_filter: Optional[ExcludeParams] = None) -> Dict[str, Any]:
@@ -211,6 +228,7 @@ class GraphMailQuery:
         Query with pre-built URL
 
         Args:
+            user_email: User email for authentication
             url: Complete Graph API URL with all parameters
             top: Maximum results (default 450)
             client_filter: ExcludeParams for client-side filtering (post-fetch)
@@ -220,15 +238,18 @@ class GraphMailQuery:
 
         Example:
             url = "https://graph.microsoft.com/v1.0/users/me/messages?$filter=isRead eq false&$top=10"
-            result = await query_url(url, top=100)
+            result = await query_url("user@example.com", url, top=100)
         """
-        if not await self.initialize():
-            raise Exception("Failed to initialize")
+        # Get access token for the user
+        access_token = await self._get_access_token(user_email)
+        if not access_token:
+            raise Exception(f"Failed to get access token for {user_email}")
 
         # Fetch data with the provided URL and apply filtering immediately
-        return await self._fetch_parallel_with_url(url, top, client_filter)
+        return await self._fetch_parallel_with_url(user_email, access_token, url, top, client_filter)
 
     async def query_search(self,
+                           user_email: str,
                            search: str,
                            client_filter: Optional[ExcludeParams] = None,
                            select: Optional[SelectParams] = None,
@@ -238,6 +259,7 @@ class GraphMailQuery:
         Query with keyword search ($search parameter)
 
         Args:
+            user_email: User email for authentication
             search: Search keyword or phrase (e.g., "from:boss@company.com", "subject:meeting")
             client_filter: ExcludeParams for client-side filtering (post-fetch)
             select: SelectParams for field selection
@@ -267,14 +289,16 @@ class GraphMailQuery:
             - $search cannot be combined with $filter
             - Search syntax follows KQL (Keyword Query Language)
         """
-        if not await self.initialize():
-            raise Exception("Failed to initialize")
+        # Get access token for the user
+        access_token = await self._get_access_token(user_email)
+        if not access_token:
+            raise Exception(f"Failed to get access token for {user_email}")
 
         # Get select fields
         select_fields = select.get('fields') if select else None
 
         # Build search URL
-        base_url = f"https://graph.microsoft.com/v1.0/users/{self.mail_filter.user_id}/messages"
+        base_url = f"https://graph.microsoft.com/v1.0/users/{user_email}/messages"
 
         # Add search parameter (따옴표로 감싸서 전체 구문 검색)
         base_url += f'?$search="{search}"'
@@ -301,7 +325,7 @@ class GraphMailQuery:
             import aiohttp
             async with aiohttp.ClientSession() as session:
                 headers = {
-                    "Authorization": f"Bearer {self.access_token}",
+                    "Authorization": f"Bearer {access_token}",
                     "Content-Type": "application/json"
                 }
                 async with session.get(base_url, headers=headers) as response:
@@ -335,13 +359,15 @@ class GraphMailQuery:
                 "status": "error"
             }
 
-    async def _fetch_parallel_with_url(self, base_url: str, total_items: int, client_filter: Optional[ExcludeParams] = None) -> Dict[str, Any]:
+    async def _fetch_parallel_with_url(self, user_email: str, access_token: str, base_url: str, total_items: int, client_filter: Optional[ExcludeParams] = None) -> Dict[str, Any]:
         """
         Internal method to fetch with parallel pagination
         Always fetches in pages of 150 items
         Applies client-side filtering immediately as data is received
 
         Args:
+            user_email: User email for context
+            access_token: Access token for API calls
             base_url: Base URL without pagination
             total_items: Total items to fetch
             client_filter: Optional client-side filter to apply immediately on fetch
@@ -364,10 +390,16 @@ class GraphMailQuery:
         tasks = []
         semaphore = asyncio.Semaphore(max_concurrent)
 
+        # Create headers with the provided access token
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+
         async def fetch_page(session, url, page_num):
             async with semaphore:
                 try:
-                    async with session.get(url, headers=self.mail_search.headers) as response:
+                    async with session.get(url, headers=headers) as response:
                         if response.status == 200:
                             data = await response.json()
                             emails = data.get('value', [])
@@ -556,33 +588,48 @@ class GraphMailQuery:
             await self.auth_manager.close()
 
 # Convenience function for quick queries
-async def query_emails(filter_params: Optional[Dict[str, Any]] = None,
+async def query_emails(user_email: str,
+                       filter_params: Optional[Dict[str, Any]] = None,
                        search_term: Optional[str] = None,
                        url: Optional[str] = None,
-                       user_email: Optional[str] = None,
                        top: int = 450) -> Dict[str, Any]:
     """
     Quick function to query emails
 
     Args:
+        user_email: User email (required)
         filter_params: Filter parameters
         search_term: Search keyword
         url: Pre-built URL
-        user_email: User email
         top: Maximum results
 
     Returns:
         Email query results
     """
-    query = GraphMailQuery(user_email=user_email)
-    try:
-        return await query.query(
+    query = GraphMailQuery()
+
+    if url:
+        return await query.query_url(
+            user_email=user_email,
             url=url,
-            filter_params=filter_params,
-            search_term=search_term,
             top=top
         )
-    finally:
-        await query.close()
+    elif search_term:
+        return await query.query_search(
+            user_email=user_email,
+            search=search_term,
+            top=top
+        )
+    elif filter_params:
+        return await query.query_filter(
+            user_email=user_email,
+            filter=FilterParams(**filter_params),
+            top=top
+        )
+    else:
+        return {
+            "status": "error",
+            "error": "Must provide either url, search_term, or filter_params"
+        }
 
 
