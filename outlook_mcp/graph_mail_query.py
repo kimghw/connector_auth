@@ -511,7 +511,7 @@ class GraphMailQuery:
         Returns:
             처리된 결과
         """
-        from mail_processor_handler import MailProcessorHandler, ProcessingOptions, MailStorageOption, AttachmentOption, OutputFormat
+        from mail_processing_options import MailProcessorHandler, ProcessingOptions, MailStorageOption, AttachmentOption, OutputFormat
 
         # 옵션 매핑
         storage_map = {

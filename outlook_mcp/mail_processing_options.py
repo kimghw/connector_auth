@@ -12,7 +12,7 @@ from datetime import datetime
 from enum import Enum
 from abc import ABC, abstractmethod
 
-from mail_text_processor import MailTextProcessor
+from mail_to_text_converter import MailTextProcessor
 
 
 class MailStorageOption(str, Enum):
