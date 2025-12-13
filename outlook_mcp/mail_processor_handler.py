@@ -215,7 +215,8 @@ class MailProcessorHandler:
 
     async def initialize(self):
         """초기화"""
-        await self.text_processor.initialize()
+        # text_processor는 별도 초기화 필요 없음
+        return True
 
     def set_options(self, options: ProcessingOptions):
         """처리 옵션 설정"""

@@ -79,57 +79,6 @@ class GraphMailQuery:
             print(f"Initialization error: {str(e)}")
             return False
 
-
-    async def query_quick(self,
-                         unread: Optional[bool] = None,
-                         has_attachments: Optional[bool] = None,
-                         importance: Optional[str] = None,
-                         from_sender: Optional[str] = None,
-                         from_any: Optional[List[str]] = None,
-                         subject: Optional[str] = None,
-                         subject_any: Optional[List[str]] = None,
-                         days_back: Optional[int] = None,
-                         exclude_spam: bool = False,
-                         exclude_senders: Optional[List[str]] = None,
-                         exclude_subjects: Optional[List[str]] = None,
-                         select_fields: Optional[List[str]] = None,
-                         top: int = 50,
-                         order_by: str = "receivedDateTime desc") -> Dict[str, Any]:
-        """
-        Quick query with common parameters using parallel fetching
-
-        Returns:
-            Email query results
-        """
-        if not await self.initialize():
-            raise Exception("Failed to initialize")
-
-        # Build filter using quick_filter
-        filter_params = quick_filter(
-            unread=unread,
-            has_attachments=has_attachments,
-            importance=importance,
-            from_sender=from_sender,
-            from_any=from_any,
-            subject=subject,
-            subject_any=subject_any,
-            days_back=days_back,
-            exclude_spam=exclude_spam,
-            exclude_senders=exclude_senders,
-            exclude_subjects=exclude_subjects
-        )
-
-        # Build filter query and use parallel fetching
-        filter_query = self.mail_filter.build_filter_query(**filter_params)
-        base_url = self.mail_filter.build_query_url(
-            filter_query=filter_query,
-            select_fields=select_fields,
-            order_by=order_by
-        )
-
-        # Use parallel fetching for all queries (no client_filter needed for quick query)
-        return await self._fetch_parallel_with_url(base_url, top)
-
     async def query_filter(self,
                           filter: FilterParams,
                           exclude: Optional[ExcludeParams] = None,
@@ -206,17 +155,7 @@ class GraphMailQuery:
         )
 
         # Fetch data with immediate filtering if client_filter is provided
-        result = await self._fetch_parallel_with_url(base_url, top, client_filter)
-
-        # No need for separate filtering as it's done during fetch
-        result['emails'] = result.get('value', [])
-        if client_filter:
-            result['filtered_count'] = len(result['emails'])
-            result['client_filtered'] = True
-        result['status'] = 'success'
-
-        return result
-
+        return await self._fetch_parallel_with_url(base_url, top, client_filter)
 
     def _apply_client_side_filter(self, emails: List[Dict], exclude: ExcludeParams) -> List[Dict]:
         """
@@ -287,17 +226,7 @@ class GraphMailQuery:
             raise Exception("Failed to initialize")
 
         # Fetch data with the provided URL and apply filtering immediately
-        result = await self._fetch_parallel_with_url(url, top, client_filter)
-
-        # No need for separate filtering as it's done during fetch
-        result['emails'] = result.get('value', [])
-        if client_filter:
-            result['filtered_count'] = len(result['emails'])
-            result['client_filtered'] = True
-
-        result['status'] = 'success'
-
-        return result
+        return await self._fetch_parallel_with_url(url, top, client_filter)
 
     async def query_search(self,
                            search: str,
@@ -347,8 +276,8 @@ class GraphMailQuery:
         # Build search URL
         base_url = f"https://graph.microsoft.com/v1.0/users/{self.mail_filter.user_id}/messages"
 
-        # Add search parameter
-        base_url += f"?$search=\"{search}\""
+        # Add search parameter (따옴표로 감싸서 전체 구문 검색)
+        base_url += f'?$search="{search}"'
 
         # Add select fields if provided
         if select_fields:
@@ -362,19 +291,49 @@ class GraphMailQuery:
 
         # Fetch data (Graph API limits search to 250 results) with immediate filtering
         actual_top = min(top, 250)  # Enforce Graph API search limit
-        result = await self._fetch_parallel_with_url(base_url, actual_top, client_filter)
 
-        # No need for separate filtering as it's done during fetch
-        if client_filter:
-            result['filtered_count'] = len(result.get('value', []))
-            result['client_filtered'] = True
-            result['@odata.count'] = len(result.get('value', []))
+        # $search는 페이지네이션과 함께 사용할 수 없으므로 직접 처리
+        # $top을 URL에 추가
+        base_url += f"&$top={actual_top}"
 
-        # Add status for consistency
-        result['status'] = 'success'
-        result['emails'] = result.get('value', [])
+        # 직접 호출 (페이지네이션 없이)
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    "Authorization": f"Bearer {self.access_token}",
+                    "Content-Type": "application/json"
+                }
+                async with session.get(base_url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        emails = data.get('value', [])
 
-        return result
+                        # Apply client-side filtering if provided
+                        if client_filter and emails:
+                            filtered_emails = self._apply_client_side_filter(emails, client_filter)
+                            data['value'] = filtered_emails
+
+                        return {
+                            "value": data.get('value', []),
+                            "total": len(data.get('value', [])),
+                            "@odata.count": len(data.get('value', [])),
+                            "request_url": base_url,
+                            "search_term": search
+                        }
+                    else:
+                        error_text = await response.text()
+                        return {
+                            "value": [],
+                            "error": f"Search failed with status {response.status}: {error_text[:200]}",
+                            "status": "error"
+                        }
+        except Exception as e:
+            return {
+                "value": [],
+                "error": str(e),
+                "status": "error"
+            }
 
     async def _fetch_parallel_with_url(self, base_url: str, total_items: int, client_filter: Optional[ExcludeParams] = None) -> Dict[str, Any]:
         """

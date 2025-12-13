@@ -19,7 +19,10 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # PDF 변환 모듈 임포트
-from pdf_to_text import AdvancedPDFConverter
+try:
+    from .pdf_to_text import AdvancedPDFConverter
+except ImportError:
+    from pdf_to_text import AdvancedPDFConverter
 
 # Word 문서 처리
 try:
