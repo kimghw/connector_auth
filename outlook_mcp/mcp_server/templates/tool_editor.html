@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Tool Definitions Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: white;
+            color: #667eea;
+        }
+
+        .btn-primary:hover {
+            background: #f7f7f7;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .main-content {
+            display: flex;
+            height: calc(100vh - 200px);
+        }
+
+        .sidebar {
+            width: 300px;
+            background: #f7f7f7;
+            border-right: 1px solid #e5e5e5;
+            overflow-y: auto;
+        }
+
+        .tool-list {
+            padding: 20px;
+        }
+
+        .tool-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .tool-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .tool-item.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea10 0%, #764ba210 100%);
+        }
+
+        .tool-item h3 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .tool-item p {
+            font-size: 12px;
+            color: #666;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .editor-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e5e5e5;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 100px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .properties-container {
+            background: #f7f7f7;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .property-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border: 1px solid #e5e5e5;
+        }
+
+        .property-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        .btn-icon {
+            background: transparent;
+            border: 1px solid #e5e5e5;
+            color: #666;
+            padding: 5px 8px;
+            border-radius: 4px;
+        }
+
+        .btn-icon:hover {
+            background: #f7f7f7;
+            border-color: #d5d5d5;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideIn 0.3s;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e5e5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #e5e5e5;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .backup-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .backup-item {
+            padding: 10px;
+            border: 1px solid #e5e5e5;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .backup-info {
+            flex: 1;
+        }
+
+        .backup-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .backup-date {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 2000;
+            animation: slideInRight 0.3s;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .notification.success {
+            background: #10b981;
+        }
+
+        .notification.error {
+            background: #ef4444;
+        }
+
+        .notification.warning {
+            background: #f59e0b;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .json-editor {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            overflow-x: auto;
+        }
+
+        .add-button {
+            width: 100%;
+            padding: 15px;
+            border: 2px dashed #667eea;
+            background: transparent;
+            color: #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .add-button:hover {
+            background: #667eea10;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛠️ MCP Tool Definitions Editor</h1>
+            <div class="header-buttons">
+                <button class="btn btn-secondary" onclick="loadTools()">
+                    🔄 Reload
+                </button>
+                <button class="btn btn-secondary" onclick="showBackups()">
+                    📦 Backups
+                </button>
+                <button class="btn btn-secondary" onclick="validateTools()">
+                    ✅ Validate
+                </button>
+                <button class="btn btn-primary" onclick="saveTools()">
+                    💾 Save Changes
+                </button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <div class="tool-list">
+                    <button class="add-button" onclick="addNewTool()">
+                        + Add New Tool
+                    </button>
+                    <div id="toolList" style="margin-top: 15px;">
+                        <!-- Tool items will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="editor-area">
+                <div id="editorContent">
+                    <div style="text-align: center; padding: 50px; color: #999;">
+                        Select a tool from the left sidebar to edit
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nested Properties Modal -->
+    <div id="nestedPropertiesModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2 id="nestedModalTitle">Edit Nested Properties</h2>
+                <button class="btn btn-icon" onclick="closeModal('nestedPropertiesModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="nestedPropertiesEditor">
+                    <!-- Nested properties editor will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveNestedProperties()">Save Properties</button>
+                <button class="btn btn-secondary" onclick="closeModal('nestedPropertiesModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BaseModel Selector Modal -->
+    <div id="baseModelModal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2>Select BaseModel to Import</h2>
+                <button class="btn btn-icon" onclick="closeModal('baseModelModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="baseModelList" style="max-height: 500px; overflow-y: auto;">
+                    <!-- BaseModel list will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('baseModelModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backup Modal -->
+    <div id="backupModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Backup Management</h2>
+                <button class="btn btn-icon" onclick="closeModal('backupModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="backupList" class="backup-list">
+                    <!-- Backup items will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('backupModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let tools = [];
+        let currentToolIndex = -1;
+
+        // Load tools on page load
+        window.onload = function() {
+            loadTools();
+        };
+
+        function loadTools() {
+            fetch('/api/tools')
+                .then(response => response.json())
+                .then(data => {
+                    tools = data;
+                    renderToolList();
+                    showNotification('Tools loaded successfully', 'success');
+                })
+                .catch(error => {
+                    console.error('Error loading tools:', error);
+                    showNotification('Failed to load tools', 'error');
+                });
+        }
+
+        function renderToolList() {
+            const toolList = document.getElementById('toolList');
+            toolList.innerHTML = '';
+
+            tools.forEach((tool, index) => {
+                const toolItem = document.createElement('div');
+                toolItem.className = 'tool-item';
+                if (index === currentToolIndex) {
+                    toolItem.classList.add('active');
+                }
+                toolItem.onclick = () => selectTool(index);
+                toolItem.innerHTML = `
+                    <h3>${tool.name}</h3>
+                    <p>${tool.description}</p>
+                `;
+                toolList.appendChild(toolItem);
+            });
+        }
+
+        function selectTool(index) {
+            currentToolIndex = index;
+            renderToolList();
+            renderToolEditor(tools[index], index);
+        }
+
+        function renderToolEditor(tool, index) {
+            const editorContent = document.getElementById('editorContent');
+
+            const properties = tool.inputSchema?.properties || {};
+            const required = tool.inputSchema?.required || [];
+
+            let propertiesHtml = '';
+            for (const [propName, propDef] of Object.entries(properties)) {
+                const isRequired = required.includes(propName);
+                propertiesHtml += `
+                    <div class="property-item">
+                        <div class="property-header">
+                            <strong>${propName}</strong>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                ${propDef.type === 'object' ? `
+                                <button class="btn btn-sm"
+                                        style="background: ${propDef.baseModel ? '#10b981' : '#667eea'}; color: white; padding: 3px 10px; border-radius: 4px; font-size: 11px;"
+                                        onclick="showBaseModelSelector(${index}, '${propName}')">
+                                    ${propDef.baseModel || 'Select BaseModel'}
+                                </button>
+                                ` : ''}
+                                <label style="display: flex; align-items: center; cursor: pointer; margin: 0;">
+                                    <input type="checkbox" ${isRequired ? 'checked' : ''}
+                                           onchange="toggleRequired(${index}, '${propName}', this.checked)"
+                                           style="margin-right: 5px;">
+                                    <span style="color: ${isRequired ? '#ef4444' : '#999'}; font-size: 13px;">Required</span>
+                                </label>
+                                <button class="btn btn-icon btn-sm" onclick="removeProperty(${index}, '${propName}')">🗑️</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Type</label>
+                            <select class="form-control"
+                                    onchange="updatePropertyField(${index}, '${propName}', 'type', this.value); renderToolEditor(tools[${index}], ${index});">
+                                <option value="string" ${propDef.type === 'string' ? 'selected' : ''}>string</option>
+                                <option value="number" ${propDef.type === 'number' ? 'selected' : ''}>number</option>
+                                <option value="integer" ${propDef.type === 'integer' ? 'selected' : ''}>integer</option>
+                                <option value="boolean" ${propDef.type === 'boolean' ? 'selected' : ''}>boolean</option>
+                                <option value="array" ${propDef.type === 'array' ? 'selected' : ''}>array</option>
+                                <option value="object" ${propDef.type === 'object' ? 'selected' : ''}>object</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea class="form-control"
+                                      onchange="updatePropertyField(${index}, '${propName}', 'description', this.value)">${propDef.description || ''}</textarea>
+                        </div>
+                        ${propDef.enum ? `
+                        <div class="form-group">
+                            <label>Enum Values (comma-separated)</label>
+                            <input class="form-control" value="${propDef.enum.join(', ')}"
+                                   onchange="updatePropertyEnum(${index}, '${propName}', this.value)">
+                        </div>
+                        ` : ''}
+                        ${propDef.type === 'array' ? `
+                        <div class="form-group">
+                            <label>Array Item Type</label>
+                            <select class="form-control"
+                                    onchange="updatePropertyField(${index}, '${propName}', 'items', {type: this.value})">
+                                <option value="string" ${propDef.items?.type === 'string' ? 'selected' : ''}>string</option>
+                                <option value="number" ${propDef.items?.type === 'number' ? 'selected' : ''}>number</option>
+                                <option value="integer" ${propDef.items?.type === 'integer' ? 'selected' : ''}>integer</option>
+                                <option value="boolean" ${propDef.items?.type === 'boolean' ? 'selected' : ''}>boolean</option>
+                                <option value="object" ${propDef.items?.type === 'object' ? 'selected' : ''}>object</option>
+                            </select>
+                        </div>
+                        ` : ''}
+                        ${propDef.type === 'object' && propDef.properties ? `
+                        <div class="form-group">
+                            <label>Nested Properties</label>
+                            <div style="margin-left: 20px; padding: 15px; background: #f9f9f9; border-left: 3px solid ${propDef.baseModel ? '#10b981' : '#667eea'}; border-radius: 4px;">
+                                ${Object.entries(propDef.properties).map(([nestedPropName, nestedProp]) => {
+                                    const nestedIsRequired = propDef.required && propDef.required.includes(nestedPropName);
+                                    return `
+                                    <div style="padding: 12px; margin-bottom: 10px; background: white; border: 1px solid #e5e5e5; border-radius: 4px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                            <strong style="color: #333; font-size: 14px;">${nestedPropName}</strong>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <select style="font-size: 11px; padding: 3px 6px; border: 1px solid #e5e5e5; border-radius: 3px;"
+                                                        onchange="updateNestedPropertyType(${index}, '${propName}', '${nestedPropName}', this.value); renderToolEditor(tools[${index}], ${index});">
+                                                    <option value="string" ${nestedProp.type === 'string' ? 'selected' : ''}>string</option>
+                                                    <option value="number" ${nestedProp.type === 'number' ? 'selected' : ''}>number</option>
+                                                    <option value="integer" ${nestedProp.type === 'integer' ? 'selected' : ''}>integer</option>
+                                                    <option value="boolean" ${nestedProp.type === 'boolean' ? 'selected' : ''}>boolean</option>
+                                                    <option value="array" ${nestedProp.type === 'array' ? 'selected' : ''}>array</option>
+                                                    <option value="object" ${nestedProp.type === 'object' ? 'selected' : ''}>object</option>
+                                                </select>
+                                                <label style="display: flex; align-items: center; margin: 0; cursor: pointer;">
+                                                    <input type="checkbox" ${nestedIsRequired ? 'checked' : ''}
+                                                           onchange="toggleNestedRequired(${index}, '${propName}', '${nestedPropName}', this.checked)"
+                                                           style="margin-right: 3px;">
+                                                    <span style="color: ${nestedIsRequired ? '#ef4444' : '#999'}; font-size: 11px;">Required</span>
+                                                </label>
+                                                <button class="btn btn-icon btn-sm" style="padding: 2px 6px;"
+                                                        onclick="removeNestedPropertyInline(${index}, '${propName}', '${nestedPropName}')">✕</button>
+                                            </div>
+                                        </div>
+                                        <textarea class="form-control" style="font-size: 12px; min-height: 40px;"
+                                                  placeholder="Description"
+                                                  onchange="updateNestedPropertyDescription(${index}, '${propName}', '${nestedPropName}', this.value)">${nestedProp.description || ''}</textarea>
+
+                                        ${(nestedProp.type === 'string' || nestedProp.type === 'number' || nestedProp.type === 'integer') ? `
+                                        <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                            <div>
+                                                <label style="font-size: 10px; color: #666; display: block; margin-bottom: 2px;">Format</label>
+                                                <input class="form-control" style="font-size: 11px;"
+                                                       placeholder="e.g., date, email, uri"
+                                                       value="${nestedProp.format || ''}"
+                                                       onchange="updateNestedPropertyFormat(${index}, '${propName}', '${nestedPropName}', this.value)">
+                                            </div>
+                                            ${nestedProp.type === 'string' ? `
+                                            <div>
+                                                <label style="font-size: 10px; color: #666; display: flex; align-items: center;">
+                                                    <input type="checkbox" ${nestedProp.enum ? 'checked' : ''}
+                                                           onchange="toggleNestedEnum(${index}, '${propName}', '${nestedPropName}', this.checked)"
+                                                           style="margin-right: 3px;">
+                                                    Has Enum
+                                                </label>
+                                                ${nestedProp.enum ? `
+                                                <input class="form-control" style="font-size: 11px; margin-top: 4px;"
+                                                       placeholder="Comma-separated values"
+                                                       value="${nestedProp.enum.join(', ')}"
+                                                       onchange="updateNestedPropertyEnum(${index}, '${propName}', '${nestedPropName}', this.value)">
+                                                ` : ''}
+                                            </div>
+                                            ` : '<div></div>'}
+                                        </div>
+                                        ` : ''}
+
+                                        ${nestedProp.type === 'array' ? `
+                                        <div style="margin-top: 8px;">
+                                            <label style="font-size: 10px; color: #666; display: block; margin-bottom: 2px;">Array Item Type</label>
+                                            <select class="form-control" style="font-size: 11px;"
+                                                    onchange="updateNestedPropertyItems(${index}, '${propName}', '${nestedPropName}', this.value)">
+                                                <option value="string" ${nestedProp.items?.type === 'string' ? 'selected' : ''}>string</option>
+                                                <option value="number" ${nestedProp.items?.type === 'number' ? 'selected' : ''}>number</option>
+                                                <option value="integer" ${nestedProp.items?.type === 'integer' ? 'selected' : ''}>integer</option>
+                                                <option value="boolean" ${nestedProp.items?.type === 'boolean' ? 'selected' : ''}>boolean</option>
+                                                <option value="object" ${nestedProp.items?.type === 'object' ? 'selected' : ''}>object</option>
+                                            </select>
+                                        </div>
+                                        ` : ''}
+                                    </div>
+                                    `;
+                                }).join('')}
+                                <button class="btn btn-secondary btn-sm" style="margin-top: 10px;"
+                                        onclick="addNestedPropertyInline(${index}, '${propName}')">
+                                    + Add Nested Property
+                                </button>
+                            </div>
+                        </div>
+                        ` : propDef.type === 'object' ? `
+                        <div class="form-group">
+                            <label>Nested Properties</label>
+                            <div style="margin-left: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px;">
+                                <div style="font-size: 12px; color: #999; margin-bottom: 10px;">No nested properties defined</div>
+                                <button class="btn btn-secondary btn-sm"
+                                        onclick="addNestedPropertyInline(${index}, '${propName}')">
+                                    + Add Nested Property
+                                </button>
+                            </div>
+                        </div>
+                        ` : ''}
+                        ${propDef.type === 'string' ? `
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center;">
+                                <input type="checkbox" ${propDef.enum ? 'checked' : ''}
+                                       onchange="toggleEnum(${index}, '${propName}', this.checked)"
+                                       style="margin-right: 8px;">
+                                Has Enum Values
+                            </label>
+                            ${propDef.enum ? `
+                            <input class="form-control" value="${propDef.enum.join(', ')}"
+                                   placeholder="Enter comma-separated values"
+                                   onchange="updatePropertyEnum(${index}, '${propName}', this.value)">
+                            ` : ''}
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            editorContent.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>Edit Tool: ${tool.name}</h2>
+                    <button class="btn btn-danger btn-sm" onclick="deleteTool(${index})">Delete Tool</button>
+                </div>
+
+                <div class="form-group">
+                    <label>Tool Name</label>
+                    <input class="form-control" id="toolName" value="${tool.name}"
+                           onchange="updateToolField(${index}, 'name', this.value)">
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea class="form-control" id="toolDescription"
+                              onchange="updateToolField(${index}, 'description', this.value)">${tool.description}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Input Schema Properties</label>
+                    <div class="properties-container">
+                        ${propertiesHtml}
+                        <button class="add-button" onclick="addProperty(${index})">
+                            + Add Property
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Raw JSON View</label>
+                    <div class="json-editor">
+                        <pre>${JSON.stringify(tool, null, 2)}</pre>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateToolField(index, field, value) {
+            tools[index][field] = value;
+            renderToolList();
+        }
+
+        function updatePropertyField(index, propName, field, value) {
+            if (!tools[index].inputSchema.properties[propName]) {
+                tools[index].inputSchema.properties[propName] = {};
+            }
+            tools[index].inputSchema.properties[propName][field] = value;
+        }
+
+        function updatePropertyEnum(index, propName, value) {
+            const enumValues = value.split(',').map(v => v.trim()).filter(v => v);
+            tools[index].inputSchema.properties[propName].enum = enumValues;
+        }
+
+        function toggleEnum(index, propName, hasEnum) {
+            if (hasEnum) {
+                tools[index].inputSchema.properties[propName].enum = [];
+            } else {
+                delete tools[index].inputSchema.properties[propName].enum;
+            }
+            renderToolEditor(tools[index], index);
+        }
+
+        function toggleRequired(index, propName, isChecked) {
+            if (!tools[index].inputSchema.required) {
+                tools[index].inputSchema.required = [];
+            }
+
+            if (isChecked) {
+                // Add to required if not already there
+                if (!tools[index].inputSchema.required.includes(propName)) {
+                    tools[index].inputSchema.required.push(propName);
+                }
+            } else {
+                // Remove from required
+                tools[index].inputSchema.required = tools[index].inputSchema.required.filter(r => r !== propName);
+            }
+
+            // Re-render to update the JSON view
+            renderToolEditor(tools[index], index);
+        }
+
+        function addProperty(index) {
+            const propName = prompt('Enter property name:');
+            if (propName) {
+                if (!tools[index].inputSchema.properties) {
+                    tools[index].inputSchema.properties = {};
+                }
+                tools[index].inputSchema.properties[propName] = {
+                    type: 'string',
+                    description: ''
+                };
+                renderToolEditor(tools[index], index);
+            }
+        }
+
+        function removeProperty(index, propName) {
+            if (confirm(`Remove property "${propName}"?`)) {
+                delete tools[index].inputSchema.properties[propName];
+                // Also remove from required if present
+                if (tools[index].inputSchema.required) {
+                    tools[index].inputSchema.required = tools[index].inputSchema.required.filter(r => r !== propName);
+                }
+                renderToolEditor(tools[index], index);
+            }
+        }
+
+        function addNewTool() {
+            const newTool = {
+                name: 'new_tool_' + Date.now(),
+                description: 'New tool description',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        example_param: {
+                            type: 'string',
+                            description: 'Example parameter'
+                        }
+                    },
+                    required: []
+                }
+            };
+            tools.push(newTool);
+            renderToolList();
+            selectTool(tools.length - 1);
+        }
+
+        function deleteTool(index) {
+            if (confirm(`Delete tool "${tools[index].name}"?`)) {
+                tools.splice(index, 1);
+                currentToolIndex = -1;
+                renderToolList();
+                document.getElementById('editorContent').innerHTML = `
+                    <div style="text-align: center; padding: 50px; color: #999;">
+                        Select a tool from the left sidebar to edit
+                    </div>
+                `;
+            }
+        }
+
+        function saveTools() {
+            fetch('/api/tools', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(tools)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(`Tools saved successfully! Backup created: ${data.backup}`, 'success');
+                } else {
+                    showNotification(`Error saving tools: ${data.error}`, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving tools:', error);
+                showNotification('Failed to save tools', 'error');
+            });
+        }
+
+        function validateTools() {
+            fetch('/api/tools/validate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(tools)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.valid) {
+                    showNotification('Tools are valid!', 'success');
+                } else {
+                    showNotification(`Validation error: ${data.error}`, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error validating tools:', error);
+                showNotification('Failed to validate tools', 'error');
+            });
+        }
+
+        function showBackups() {
+            fetch('/api/backups')
+                .then(response => response.json())
+                .then(data => {
+                    const backupList = document.getElementById('backupList');
+                    if (data.length === 0) {
+                        backupList.innerHTML = '<p style="text-align: center; color: #999;">No backups available</p>';
+                    } else {
+                        backupList.innerHTML = data.map(backup => `
+                            <div class="backup-item">
+                                <div class="backup-info">
+                                    <div class="backup-name">${backup.filename}</div>
+                                    <div class="backup-date">${new Date(backup.modified).toLocaleString()}</div>
+                                </div>
+                                <div>
+                                    <button class="btn btn-secondary btn-sm" onclick="viewBackup('${backup.filename}')">View</button>
+                                    <button class="btn btn-primary btn-sm" onclick="restoreBackup('${backup.filename}')">Restore</button>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                    document.getElementById('backupModal').classList.add('show');
+                })
+                .catch(error => {
+                    console.error('Error loading backups:', error);
+                    showNotification('Failed to load backups', 'error');
+                });
+        }
+
+        function viewBackup(filename) {
+            fetch(`/api/backups/${filename}`)
+                .then(response => response.json())
+                .then(data => {
+                    alert(JSON.stringify(data, null, 2));
+                })
+                .catch(error => {
+                    console.error('Error viewing backup:', error);
+                    showNotification('Failed to view backup', 'error');
+                });
+        }
+
+        function restoreBackup(filename) {
+            if (confirm(`Restore backup from ${filename}? Current state will be backed up first.`)) {
+                fetch(`/api/backups/${filename}/restore`, {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification(`Backup restored successfully! Current state backed up as: ${data.current_backup}`, 'success');
+                        closeModal('backupModal');
+                        loadTools();
+                    } else {
+                        showNotification(`Error restoring backup: ${data.error}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error restoring backup:', error);
+                    showNotification('Failed to restore backup', 'error');
+                });
+            }
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Inline nested properties management
+        function addNestedPropertyInline(toolIndex, propName) {
+            const nestedPropName = prompt('Enter nested property name:');
+            if (nestedPropName) {
+                const tool = tools[toolIndex];
+                const property = tool.inputSchema.properties[propName];
+
+                if (!property.properties) {
+                    property.properties = {};
+                }
+
+                property.properties[nestedPropName] = {
+                    type: 'string',
+                    description: ''
+                };
+
+                renderToolEditor(tool, toolIndex);
+            }
+        }
+
+        function removeNestedPropertyInline(toolIndex, propName, nestedPropName) {
+            if (confirm(`Remove nested property "${nestedPropName}"?`)) {
+                const tool = tools[toolIndex];
+                const property = tool.inputSchema.properties[propName];
+
+                if (property.properties) {
+                    delete property.properties[nestedPropName];
+                }
+
+                // Remove from required if present
+                if (property.required) {
+                    property.required = property.required.filter(r => r !== nestedPropName);
+                }
+
+                renderToolEditor(tool, toolIndex);
+            }
+        }
+
+        function updateNestedPropertyDescription(toolIndex, propName, nestedPropName, description) {
+            const tool = tools[toolIndex];
+            const property = tool.inputSchema.properties[propName];
+
+            if (property.properties && property.properties[nestedPropName]) {
+                property.properties[nestedPropName].description = description;
+            }
+        }
+
+        function updateNestedPropertyType(toolIndex, propName, nestedPropName, type) {
+            const tool = tools[toolIndex];
+            const property = tool.inputSchema.properties[propName];
+
+            if (property.properties && property.properties[nestedPropName]) {
+                property.properties[nestedPropName].type = type;
+                // Remove format/enum/items if type changed
+                if (type !== 'string' && type !== 'number' && type !== 'integer') {
+                    delete property.properties[nestedPropName].format;
+                }
+                if (type !== 'string') {
+                    delete property.properties[nestedPropName].enum;
+                }
+                if (type !== 'array') {
+                    delete property.properties[nestedPropName].items;
+                } else if (!property.properties[nestedPropName].items) {
+                    property.properties[nestedPropName].items = { type: 'string' };
+                }
+            }
+        }
+
+        function updateNestedPropertyFormat(toolIndex, propName, nestedPropName, format) {
+            const tool = tools[toolIndex];
+            const property = tool.inputSchema.properties[propName];
+
+            if (property.properties && property.properties[nestedPropName]) {
+                if (format) {
+                    property.properties[nestedPropName].format = format;
+                } else {
+                    delete property.properties[nestedPropName].format;
+                }
+            }
+        }
+
+        function updateNestedPropertyItems(toolIndex, propName, nestedPropName, itemType) {
+            const tool = tools[toolIndex];
+            const property = tool.inputSchema.properties[propName];
+
+            if (property.properties && property.properties[nestedPropName]) {
+                property.properties[nestedPropName].items = { type: itemType };
+            }
+        }
+
+        function updateNestedPropertyEnum(toolIndex, propName, nestedPropName, enumValues) {
+            const tool = tools[toolIndex];
+            const property = tool.inputSchema.properties[propName];
+
+            if (property.properties && property.properties[nestedPropName]) {
+                const values = enumValues.split(',').map(v => v.trim()).filter(v => v);
+                if (values.length > 0) {
+                    property.properties[nestedPropName].enum = values;
+                } else {
+                    delete property.properties[nestedPropName].enum;
+                }
+            }
+        }
+
+        function toggleNestedEnum(toolIndex, propName, nestedPropName, hasEnum) {
+            const tool = tools[toolIndex];
+            const property = tool.inputSchema.properties[propName];
+
+            if (property.properties && property.properties[nestedPropName]) {
+                if (hasEnum) {
+                    property.properties[nestedPropName].enum = [];
+                } else {
+                    delete property.properties[nestedPropName].enum;
+                }
+                renderToolEditor(tool, toolIndex);
+            }
+        }
+
+        function toggleNestedRequired(toolIndex, propName, nestedPropName, isRequired) {
+            const tool = tools[toolIndex];
+            const property = tool.inputSchema.properties[propName];
+
+            if (!property.required) {
+                property.required = [];
+            }
+
+            if (isRequired) {
+                if (!property.required.includes(nestedPropName)) {
+                    property.required.push(nestedPropName);
+                }
+            } else {
+                property.required = property.required.filter(r => r !== nestedPropName);
+            }
+        }
+
+        // Nested properties editing
+        let currentNestedPath = null;
+
+        function editNestedProperties(toolIndex, propName) {
+            currentNestedPath = {toolIndex, propName};
+            const tool = tools[toolIndex];
+            const property = tool.inputSchema.properties[propName];
+
+            // Initialize properties object if it doesn't exist
+            if (!property.properties) {
+                property.properties = {};
+            }
+
+            document.getElementById('nestedModalTitle').textContent = `Edit Nested Properties: ${propName}`;
+            renderNestedPropertiesEditor(property.properties, property.required || []);
+            document.getElementById('nestedPropertiesModal').classList.add('show');
+        }
+
+        function renderNestedPropertiesEditor(properties, required) {
+            const editor = document.getElementById('nestedPropertiesEditor');
+            let html = '<div style="max-height: 400px; overflow-y: auto;">';
+
+            // Render existing nested properties
+            for (const [nestedPropName, nestedPropDef] of Object.entries(properties)) {
+                const isRequired = required.includes(nestedPropName);
+                html += `
+                    <div class="property-item" style="margin-bottom: 15px;">
+                        <div class="property-header">
+                            <strong>${nestedPropName}</strong>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <label style="display: flex; align-items: center; cursor: pointer; margin: 0;">
+                                    <input type="checkbox" ${isRequired ? 'checked' : ''}
+                                           data-prop="${nestedPropName}"
+                                           class="nested-required-checkbox"
+                                           style="margin-right: 5px;">
+                                    <span style="color: ${isRequired ? '#ef4444' : '#999'}; font-size: 13px;">Required</span>
+                                </label>
+                                <button class="btn btn-icon btn-sm" onclick="removeNestedProperty('${nestedPropName}')">🗑️</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Type</label>
+                            <select class="form-control nested-type" data-prop="${nestedPropName}">
+                                <option value="string" ${nestedPropDef.type === 'string' ? 'selected' : ''}>string</option>
+                                <option value="number" ${nestedPropDef.type === 'number' ? 'selected' : ''}>number</option>
+                                <option value="integer" ${nestedPropDef.type === 'integer' ? 'selected' : ''}>integer</option>
+                                <option value="boolean" ${nestedPropDef.type === 'boolean' ? 'selected' : ''}>boolean</option>
+                                <option value="array" ${nestedPropDef.type === 'array' ? 'selected' : ''}>array</option>
+                                <option value="object" ${nestedPropDef.type === 'object' ? 'selected' : ''}>object</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea class="form-control nested-description" data-prop="${nestedPropName}">${nestedPropDef.description || ''}</textarea>
+                        </div>
+                        ${nestedPropDef.type === 'array' ? `
+                        <div class="form-group">
+                            <label>Array Item Type</label>
+                            <select class="form-control nested-item-type" data-prop="${nestedPropName}">
+                                <option value="string" ${nestedPropDef.items?.type === 'string' ? 'selected' : ''}>string</option>
+                                <option value="number" ${nestedPropDef.items?.type === 'number' ? 'selected' : ''}>number</option>
+                                <option value="integer" ${nestedPropDef.items?.type === 'integer' ? 'selected' : ''}>integer</option>
+                                <option value="boolean" ${nestedPropDef.items?.type === 'boolean' ? 'selected' : ''}>boolean</option>
+                                <option value="object" ${nestedPropDef.items?.type === 'object' ? 'selected' : ''}>object</option>
+                            </select>
+                        </div>
+                        ` : ''}
+                        ${nestedPropDef.enum ? `
+                        <div class="form-group">
+                            <label>Enum Values (comma-separated)</label>
+                            <input class="form-control nested-enum" data-prop="${nestedPropName}" value="${nestedPropDef.enum.join(', ')}">
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            html += `
+                <button class="add-button" onclick="addNestedProperty()">
+                    + Add Nested Property
+                </button>
+            </div>`;
+
+            editor.innerHTML = html;
+        }
+
+        function addNestedProperty() {
+            const propName = prompt('Enter nested property name:');
+            if (propName && currentNestedPath) {
+                const tool = tools[currentNestedPath.toolIndex];
+                const parentProp = tool.inputSchema.properties[currentNestedPath.propName];
+
+                if (!parentProp.properties) {
+                    parentProp.properties = {};
+                }
+
+                parentProp.properties[propName] = {
+                    type: 'string',
+                    description: ''
+                };
+
+                renderNestedPropertiesEditor(parentProp.properties, parentProp.required || []);
+            }
+        }
+
+        function removeNestedProperty(propName) {
+            if (confirm(`Remove nested property "${propName}"?`) && currentNestedPath) {
+                const tool = tools[currentNestedPath.toolIndex];
+                const parentProp = tool.inputSchema.properties[currentNestedPath.propName];
+
+                delete parentProp.properties[propName];
+
+                // Remove from required if present
+                if (parentProp.required) {
+                    parentProp.required = parentProp.required.filter(r => r !== propName);
+                }
+
+                renderNestedPropertiesEditor(parentProp.properties, parentProp.required || []);
+            }
+        }
+
+        function saveNestedProperties() {
+            if (!currentNestedPath) return;
+
+            const tool = tools[currentNestedPath.toolIndex];
+            const parentProp = tool.inputSchema.properties[currentNestedPath.propName];
+
+            // Update all nested properties
+            const nestedProps = document.querySelectorAll('#nestedPropertiesEditor .property-item');
+            const newRequired = [];
+
+            nestedProps.forEach(propItem => {
+                const propNameElement = propItem.querySelector('strong');
+                if (!propNameElement) return;
+
+                const propName = propNameElement.textContent;
+                const typeSelect = propItem.querySelector('.nested-type');
+                const descTextarea = propItem.querySelector('.nested-description');
+                const requiredCheckbox = propItem.querySelector('.nested-required-checkbox');
+                const itemTypeSelect = propItem.querySelector('.nested-item-type');
+                const enumInput = propItem.querySelector('.nested-enum');
+
+                if (typeSelect) {
+                    parentProp.properties[propName].type = typeSelect.value;
+                }
+                if (descTextarea) {
+                    parentProp.properties[propName].description = descTextarea.value;
+                }
+                if (requiredCheckbox && requiredCheckbox.checked) {
+                    newRequired.push(propName);
+                }
+                if (itemTypeSelect && typeSelect.value === 'array') {
+                    parentProp.properties[propName].items = {type: itemTypeSelect.value};
+                }
+                if (enumInput && enumInput.value) {
+                    parentProp.properties[propName].enum = enumInput.value.split(',').map(v => v.trim()).filter(v => v);
+                }
+            });
+
+            parentProp.required = newRequired;
+
+            // Re-render the main editor to show updates
+            renderToolEditor(tool, currentNestedPath.toolIndex);
+            closeModal('nestedPropertiesModal');
+            showNotification('Nested properties updated successfully', 'success');
+        }
+
+        // BaseModel import functions
+        let currentBaseModelTarget = null;
+
+        function showBaseModelSelector(toolIndex, propName) {
+            currentBaseModelTarget = {toolIndex, propName};
+
+            // Load available BaseModels
+            fetch('/api/basemodels')
+                .then(response => response.json())
+                .then(basemodels => {
+                    const list = document.getElementById('baseModelList');
+                    let html = '';
+
+                    basemodels.forEach(model => {
+                        const propCount = Object.keys(model.schema.properties || {}).length;
+                        html += `
+                            <div style="border: 1px solid #e5e5e5; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+                                <div style="display: flex; justify-content: space-between; align-items: start;">
+                                    <div style="flex: 1;">
+                                        <h3 style="margin: 0 0 10px 0; color: #333;">${model.name}</h3>
+                                        <p style="color: #666; margin: 0 0 10px 0;">${model.description}</p>
+                                        <div style="font-size: 12px; color: #999;">
+                                            ${propCount} properties
+                                            ${model.schema.required && model.schema.required.length > 0 ?
+                                              `| ${model.schema.required.length} required` : ''}
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-primary btn-sm" onclick="applyBaseModel('${model.name}')">
+                                        Apply Schema
+                                    </button>
+                                </div>
+                                <details style="margin-top: 10px;">
+                                    <summary style="cursor: pointer; color: #667eea;">View Schema</summary>
+                                    <div style="margin-top: 10px; padding: 10px; background: #f7f7f7; border-radius: 4px;">
+                                        <pre style="font-size: 11px; overflow-x: auto;">${JSON.stringify(model.schema, null, 2)}</pre>
+                                    </div>
+                                </details>
+                            </div>
+                        `;
+                    });
+
+                    if (basemodels.length === 0) {
+                        html = '<p style="text-align: center; color: #999;">No BaseModels found in graph_types.py</p>';
+                    }
+
+                    list.innerHTML = html;
+                    document.getElementById('baseModelModal').classList.add('show');
+                })
+                .catch(error => {
+                    console.error('Error loading BaseModels:', error);
+                    showNotification('Failed to load BaseModels', 'error');
+                });
+        }
+
+        function applyBaseModel(modelName) {
+            if (!currentBaseModelTarget) return;
+
+            const {toolIndex, propName} = currentBaseModelTarget;
+
+            // Get the BaseModel schema
+            fetch('/api/basemodels')
+                .then(response => response.json())
+                .then(basemodels => {
+                    const model = basemodels.find(m => m.name === modelName);
+                    if (!model) {
+                        showNotification('BaseModel not found', 'error');
+                        return;
+                    }
+
+                    // Apply the schema to the property
+                    const tool = tools[toolIndex];
+                    const property = tool.inputSchema.properties[propName];
+
+                    // Update the property with BaseModel schema
+                    property.properties = model.schema.properties || {};
+                    property.required = model.schema.required || [];
+                    property.baseModel = modelName;  // Store the BaseModel name
+
+                    // Re-render the editor
+                    renderToolEditor(tool, toolIndex);
+                    closeModal('baseModelModal');
+                    showNotification(`Applied ${modelName} schema to ${propName}`, 'success');
+                })
+                .catch(error => {
+                    console.error('Error applying BaseModel:', error);
+                    showNotification('Failed to apply BaseModel', 'error');
+                });
+        }
+    </script>
+</body>
+</html>
