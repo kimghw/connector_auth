@@ -579,6 +579,9 @@
                 </button>
             </div>
         </div>
+        <div id="profileTabs" style="display: flex; gap: 8px; padding: 10px 20px; background: #f7f7f7; border-bottom: 1px solid #e5e5e5;">
+            <!-- Profile tabs will be rendered here -->
+        </div>
 
         <div class="main-content">
             <div class="sidebar">
@@ -700,12 +703,14 @@
         let tools = [];
         let currentToolIndex = -1;
         let nestedGraphTarget = null;
+        let currentProfile = '';
+        let profiles = [];
 
         // Load tools on page load
         window.onload = function() {
             console.log('[DEBUG] window.onload triggered');
-            console.log('[DEBUG] Calling loadTools()...');
-            loadTools();
+            console.log('[DEBUG] Calling loadProfiles()...');
+            loadProfiles();
             console.log('[DEBUG] Calling loadMcpServices()...');
             loadMcpServices();
             console.log('[DEBUG] Calling loadGraphTypesProperties()...');
@@ -738,21 +743,21 @@
 
         function loadTools() {
             console.log('[DEBUG] loadTools() called');
-            fetch('/api/tools')
+            const profileQuery = profileParam();
+            fetch(`/api/tools${profileQuery}`)
                 .then(response => {
                     console.log('[DEBUG] Response received:', response.status, response.ok);
                     return response.json();
                 })
                 .then(data => {
                     console.log('[DEBUG] Data received:', data);
-                    console.log('[DEBUG] Data type:', typeof data, 'isArray:', Array.isArray(data));
-                    console.log('[DEBUG] Data length:', data.length);
-                    tools = data;
+                    const loadedTools = data.tools || data;
+                    tools = loadedTools;
                     console.log('[DEBUG] tools variable set, tools.length:', tools.length);
                     console.log('[DEBUG] Calling renderToolList()...');
                     renderToolList();
                     console.log('[DEBUG] renderToolList() completed');
-                    showNotification('Tools loaded successfully', 'success');
+                    showNotification(`Tools loaded (${currentProfile || 'default'})`, 'success');
                 })
                 .catch(error => {
                     console.error('[ERROR] Error loading tools:', error);
@@ -771,6 +776,54 @@
                 .catch(error => {
                     console.error('Error loading graph types properties:', error);
                 });
+        }
+
+        function loadProfiles() {
+            fetch('/api/profiles')
+                .then(response => response.json())
+                .then(data => {
+                    profiles = data.profiles || [];
+                    currentProfile = data.active || (profiles[0] || '');
+                    renderProfileTabs();
+                    loadTools();
+                })
+                .catch(error => {
+                    console.error('Error loading profiles:', error);
+                    profiles = [];
+                    currentProfile = '';
+                    renderProfileTabs();
+                    loadTools();
+                });
+        }
+
+        function renderProfileTabs() {
+            const tabContainer = document.getElementById('profileTabs');
+            if (!tabContainer) return;
+            tabContainer.innerHTML = '';
+            if (!profiles || profiles.length === 0) {
+                tabContainer.textContent = 'No profiles found (using default)';
+                return;
+            }
+            profiles.forEach(name => {
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-secondary';
+                btn.style = 'border-radius: 6px; padding: 6px 10px;';
+                if (name === currentProfile) {
+                    btn.style.background = 'var(--primary-color)';
+                    btn.style.color = '#fff';
+                }
+                btn.textContent = name;
+                btn.onclick = () => {
+                    currentProfile = name;
+                    renderProfileTabs();
+                    loadTools();
+                };
+                tabContainer.appendChild(btn);
+            });
+        }
+
+        function profileParam() {
+            return currentProfile ? `?profile=${encodeURIComponent(currentProfile)}` : '';
         }
 
         function populateGraphTypeOptions(selectEl) {
@@ -1734,7 +1787,8 @@
 
         function deleteTool(index) {
             if (confirm(`Delete tool "${tools[index].name}"?`)) {
-                fetch(`/api/tools/${index}`, {
+                const profileQuery = profileParam();
+                fetch(`/api/tools/${index}${profileQuery}`, {
                     method: 'DELETE'
                 })
                 .then(response => response.json())
@@ -1761,7 +1815,8 @@
         }
 
         function saveTools() {
-            fetch('/api/tools', {
+            const profileQuery = profileParam();
+            fetch(`/api/tools${profileQuery}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1783,7 +1838,8 @@
         }
 
         function validateTools() {
-            fetch('/api/tools/validate', {
+            const profileQuery = profileParam();
+            fetch(`/api/tools/validate${profileQuery}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1805,7 +1861,8 @@
         }
 
         function showBackups() {
-            fetch('/api/backups')
+            const profileQuery = profileParam();
+            fetch(`/api/backups${profileQuery}`)
                 .then(response => response.json())
                 .then(data => {
                     const backupList = document.getElementById('backupList');
@@ -1834,7 +1891,8 @@
         }
 
         function viewBackup(filename) {
-            fetch(`/api/backups/${filename}`)
+            const profileQuery = profileParam();
+            fetch(`/api/backups/${filename}${profileQuery}`)
                 .then(response => response.json())
                 .then(data => {
                     alert(JSON.stringify(data, null, 2));
@@ -1847,7 +1905,8 @@
 
         function restoreBackup(filename) {
             if (confirm(`Restore backup from ${filename}? Current state will be backed up first.`)) {
-                fetch(`/api/backups/${filename}/restore`, {
+                const profileQuery = profileParam();
+                fetch(`/api/backups/${filename}/restore${profileQuery}`, {
                     method: 'POST'
                 })
                 .then(response => response.json())
@@ -1870,11 +1929,9 @@
         function closeModal(modalId) {
             const modal = document.getElementById(modalId);
             if (modal) {
-                // If it's a dynamically created modal (like propertyModal), remove it entirely
                 if (modalId === 'propertyModal') {
                     modal.parentElement.remove();
                 } else {
-                    // For static modals, just remove the show class
                     modal.classList.remove('show');
                 }
             }
@@ -1885,13 +1942,11 @@
             notification.className = `notification ${type}`;
             notification.textContent = message;
             document.body.appendChild(notification);
-
             setTimeout(() => {
                 notification.remove();
             }, 3000);
         }
 
-        // Toggle functions for collapsible sections
         function togglePropertyCollapse(propId) {
             const content = document.getElementById(`content-${propId}`);
             const icon = document.getElementById(`icon-${propId}`);
@@ -1925,448 +1980,24 @@
             }
         }
 
-        // Expand all properties
         function expandAllProperties() {
             const allProperties = document.querySelectorAll('.property-collapse-content');
             const allIcons = document.querySelectorAll('.property-collapse-header .collapse-icon');
             const allHeaders = document.querySelectorAll('.property-collapse-header');
 
-            allProperties.forEach(prop => {
-                prop.classList.remove('collapsed');
-            });
-
-            allIcons.forEach(icon => {
-                icon.classList.remove('collapsed');
-                icon.textContent = '▼';
-            });
-
-            allHeaders.forEach(header => {
-                header.classList.add('expanded');
-            });
+            allProperties.forEach(prop => prop.classList.remove('collapsed'));
+            allIcons.forEach(icon => { icon.classList.remove('collapsed'); icon.textContent = '▼'; });
+            allHeaders.forEach(header => header.classList.add('expanded'));
         }
 
-        // Collapse all properties
         function collapseAllProperties() {
-            const allProperties = documentquerySelectorAll('.property-collapse-content');
+            const allProperties = document.querySelectorAll('.property-collapse-content');
             const allIcons = document.querySelectorAll('.property-collapse-header .collapse-icon');
             const allHeaders = document.querySelectorAll('.property-collapse-header');
 
-            allProperties.forEach(prop => {
-                prop.classList.add('collapsed');
-            });
-
-            allIcons.forEach(icon => {
-                icon.classList.add('collapsed');
-                icon.textContent = '▶';
-            });
-
-            allHeaders.forEach(header => {
-                header.classList.remove('expanded');
-            });
-        }
-
-        // Inline nested properties management
-        function addNestedPropertyInline(toolIndex, propName) {
-            const nestedPropName = prompt('Enter nested property name:');
-            if (nestedPropName) {
-                const tool = tools[toolIndex];
-                const property = tool.inputSchema.properties[propName];
-
-                if (!property.properties) {
-                    property.properties = {};
-                }
-
-                property.properties[nestedPropName] = {
-                    type: 'string',
-                    description: ''
-                };
-
-                renderToolEditor(tool, toolIndex);
-            }
-        }
-
-        function removeNestedPropertyInline(toolIndex, propName, nestedPropName) {
-            if (confirm(`Remove nested property "${nestedPropName}"?`)) {
-                const tool = tools[toolIndex];
-                const property = tool.inputSchema.properties[propName];
-
-                if (property.properties) {
-                    delete property.properties[nestedPropName];
-                }
-
-                // Remove from required if present
-                if (property.required) {
-                    property.required = property.required.filter(r => r !== nestedPropName);
-                }
-
-                renderToolEditor(tool, toolIndex);
-            }
-        }
-
-        function updateNestedPropertyDescription(toolIndex, propName, nestedPropName, description) {
-            const tool = tools[toolIndex];
-            const property = tool.inputSchema.properties[propName];
-
-            if (property.properties && property.properties[nestedPropName]) {
-                property.properties[nestedPropName].description = description;
-            }
-        }
-
-        function updateNestedPropertyType(toolIndex, propName, nestedPropName, type) {
-            const tool = tools[toolIndex];
-            const property = tool.inputSchema.properties[propName];
-
-            if (property.properties && property.properties[nestedPropName]) {
-                property.properties[nestedPropName].type = type;
-                // Remove format/enum/items if type changed
-                if (type !== 'string' && type !== 'number' && type !== 'integer') {
-                    delete property.properties[nestedPropName].format;
-                }
-                if (type !== 'string') {
-                    delete property.properties[nestedPropName].enum;
-                }
-                if (type !== 'array') {
-                    delete property.properties[nestedPropName].items;
-                } else if (!property.properties[nestedPropName].items) {
-                    property.properties[nestedPropName].items = { type: 'string' };
-                }
-            }
-        }
-
-        function updateNestedPropertyFormat(toolIndex, propName, nestedPropName, format) {
-            const tool = tools[toolIndex];
-            const property = tool.inputSchema.properties[propName];
-
-            if (property.properties && property.properties[nestedPropName]) {
-                if (format) {
-                    property.properties[nestedPropName].format = format;
-                } else {
-                    delete property.properties[nestedPropName].format;
-                }
-            }
-        }
-
-        function updateNestedPropertyDefault(toolIndex, propName, nestedPropName, defaultValue) {
-            const tool = tools[toolIndex];
-            const property = tool.inputSchema.properties[propName];
-
-            if (property.properties && property.properties[nestedPropName]) {
-                if (defaultValue === undefined) {
-                    delete property.properties[nestedPropName].default;
-                } else {
-                    property.properties[nestedPropName].default = defaultValue;
-                }
-            }
-        }
-
-        function updateNestedPropertyItems(toolIndex, propName, nestedPropName, itemType) {
-            const tool = tools[toolIndex];
-            const property = tool.inputSchema.properties[propName];
-
-            if (property.properties && property.properties[nestedPropName]) {
-                property.properties[nestedPropName].items = { type: itemType };
-            }
-        }
-
-        function updateNestedPropertyEnum(toolIndex, propName, nestedPropName, enumValues) {
-            const tool = tools[toolIndex];
-            const property = tool.inputSchema.properties[propName];
-
-            if (property.properties && property.properties[nestedPropName]) {
-                const values = enumValues.split(',').map(v => v.trim()).filter(v => v);
-                if (values.length > 0) {
-                    property.properties[nestedPropName].enum = values;
-                } else {
-                    delete property.properties[nestedPropName].enum;
-                }
-            }
-        }
-
-        function toggleNestedEnum(toolIndex, propName, nestedPropName, hasEnum) {
-            const tool = tools[toolIndex];
-            const property = tool.inputSchema.properties[propName];
-
-            if (property.properties && property.properties[nestedPropName]) {
-                if (hasEnum) {
-                    property.properties[nestedPropName].enum = [];
-                } else {
-                    delete property.properties[nestedPropName].enum;
-                }
-                renderToolEditor(tool, toolIndex);
-            }
-        }
-
-        function toggleNestedRequired(toolIndex, propName, nestedPropName, isRequired) {
-            const tool = tools[toolIndex];
-            const property = tool.inputSchema.properties[propName];
-
-            if (!property.required) {
-                property.required = [];
-            }
-
-            if (isRequired) {
-                if (!property.required.includes(nestedPropName)) {
-                    property.required.push(nestedPropName);
-                }
-            } else {
-                property.required = property.required.filter(r => r !== nestedPropName);
-            }
-        }
-
-        // Nested properties editing
-        let currentNestedPath = null;
-
-        function editNestedProperties(toolIndex, propName) {
-            currentNestedPath = {toolIndex, propName};
-            const tool = tools[toolIndex];
-            const property = tool.inputSchema.properties[propName];
-
-            // Initialize properties object if it doesn't exist
-            if (!property.properties) {
-                property.properties = {};
-            }
-
-            document.getElementById('nestedModalTitle').textContent = `Edit Nested Properties: ${propName}`;
-            renderNestedPropertiesEditor(property.properties, property.required || []);
-            document.getElementById('nestedPropertiesModal').classList.add('show');
-        }
-
-        function renderNestedPropertiesEditor(properties, required) {
-            const editor = document.getElementById('nestedPropertiesEditor');
-            let html = '<div style="max-height: 400px; overflow-y: auto; padding-right: 4px;">';
-
-            // Render existing nested properties
-            for (const [nestedPropName, nestedPropDef] of Object.entries(properties)) {
-                const isRequired = required.includes(nestedPropName);
-                html += `
-                    <div class="property-item" style="margin-bottom: 16px;">
-                        <div class="property-header">
-                            <strong>${nestedPropName}</strong>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <label style="display: flex; align-items: center; cursor: pointer; margin: 0;">
-                                    <input type="checkbox" ${isRequired ? 'checked' : ''}
-                                           data-prop="${nestedPropName}"
-                                           class="nested-required-checkbox"
-                                           style="margin-right: 6px;">
-                                    <span style="color: ${isRequired ? 'var(--danger-color)' : 'var(--text-secondary)'}; font-size: 13px; font-weight: 500;">Required</span>
-                                </label>
-                                <button class="btn btn-icon btn-sm" onclick="removeNestedProperty('${nestedPropName}')"><span class="material-icons">close</span></button>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Type</label>
-                            <select class="form-control nested-type" data-prop="${nestedPropName}">
-                                <option value="string" ${nestedPropDef.type === 'string' ? 'selected' : ''}>string</option>
-                                <option value="number" ${nestedPropDef.type === 'number' ? 'selected' : ''}>number</option>
-                                <option value="integer" ${nestedPropDef.type === 'integer' ? 'selected' : ''}>integer</option>
-                                <option value="boolean" ${nestedPropDef.type === 'boolean' ? 'selected' : ''}>boolean</option>
-                                <option value="array" ${nestedPropDef.type === 'array' ? 'selected' : ''}>array</option>
-                                <option value="object" ${nestedPropDef.type === 'object' ? 'selected' : ''}>object</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Description</label>
-                            <textarea class="form-control nested-description" data-prop="${nestedPropName}">${nestedPropDef.description || ''}</textarea>
-                        </div>
-                        ${nestedPropDef.type === 'array' ? `
-                        <div class="form-group">
-                            <label>Array Item Type</label>
-                            <select class="form-control nested-item-type" data-prop="${nestedPropName}">
-                                <option value="string" ${nestedPropDef.items?.type === 'string' ? 'selected' : ''}>string</option>
-                                <option value="number" ${nestedPropDef.items?.type === 'number' ? 'selected' : ''}>number</option>
-                                <option value="integer" ${nestedPropDef.items?.type === 'integer' ? 'selected' : ''}>integer</option>
-                                <option value="boolean" ${nestedPropDef.items?.type === 'boolean' ? 'selected' : ''}>boolean</option>
-                                <option value="object" ${nestedPropDef.items?.type === 'object' ? 'selected' : ''}>object</option>
-                            </select>
-                        </div>
-                        ` : ''}
-                        ${nestedPropDef.enum ? `
-                        <div class="form-group">
-                            <label>Enum Values (comma-separated)</label>
-                            <input class="form-control nested-enum" data-prop="${nestedPropName}" value="${nestedPropDef.enum.join(', ')}">
-                        </div>
-                        ` : ''}
-                    </div>
-                `;
-            }
-
-            html += `
-                <button class="add-button" onclick="addNestedProperty()">
-                    <span class="material-icons">add</span> Add Nested Property
-                </button>
-            </div>`;
-
-            editor.innerHTML = html;
-        }
-
-        function addNestedProperty() {
-            const propName = prompt('Enter nested property name:');
-            if (propName && currentNestedPath) {
-                const tool = tools[currentNestedPath.toolIndex];
-                const parentProp = tool.inputSchema.properties[currentNestedPath.propName];
-
-                if (!parentProp.properties) {
-                    parentProp.properties = {};
-                }
-
-                parentProp.properties[propName] = {
-                    type: 'string',
-                    description: ''
-                };
-
-                renderNestedPropertiesEditor(parentProp.properties, parentProp.required || []);
-            }
-        }
-
-        function removeNestedProperty(propName) {
-            if (confirm(`Remove nested property "${propName}"?`) && currentNestedPath) {
-                const tool = tools[currentNestedPath.toolIndex];
-                const parentProp = tool.inputSchema.properties[currentNestedPath.propName];
-
-                delete parentProp.properties[propName];
-
-                // Remove from required if present
-                if (parentProp.required) {
-                    parentProp.required = parentProp.required.filter(r => r !== propName);
-                }
-
-                renderNestedPropertiesEditor(parentProp.properties, parentProp.required || []);
-            }
-        }
-
-        function saveNestedProperties() {
-            if (!currentNestedPath) return;
-
-            const tool = tools[currentNestedPath.toolIndex];
-            const parentProp = tool.inputSchema.properties[currentNestedPath.propName];
-
-            // Update all nested properties
-            const nestedProps = document.querySelectorAll('#nestedPropertiesEditor .property-item');
-            const newRequired = [];
-
-            nestedProps.forEach(propItem => {
-                const propNameElement = propItem.querySelector('strong');
-                if (!propNameElement) return;
-
-                const propName = propNameElement.textContent;
-                const typeSelect = propItem.querySelector('.nested-type');
-                const descTextarea = propItem.querySelector('.nested-description');
-                const requiredCheckbox = propItem.querySelector('.nested-required-checkbox');
-                const itemTypeSelect = propItem.querySelector('.nested-item-type');
-                const enumInput = propItem.querySelector('.nested-enum');
-
-                if (typeSelect) {
-                    parentProp.properties[propName].type = typeSelect.value;
-                }
-                if (descTextarea) {
-                    parentProp.properties[propName].description = descTextarea.value;
-                }
-                if (requiredCheckbox && requiredCheckbox.checked) {
-                    newRequired.push(propName);
-                }
-                if (itemTypeSelect && typeSelect.value === 'array') {
-                    parentProp.properties[propName].items = {type: itemTypeSelect.value};
-                }
-                if (enumInput && enumInput.value) {
-                    parentProp.properties[propName].enum = enumInput.value.split(',').map(v => v.trim()).filter(v => v);
-                }
-            });
-
-            parentProp.required = newRequired;
-
-            // Re-render the main editor to show updates
-            renderToolEditor(tool, currentNestedPath.toolIndex);
-            closeModal('nestedPropertiesModal');
-            showNotification('Nested properties updated successfully', 'success');
-        }
-
-        // BaseModel import functions
-        let currentBaseModelTarget = null;
-
-        function showBaseModelSelector(toolIndex, propName) {
-            currentBaseModelTarget = {toolIndex, propName};
-
-            // Load available BaseModels
-            fetch('/api/basemodels')
-                .then(response => response.json())
-                .then(basemodels => {
-                    const list = document.getElementById('baseModelList');
-                    let html = '';
-
-                    basemodels.forEach(model => {
-                        const propCount = Object.keys(model.schema.properties || {}).length;
-                        html += `
-                            <div style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 12px; background: white; box-shadow: var(--shadow-sm);">
-                                <div style="display: flex; justify-content: space-between; align-items: start;">
-                                    <div style="flex: 1;">
-                                        <h3 style="margin: 0 0 8px 0; color: var(--text-primary); font-size: 16px; font-weight: 600;">${model.name}</h3>
-                                        <p style="color: var(--text-secondary); margin: 0 0 8px 0; font-size: 13px;">${model.description}</p>
-                                        <div style="font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px;">
-                                            <span style="background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px;">${propCount} properties</span>
-                                            ${model.schema.required && model.schema.required.length > 0 ?
-                                              `<span style="background: rgba(255, 59, 48, 0.1); color: var(--danger-color); padding: 2px 6px; border-radius: 4px;">${model.schema.required.length} required</span>` : ''}
-                                        </div>
-                                    </div>
-                                    <button class="btn btn-primary btn-sm" onclick="applyBaseModel('${model.name}')">
-                                        Apply Schema
-                                    </button>
-                                </div>
-                                <details style="margin-top: 12px;">
-                                    <summary style="cursor: pointer; color: var(--primary-color); font-size: 13px; font-weight: 500;">View Schema</summary>
-                                    <div style="margin-top: 10px; padding: 12px; background: var(--bg-color); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                                        <pre style="font-size: 11px; overflow-x: auto; font-family: 'SF Mono', monospace; color: var(--text-primary);">${JSON.stringify(model.schema, null, 2)}</pre>
-                                    </div>
-                                </details>
-                            </div>
-                        `;
-                    });
-
-                    if (basemodels.length === 0) {
-                        html = '<p style="text-align: center; color: var(--text-secondary);">No BaseModels found in graph_types.py</p>';
-                    }
-
-                    list.innerHTML = html;
-                    document.getElementById('baseModelModal').classList.add('show');
-                })
-                .catch(error => {
-                    console.error('Error loading BaseModels:', error);
-                    showNotification('Failed to load BaseModels', 'error');
-                });
-        }
-
-        function applyBaseModel(modelName) {
-            if (!currentBaseModelTarget) return;
-
-            const {toolIndex, propName} = currentBaseModelTarget;
-
-            // Get the BaseModel schema
-            fetch('/api/basemodels')
-                .then(response => response.json())
-                .then(basemodels => {
-                    const model = basemodels.find(m => m.name === modelName);
-                    if (!model) {
-                        showNotification('BaseModel not found', 'error');
-                        return;
-                    }
-
-                    // Apply the schema to the property
-                    const tool = tools[toolIndex];
-                    const property = tool.inputSchema.properties[propName];
-
-                    // Update the property with BaseModel schema
-                    property.properties = model.schema.properties || {};
-                    property.required = model.schema.required || [];
-                    property.baseModel = modelName;  // Store the BaseModel name
-
-                    // Re-render the editor
-                    renderToolEditor(tool, toolIndex);
-                    closeModal('baseModelModal');
-                    showNotification(`Applied ${modelName} schema to ${propName}`, 'success');
-                })
-                .catch(error => {
-                    console.error('Error applying BaseModel:', error);
-                    showNotification('Failed to apply BaseModel', 'error');
-                });
+            allProperties.forEach(prop => prop.classList.add('collapsed'));
+            allIcons.forEach(icon => { icon.classList.add('collapsed'); icon.textContent = '▶'; });
+            allHeaders.forEach(header => header.classList.remove('expanded'));
         }
     </script>
 </body>

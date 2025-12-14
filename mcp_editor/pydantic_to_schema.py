@@ -8,7 +8,6 @@ from typing import Dict, Any, Type, get_type_hints, get_args, get_origin, List
 from pydantic import BaseModel
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 import importlib.util
-import json
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -100,21 +99,50 @@ def _resolve_path(path: str) -> str:
     return os.path.normpath(os.path.join(base_dir, path))
 
 
-def _load_graph_type_modules() -> List[Any]:
-    """Load graph_types modules from configured paths"""
+def _get_config_path() -> str:
+    """
+    Determine config path with override support.
+    Priority:
+    1) MCP_EDITOR_CONFIG env (absolute or relative)
+    2) editor_config.<module>.json if MCP_EDITOR_MODULE is set and exists
+    3) editor_config.json (default)
+    """
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(base_dir, "editor_config.json")
+    env_path = os.environ.get("MCP_EDITOR_CONFIG")
+    if env_path:
+        return _resolve_path(env_path)
 
-    # Default path if config missing
-    graph_type_paths = ["../graph_types.py"]
-    try:
-        if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict) and isinstance(data.get("graph_types_files"), list):
-                    graph_type_paths = data["graph_types_files"]
-    except Exception as e:
-        print(f"Warning: could not load graph type config: {e}")
+    module_name = os.environ.get("MCP_EDITOR_MODULE")
+    if module_name:
+        candidate = os.path.join(base_dir, f"editor_config.{module_name}.json")
+        if os.path.exists(candidate):
+            return candidate
+
+    return os.path.join(base_dir, "editor_config.json")
+
+
+def _load_graph_type_modules(graph_type_paths: List[str] | None = None) -> List[Any]:
+    """Load graph_types modules from configured paths"""
+    if graph_type_paths is None:
+        config_path = _get_config_path()
+
+        # Default path if config missing
+        graph_type_paths = ["../outlook_mcp/graph_types.py"]
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        # Multi-profile
+                        if isinstance(data.get("_default"), dict) or any(isinstance(v, dict) for v in data.values()):
+                            profile = data.get("_default", {})
+                            if isinstance(profile, dict) and isinstance(profile.get("graph_types_files"), list):
+                                graph_type_paths = profile["graph_types_files"]
+                        # Legacy single profile
+                        elif isinstance(data.get("graph_types_files"), list):
+                            graph_type_paths = data["graph_types_files"]
+        except Exception as e:
+            print(f"Warning: could not load graph type config: {e}")
 
     modules = []
     for path in graph_type_paths:
@@ -129,10 +157,10 @@ def _load_graph_type_modules() -> List[Any]:
     return modules
 
 
-def load_graph_types_models():
+def load_graph_types_models(graph_type_paths: List[str] | None = None):
     """Load and merge BaseModel classes from configured graph_types files"""
     models = {}
-    modules = _load_graph_type_modules()
+    modules = _load_graph_type_modules(graph_type_paths)
     for module in modules:
         for name in dir(module):
             obj = getattr(module, name)
@@ -141,9 +169,9 @@ def load_graph_types_models():
     return models
 
 
-def generate_mcp_schemas_from_graph_types():
+def generate_mcp_schemas_from_graph_types(graph_type_paths: List[str] | None = None):
     """Generate MCP schemas for all BaseModel classes in graph_types.py"""
-    models = load_graph_types_models()
+    models = load_graph_types_models(graph_type_paths)
     schemas = {}
 
     for name, model in models.items():
@@ -152,7 +180,7 @@ def generate_mcp_schemas_from_graph_types():
     return schemas
 
 
-def update_tool_with_basemodel_schema(tool_def: Dict[str, Any], model_name: str, prop_name: str):
+def update_tool_with_basemodel_schema(tool_def: Dict[str, Any], model_name: str, prop_name: str, graph_type_paths: List[str] | None = None):
     """
     Update a specific property in a tool definition with a BaseModel schema.
 
@@ -164,7 +192,7 @@ def update_tool_with_basemodel_schema(tool_def: Dict[str, Any], model_name: str,
     Returns:
         Updated tool definition
     """
-    models = load_graph_types_models()
+    models = load_graph_types_models(graph_type_paths)
 
     if model_name in models:
         schema = pydantic_to_mcp_schema(models[model_name])

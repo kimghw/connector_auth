@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Extract property definitions from graph_types.py for the MCP tool editor
+Extract property definitions from graph_types.py (supports multiple files via config)
+for the MCP tool editor.
 """
 
 import ast
@@ -9,9 +10,48 @@ import os
 import sys
 from typing import Dict, List, Any, Optional
 
-# Add parent directory to path
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, parent_dir)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def _resolve_path(path: str) -> str:
+    if os.path.isabs(path):
+        return path
+    return os.path.normpath(os.path.join(BASE_DIR, path))
+
+
+def _get_config_path() -> str:
+    env_path = os.environ.get("MCP_EDITOR_CONFIG")
+    if env_path:
+        return _resolve_path(env_path)
+
+    module_name = os.environ.get("MCP_EDITOR_MODULE")
+    if module_name:
+        candidate = os.path.join(BASE_DIR, f"editor_config.{module_name}.json")
+        if os.path.exists(candidate):
+            return candidate
+
+    return os.path.join(BASE_DIR, "editor_config.json")
+
+
+def load_graph_type_paths() -> List[str]:
+    config_path = _get_config_path()
+    default_paths = ["../outlook_mcp/graph_types.py"]
+    try:
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    # multi-profile
+                    if isinstance(data.get("_default"), dict) or any(isinstance(v, dict) for v in data.values()):
+                        profile = data.get("_default", {})
+                        if isinstance(profile, dict) and isinstance(profile.get("graph_types_files"), list):
+                            return [_resolve_path(p) for p in profile["graph_types_files"]]
+                    # legacy single profile
+                    if isinstance(data.get("graph_types_files"), list):
+                        return [_resolve_path(p) for p in data["graph_types_files"]]
+    except Exception as e:
+        print(f"Warning: could not load editor config: {e}")
+    return [_resolve_path(p) for p in default_paths]
 
 
 def extract_type_from_annotation(annotation) -> str:
@@ -157,32 +197,40 @@ def extract_class_properties(file_path: str) -> Dict[str, List[Dict[str, Any]]]:
 
 
 def main():
-    # Path to graph_types.py
-    graph_types_path = os.path.join(parent_dir, 'graph_types.py')
-
-    if not os.path.exists(graph_types_path):
-        print(f"Error: {graph_types_path} not found")
+    graph_type_paths = load_graph_type_paths()
+    if not graph_type_paths:
+        print("Error: No graph_types paths configured")
         return
 
-    # Extract properties
-    properties = extract_class_properties(graph_types_path)
+    merged_properties: Dict[str, List[Dict[str, Any]]] = {}
+
+    for path in graph_type_paths:
+        if not os.path.exists(path):
+            print(f"Warning: graph_types file not found: {path}")
+            continue
+        props = extract_class_properties(path)
+        for class_name, class_props in props.items():
+            if class_name not in merged_properties:
+                merged_properties[class_name] = []
+            # Merge properties, prefer first occurrence if duplicates by name
+            existing_names = {p['name'] for p in merged_properties[class_name]}
+            for prop in class_props:
+                if prop['name'] in existing_names:
+                    continue
+                merged_properties[class_name].append(prop)
 
     # Create structured output
     output = {
         'classes': [],
-        'properties_by_class': properties,
+        'properties_by_class': merged_properties,
         'all_properties': []
     }
 
-    # Add class list
-    for class_name in properties:
+    for class_name, props in merged_properties.items():
         output['classes'].append({
             'name': class_name,
-            'property_count': len(properties[class_name])
+            'property_count': len(props)
         })
-
-    # Combine all properties with class prefix
-    for class_name, props in properties.items():
         for prop in props:
             output['all_properties'].append({
                 'name': prop['name'],
@@ -200,10 +248,6 @@ def main():
 
     print(f"Extracted {len(output['all_properties'])} properties from {len(output['classes'])} classes")
     print(f"Saved to: {output_path}")
-
-    # Print summary
-    for class_info in output['classes']:
-        print(f"  - {class_info['name']}: {class_info['property_count']} properties")
 
 
 if __name__ == '__main__':

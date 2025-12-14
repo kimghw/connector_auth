@@ -26,12 +26,12 @@ CORS(app)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, 'editor_config.json')
-DEFAULT_CONFIG = {
+DEFAULT_PROFILE = {
     "template_definitions_path": "tool_definition_templates.py",
-    "tool_definitions_path": "../mcp_server/tool_definitions.py",
+    "tool_definitions_path": "../outlook_mcp/mcp_server/tool_definitions.py",
     "backup_dir": "backups",
-    "graph_types_files": ["../graph_types.py"],
-    "host": "0.0.0.0",
+    "graph_types_files": ["../outlook_mcp/graph_types.py"],
+    "host": "127.0.0.1",
     "port": 8091
 }
 
@@ -43,60 +43,94 @@ def _resolve_path(path: str) -> str:
     return os.path.normpath(os.path.join(BASE_DIR, path))
 
 
-def load_editor_config() -> dict:
-    """Load editor config (paths); create default file if missing."""
-    cfg = DEFAULT_CONFIG.copy()
-    try:
-        if os.path.exists(CONFIG_PATH):
-            with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    for k, v in data.items():
-                        if k in cfg and (isinstance(v, str) or isinstance(v, list) or isinstance(v, int)):
-                            cfg[k] = v
-    except Exception as e:
-        print(f"Warning: Could not load editor_config.json: {e}")
+def _get_config_path() -> str:
+    """Allow overriding config path via MCP_EDITOR_CONFIG env"""
+    env_path = os.environ.get("MCP_EDITOR_CONFIG")
+    if env_path:
+        return _resolve_path(env_path)
+    return CONFIG_PATH
 
-    # Write a default config file if none exists
-    if not os.path.exists(CONFIG_PATH):
+
+def _load_config_file():
+    config_path = _get_config_path()
+    if os.path.exists(config_path):
         try:
-            with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Warning: Could not load editor_config.json: {e}")
+    else:
+        try:
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump({"_default": DEFAULT_PROFILE}, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Warning: Could not write default editor_config.json: {e}")
-
-    return cfg
-
-
-EDITOR_CONFIG = load_editor_config()
-
-# Paths derived from config
-TEMPLATE_DEFINITIONS_PATH = _resolve_path(EDITOR_CONFIG["template_definitions_path"])
-TOOL_DEFINITIONS_PATH = _resolve_path(EDITOR_CONFIG["tool_definitions_path"])
-BACKUP_DIR = _resolve_path(EDITOR_CONFIG["backup_dir"])
-GRAPH_TYPES_FILES = EDITOR_CONFIG.get("graph_types_files", ["../graph_types.py"])
-HOST = EDITOR_CONFIG.get("host", "0.0.0.0")
-PORT = EDITOR_CONFIG.get("port", 8091)
-
-# Create backup directory if it doesn't exist
-os.makedirs(BACKUP_DIR, exist_ok=True)
+    return {"_default": DEFAULT_PROFILE}
 
 
-def load_tool_definitions():
+def _merge_profile(default_profile: dict, override_profile: dict) -> dict:
+    merged = DEFAULT_PROFILE.copy()
+    merged.update(default_profile or {})
+    if override_profile:
+        for k, v in override_profile.items():
+            if k in merged and isinstance(v, (str, list, int)):
+                merged[k] = v
+    return merged
+
+
+def list_profile_names() -> list:
+    data = _load_config_file()
+    if isinstance(data, dict):
+        # legacy single-profile dict (values not dict) -> single pseudo profile
+        if all(not isinstance(v, dict) for v in data.values()):
+            return ["_default"]
+        return list(data.keys())
+    return ["_default"]
+
+
+def get_profile_config(profile_name: str | None = None) -> dict:
+    data = _load_config_file()
+    # legacy single-profile dict
+    if isinstance(data, dict) and all(not isinstance(v, dict) for v in data.values()):
+        return _merge_profile({}, data)
+
+    if isinstance(data, dict):
+        default_profile = data.get("_default", {})
+        selected = data.get(profile_name) if profile_name else None
+        return _merge_profile(default_profile, selected)
+
+    return DEFAULT_PROFILE.copy()
+
+
+def resolve_paths(profile_conf: dict) -> dict:
+    return {
+        "template_path": _resolve_path(profile_conf["template_definitions_path"]),
+        "tool_path": _resolve_path(profile_conf["tool_definitions_path"]),
+        "backup_dir": _resolve_path(profile_conf["backup_dir"]),
+        "graph_types_files": profile_conf.get("graph_types_files", ["../outlook_mcp/graph_types.py"]),
+        "host": profile_conf.get("host", "127.0.0.1"),
+        "port": profile_conf.get("port", 8091)
+    }
+
+def ensure_dirs(paths: dict):
+    os.makedirs(paths["backup_dir"], exist_ok=True)
+
+
+def load_tool_definitions(paths: dict):
     """
     Load MCP_TOOLS, preferring the template file (with mcp_service metadata)
     so the editor displays the full structure. Falls back to cleaned definitions.
     """
     try:
         # Try loading from templates first
-        if os.path.exists(TEMPLATE_DEFINITIONS_PATH):
-            spec = importlib.util.spec_from_file_location("tool_definition_templates", TEMPLATE_DEFINITIONS_PATH)
+        if os.path.exists(paths["template_path"]):
+            spec = importlib.util.spec_from_file_location("tool_definition_templates", paths["template_path"])
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             return module.MCP_TOOLS
 
         # Fallback to cleaned definitions
-        spec = importlib.util.spec_from_file_location("tool_definitions", TOOL_DEFINITIONS_PATH)
+        spec = importlib.util.spec_from_file_location("tool_definitions", paths["tool_path"])
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module.MCP_TOOLS
@@ -165,13 +199,15 @@ def remove_defaults(schema):
     return schema
 
 
-def save_tool_definitions(tools_data):
+def save_tool_definitions(tools_data, paths: dict):
     """Save MCP_TOOLS to both tool_definitions.py and tool_definition_templates.py"""
     try:
+        ensure_dirs(paths)
         # Create backup first
         backup_filename = f"tool_definitions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py"
-        backup_path = os.path.join(BACKUP_DIR, backup_filename)
-        shutil.copy2(TOOL_DEFINITIONS_PATH, backup_path)
+        backup_path = os.path.join(paths["backup_dir"], backup_filename)
+        if os.path.exists(paths["tool_path"]):
+            shutil.copy2(paths["tool_path"], backup_path)
 
         # 1. Save tool_definitions.py (without mcp_service fields)
         # Remove mcp_service field from all tools before saving
@@ -236,11 +272,11 @@ def get_tool_names() -> List[str]:
 '''
 
         # Write tool_definitions.py
-        with open(TOOL_DEFINITIONS_PATH, 'w', encoding='utf-8') as f:
+        with open(paths["tool_path"], 'w', encoding='utf-8') as f:
             f.write(content)
 
         # 2. Save tool_definition_templates.py (with all metadata)
-        template_path = os.path.join(os.path.dirname(__file__), 'tool_definition_templates.py')
+        template_path = paths["template_path"]
 
         # Load signature information from mcp_services.json
         signatures_by_name = {}
@@ -371,18 +407,24 @@ def debug_index():
 @app.route('/api/tools', methods=['GET'])
 def get_tools():
     """API endpoint to get current tool definitions"""
-    tools = load_tool_definitions()
+    profile = request.args.get("profile")
+    profile_conf = get_profile_config(profile)
+    paths = resolve_paths(profile_conf)
+    tools = load_tool_definitions(paths)
     if isinstance(tools, dict) and "error" in tools:
         return jsonify(tools), 500
-    return jsonify(tools)
+    return jsonify({"tools": tools, "profile": profile or "_default"})
 
 
 @app.route('/api/tools', methods=['POST'])
 def save_tools():
     """API endpoint to save tool definitions"""
     try:
+        profile = request.args.get("profile")
+        profile_conf = get_profile_config(profile)
+        paths = resolve_paths(profile_conf)
         tools_data = request.json
-        result = save_tool_definitions(tools_data)
+        result = save_tool_definitions(tools_data, paths)
         if "error" in result:
             return jsonify(result), 500
         return jsonify(result)
@@ -394,8 +436,11 @@ def save_tools():
 def delete_tool(tool_index):
     """Delete a specific tool by index"""
     try:
+        profile = request.args.get("profile")
+        profile_conf = get_profile_config(profile)
+        paths = resolve_paths(profile_conf)
         # Load current tools
-        tools = load_tool_definitions()
+        tools = load_tool_definitions(paths)
         if isinstance(tools, dict) and "error" in tools:
             return jsonify(tools), 500
 
@@ -410,7 +455,7 @@ def delete_tool(tool_index):
         tools.pop(tool_index)
 
         # Save the updated tools
-        result = save_tool_definitions(tools)
+        result = save_tool_definitions(tools, paths)
         if "error" in result:
             return jsonify(result), 500
 
@@ -463,10 +508,14 @@ def validate_tools():
 def list_backups():
     """List available backups"""
     try:
+        profile = request.args.get("profile")
+        profile_conf = get_profile_config(profile)
+        paths = resolve_paths(profile_conf)
+        ensure_dirs(paths)
         backups = []
-        for filename in os.listdir(BACKUP_DIR):
+        for filename in os.listdir(paths["backup_dir"]):
             if filename.startswith('tool_definitions_') and filename.endswith('.py'):
-                file_path = os.path.join(BACKUP_DIR, filename)
+                file_path = os.path.join(paths["backup_dir"], filename)
                 stat = os.stat(file_path)
                 backups.append({
                     "filename": filename,
@@ -487,7 +536,11 @@ def get_backup(filename):
         if '..' in filename or '/' in filename or '\\' in filename:
             return jsonify({"error": "Invalid filename"}), 400
 
-        file_path = os.path.join(BACKUP_DIR, filename)
+        profile = request.args.get("profile")
+        profile_conf = get_profile_config(profile)
+        paths = resolve_paths(profile_conf)
+
+        file_path = os.path.join(paths["backup_dir"], filename)
         if not os.path.exists(file_path):
             return jsonify({"error": "Backup not found"}), 404
 
@@ -507,16 +560,22 @@ def restore_backup(filename):
         if '..' in filename or '/' in filename or '\\' in filename:
             return jsonify({"error": "Invalid filename"}), 400
 
-        backup_path = os.path.join(BACKUP_DIR, filename)
+        profile = request.args.get("profile")
+        profile_conf = get_profile_config(profile)
+        paths = resolve_paths(profile_conf)
+        ensure_dirs(paths)
+
+        backup_path = os.path.join(paths["backup_dir"], filename)
         if not os.path.exists(backup_path):
             return jsonify({"error": "Backup not found"}), 404
 
         # Create a backup of current state before restoring
         current_backup = f"tool_definitions_before_restore_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py"
-        shutil.copy2(TOOL_DEFINITIONS_PATH, os.path.join(BACKUP_DIR, current_backup))
+        if os.path.exists(paths["tool_path"]):
+            shutil.copy2(paths["tool_path"], os.path.join(paths["backup_dir"], current_backup))
 
         # Restore the backup
-        shutil.copy2(backup_path, TOOL_DEFINITIONS_PATH)
+        shutil.copy2(backup_path, paths["tool_path"])
 
         return jsonify({"success": True, "current_backup": current_backup})
     except Exception as e:
@@ -563,6 +622,17 @@ def get_mcp_services():
         return jsonify({"error": str(e), "services": [], "services_with_signatures": []}), 500
 
 
+@app.route('/api/profiles', methods=['GET'])
+def get_profiles():
+    """List available profiles from editor_config.json"""
+    try:
+        profiles = list_profile_names()
+        active = request.args.get("profile") or os.environ.get("MCP_EDITOR_MODULE") or "_default"
+        return jsonify({"profiles": profiles, "active": active})
+    except Exception as e:
+        return jsonify({"error": str(e), "profiles": []}), 500
+
+
 @app.route('/api/graph-types-properties', methods=['GET'])
 def get_graph_types_properties():
     """Get available properties from graph_types.py"""
@@ -591,8 +661,13 @@ def get_graph_types_properties():
 def get_basemodels():
     """Get available BaseModel schemas from graph_types.py"""
     try:
-        models = load_graph_types_models()
-        schemas = generate_mcp_schemas_from_graph_types()
+        profile = request.args.get("profile")
+        profile_conf = get_profile_config(profile)
+        paths = resolve_paths(profile_conf)
+        graph_type_paths = paths.get("graph_types_files")
+
+        models = load_graph_types_models(graph_type_paths)
+        schemas = generate_mcp_schemas_from_graph_types(graph_type_paths)
 
         result = []
         for name, model in models.items():
@@ -612,6 +687,11 @@ def get_basemodels():
 def apply_basemodel_to_property(tool_index):
     """Apply a BaseModel schema to a specific property of a tool"""
     try:
+        profile = request.args.get("profile")
+        profile_conf = get_profile_config(profile)
+        paths = resolve_paths(profile_conf)
+        graph_type_paths = paths.get("graph_types_files")
+
         data = request.json
         property_name = data.get('property_name')
         basemodel_name = data.get('basemodel_name')
@@ -620,7 +700,7 @@ def apply_basemodel_to_property(tool_index):
             return jsonify({"error": "Missing property_name or basemodel_name"}), 400
 
         # Load current tools
-        tools = load_tool_definitions()
+        tools = load_tool_definitions(paths)
         if isinstance(tools, dict) and "error" in tools:
             return jsonify(tools), 500
 
@@ -629,10 +709,10 @@ def apply_basemodel_to_property(tool_index):
 
         # Apply BaseModel schema
         tool = tools[tool_index]
-        updated_tool = update_tool_with_basemodel_schema(tool, basemodel_name, property_name)
+        updated_tool = update_tool_with_basemodel_schema(tool, basemodel_name, property_name, graph_type_paths)
 
         # Save the updated tools
-        result = save_tool_definitions(tools)
+        result = save_tool_definitions(tools, paths)
         if "error" in result:
             return jsonify(result), 500
 
@@ -649,6 +729,13 @@ def send_static(path):
 
 if __name__ == '__main__':
     print("Starting MCP Tool Editor Web Interface...")
-    print("Access the editor at: http://localhost:8091")
+    profile_name = os.environ.get("MCP_EDITOR_MODULE")
+    profile_conf = get_profile_config(profile_name)
+    paths = resolve_paths(profile_conf)
+    ensure_dirs(paths)
+    host = paths.get("host", "127.0.0.1")
+    port = paths.get("port", 8091)
+    print(f"Active profile: {profile_name or '_default'}")
+    print(f"Access the editor at: http://{host}:{port}")
     print("Press Ctrl+C to stop the server")
-    app.run(debug=True, host='0.0.0.0', port=8091)
+    app.run(debug=True, host=host, port=port)

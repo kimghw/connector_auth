@@ -1,0 +1,22 @@
+{
+  "_default": {
+    "template_definitions_path": "tool_definition_templates.py",
+    "tool_definitions_path": "../outlook_mcp/mcp_server/tool_definitions.py",
+    "backup_dir": "backups",
+    "graph_types_files": [
+      "../outlook_mcp/graph_types.py"
+    ],
+    "host": "127.0.0.1",
+    "port": 8091
+  },
+  "outlook": {
+    "template_definitions_path": "tool_definition_templates.py",
+    "tool_definitions_path": "../outlook_mcp/mcp_server/tool_definitions.py",
+    "backup_dir": "backups",
+    "graph_types_files": [
+      "../outlook_mcp/graph_types.py"
+    ],
+    "host": "127.0.0.1",
+    "port": 8091
+  }
+}
