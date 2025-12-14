@@ -116,5 +116,63 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 "user_email"
             ]
         }
+    },
+    {
+        "name": "mail_search",
+        "description": "New tool description",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "user_email": {
+                    "type": "string",
+                    "description": "",
+                    "default": "kimghw@krs.co.kr"
+                },
+                "search": {
+                    "type": "array",
+                    "description": "회의, 첨부파일"
+                },
+                "client_filter": {
+                    "type": "object",
+                    "description": "ExcludeParams parameters",
+                    "properties": {
+                        "last_modified_date_time": {
+                            "type": "string",
+                            "description": "메일 최종 수정 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)"
+                        }
+                    },
+                    "required": [],
+                    "baseModel": "FilterParams"
+                },
+                "select": {
+                    "type": "object",
+                    "description": "SelectParams parameters",
+                    "properties": {
+                        "fields": {
+                            "type": "string",
+                            "description": "조회할 필드 목록 (미지정 시 모든 필드 반환)"
+                        }
+                    },
+                    "required": [],
+                    "baseModel": "SelectParams"
+                },
+                "top": {
+                    "type": "integer",
+                    "description": ""
+                },
+                "orderby": {
+                    "type": "string",
+                    "description": ""
+                }
+            },
+            "required": [
+                "user_email",
+                "search"
+            ]
+        },
+        "mcp_service": {
+            "name": "query_search",
+            "signature": "user_email: str, search: str, client_filter: Optional[ExcludeParams], select: Optional[SelectParams], top: int = 250, orderby: Optional[str]"
+        }
     }
 ]

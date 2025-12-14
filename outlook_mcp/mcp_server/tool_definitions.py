@@ -13,7 +13,161 @@ To modify: Use the web editor at http://localhost:8091
 from typing import List, Dict, Any
 
 # MCP Tool Definitions
-MCP_TOOLS: List[Dict[str, Any]] = []
+MCP_TOOLS: List[Dict[str, Any]] = [
+    {
+        "name": "query_emails",
+        "description": "Query and filter emails with advanced options",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "exclude": {
+                    "type": "object",
+                    "description": "Exclude parameters for filtering",
+                    "properties": {
+                        "body": {
+                            "type": "string",
+                            "description": "Exclude by body content"
+                        },
+                        "from": {
+                            "type": "string",
+                            "description": "Exclude sender email"
+                        },
+                        "subject": {
+                            "type": "string",
+                            "description": "Exclude by subject"
+                        }
+                    }
+                },
+                "filter": {
+                    "type": "object",
+                    "description": "Filter parameters for querying emails",
+                    "properties": {
+                        "body": {
+                            "type": "string",
+                            "description": "Filter by body content"
+                        },
+                        "from": {
+                            "type": "string",
+                            "description": "Filter by sender email"
+                        },
+                        "has_attachments": {
+                            "type": "boolean",
+                            "description": "Filter emails with attachments"
+                        },
+                        "importance": {
+                            "type": "string",
+                            "description": "Filter by importance",
+                            "enum": [
+                                "low",
+                                "normal",
+                                "high"
+                            ]
+                        },
+                        "is_read": {
+                            "type": "boolean",
+                            "description": "Filter by read status"
+                        },
+                        "received_after": {
+                            "type": "string",
+                            "description": "Filter emails received after this date",
+                            "format": "date-time"
+                        },
+                        "received_before": {
+                            "type": "string",
+                            "description": "Filter emails received before this date",
+                            "format": "date-time"
+                        },
+                        "subject": {
+                            "type": "string",
+                            "description": "Filter by subject"
+                        }
+                    }
+                },
+                "orderby": {
+                    "type": "string",
+                    "description": "Sort order (default: 'receivedDateTime desc')"
+                },
+                "select": {
+                    "type": "object",
+                    "description": "Select specific fields to return",
+                    "properties": {
+                        "fields": {
+                            "type": "array",
+                            "description": "List of fields to return",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "top": {
+                    "type": "integer",
+                    "description": "Maximum number of emails to return (default: 10)"
+                },
+                "user_email": {
+                    "type": "string",
+                    "description": "User email address"
+                }
+            },
+            "required": [
+                "user_email"
+            ]
+        }
+    },
+    {
+        "name": "mail_search",
+        "description": "New tool description",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "user_email": {
+                    "type": "string",
+                    "description": ""
+                },
+                "search": {
+                    "type": "array",
+                    "description": "회의, 첨부파일"
+                },
+                "client_filter": {
+                    "type": "object",
+                    "description": "ExcludeParams parameters",
+                    "properties": {
+                        "last_modified_date_time": {
+                            "type": "string",
+                            "description": "메일 최종 수정 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)"
+                        }
+                    },
+                    "required": [],
+                    "baseModel": "FilterParams"
+                },
+                "select": {
+                    "type": "object",
+                    "description": "SelectParams parameters",
+                    "properties": {
+                        "fields": {
+                            "type": "string",
+                            "description": "조회할 필드 목록 (미지정 시 모든 필드 반환)"
+                        }
+                    },
+                    "required": [],
+                    "baseModel": "SelectParams"
+                },
+                "top": {
+                    "type": "integer",
+                    "description": ""
+                },
+                "orderby": {
+                    "type": "string",
+                    "description": ""
+                }
+            },
+            "required": [
+                "user_email",
+                "search"
+            ]
+        }
+    }
+]
 
 
 def get_tool_by_name(tool_name: str) -> Dict[str, Any] | None:
