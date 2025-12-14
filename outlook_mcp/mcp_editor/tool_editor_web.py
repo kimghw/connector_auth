@@ -9,6 +9,7 @@ from flask_cors import CORS
 import importlib.util
 from datetime import datetime
 import shutil
+import copy
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -25,6 +26,8 @@ CORS(app)
 
 # Path to tool definitions file in mcp_server directory
 TOOL_DEFINITIONS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'mcp_server', 'tool_definitions.py')
+# Path to template definitions (includes internal metadata)
+TEMPLATE_DEFINITIONS_PATH = os.path.join(os.path.dirname(__file__), 'tool_definition_templates.py')
 BACKUP_DIR = os.path.join(os.path.dirname(__file__), 'backups')
 
 # Create backup directory if it doesn't exist
@@ -32,8 +35,19 @@ os.makedirs(BACKUP_DIR, exist_ok=True)
 
 
 def load_tool_definitions():
-    """Load MCP_TOOLS from tool_definitions.py"""
+    """
+    Load MCP_TOOLS, preferring the template file (with mcp_service metadata)
+    so the editor displays the full structure. Falls back to cleaned definitions.
+    """
     try:
+        # Try loading from templates first
+        if os.path.exists(TEMPLATE_DEFINITIONS_PATH):
+            spec = importlib.util.spec_from_file_location("tool_definition_templates", TEMPLATE_DEFINITIONS_PATH)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module.MCP_TOOLS
+
+        # Fallback to cleaned definitions
         spec = importlib.util.spec_from_file_location("tool_definitions", TOOL_DEFINITIONS_PATH)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -88,6 +102,21 @@ def order_schema_fields(schema):
     return ordered
 
 
+def remove_defaults(schema):
+    """Recursively remove 'default' keys from schema"""
+    if isinstance(schema, dict):
+        schema = {k: remove_defaults(v) for k, v in schema.items() if k != 'default'}
+        # Handle properties
+        if 'properties' in schema and isinstance(schema['properties'], dict):
+            schema['properties'] = {k: remove_defaults(v) for k, v in schema['properties'].items()}
+        # Handle items
+        if 'items' in schema:
+            schema['items'] = remove_defaults(schema['items'])
+    elif isinstance(schema, list):
+        schema = [remove_defaults(item) for item in schema]
+    return schema
+
+
 def save_tool_definitions(tools_data):
     """Save MCP_TOOLS to both tool_definitions.py and tool_definition_templates.py"""
     try:
@@ -109,8 +138,10 @@ def save_tool_definitions(tools_data):
             if 'description' in tool:
                 cleaned_tool['description'] = tool['description']
             if 'inputSchema' in tool:
-                # Use the recursive ordering function
-                cleaned_tool['inputSchema'] = order_schema_fields(tool['inputSchema'])
+                # Remove defaults for the public definitions and order schema
+                cleaned_input = copy.deepcopy(tool['inputSchema'])
+                cleaned_input = remove_defaults(cleaned_input)
+                cleaned_tool['inputSchema'] = order_schema_fields(cleaned_input)
             # Add any other fields except mcp_service and mcp_service_factors
             for k, v in tool.items():
                 if k not in ['name', 'description', 'inputSchema', 'mcp_service', 'mcp_service_factors']:
@@ -452,10 +483,36 @@ def get_mcp_services():
         if os.path.exists(mcp_services_path):
             with open(mcp_services_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                return jsonify({"services": data.get("decorated_services", [])})
-        return jsonify({"services": []})
+                decorated = data.get("decorated_services", [])
+
+                # Build signature strings from parameter metadata
+                detailed = []
+                for service in data.get("services_with_signatures", []):
+                    params = service.get("parameters", [])
+                    param_strings = []
+                    for param in params:
+                        if param.get("name") == "self":
+                            continue
+                        part = param.get("name", "")
+                        if param.get("type"):
+                            part += f": {param['type']}"
+                        if param.get("default") is not None:
+                            part += f" = {param['default']}"
+                        param_strings.append(part)
+
+                    detailed.append({
+                        "name": service.get("name"),
+                        "parameters": params,
+                        "signature": ", ".join(param_strings)
+                    })
+
+                return jsonify({
+                    "services": decorated,
+                    "services_with_signatures": detailed
+                })
+        return jsonify({"services": [], "services_with_signatures": []})
     except Exception as e:
-        return jsonify({"error": str(e), "services": []}), 500
+        return jsonify({"error": str(e), "services": [], "services_with_signatures": []}), 500
 
 
 @app.route('/api/graph-types-properties', methods=['GET'])

@@ -638,6 +638,45 @@
         </div>
     </div>
 
+    <!-- Nested Graph Types Modal -->
+    <div id="nestedGraphTypesModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Add Nested Properties</h2>
+                <button class="btn btn-icon" onclick="closeModal('nestedGraphTypesModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Select Type (from graph_types.py)</label>
+                    <select id="nestedGraphTypeClass" onchange="handleNestedGraphClassChange()" class="form-control">
+                        <option value="">-- Select Type --</option>
+                        <option value="FilterParams">FilterParams (Filter criteria)</option>
+                        <option value="ExcludeParams">ExcludeParams (Exclusion criteria)</option>
+                        <option value="SelectParams">SelectParams (Field selection)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="nestedPropertySelectionDiv" style="display: none;">
+                    <label>Select Properties to Add</label>
+                    <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 300px; overflow-y: auto;">
+                        <div id="nestedPropertyCheckboxList">
+                            <!-- Checkboxes will be populated here -->
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllNestedProperties(true)">Select All</button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllNestedProperties(false)">Deselect All</button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllNestedRequired(true)">All Required</button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllNestedRequired(false)">All Optional</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="confirmAddNestedGraphProperties()">Add Selected</button>
+                <button class="btn btn-secondary" onclick="closeModal('nestedGraphTypesModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Backup Modal -->
     <div id="backupModal" class="modal">
         <div class="modal-content">
@@ -659,6 +698,7 @@
     <script>
         let tools = [];
         let currentToolIndex = -1;
+        let nestedGraphTarget = null;
 
         // Load tools on page load
         window.onload = function() {
@@ -677,11 +717,21 @@
                 .then(response => response.json())
                 .then(data => {
                     window.mcpServices = data.services || [];
+                    window.mcpServiceDetails = data.services_with_signatures || [];
+                    // If only detailed data exists, populate names from it
+                    if ((!window.mcpServices || window.mcpServices.length === 0) && window.mcpServiceDetails.length > 0) {
+                        window.mcpServices = window.mcpServiceDetails.map(svc => svc.name).filter(Boolean);
+                    }
                     console.log('MCP Services loaded:', window.mcpServices);
+                    console.log('MCP Service details loaded:', window.mcpServiceDetails);
+                    if (currentToolIndex >= 0) {
+                        renderToolEditor(tools[currentToolIndex], currentToolIndex);
+                    }
                 })
                 .catch(error => {
                     console.error('Error loading MCP services:', error);
                     window.mcpServices = [];
+                    window.mcpServiceDetails = [];
                 });
         }
 
@@ -722,17 +772,21 @@
                 });
         }
 
-        function loadMCPServices() {
-            fetch('/api/mcp-services')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.services) {
-                        window.mcpServices = data.services;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading MCP services:', error);
-                });
+        function populateGraphTypeOptions(selectEl) {
+            if (!selectEl || !window.graphTypesProperties || !Array.isArray(window.graphTypesProperties.classes)) {
+                return;
+            }
+            const existing = Array.from(selectEl.options).map(opt => opt.value);
+            window.graphTypesProperties.classes.forEach(cls => {
+                const name = cls.name || '';
+                if (!name || existing.includes(name)) {
+                    return;
+                }
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                selectEl.appendChild(option);
+            });
         }
 
         function renderToolList() {
@@ -829,6 +883,13 @@
                             <textarea class="form-control"
                                       onchange="updatePropertyField(${index}, '${propName}', 'description', this.value)">${propDef.description || ''}</textarea>
                         </div>
+                        <div class="form-group">
+                            <label>Default</label>
+                            <input class="form-control"
+                                   value="${propDef.default !== undefined ? propDef.default : ''}"
+                                   placeholder="Optional default value"
+                                   onchange="updatePropertyField(${index}, '${propName}', 'default', parseDefaultValue(this.value, '${propDef.type}'))">
+                        </div>
                         ${propDef.enum ? `
                         <div class="form-group">
                             <label>Enum Values (comma-separated)</label>
@@ -882,6 +943,13 @@
                                         <textarea class="form-control" style="font-size: 13px; min-height: 60px;"
                                                   placeholder="Description"
                                                   onchange="updateNestedPropertyDescription(${index}, '${propName}', '${nestedPropName}', this.value)">${nestedProp.description || ''}</textarea>
+                                        <div class="form-group" style="margin-top: 10px;">
+                                            <label style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 4px; text-transform: uppercase;">Default</label>
+                                            <input class="form-control" style="font-size: 13px; padding: 8px;"
+                                                   placeholder="Optional default value"
+                                                   value="${nestedProp.default !== undefined ? nestedProp.default : ''}"
+                                                   onchange="updateNestedPropertyDefault(${index}, '${propName}', '${nestedPropName}', parseDefaultValue(this.value, '${nestedProp.type}'))">
+                                        </div>
 
                                         ${(nestedProp.type === 'string' || nestedProp.type === 'number' || nestedProp.type === 'integer') ? `
                                         <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -931,6 +999,10 @@
                                         onclick="addNestedPropertyInline(${index}, '${propName}')">
                                     + Add Nested Property
                                 </button>
+                                <button class="btn btn-secondary btn-sm" style="margin-top: 12px; margin-left: 8px;"
+                                        onclick="openNestedGraphTypesModal(${index}, '${propName}')">
+                                    + Add from graph_types
+                                </button>
                             </div>
                         </div>
                         ` : propDef.type === 'object' ? `
@@ -941,6 +1013,10 @@
                                 <button class="btn btn-secondary btn-sm"
                                         onclick="addNestedPropertyInline(${index}, '${propName}')">
                                     + Add Nested Property
+                                </button>
+                                <button class="btn btn-secondary btn-sm" style="margin-left: 8px;"
+                                        onclick="openNestedGraphTypesModal(${index}, '${propName}')">
+                                    + Add from graph_types
                                 </button>
                             </div>
                         </div>
@@ -980,7 +1056,7 @@
                 <div class="form-group">
                     <label>MCP Service</label>
                     <select class="form-control" id="mcpService"
-                            onchange="updateToolField(${index}, 'mcp_service', this.value)">
+                            onchange="updateMcpService(${index}, this.value)">
                         <option value="">-- Select MCP Service --</option>
                         ${window.mcpServices ? window.mcpServices.map(service =>
                             `<option value="${service}" ${tool.mcp_service === service ? 'selected' : ''}>${service}</option>`
@@ -1034,6 +1110,12 @@
             renderToolList();
         }
 
+        function updateMcpService(index, value) {
+            updateToolField(index, 'mcp_service', value);
+            applySignatureDefaults(index, value);
+            renderToolEditor(tools[index], index);
+        }
+
         function updatePropertyField(index, propName, field, value) {
             if (!tools[index].inputSchema.properties[propName]) {
                 tools[index].inputSchema.properties[propName] = {};
@@ -1072,6 +1154,20 @@
 
             // Re-render to update the JSON view
             renderToolEditor(tools[index], index);
+        }
+
+        function parseDefaultValue(value, type) {
+            if (value === '') return undefined;
+            switch (type) {
+                case 'integer':
+                    return parseInt(value, 10);
+                case 'number':
+                    return parseFloat(value);
+                case 'boolean':
+                    return value === 'true' || value === true;
+                default:
+                    return value;
+            }
         }
 
         function addProperty(index) {
@@ -1220,6 +1316,137 @@
             checkboxes.forEach(cb => cb.checked = required);
         }
 
+        function openNestedGraphTypesModal(toolIndex, propName) {
+            nestedGraphTarget = {toolIndex, propName};
+
+            const classSelect = document.getElementById('nestedGraphTypeClass');
+            const selectionDiv = document.getElementById('nestedPropertySelectionDiv');
+            const checkboxList = document.getElementById('nestedPropertyCheckboxList');
+
+            classSelect.value = '';
+            checkboxList.innerHTML = '';
+            selectionDiv.style.display = 'none';
+
+            populateGraphTypeOptions(classSelect);
+
+            const parentProp = tools[toolIndex].inputSchema.properties[propName];
+            if (parentProp && parentProp.baseModel) {
+                classSelect.value = parentProp.baseModel;
+                handleNestedGraphClassChange();
+            }
+
+            document.getElementById('nestedGraphTypesModal').classList.add('show');
+        }
+
+        function handleNestedGraphClassChange() {
+            const className = document.getElementById('nestedGraphTypeClass').value;
+            const selectionDiv = document.getElementById('nestedPropertySelectionDiv');
+            const checkboxList = document.getElementById('nestedPropertyCheckboxList');
+
+            if (className && window.graphTypesProperties) {
+                const properties = window.graphTypesProperties.properties_by_class[className] || [];
+
+                let checkboxHtml = '';
+                properties.forEach((prop, idx) => {
+                    const propId = `nested_prop_${className}_${idx}`;
+                    const reqId = `nested_req_${className}_${idx}`;
+                    checkboxHtml += `
+                        <div style="padding: 8px; border-bottom: 1px solid #eee; display: flex; align-items: center;">
+                            <input type="checkbox" id="${propId}" data-prop-name="${prop.name}"
+                                   data-prop-type="${prop.type}" data-prop-desc="${prop.description || ''}"
+                                   style="margin-right: 10px;">
+                            <div style="flex-grow: 1;">
+                                <label for="${propId}" style="margin: 0; cursor: pointer;">
+                                    <strong>${prop.name}</strong>
+                                    <span style="color: #666; font-size: 12px;">(${prop.type})</span>
+                                    ${prop.description ? `<br><span style="color: #888; font-size: 11px;">${prop.description}</span>` : ''}
+                                </label>
+                            </div>
+                            <div style="margin-left: 10px;">
+                                <label style="margin: 0; font-size: 12px;">
+                                    <input type="checkbox" id="${reqId}" style="margin-right: 5px;">Required
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                checkboxList.innerHTML = checkboxHtml || '<div style="padding: 10px; text-align: center; color: #666;">No properties available</div>';
+                selectionDiv.style.display = 'block';
+            } else {
+                selectionDiv.style.display = 'none';
+                checkboxList.innerHTML = '';
+            }
+        }
+
+        function selectAllNestedProperties(select) {
+            const checkboxes = document.querySelectorAll('#nestedPropertyCheckboxList input[type="checkbox"][id^="nested_prop_"]');
+            checkboxes.forEach(cb => cb.checked = select);
+        }
+
+        function toggleAllNestedRequired(required) {
+            const checkboxes = document.querySelectorAll('#nestedPropertyCheckboxList input[type="checkbox"][id^="nested_req_"]');
+            checkboxes.forEach(cb => cb.checked = required);
+        }
+
+        function confirmAddNestedGraphProperties() {
+            if (!nestedGraphTarget) {
+                closeModal('nestedGraphTypesModal');
+                return;
+            }
+
+            const className = document.getElementById('nestedGraphTypeClass').value;
+            const checkboxes = document.querySelectorAll('#nestedPropertyCheckboxList input[type="checkbox"][id^="nested_prop_"]:checked');
+
+            if (!className) {
+                showNotification('Please select a type from graph_types.py', 'error');
+                return;
+            }
+
+            if (checkboxes.length === 0) {
+                showNotification('Please select at least one property', 'error');
+                return;
+            }
+
+            const {toolIndex, propName} = nestedGraphTarget;
+            const tool = tools[toolIndex];
+
+            if (!tool.inputSchema.properties[propName]) {
+                tool.inputSchema.properties[propName] = {type: 'object', properties: {}, required: []};
+            }
+
+            const parentProp = tool.inputSchema.properties[propName];
+            parentProp.type = 'object';
+            parentProp.properties = parentProp.properties || {};
+            parentProp.required = parentProp.required || [];
+            parentProp.baseModel = parentProp.baseModel || className;
+            if (!parentProp.description) {
+                parentProp.description = `${className} parameters`;
+            }
+
+            let addedCount = 0;
+            checkboxes.forEach(cb => {
+                const prop = cb.dataset;
+                const idx = cb.id.split('_').pop();
+                const isRequired = document.getElementById(`nested_req_${className}_${idx}`).checked;
+
+                parentProp.properties[prop.propName] = {
+                    type: mapToJsonSchemaType(prop.propType),
+                    description: prop.propDesc || ''
+                };
+
+                if (isRequired && !parentProp.required.includes(prop.propName)) {
+                    parentProp.required.push(prop.propName);
+                }
+
+                addedCount++;
+            });
+
+            closeModal('nestedGraphTypesModal');
+            renderToolEditor(tool, toolIndex);
+            showNotification(`${addedCount} nested properties added to "${propName}"`, 'success');
+        }
+
         function confirmAddProperty(index) {
             const source = document.getElementById('propertySource').value;
 
@@ -1360,6 +1587,98 @@
                 'any': 'string'
             };
             return typeMap[type] || 'string';
+        }
+
+        function mapSignatureTypeToSchema(typeStr) {
+            if (!typeStr) {
+                return { type: 'string' };
+            }
+
+            let optional = false;
+            let innerType = typeStr;
+
+            if (typeStr.startsWith('Optional[')) {
+                optional = true;
+                innerType = typeStr.slice(9, -1);
+            }
+
+            if (innerType.startsWith('List[') || innerType.startsWith('list[')) {
+                const itemType = innerType.slice(5, -1);
+                const mapped = mapSignatureTypeToSchema(itemType);
+                return {
+                    type: 'array',
+                    items: { type: mapped.type || 'string' },
+                    optional
+                };
+            }
+
+            const typeMap = {
+                'str': 'string',
+                'int': 'integer',
+                'float': 'number',
+                'bool': 'boolean',
+                'Dict': 'object',
+                'dict': 'object',
+                'Any': 'string',
+                'FilterParams': 'object',
+                'ExcludeParams': 'object',
+                'SelectParams': 'object'
+            };
+
+            return {
+                type: typeMap[innerType] || 'object',
+                description: ['FilterParams', 'ExcludeParams', 'SelectParams'].includes(innerType)
+                    ? `${innerType} parameters`
+                    : '',
+                optional
+            };
+        }
+
+        function applySignatureDefaults(index, serviceName) {
+            if (!serviceName || !window.mcpServiceDetails) {
+                return;
+            }
+
+            const detail = window.mcpServiceDetails.find(svc => svc.name === serviceName);
+            if (!detail || !Array.isArray(detail.parameters)) {
+                return;
+            }
+
+            const tool = tools[index];
+            if (!tool.inputSchema) {
+                tool.inputSchema = { type: 'object', properties: {}, required: [] };
+            }
+
+            const existingProps = Object.keys(tool.inputSchema.properties || {});
+            if (existingProps.length > 0) {
+                return; // avoid overriding when schema already exists
+            }
+
+            tool.inputSchema.type = 'object';
+            tool.inputSchema.properties = {};
+            tool.inputSchema.required = [];
+
+            detail.parameters.forEach(param => {
+                if (!param || param.name === 'self') {
+                    return;
+                }
+
+                const schema = mapSignatureTypeToSchema(param.type);
+                tool.inputSchema.properties[param.name] = {
+                    type: schema.type || 'string',
+                    description: schema.description || ''
+                };
+
+                const hasDefault = param.default !== null && param.default !== undefined;
+                const isOptional = param.type && param.type.startsWith('Optional[');
+                if (!hasDefault && !isOptional) {
+                    if (!tool.inputSchema.required.includes(param.name)) {
+                        tool.inputSchema.required.push(param.name);
+                    }
+                }
+            });
+
+            showNotification(`Input schema pre-filled from ${serviceName} signature`, 'success');
         }
 
         function getTargetPropertyForGraphType(className, tool) {
@@ -1722,6 +2041,19 @@
                     property.properties[nestedPropName].format = format;
                 } else {
                     delete property.properties[nestedPropName].format;
+                }
+            }
+        }
+
+        function updateNestedPropertyDefault(toolIndex, propName, nestedPropName, defaultValue) {
+            const tool = tools[toolIndex];
+            const property = tool.inputSchema.properties[propName];
+
+            if (property.properties && property.properties[nestedPropName]) {
+                if (defaultValue === undefined) {
+                    delete property.properties[nestedPropName].default;
+                } else {
+                    property.properties[nestedPropName].default = defaultValue;
                 }
             }
         }
