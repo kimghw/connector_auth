@@ -10,6 +10,9 @@ from typing import Dict, Any, List, Optional, Union
 from datetime import datetime, timedelta
 import json
 
+from outlook_mcp.mcp_server.mcp_decorators import mcp_tool
+from outlook_mcp.mcp_service_decorators import mcp_service
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from auth.auth_manager import AuthManager
@@ -55,7 +58,13 @@ class GraphMailQuery:
         except Exception as e:
             print(f"Token retrieval error for {user_email}: {str(e)}")
             return None
-
+    @mcp_service(
+        tool_name="build_query_url",
+        category="email",
+        tags=["query", "url-builder", "internal"],
+        priority=5,
+        description="Build Microsoft Graph API query URL for email operations"
+    )
     def _build_query_url(self,
                          user_email: str,
                          filter_query: Optional[str] = None,

@@ -1,0 +1,19 @@
+{
+  "services": [
+    {
+      "function_name": "_build_query_url",
+      "file": "/home/kimghw/Connector_auth/outlook_mcp/graph_mail_query.py",
+      "line": 68,
+      "is_async": false,
+      "tool_name": "build_query_url",
+      "category": "email"
+    }
+  ],
+  "count": 1,
+  "by_file": {
+    "/home/kimghw/Connector_auth/outlook_mcp/graph_mail_query.py": [
+      "_build_query_url"
+    ]
+  },
+  "description": "Detailed information about @mcp_service decorated functions"
+}
