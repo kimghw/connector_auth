@@ -67,3 +67,6 @@ logs/
 *.temp
 temp/
 tmp/
+
+# MCP Editor backups
+outlook_mcp/mcp_editor/backups/
