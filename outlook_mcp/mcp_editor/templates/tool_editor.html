@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MCP Tool Definitions Editor</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
         :root {
             --primary-color: #0071e3;
@@ -562,19 +563,19 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🛠️ MCP Tool Definitions Editor</h1>
+            <h1><span class="material-icons" style="vertical-align: middle; font-size: 28px;">build</span> MCP Tool Definitions Editor</h1>
             <div class="header-buttons">
                 <button class="btn btn-secondary" onclick="loadTools()">
-                    🔄 Reload
+                    <span class="material-icons">refresh</span> Reload
                 </button>
                 <button class="btn btn-secondary" onclick="showBackups()">
-                    📦 Backups
+                    <span class="material-icons">inventory_2</span> Backups
                 </button>
                 <button class="btn btn-secondary" onclick="validateTools()">
-                    ✅ Validate
+                    <span class="material-icons">check_circle</span> Validate
                 </button>
                 <button class="btn btn-primary" onclick="saveTools()">
-                    💾 Save Changes
+                    <span class="material-icons">save</span> Save Changes
                 </button>
             </div>
         </div>
@@ -583,7 +584,7 @@
             <div class="sidebar">
                 <div class="tool-list">
                     <button class="add-button" onclick="addNewTool()">
-                        + Add New Tool
+                        <span class="material-icons">add</span> Add New Tool
                     </button>
                     <div id="toolList" style="margin-top: 15px;">
                         <!-- Tool items will be loaded here -->
@@ -862,7 +863,7 @@
                                            style="margin-right: 6px;">
                                     <span style="color: ${isRequired ? 'var(--danger-color)' : 'var(--text-secondary)'}; font-size: 13px; font-weight: 500;">Required</span>
                                 </label>
-                                <button class="btn btn-icon btn-sm" onclick="removeProperty(${index}, '${propName}')">🗑️</button>
+                                <button class="btn btn-icon btn-sm" onclick="removeProperty(${index}, '${propName}')"><span class="material-icons">close</span></button>
                             </div>
                         </div>
                         <div class="property-collapse-content" id="content-${propId}">
@@ -937,7 +938,7 @@
                                                     <span style="color: ${nestedIsRequired ? 'var(--danger-color)' : 'var(--text-secondary)'}; font-size: 12px;">Required</span>
                                                 </label>
                                                 <button class="btn btn-icon btn-sm" style="padding: 4px 8px;"
-                                                        onclick="removeNestedPropertyInline(${index}, '${propName}', '${nestedPropName}')">✕</button>
+                                                        onclick="removeNestedPropertyInline(${index}, '${propName}', '${nestedPropName}')"><span class="material-icons">close</span></button>
                                             </div>
                                         </div>
                                         <textarea class="form-control" style="font-size: 13px; min-height: 60px;"
@@ -997,11 +998,11 @@
                                 }).join('')}
                                 <button class="btn btn-secondary btn-sm" style="margin-top: 12px;"
                                         onclick="addNestedPropertyInline(${index}, '${propName}')">
-                                    + Add Nested Property
+                                    <span class="material-icons">add</span> Add Nested Property
                                 </button>
                                 <button class="btn btn-secondary btn-sm" style="margin-top: 12px; margin-left: 8px;"
                                         onclick="openNestedGraphTypesModal(${index}, '${propName}')">
-                                    + Add from graph_types
+                                    <span class="material-icons">add</span> Add from graph_types
                                 </button>
                             </div>
                         </div>
@@ -1012,11 +1013,11 @@
                                 <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">No nested properties defined</div>
                                 <button class="btn btn-secondary btn-sm"
                                         onclick="addNestedPropertyInline(${index}, '${propName}')">
-                                    + Add Nested Property
+                                    <span class="material-icons">add</span> Add Nested Property
                                 </button>
                                 <button class="btn btn-secondary btn-sm" style="margin-left: 8px;"
                                         onclick="openNestedGraphTypesModal(${index}, '${propName}')">
-                                    + Add from graph_types
+                                    <span class="material-icons">add</span> Add from graph_types
                                 </button>
                             </div>
                         </div>
@@ -1088,7 +1089,7 @@
                     <div class="properties-container">
                         ${propertiesHtml}
                         <button class="add-button" onclick="addProperty(${index})">
-                            + Add Property
+                            <span class="material-icons">add</span> Add Property
                         </button>
                     </div>
                 </div>
@@ -1946,7 +1947,7 @@
 
         // Collapse all properties
         function collapseAllProperties() {
-            const allProperties = document.querySelectorAll('.property-collapse-content');
+            const allProperties = documentquerySelectorAll('.property-collapse-content');
             const allIcons = document.querySelectorAll('.property-collapse-header .collapse-icon');
             const allHeaders = document.querySelectorAll('.property-collapse-header');
 
@@ -2149,7 +2150,7 @@
                                            style="margin-right: 6px;">
                                     <span style="color: ${isRequired ? 'var(--danger-color)' : 'var(--text-secondary)'}; font-size: 13px; font-weight: 500;">Required</span>
                                 </label>
-                                <button class="btn btn-icon btn-sm" onclick="removeNestedProperty('${nestedPropName}')">🗑️</button>
+                                <button class="btn btn-icon btn-sm" onclick="removeNestedProperty('${nestedPropName}')"><span class="material-icons">close</span></button>
                             </div>
                         </div>
                         <div class="form-group">
@@ -2191,7 +2192,7 @@
 
             html += `
                 <button class="add-button" onclick="addNestedProperty()">
-                    + Add Nested Property
+                    <span class="material-icons">add</span> Add Nested Property
                 </button>
             </div>`;
 

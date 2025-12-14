@@ -24,11 +24,59 @@ from pydantic_to_schema import (
 app = Flask(__name__)
 CORS(app)
 
-# Path to tool definitions file in mcp_server directory
-TOOL_DEFINITIONS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'mcp_server', 'tool_definitions.py')
-# Path to template definitions (includes internal metadata)
-TEMPLATE_DEFINITIONS_PATH = os.path.join(os.path.dirname(__file__), 'tool_definition_templates.py')
-BACKUP_DIR = os.path.join(os.path.dirname(__file__), 'backups')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH = os.path.join(BASE_DIR, 'editor_config.json')
+DEFAULT_CONFIG = {
+    "template_definitions_path": "tool_definition_templates.py",
+    "tool_definitions_path": "../mcp_server/tool_definitions.py",
+    "backup_dir": "backups",
+    "graph_types_files": ["../graph_types.py"],
+    "host": "0.0.0.0",
+    "port": 8091
+}
+
+
+def _resolve_path(path: str) -> str:
+    """Resolve relative paths against the editor directory"""
+    if os.path.isabs(path):
+        return path
+    return os.path.normpath(os.path.join(BASE_DIR, path))
+
+
+def load_editor_config() -> dict:
+    """Load editor config (paths); create default file if missing."""
+    cfg = DEFAULT_CONFIG.copy()
+    try:
+        if os.path.exists(CONFIG_PATH):
+            with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    for k, v in data.items():
+                        if k in cfg and (isinstance(v, str) or isinstance(v, list) or isinstance(v, int)):
+                            cfg[k] = v
+    except Exception as e:
+        print(f"Warning: Could not load editor_config.json: {e}")
+
+    # Write a default config file if none exists
+    if not os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Warning: Could not write default editor_config.json: {e}")
+
+    return cfg
+
+
+EDITOR_CONFIG = load_editor_config()
+
+# Paths derived from config
+TEMPLATE_DEFINITIONS_PATH = _resolve_path(EDITOR_CONFIG["template_definitions_path"])
+TOOL_DEFINITIONS_PATH = _resolve_path(EDITOR_CONFIG["tool_definitions_path"])
+BACKUP_DIR = _resolve_path(EDITOR_CONFIG["backup_dir"])
+GRAPH_TYPES_FILES = EDITOR_CONFIG.get("graph_types_files", ["../graph_types.py"])
+HOST = EDITOR_CONFIG.get("host", "0.0.0.0")
+PORT = EDITOR_CONFIG.get("port", 8091)
 
 # Create backup directory if it doesn't exist
 os.makedirs(BACKUP_DIR, exist_ok=True)

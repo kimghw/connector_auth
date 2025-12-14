@@ -4,10 +4,11 @@ Utility to convert Pydantic BaseModel classes to JSON Schema for MCP Tool Defini
 import json
 import sys
 import os
-from typing import Dict, Any, Type, get_type_hints, get_args, get_origin
+from typing import Dict, Any, Type, get_type_hints, get_args, get_origin, List
 from pydantic import BaseModel
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 import importlib.util
+import json
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -91,21 +92,52 @@ def pydantic_to_mcp_schema(model_class: Type[BaseModel]) -> Dict[str, Any]:
     return mcp_schema
 
 
+def _resolve_path(path: str) -> str:
+    """Resolve a path relative to the editor directory"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    if os.path.isabs(path):
+        return path
+    return os.path.normpath(os.path.join(base_dir, path))
+
+
+def _load_graph_type_modules() -> List[Any]:
+    """Load graph_types modules from configured paths"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(base_dir, "editor_config.json")
+
+    # Default path if config missing
+    graph_type_paths = ["../graph_types.py"]
+    try:
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict) and isinstance(data.get("graph_types_files"), list):
+                    graph_type_paths = data["graph_types_files"]
+    except Exception as e:
+        print(f"Warning: could not load graph type config: {e}")
+
+    modules = []
+    for path in graph_type_paths:
+        resolved = _resolve_path(path)
+        if not os.path.exists(resolved):
+            print(f"Warning: graph_types file not found: {resolved}")
+            continue
+        spec = importlib.util.spec_from_file_location("graph_types", resolved)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        modules.append(module)
+    return modules
+
+
 def load_graph_types_models():
-    """Load and extract BaseModel classes from graph_types.py"""
-    spec = importlib.util.spec_from_file_location(
-        "graph_types",
-        os.path.join(os.path.dirname(os.path.dirname(__file__)), "graph_types.py")
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
+    """Load and merge BaseModel classes from configured graph_types files"""
     models = {}
-    for name in dir(module):
-        obj = getattr(module, name)
-        if isinstance(obj, type) and issubclass(obj, BaseModel) and obj != BaseModel:
-            models[name] = obj
-
+    modules = _load_graph_type_modules()
+    for module in modules:
+        for name in dir(module):
+            obj = getattr(module, name)
+            if isinstance(obj, type) and issubclass(obj, BaseModel) and obj != BaseModel:
+                models[name] = obj
     return models
 
 
