@@ -115,29 +115,60 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         }
     },
     {
-        "name": "new_tool_1765718733273",
+        "name": "new_tool_1765716071106",
         "description": "New tool description",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "filter": {
-                    "type": "object",
-                    "description": "FilterParams parameters",
-                    "properties": {
-                        "from_address": {
-                            "type": "string",
-                            "description": "from/emailAddress/address - 단일 또는 여러 발신자 이메일 주소"
-                        },
-                        "sender_address": {
-                            "type": "string",
-                            "description": "sender/emailAddress/address - 실제 발신자 이메일 주소"
-                        }
-                    },
-                    "required": [],
-                    "baseModel": "FilterParams"
+                "example_param": {
+                    "type": "string",
+                    "description": "Example parameter"
+                },
+                "from_address": {
+                    "type": "string",
+                    "description": "from/emailAddress/address - 단일 또는 여러 발신자 이메일 주소"
+                },
+                "received_date_time": {
+                    "type": "string",
+                    "description": "메일 수신 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)"
+                },
+                "sender_address": {
+                    "type": "string",
+                    "description": "sender/emailAddress/address - 실제 발신자 이메일 주소"
                 }
             },
-            "required": []
+            "required": [
+                "from_address"
+            ]
+        }
+    },
+    {
+        "name": "new_tool_1765716929240",
+        "description": "New tool description",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "from_address": {
+                    "type": "string",
+                    "description": "from/emailAddress/address - 단일 또는 여러 발신자 이메일 주소"
+                },
+                "sender_address": {
+                    "type": "string",
+                    "description": "sender/emailAddress/address - 실제 발신자 이메일 주소"
+                },
+                "received_date_time": {
+                    "type": "string",
+                    "description": "메일 수신 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)"
+                },
+                "sent_date_time": {
+                    "type": "string",
+                    "description": "메일 발신 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)"
+                }
+            },
+            "required": [
+                "from_address",
+                "sender_address"
+            ]
         }
     }
 ]

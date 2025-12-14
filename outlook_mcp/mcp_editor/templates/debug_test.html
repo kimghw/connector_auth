@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Test - MCP Tool Editor</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #333;
+            border-bottom: 2px solid #0071e3;
+            padding-bottom: 10px;
+        }
+        pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #0071e3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0077ed;
+        }
+        .tool-list-test {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        .tool-item-test {
+            background: #f9f9f9;
+            padding: 10px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <h1>MCP Tool Editor - Debug Test Page</h1>
+
+    <div class="test-section">
+        <h2>Test 1: API Endpoint Check</h2>
+        <button onclick="testApiEndpoint()">Test /api/tools Endpoint</button>
+        <div id="apiTestResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Data Parsing</h2>
+        <button onclick="testDataParsing()">Test Data Parsing</button>
+        <div id="parseTestResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: DOM Manipulation</h2>
+        <button onclick="testDomManipulation()">Test DOM Manipulation</button>
+        <div id="domTestResult"></div>
+        <div id="testToolList" class="tool-list-test"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 4: Full Load Simulation</h2>
+        <button onclick="testFullLoadSequence()">Run Full Load Test</button>
+        <div id="fullLoadResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Console Logs</h2>
+        <div id="consoleLog" style="background: #f0f0f0; padding: 10px; border-radius: 5px; max-height: 300px; overflow-y: auto;">
+            <em>Console output will appear here...</em>
+        </div>
+    </div>
+
+    <script>
+        // Override console.log to display in page
+        const originalLog = console.log;
+        const originalError = console.error;
+
+        function addLog(message, type = 'log') {
+            const logDiv = document.getElementById('consoleLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#dc3545' : '#333';
+            logDiv.innerHTML += `<div style="color: ${color}; margin: 5px 0;">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLog(args.join(' '), 'log');
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog('ERROR: ' + args.join(' '), 'error');
+        };
+
+        // Test 1: API Endpoint
+        function testApiEndpoint() {
+            const resultDiv = document.getElementById('apiTestResult');
+            resultDiv.innerHTML = '<div class="status info">Testing API endpoint...</div>';
+
+            console.log('Starting API endpoint test...');
+
+            fetch('/api/tools')
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    console.log('Response ok:', response.ok);
+                    console.log('Response headers:', response.headers);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('API Response data:', JSON.stringify(data, null, 2));
+                    console.log('Data type:', typeof data);
+                    console.log('Is Array:', Array.isArray(data));
+                    console.log('Data length:', data.length);
+
+                    if (Array.isArray(data) && data.length > 0) {
+                        resultDiv.innerHTML = `
+                            <div class="status success">✓ API endpoint is working!</div>
+                            <p><strong>Response Type:</strong> ${Array.isArray(data) ? 'Array' : typeof data}</p>
+                            <p><strong>Number of tools:</strong> ${data.length}</p>
+                            <p><strong>First tool name:</strong> ${data[0].name}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        `;
+                    } else {
+                        resultDiv.innerHTML = `
+                            <div class="status error">✗ API returned unexpected data</div>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('API Error:', error);
+                    resultDiv.innerHTML = `
+                        <div class="status error">✗ API Error: ${error.message}</div>
+                        <pre>${error.stack}</pre>
+                    `;
+                });
+        }
+
+        // Test 2: Data Parsing
+        function testDataParsing() {
+            const resultDiv = document.getElementById('parseTestResult');
+            resultDiv.innerHTML = '<div class="status info">Testing data parsing...</div>';
+
+            fetch('/api/tools')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Testing data parsing...');
+                    console.log('Data received:', data);
+
+                    let html = '<div class="status success">✓ Data parsing successful!</div>';
+                    html += '<p><strong>Parsed Tools:</strong></p><ul>';
+
+                    data.forEach((tool, index) => {
+                        console.log(`Tool ${index}:`, tool);
+                        console.log(`  - Name: ${tool.name}`);
+                        console.log(`  - Description: ${tool.description}`);
+                        html += `<li><strong>${tool.name}</strong>: ${tool.description}</li>`;
+                    });
+
+                    html += '</ul>';
+                    resultDiv.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Parse Error:', error);
+                    resultDiv.innerHTML = `<div class="status error">✗ Parse Error: ${error.message}</div>`;
+                });
+        }
+
+        // Test 3: DOM Manipulation
+        function testDomManipulation() {
+            const resultDiv = document.getElementById('domTestResult');
+            const toolList = document.getElementById('testToolList');
+
+            resultDiv.innerHTML = '<div class="status info">Testing DOM manipulation...</div>';
+            console.log('Testing DOM manipulation...');
+
+            fetch('/api/tools')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Creating DOM elements for tools...');
+
+                    // Clear the list
+                    toolList.innerHTML = '';
+                    console.log('Tool list cleared');
+
+                    // Add each tool
+                    data.forEach((tool, index) => {
+                        console.log(`Creating element for tool ${index}: ${tool.name}`);
+
+                        const toolItem = document.createElement('div');
+                        toolItem.className = 'tool-item-test';
+                        toolItem.innerHTML = `
+                            <strong>${tool.name}</strong><br>
+                            <small>${tool.description}</small>
+                        `;
+                        toolList.appendChild(toolItem);
+                        console.log(`Tool ${index} element added to DOM`);
+                    });
+
+                    console.log('DOM manipulation complete');
+                    resultDiv.innerHTML = `
+                        <div class="status success">✓ DOM manipulation successful!</div>
+                        <p>Created ${data.length} tool elements below:</p>
+                    `;
+                })
+                .catch(error => {
+                    console.error('DOM Error:', error);
+                    resultDiv.innerHTML = `<div class="status error">✗ DOM Error: ${error.message}</div>`;
+                });
+        }
+
+        // Test 4: Full Load Sequence (mimic actual page behavior)
+        function testFullLoadSequence() {
+            const resultDiv = document.getElementById('fullLoadResult');
+            resultDiv.innerHTML = '<div class="status info">Running full load sequence...</div>';
+
+            console.log('=== STARTING FULL LOAD SEQUENCE ===');
+
+            let tools = [];
+            let currentToolIndex = -1;
+
+            // Step 1: Load tools
+            console.log('Step 1: Fetching tools from API...');
+            fetch('/api/tools')
+                .then(response => {
+                    console.log('Response received, status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Step 2: Data received:', data);
+                    tools = data;
+                    console.log('Tools variable set, length:', tools.length);
+
+                    // Step 3: Render tool list
+                    console.log('Step 3: Calling renderToolList()...');
+                    renderToolList();
+
+                    resultDiv.innerHTML = `
+                        <div class="status success">✓ Full load sequence completed!</div>
+                        <p><strong>Tools loaded:</strong> ${tools.length}</p>
+                        <p><strong>Current tool index:</strong> ${currentToolIndex}</p>
+                        <p>Check the main tool editor page to see if this worked.</p>
+                    `;
+                })
+                .catch(error => {
+                    console.error('Full load error:', error);
+                    resultDiv.innerHTML = `<div class="status error">✗ Full load error: ${error.message}</div>`;
+                });
+
+            function renderToolList() {
+                console.log('renderToolList() called');
+                console.log('tools array:', tools);
+                console.log('tools length:', tools.length);
+
+                const toolListElement = document.getElementById('testToolList');
+                if (!toolListElement) {
+                    console.error('ERROR: testToolList element not found!');
+                    return;
+                }
+
+                console.log('Clearing tool list...');
+                toolListElement.innerHTML = '';
+
+                console.log('Iterating through tools...');
+                tools.forEach((tool, index) => {
+                    console.log(`Rendering tool ${index}: ${tool.name}`);
+
+                    const toolItem = document.createElement('div');
+                    toolItem.className = 'tool-item-test';
+                    if (index === currentToolIndex) {
+                        toolItem.style.background = '#0071e3';
+                        toolItem.style.color = 'white';
+                    }
+                    toolItem.onclick = () => selectTool(index);
+                    toolItem.innerHTML = `
+                        <strong>${tool.name}</strong><br>
+                        <small>${tool.description}</small>
+                    `;
+                    toolListElement.appendChild(toolItem);
+                });
+
+                console.log('renderToolList() complete');
+            }
+
+            function selectTool(index) {
+                console.log('Tool selected:', index);
+                currentToolIndex = index;
+                renderToolList();
+            }
+        }
+
+        // Auto-run basic tests on page load
+        window.onload = function() {
+            console.log('Debug test page loaded');
+            addLog('Debug test page initialized', 'log');
+        };
+    </script>
+</body>
+</html>

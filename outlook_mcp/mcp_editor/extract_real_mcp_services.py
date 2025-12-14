@@ -42,8 +42,56 @@ def find_mcp_service_functions(file_path: str) -> List[Dict[str, Any]]:
                             'function_name': node.name,
                             'file': str(file_path),
                             'line': lineno,
-                            'is_async': isinstance(node, ast.AsyncFunctionDef)
+                            'is_async': isinstance(node, ast.AsyncFunctionDef),
+                            'parameters': []
                         }
+
+                        # Extract function parameters
+                        args = node.args
+                        param_list = []
+
+                        # Regular arguments
+                        for i, arg in enumerate(args.args):
+                            param = {
+                                'name': arg.arg,
+                                'type': None,
+                                'default': None
+                            }
+
+                            # Check for type annotation
+                            if arg.annotation:
+                                param['type'] = ast.unparse(arg.annotation) if hasattr(ast, 'unparse') else str(arg.annotation)
+
+                            # Check for default value
+                            defaults_offset = len(args.args) - len(args.defaults)
+                            if i >= defaults_offset:
+                                default_idx = i - defaults_offset
+                                if default_idx < len(args.defaults):
+                                    default_node = args.defaults[default_idx]
+                                    if isinstance(default_node, ast.Constant):
+                                        param['default'] = default_node.value
+                                    else:
+                                        param['default'] = ast.unparse(default_node) if hasattr(ast, 'unparse') else str(default_node)
+
+                            param_list.append(param)
+
+                        # *args
+                        if args.vararg:
+                            param_list.append({
+                                'name': f'*{args.vararg.arg}',
+                                'type': ast.unparse(args.vararg.annotation) if args.vararg.annotation and hasattr(ast, 'unparse') else None,
+                                'default': None
+                            })
+
+                        # **kwargs
+                        if args.kwarg:
+                            param_list.append({
+                                'name': f'**{args.kwarg.arg}',
+                                'type': ast.unparse(args.kwarg.annotation) if args.kwarg.annotation and hasattr(ast, 'unparse') else None,
+                                'default': None
+                            })
+
+                        service_info['parameters'] = param_list
 
                         # Try to extract decorator arguments if present
                         if isinstance(decorator, ast.Call):
@@ -97,11 +145,21 @@ def main():
     # Extract just function names for simple list
     function_names = [service['function_name'] for service in all_services]
 
-    # Prepare simple output
+    # Prepare simple output with signatures
+    services_with_signatures = []
+    for service in all_services:
+        service_entry = {
+            "name": service['function_name'],
+            "parameters": service.get('parameters', []),
+            "is_async": service.get('is_async', False)
+        }
+        services_with_signatures.append(service_entry)
+
     simple_output = {
-        "decorated_services": function_names,
+        "decorated_services": function_names,  # Keep for backward compatibility
+        "services_with_signatures": services_with_signatures,  # New field with full info
         "count": len(function_names),
-        "description": "List of actual functions with @mcp_service decorator in codebase"
+        "description": "List of actual functions with @mcp_service decorator in codebase with signatures"
     }
 
     # Prepare detailed output
@@ -120,13 +178,14 @@ def main():
         detailed_output['by_file'][file_path].append(service['function_name'])
 
     # Save simple version
-    simple_file = os.path.join(base_dir, "mcp_services.json")
+    mcp_editor_dir = os.path.join(base_dir, "mcp_editor")
+    simple_file = os.path.join(mcp_editor_dir, "mcp_services.json")
     with open(simple_file, 'w', encoding='utf-8') as f:
         json.dump(simple_output, f, indent=2, ensure_ascii=False)
     print(f"\nSimple service list saved to: {simple_file}")
 
     # Save detailed version
-    detailed_file = os.path.join(base_dir, "mcp_services_detailed.json")
+    detailed_file = os.path.join(mcp_editor_dir, "mcp_services_detailed.json")
     with open(detailed_file, 'w', encoding='utf-8') as f:
         json.dump(detailed_output, f, indent=2, ensure_ascii=False)
     print(f"Detailed service info saved to: {detailed_file}")

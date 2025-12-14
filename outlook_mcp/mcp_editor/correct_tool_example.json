@@ -1,0 +1,95 @@
+{
+  "name": "query_emails",
+  "description": "Query and filter emails with advanced options",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "user_email": {
+        "type": "string",
+        "description": "User email address"
+      },
+      "filter": {
+        "type": "object",
+        "description": "Filter parameters for querying emails",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Filter by sender email"
+          },
+          "subject": {
+            "type": "string",
+            "description": "Filter by subject"
+          },
+          "body": {
+            "type": "string",
+            "description": "Filter by body content"
+          },
+          "has_attachments": {
+            "type": "boolean",
+            "description": "Filter emails with attachments"
+          },
+          "is_read": {
+            "type": "boolean",
+            "description": "Filter by read status"
+          },
+          "importance": {
+            "type": "string",
+            "enum": ["low", "normal", "high"],
+            "description": "Filter by importance"
+          },
+          "received_after": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Filter emails received after this date"
+          },
+          "received_before": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Filter emails received before this date"
+          }
+        }
+      },
+      "exclude": {
+        "type": "object",
+        "description": "Exclude parameters for filtering",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Exclude sender email"
+          },
+          "subject": {
+            "type": "string",
+            "description": "Exclude by subject"
+          },
+          "body": {
+            "type": "string",
+            "description": "Exclude by body content"
+          }
+        }
+      },
+      "select": {
+        "type": "object",
+        "description": "Select specific fields to return",
+        "properties": {
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of fields to return"
+          }
+        }
+      },
+      "top": {
+        "type": "integer",
+        "description": "Maximum number of emails to return (default: 10)"
+      },
+      "orderby": {
+        "type": "string",
+        "description": "Sort order (default: 'receivedDateTime desc')"
+      }
+    },
+    "required": ["user_email"]
+  },
+  "mcp_service": "query_filter"
+}

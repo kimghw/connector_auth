@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .tool-item { padding: 10px; margin: 5px 0; background: #f0f0f0; border-radius: 5px; }
+        #status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Simple API Test</h1>
+
+    <div id="status">Loading...</div>
+
+    <h2>Tools from API:</h2>
+    <div id="toolList"></div>
+
+    <h2>Raw JSON:</h2>
+    <pre id="jsonOutput"></pre>
+
+    <script>
+        console.log('Starting test...');
+
+        fetch('/api/tools')
+            .then(response => {
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers.get('Content-Type'));
+                return response.json();
+            })
+            .then(data => {
+                console.log('Data received:', data);
+                console.log('Is array?', Array.isArray(data));
+                console.log('Length:', data.length);
+
+                // Update status
+                document.getElementById('status').innerHTML =
+                    `<div class="success">✓ Loaded ${data.length} tools</div>`;
+
+                // Show raw JSON
+                document.getElementById('jsonOutput').textContent =
+                    JSON.stringify(data, null, 2);
+
+                // Render tools
+                const toolList = document.getElementById('toolList');
+                toolList.innerHTML = '';
+
+                data.forEach((tool, index) => {
+                    console.log(`Rendering tool ${index}:`, tool.name);
+                    const div = document.createElement('div');
+                    div.className = 'tool-item';
+                    div.innerHTML = `<strong>${tool.name}</strong><br>${tool.description}`;
+                    toolList.appendChild(div);
+                });
+
+                console.log('Rendering complete');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('status').innerHTML =
+                    `<div class="error">✗ Error: ${error.message}</div>`;
+            });
+    </script>
+</body>
+</html>

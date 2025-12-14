@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Tool Definitions Editor (DEBUG)</title>
+    <style>
+        /* Minimal styling for debug version */
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .tool-list {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-top: 20px;
+            background: #fafafa;
+        }
+        .tool-item {
+            padding: 12px;
+            margin: 8px 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .tool-item:hover {
+            background: #f0f0f0;
+        }
+        .tool-item.active {
+            background: #0071e3;
+            color: white;
+        }
+        #debug-console {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .debug-log {
+            margin: 3px 0;
+        }
+        .debug-log.error {
+            color: #ff6b6b;
+        }
+        .debug-log.success {
+            color: #51cf66;
+        }
+        .debug-log.info {
+            color: #74c0fc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MCP Tool Definitions Editor (DEBUG MODE)</h1>
+
+        <div>
+            <button onclick="loadTools()" style="padding: 10px 20px; margin-right: 10px;">Reload Tools</button>
+            <button onclick="clearDebugConsole()" style="padding: 10px 20px;">Clear Console</button>
+        </div>
+
+        <h2>Tool List</h2>
+        <div class="tool-list">
+            <div id="toolList">
+                <em>No tools loaded yet...</em>
+            </div>
+        </div>
+
+        <h2>Debug Console</h2>
+        <div id="debug-console">
+            <div class="debug-log info">Debug console initialized...</div>
+        </div>
+    </div>
+
+    <script>
+        let tools = [];
+        let currentToolIndex = -1;
+
+        // Debug logging function
+        function debugLog(message, type = 'info') {
+            const console = document.getElementById('debug-console');
+            const timestamp = new Date().toISOString().split('T')[1].slice(0, -1);
+            const logEntry = document.createElement('div');
+            logEntry.className = `debug-log ${type}`;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            console.appendChild(logEntry);
+            console.scrollTop = console.scrollHeight;
+
+            // Also log to browser console
+            window.console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function clearDebugConsole() {
+            document.getElementById('debug-console').innerHTML =
+                '<div class="debug-log info">Debug console cleared...</div>';
+        }
+
+        // Load tools on page load
+        window.onload = function() {
+            debugLog('Page loaded, window.onload triggered', 'info');
+            debugLog('Calling loadTools()...', 'info');
+            loadTools();
+        };
+
+        function loadTools() {
+            debugLog('loadTools() function called', 'info');
+            debugLog('Fetching from /api/tools...', 'info');
+
+            fetch('/api/tools')
+                .then(response => {
+                    debugLog(`Response received: status=${response.status}, ok=${response.ok}`, 'success');
+                    debugLog(`Content-Type: ${response.headers.get('Content-Type')}`, 'info');
+                    return response.json();
+                })
+                .then(data => {
+                    debugLog('JSON parsing successful', 'success');
+                    debugLog(`Data type: ${typeof data}, isArray: ${Array.isArray(data)}`, 'info');
+                    debugLog(`Number of tools: ${data.length}`, 'info');
+
+                    // Log each tool
+                    data.forEach((tool, index) => {
+                        debugLog(`  Tool ${index}: name="${tool.name}", description="${tool.description}"`, 'info');
+                    });
+
+                    // Set global tools variable
+                    tools = data;
+                    debugLog(`Global tools variable set, tools.length = ${tools.length}`, 'success');
+
+                    // Call renderToolList
+                    debugLog('Calling renderToolList()...', 'info');
+                    renderToolList();
+                    debugLog('renderToolList() completed', 'success');
+                })
+                .catch(error => {
+                    debugLog(`ERROR in loadTools(): ${error.message}`, 'error');
+                    debugLog(`Error stack: ${error.stack}`, 'error');
+                    console.error('Error loading tools:', error);
+                });
+        }
+
+        function renderToolList() {
+            debugLog('--- renderToolList() START ---', 'info');
+            debugLog(`tools array length: ${tools.length}`, 'info');
+            debugLog(`currentToolIndex: ${currentToolIndex}`, 'info');
+
+            const toolList = document.getElementById('toolList');
+            if (!toolList) {
+                debugLog('ERROR: toolList element not found in DOM!', 'error');
+                return;
+            }
+            debugLog('toolList element found', 'success');
+
+            debugLog('Clearing toolList.innerHTML...', 'info');
+            toolList.innerHTML = '';
+            debugLog('toolList cleared', 'success');
+
+            debugLog('Starting forEach loop...', 'info');
+            tools.forEach((tool, index) => {
+                debugLog(`  Creating element for tool ${index}: ${tool.name}`, 'info');
+
+                const toolItem = document.createElement('div');
+                toolItem.className = 'tool-item';
+
+                if (index === currentToolIndex) {
+                    toolItem.classList.add('active');
+                    debugLog(`    Tool ${index} is active`, 'info');
+                }
+
+                toolItem.onclick = () => selectTool(index);
+
+                toolItem.innerHTML = `
+                    <h3 style="margin: 0 0 5px 0; font-size: 16px;">${tool.name}</h3>
+                    <p style="margin: 0; font-size: 14px; color: #666;">${tool.description}</p>
+                `;
+
+                debugLog(`    Appending tool ${index} to DOM...`, 'info');
+                toolList.appendChild(toolItem);
+                debugLog(`    Tool ${index} appended successfully`, 'success');
+            });
+
+            debugLog(`forEach loop completed, processed ${tools.length} tools`, 'success');
+            debugLog('--- renderToolList() END ---', 'info');
+        }
+
+        function selectTool(index) {
+            debugLog(`selectTool(${index}) called`, 'info');
+            currentToolIndex = index;
+            debugLog(`currentToolIndex set to ${currentToolIndex}`, 'info');
+            debugLog(`Selected tool: ${tools[index].name}`, 'success');
+            renderToolList();
+        }
+
+        // Log initial state
+        debugLog('Script loaded, initial state:', 'info');
+        debugLog(`  tools.length = ${tools.length}`, 'info');
+        debugLog(`  currentToolIndex = ${currentToolIndex}`, 'info');
+    </script>
+</body>
+</html>

@@ -113,32 +113,6 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 "user_email"
             ]
         }
-    },
-    {
-        "name": "new_tool_1765718733273",
-        "description": "New tool description",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "filter": {
-                    "type": "object",
-                    "description": "FilterParams parameters",
-                    "properties": {
-                        "from_address": {
-                            "type": "string",
-                            "description": "from/emailAddress/address - 단일 또는 여러 발신자 이메일 주소"
-                        },
-                        "sender_address": {
-                            "type": "string",
-                            "description": "sender/emailAddress/address - 실제 발신자 이메일 주소"
-                        }
-                    },
-                    "required": [],
-                    "baseModel": "FilterParams"
-                }
-            },
-            "required": []
-        }
     }
 ]
 

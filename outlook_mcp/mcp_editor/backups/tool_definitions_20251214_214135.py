@@ -20,14 +20,59 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
+                "user_email": {
+                    "type": "string",
+                    "description": "User email address"
+                },
+                "filter": {
+                    "type": "object",
+                    "description": "Filter parameters for querying emails",
+                    "properties": {
+                        "from": {
+                            "type": "string",
+                            "description": "Filter by sender email"
+                        },
+                        "subject": {
+                            "type": "string",
+                            "description": "Filter by subject"
+                        },
+                        "body": {
+                            "type": "string",
+                            "description": "Filter by body content"
+                        },
+                        "has_attachments": {
+                            "type": "boolean",
+                            "description": "Filter emails with attachments"
+                        },
+                        "is_read": {
+                            "type": "boolean",
+                            "description": "Filter by read status"
+                        },
+                        "importance": {
+                            "type": "string",
+                            "enum": [
+                                "low",
+                                "normal",
+                                "high"
+                            ],
+                            "description": "Filter by importance"
+                        },
+                        "received_after": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Filter emails received after this date"
+                        },
+                        "received_before": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Filter emails received before this date"
+                        }
+                    }
+                },
                 "exclude": {
                     "type": "object",
                     "description": "Exclude parameters for filtering",
                     "properties": {
-                        "body": {
-                            "type": "string",
-                            "description": "Exclude by body content"
-                        },
                         "from": {
                             "type": "string",
                             "description": "Exclude sender email"
@@ -35,57 +80,12 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                         "subject": {
                             "type": "string",
                             "description": "Exclude by subject"
-                        }
-                    }
-                },
-                "filter": {
-                    "type": "object",
-                    "description": "Filter parameters for querying emails",
-                    "properties": {
+                        },
                         "body": {
                             "type": "string",
-                            "description": "Filter by body content"
-                        },
-                        "from": {
-                            "type": "string",
-                            "description": "Filter by sender email"
-                        },
-                        "has_attachments": {
-                            "type": "boolean",
-                            "description": "Filter emails with attachments"
-                        },
-                        "importance": {
-                            "type": "string",
-                            "description": "Filter by importance",
-                            "enum": [
-                                "low",
-                                "normal",
-                                "high"
-                            ]
-                        },
-                        "is_read": {
-                            "type": "boolean",
-                            "description": "Filter by read status"
-                        },
-                        "received_after": {
-                            "type": "string",
-                            "description": "Filter emails received after this date",
-                            "format": "date-time"
-                        },
-                        "received_before": {
-                            "type": "string",
-                            "description": "Filter emails received before this date",
-                            "format": "date-time"
-                        },
-                        "subject": {
-                            "type": "string",
-                            "description": "Filter by subject"
+                            "description": "Exclude by body content"
                         }
                     }
-                },
-                "orderby": {
-                    "type": "string",
-                    "description": "Sort order (default: 'receivedDateTime desc')"
                 },
                 "select": {
                     "type": "object",
@@ -93,10 +93,10 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                     "properties": {
                         "fields": {
                             "type": "array",
-                            "description": "List of fields to return",
                             "items": {
                                 "type": "string"
-                            }
+                            },
+                            "description": "List of fields to return"
                         }
                     }
                 },
@@ -104,40 +104,14 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                     "type": "integer",
                     "description": "Maximum number of emails to return (default: 10)"
                 },
-                "user_email": {
+                "orderby": {
                     "type": "string",
-                    "description": "User email address"
+                    "description": "Sort order (default: 'receivedDateTime desc')"
                 }
             },
             "required": [
                 "user_email"
             ]
-        }
-    },
-    {
-        "name": "new_tool_1765718733273",
-        "description": "New tool description",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "filter": {
-                    "type": "object",
-                    "description": "FilterParams parameters",
-                    "properties": {
-                        "from_address": {
-                            "type": "string",
-                            "description": "from/emailAddress/address - 단일 또는 여러 발신자 이메일 주소"
-                        },
-                        "sender_address": {
-                            "type": "string",
-                            "description": "sender/emailAddress/address - 실제 발신자 이메일 주소"
-                        }
-                    },
-                    "required": [],
-                    "baseModel": "FilterParams"
-                }
-            },
-            "required": []
         }
     }
 ]

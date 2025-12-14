@@ -1,0 +1,874 @@
+{
+  "classes": [
+    {
+      "name": "FilterParams",
+      "property_count": 28
+    },
+    {
+      "name": "ExcludeParams",
+      "property_count": 18
+    },
+    {
+      "name": "SelectParams",
+      "property_count": 1
+    }
+  ],
+  "properties_by_class": {
+    "FilterParams": [
+      {
+        "name": "from_address",
+        "type": "string",
+        "description": "from/emailAddress/address - 단일 또는 여러 발신자 이메일 주소",
+        "examples": [
+          "user@example.com",
+          [
+            "user1@example.com",
+            "user2@example.com"
+          ]
+        ],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "sender_address",
+        "type": "string",
+        "description": "sender/emailAddress/address - 실제 발신자 이메일 주소",
+        "examples": [
+          "sender@example.com"
+        ],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "received_date_time",
+        "type": "string",
+        "description": "메일 수신 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)",
+        "examples": [
+          "2024-12-01T00:00:00Z"
+        ],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "sent_date_time",
+        "type": "string",
+        "description": "메일 발신 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)",
+        "examples": [
+          "2024-12-01T00:00:00Z"
+        ],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "created_date_time",
+        "type": "string",
+        "description": "메일 생성 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "last_modified_date_time",
+        "type": "string",
+        "description": "메일 최종 수정 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "received_date_from",
+        "type": "string",
+        "description": "메일 수신 시작 날짜 (포함, receivedDateTime >= 이 값)",
+        "examples": [
+          "2024-12-01T00:00:00Z"
+        ],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "received_date_to",
+        "type": "string",
+        "description": "메일 수신 종료 날짜 (포함, receivedDateTime <= 이 값)",
+        "examples": [
+          "2024-12-31T23:59:59Z"
+        ],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "sent_date_from",
+        "type": "string",
+        "description": "메일 발신 시작 날짜 (포함, sentDateTime >= 이 값)",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "sent_date_to",
+        "type": "string",
+        "description": "메일 발신 종료 날짜 (포함, sentDateTime <= 이 값)",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "is_read",
+        "type": "boolean",
+        "description": "읽음 상태 필터 (true: 읽은 메일, false: 읽지 않은 메일)",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "is_draft",
+        "type": "boolean",
+        "description": "임시 저장 상태 필터",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "has_attachments",
+        "type": "boolean",
+        "description": "첨부파일 포함 여부",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "is_delivery_receipt_requested",
+        "type": "boolean",
+        "description": "배달 확인 요청 여부",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "is_read_receipt_requested",
+        "type": "boolean",
+        "description": "읽음 확인 요청 여부",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "importance",
+        "type": "string",
+        "description": "메일 중요도 (low: 낮음, normal: 보통, high: 높음)",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "sensitivity",
+        "type": "string",
+        "description": "메일 민감도",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "inference_classification",
+        "type": "string",
+        "description": "받은 편지함 분류 (focused: 중요, other: 기타)",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "subject",
+        "type": "string",
+        "description": "제목에 포함될 키워드 (단일 문자열 또는 리스트)",
+        "examples": [
+          "회의",
+          [
+            "프로젝트",
+            "미팅",
+            "회의"
+          ]
+        ],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "body_content",
+        "type": "string",
+        "description": "본문에 포함될 키워드 (단일 문자열 또는 리스트)",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "body_preview",
+        "type": "string",
+        "description": "미리보기에 포함될 키워드 (단일 문자열 또는 리스트)",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "subject_operator",
+        "type": "string",
+        "description": "제목 키워드 연결 방식 (or: 하나라도 포함, and: 모두 포함)",
+        "examples": [],
+        "default": "or",
+        "class": "FilterParams"
+      },
+      {
+        "name": "body_operator",
+        "type": "string",
+        "description": "본문 키워드 연결 방식 (or: 하나라도 포함, and: 모두 포함)",
+        "examples": [],
+        "default": "or",
+        "class": "FilterParams"
+      },
+      {
+        "name": "id",
+        "type": "string",
+        "description": "메일 고유 ID",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "conversation_id",
+        "type": "string",
+        "description": "대화 스레드 ID",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "parent_folder_id",
+        "type": "string",
+        "description": "폴더 ID",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "categories",
+        "type": "string",
+        "description": "메일 카테고리 목록",
+        "examples": [
+          [
+            "중요",
+            "업무",
+            "프로젝트"
+          ]
+        ],
+        "default": null,
+        "class": "FilterParams"
+      },
+      {
+        "name": "flag_status",
+        "type": "string",
+        "description": "플래그 상태 (notFlagged: 플래그 없음, complete: 완료, flagged: 플래그됨)",
+        "examples": [],
+        "default": null,
+        "class": "FilterParams"
+      }
+    ],
+    "ExcludeParams": [
+      {
+        "name": "exclude_from_address",
+        "type": "string",
+        "description": "제외할 발신자 주소 (from 필드)",
+        "examples": [
+          [
+            "noreply@github.com",
+            "notification@slack.com"
+          ]
+        ],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_sender_address",
+        "type": "string",
+        "description": "제외할 실제 발신자 주소 (sender 필드)",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_subject_keywords",
+        "type": "string",
+        "description": "제목에서 제외할 키워드 목록",
+        "examples": [
+          [
+            "newsletter",
+            "광고",
+            "홍보"
+          ]
+        ],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_body_keywords",
+        "type": "string",
+        "description": "본문에서 제외할 키워드 목록",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_preview_keywords",
+        "type": "string",
+        "description": "미리보기에서 제외할 키워드 목록",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_importance",
+        "type": "string",
+        "description": "제외할 중요도",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_sensitivity",
+        "type": "string",
+        "description": "제외할 민감도",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_classification",
+        "type": "string",
+        "description": "제외할 받은 편지함 분류",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_read_status",
+        "type": "boolean",
+        "description": "제외할 읽음 상태",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_draft_status",
+        "type": "boolean",
+        "description": "제외할 임시 저장 상태",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_attachment_status",
+        "type": "boolean",
+        "description": "제외할 첨부파일 상태",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_delivery_receipt",
+        "type": "boolean",
+        "description": "제외할 배달 확인 상태",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_read_receipt",
+        "type": "boolean",
+        "description": "제외할 읽음 확인 상태",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_flag_status",
+        "type": "string",
+        "description": "제외할 플래그 상태",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_categories",
+        "type": "string",
+        "description": "제외할 카테고리 목록",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_id",
+        "type": "string",
+        "description": "제외할 메일 ID",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_conversation_id",
+        "type": "string",
+        "description": "제외할 대화 스레드 ID",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      },
+      {
+        "name": "exclude_parent_folder_id",
+        "type": "string",
+        "description": "제외할 폴더 ID",
+        "examples": [],
+        "default": null,
+        "class": "ExcludeParams"
+      }
+    ],
+    "SelectParams": [
+      {
+        "name": "fields",
+        "type": "string",
+        "description": "조회할 필드 목록 (미지정 시 모든 필드 반환)",
+        "examples": [
+          [
+            "id",
+            "subject",
+            "from",
+            "receivedDateTime",
+            "hasAttachments"
+          ]
+        ],
+        "default": null,
+        "class": "SelectParams"
+      }
+    ]
+  },
+  "all_properties": [
+    {
+      "name": "from_address",
+      "type": "string",
+      "description": "from/emailAddress/address - 단일 또는 여러 발신자 이메일 주소",
+      "class": "FilterParams",
+      "full_path": "FilterParams.from_address",
+      "examples": [
+        "user@example.com",
+        [
+          "user1@example.com",
+          "user2@example.com"
+        ]
+      ]
+    },
+    {
+      "name": "sender_address",
+      "type": "string",
+      "description": "sender/emailAddress/address - 실제 발신자 이메일 주소",
+      "class": "FilterParams",
+      "full_path": "FilterParams.sender_address",
+      "examples": [
+        "sender@example.com"
+      ]
+    },
+    {
+      "name": "received_date_time",
+      "type": "string",
+      "description": "메일 수신 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.received_date_time",
+      "examples": [
+        "2024-12-01T00:00:00Z"
+      ]
+    },
+    {
+      "name": "sent_date_time",
+      "type": "string",
+      "description": "메일 발신 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.sent_date_time",
+      "examples": [
+        "2024-12-01T00:00:00Z"
+      ]
+    },
+    {
+      "name": "created_date_time",
+      "type": "string",
+      "description": "메일 생성 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.created_date_time",
+      "examples": []
+    },
+    {
+      "name": "last_modified_date_time",
+      "type": "string",
+      "description": "메일 최종 수정 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.last_modified_date_time",
+      "examples": []
+    },
+    {
+      "name": "received_date_from",
+      "type": "string",
+      "description": "메일 수신 시작 날짜 (포함, receivedDateTime >= 이 값)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.received_date_from",
+      "examples": [
+        "2024-12-01T00:00:00Z"
+      ]
+    },
+    {
+      "name": "received_date_to",
+      "type": "string",
+      "description": "메일 수신 종료 날짜 (포함, receivedDateTime <= 이 값)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.received_date_to",
+      "examples": [
+        "2024-12-31T23:59:59Z"
+      ]
+    },
+    {
+      "name": "sent_date_from",
+      "type": "string",
+      "description": "메일 발신 시작 날짜 (포함, sentDateTime >= 이 값)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.sent_date_from",
+      "examples": []
+    },
+    {
+      "name": "sent_date_to",
+      "type": "string",
+      "description": "메일 발신 종료 날짜 (포함, sentDateTime <= 이 값)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.sent_date_to",
+      "examples": []
+    },
+    {
+      "name": "is_read",
+      "type": "boolean",
+      "description": "읽음 상태 필터 (true: 읽은 메일, false: 읽지 않은 메일)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.is_read",
+      "examples": []
+    },
+    {
+      "name": "is_draft",
+      "type": "boolean",
+      "description": "임시 저장 상태 필터",
+      "class": "FilterParams",
+      "full_path": "FilterParams.is_draft",
+      "examples": []
+    },
+    {
+      "name": "has_attachments",
+      "type": "boolean",
+      "description": "첨부파일 포함 여부",
+      "class": "FilterParams",
+      "full_path": "FilterParams.has_attachments",
+      "examples": []
+    },
+    {
+      "name": "is_delivery_receipt_requested",
+      "type": "boolean",
+      "description": "배달 확인 요청 여부",
+      "class": "FilterParams",
+      "full_path": "FilterParams.is_delivery_receipt_requested",
+      "examples": []
+    },
+    {
+      "name": "is_read_receipt_requested",
+      "type": "boolean",
+      "description": "읽음 확인 요청 여부",
+      "class": "FilterParams",
+      "full_path": "FilterParams.is_read_receipt_requested",
+      "examples": []
+    },
+    {
+      "name": "importance",
+      "type": "string",
+      "description": "메일 중요도 (low: 낮음, normal: 보통, high: 높음)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.importance",
+      "examples": []
+    },
+    {
+      "name": "sensitivity",
+      "type": "string",
+      "description": "메일 민감도",
+      "class": "FilterParams",
+      "full_path": "FilterParams.sensitivity",
+      "examples": []
+    },
+    {
+      "name": "inference_classification",
+      "type": "string",
+      "description": "받은 편지함 분류 (focused: 중요, other: 기타)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.inference_classification",
+      "examples": []
+    },
+    {
+      "name": "subject",
+      "type": "string",
+      "description": "제목에 포함될 키워드 (단일 문자열 또는 리스트)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.subject",
+      "examples": [
+        "회의",
+        [
+          "프로젝트",
+          "미팅",
+          "회의"
+        ]
+      ]
+    },
+    {
+      "name": "body_content",
+      "type": "string",
+      "description": "본문에 포함될 키워드 (단일 문자열 또는 리스트)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.body_content",
+      "examples": []
+    },
+    {
+      "name": "body_preview",
+      "type": "string",
+      "description": "미리보기에 포함될 키워드 (단일 문자열 또는 리스트)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.body_preview",
+      "examples": []
+    },
+    {
+      "name": "subject_operator",
+      "type": "string",
+      "description": "제목 키워드 연결 방식 (or: 하나라도 포함, and: 모두 포함)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.subject_operator",
+      "examples": []
+    },
+    {
+      "name": "body_operator",
+      "type": "string",
+      "description": "본문 키워드 연결 방식 (or: 하나라도 포함, and: 모두 포함)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.body_operator",
+      "examples": []
+    },
+    {
+      "name": "id",
+      "type": "string",
+      "description": "메일 고유 ID",
+      "class": "FilterParams",
+      "full_path": "FilterParams.id",
+      "examples": []
+    },
+    {
+      "name": "conversation_id",
+      "type": "string",
+      "description": "대화 스레드 ID",
+      "class": "FilterParams",
+      "full_path": "FilterParams.conversation_id",
+      "examples": []
+    },
+    {
+      "name": "parent_folder_id",
+      "type": "string",
+      "description": "폴더 ID",
+      "class": "FilterParams",
+      "full_path": "FilterParams.parent_folder_id",
+      "examples": []
+    },
+    {
+      "name": "categories",
+      "type": "string",
+      "description": "메일 카테고리 목록",
+      "class": "FilterParams",
+      "full_path": "FilterParams.categories",
+      "examples": [
+        [
+          "중요",
+          "업무",
+          "프로젝트"
+        ]
+      ]
+    },
+    {
+      "name": "flag_status",
+      "type": "string",
+      "description": "플래그 상태 (notFlagged: 플래그 없음, complete: 완료, flagged: 플래그됨)",
+      "class": "FilterParams",
+      "full_path": "FilterParams.flag_status",
+      "examples": []
+    },
+    {
+      "name": "exclude_from_address",
+      "type": "string",
+      "description": "제외할 발신자 주소 (from 필드)",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_from_address",
+      "examples": [
+        [
+          "noreply@github.com",
+          "notification@slack.com"
+        ]
+      ]
+    },
+    {
+      "name": "exclude_sender_address",
+      "type": "string",
+      "description": "제외할 실제 발신자 주소 (sender 필드)",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_sender_address",
+      "examples": []
+    },
+    {
+      "name": "exclude_subject_keywords",
+      "type": "string",
+      "description": "제목에서 제외할 키워드 목록",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_subject_keywords",
+      "examples": [
+        [
+          "newsletter",
+          "광고",
+          "홍보"
+        ]
+      ]
+    },
+    {
+      "name": "exclude_body_keywords",
+      "type": "string",
+      "description": "본문에서 제외할 키워드 목록",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_body_keywords",
+      "examples": []
+    },
+    {
+      "name": "exclude_preview_keywords",
+      "type": "string",
+      "description": "미리보기에서 제외할 키워드 목록",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_preview_keywords",
+      "examples": []
+    },
+    {
+      "name": "exclude_importance",
+      "type": "string",
+      "description": "제외할 중요도",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_importance",
+      "examples": []
+    },
+    {
+      "name": "exclude_sensitivity",
+      "type": "string",
+      "description": "제외할 민감도",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_sensitivity",
+      "examples": []
+    },
+    {
+      "name": "exclude_classification",
+      "type": "string",
+      "description": "제외할 받은 편지함 분류",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_classification",
+      "examples": []
+    },
+    {
+      "name": "exclude_read_status",
+      "type": "boolean",
+      "description": "제외할 읽음 상태",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_read_status",
+      "examples": []
+    },
+    {
+      "name": "exclude_draft_status",
+      "type": "boolean",
+      "description": "제외할 임시 저장 상태",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_draft_status",
+      "examples": []
+    },
+    {
+      "name": "exclude_attachment_status",
+      "type": "boolean",
+      "description": "제외할 첨부파일 상태",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_attachment_status",
+      "examples": []
+    },
+    {
+      "name": "exclude_delivery_receipt",
+      "type": "boolean",
+      "description": "제외할 배달 확인 상태",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_delivery_receipt",
+      "examples": []
+    },
+    {
+      "name": "exclude_read_receipt",
+      "type": "boolean",
+      "description": "제외할 읽음 확인 상태",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_read_receipt",
+      "examples": []
+    },
+    {
+      "name": "exclude_flag_status",
+      "type": "string",
+      "description": "제외할 플래그 상태",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_flag_status",
+      "examples": []
+    },
+    {
+      "name": "exclude_categories",
+      "type": "string",
+      "description": "제외할 카테고리 목록",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_categories",
+      "examples": []
+    },
+    {
+      "name": "exclude_id",
+      "type": "string",
+      "description": "제외할 메일 ID",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_id",
+      "examples": []
+    },
+    {
+      "name": "exclude_conversation_id",
+      "type": "string",
+      "description": "제외할 대화 스레드 ID",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_conversation_id",
+      "examples": []
+    },
+    {
+      "name": "exclude_parent_folder_id",
+      "type": "string",
+      "description": "제외할 폴더 ID",
+      "class": "ExcludeParams",
+      "full_path": "ExcludeParams.exclude_parent_folder_id",
+      "examples": []
+    },
+    {
+      "name": "fields",
+      "type": "string",
+      "description": "조회할 필드 목록 (미지정 시 모든 필드 반환)",
+      "class": "SelectParams",
+      "full_path": "SelectParams.fields",
+      "examples": [
+        [
+          "id",
+          "subject",
+          "from",
+          "receivedDateTime",
+          "hasAttachments"
+        ]
+      ]
+    }
+  ]
+}

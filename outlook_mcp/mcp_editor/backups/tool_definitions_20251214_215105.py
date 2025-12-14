@@ -18,127 +18,130 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         "name": "query_emails",
         "description": "Query and filter emails with advanced options",
         "inputSchema": {
-            "type": "object",
             "properties": {
                 "exclude": {
-                    "type": "object",
                     "description": "Exclude parameters for filtering",
                     "properties": {
                         "body": {
-                            "type": "string",
-                            "description": "Exclude by body content"
+                            "description": "Exclude by body content",
+                            "type": "string"
                         },
                         "from": {
-                            "type": "string",
-                            "description": "Exclude sender email"
+                            "description": "Exclude sender email",
+                            "type": "string"
                         },
                         "subject": {
-                            "type": "string",
-                            "description": "Exclude by subject"
+                            "description": "Exclude by subject",
+                            "type": "string"
                         }
-                    }
+                    },
+                    "type": "object"
                 },
                 "filter": {
-                    "type": "object",
                     "description": "Filter parameters for querying emails",
                     "properties": {
                         "body": {
-                            "type": "string",
-                            "description": "Filter by body content"
+                            "description": "Filter by body content",
+                            "type": "string"
                         },
                         "from": {
-                            "type": "string",
-                            "description": "Filter by sender email"
+                            "description": "Filter by sender email",
+                            "type": "string"
                         },
                         "has_attachments": {
-                            "type": "boolean",
-                            "description": "Filter emails with attachments"
+                            "description": "Filter emails with attachments",
+                            "type": "boolean"
                         },
                         "importance": {
-                            "type": "string",
                             "description": "Filter by importance",
                             "enum": [
                                 "low",
                                 "normal",
                                 "high"
-                            ]
+                            ],
+                            "type": "string"
                         },
                         "is_read": {
-                            "type": "boolean",
-                            "description": "Filter by read status"
+                            "description": "Filter by read status",
+                            "type": "boolean"
                         },
                         "received_after": {
-                            "type": "string",
                             "description": "Filter emails received after this date",
-                            "format": "date-time"
+                            "format": "date-time",
+                            "type": "string"
                         },
                         "received_before": {
-                            "type": "string",
                             "description": "Filter emails received before this date",
-                            "format": "date-time"
+                            "format": "date-time",
+                            "type": "string"
                         },
                         "subject": {
-                            "type": "string",
-                            "description": "Filter by subject"
+                            "description": "Filter by subject",
+                            "type": "string"
                         }
-                    }
+                    },
+                    "type": "object"
                 },
                 "orderby": {
-                    "type": "string",
-                    "description": "Sort order (default: 'receivedDateTime desc')"
+                    "description": "Sort order (default: 'receivedDateTime desc')",
+                    "type": "string"
                 },
                 "select": {
-                    "type": "object",
                     "description": "Select specific fields to return",
                     "properties": {
                         "fields": {
-                            "type": "array",
                             "description": "List of fields to return",
                             "items": {
                                 "type": "string"
-                            }
+                            },
+                            "type": "array"
                         }
-                    }
+                    },
+                    "type": "object"
                 },
                 "top": {
-                    "type": "integer",
-                    "description": "Maximum number of emails to return (default: 10)"
+                    "description": "Maximum number of emails to return (default: 10)",
+                    "type": "integer"
                 },
                 "user_email": {
-                    "type": "string",
-                    "description": "User email address"
+                    "description": "User email address",
+                    "type": "string"
                 }
             },
             "required": [
                 "user_email"
-            ]
+            ],
+            "type": "object"
         }
     },
     {
-        "name": "new_tool_1765718733273",
+        "name": "new_tool_1765716071106",
         "description": "New tool description",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "filter": {
-                    "type": "object",
-                    "description": "FilterParams parameters",
-                    "properties": {
-                        "from_address": {
-                            "type": "string",
-                            "description": "from/emailAddress/address - 단일 또는 여러 발신자 이메일 주소"
-                        },
-                        "sender_address": {
-                            "type": "string",
-                            "description": "sender/emailAddress/address - 실제 발신자 이메일 주소"
-                        }
-                    },
-                    "required": [],
-                    "baseModel": "FilterParams"
+                "example_param": {
+                    "type": "string",
+                    "description": "Example parameter"
+                },
+                "from_address": {
+                    "type": "string",
+                    "description": "from/emailAddress/address - 단일 또는 여러 발신자 이메일 주소"
+                },
+                "sender_address": {
+                    "type": "string",
+                    "description": "sender/emailAddress/address - 실제 발신자 이메일 주소"
+                },
+                "received_date_time": {
+                    "type": "string",
+                    "description": "메일 수신 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)"
                 }
             },
-            "required": []
-        }
+            "required": [
+                "from_address"
+            ]
+        },
+        "mcp_service_signature": "async query_filter(user_email: str, filter: FilterParams, exclude: Optional[ExcludeParams], select: Optional[SelectParams], client_filter: Optional[ExcludeParams], top: int = 450, orderby: Optional[str])"
     }
 ]
 

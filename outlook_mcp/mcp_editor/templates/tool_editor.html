@@ -5,6 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MCP Tool Definitions Editor</title>
     <style>
+        :root {
+            --primary-color: #0071e3;
+            --primary-hover: #0077ed;
+            --danger-color: #ff3b30;
+            --danger-hover: #ff453a;
+            --success-color: #34c759;
+            --warning-color: #ff9f0a;
+            --bg-color: #f5f5f7;
+            --card-bg: #ffffff;
+            --sidebar-bg: #ffffff;
+            --border-color: #d2d2d7;
+            --text-primary: #1d1d1f;
+            --text-secondary: #86868b;
+            --shadow-sm: 0 2px 5px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --shadow-lg: 0 12px 30px rgba(0,0,0,0.12);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 18px;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,128 +33,146 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
             min-height: 100vh;
             padding: 20px;
+            -webkit-font-smoothing: antialiased;
         }
 
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            background: var(--card-bg);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 40px);
         }
 
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: saturate(180%) blur(20px);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            padding: 20px 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            z-index: 10;
         }
 
         .header h1 {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
         }
 
         .header-buttons {
             display: flex;
-            gap: 10px;
+            gap: 12px;
         }
 
         .btn {
-            padding: 10px 20px;
+            padding: 8px 16px;
             border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
+            border-radius: 980px; /* Pill shape */
+            font-size: 13px;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.2s ease;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
+            text-decoration: none;
         }
 
         .btn-primary {
-            background: white;
-            color: #667eea;
+            background: var(--primary-color);
+            color: white;
         }
 
         .btn-primary:hover {
-            background: #f7f7f7;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            background: var(--primary-hover);
+            transform: scale(1.02);
         }
 
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(0, 0, 0, 0.05);
+            color: var(--text-primary);
         }
 
         .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(0, 0, 0, 0.1);
         }
 
         .btn-danger {
-            background: #ef4444;
+            background: var(--danger-color);
             color: white;
         }
 
         .btn-danger:hover {
-            background: #dc2626;
+            background: var(--danger-hover);
         }
 
         .main-content {
             display: flex;
-            height: calc(100vh - 200px);
+            flex: 1;
+            overflow: hidden;
         }
 
         .sidebar {
-            width: 300px;
-            background: #f7f7f7;
-            border-right: 1px solid #e5e5e5;
+            width: 320px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
 
         .tool-list {
             padding: 20px;
+            flex: 1;
         }
 
         .tool-item {
-            background: white;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 8px;
+            background: transparent;
+            padding: 12px 16px;
+            margin-bottom: 4px;
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            transition: all 0.3s;
-            border: 2px solid transparent;
+            transition: all 0.2s;
+            border: none;
         }
 
         .tool-item:hover {
-            border-color: #667eea;
-            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+            background: rgba(0, 0, 0, 0.03);
         }
 
         .tool-item.active {
-            border-color: #667eea;
-            background: linear-gradient(135deg, #667eea10 0%, #764ba210 100%);
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .tool-item.active h3,
+        .tool-item.active p {
+            color: white;
         }
 
         .tool-item h3 {
-            font-size: 16px;
-            color: #333;
-            margin-bottom: 5px;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
         }
 
         .tool-item p {
-            font-size: 12px;
-            color: #666;
+            font-size: 13px;
+            color: var(--text-secondary);
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -141,81 +180,94 @@
 
         .editor-area {
             flex: 1;
-            padding: 20px;
+            padding: 40px;
             overflow-y: auto;
+            background-color: #fff;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
 
         .form-group label {
             display: block;
-            font-size: 14px;
-            font-weight: 600;
-            color: #333;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
             margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .form-control {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #e5e5e5;
-            border-radius: 6px;
-            font-size: 14px;
-            transition: all 0.3s;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            font-size: 15px;
+            transition: all 0.2s;
+            background: #fff;
+            color: var(--text-primary);
+            font-family: inherit;
         }
 
         .form-control:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15);
         }
 
         textarea.form-control {
             resize: vertical;
-            min-height: 100px;
-            font-family: 'Courier New', monospace;
+            min-height: 120px;
+            line-height: 1.5;
         }
 
         .properties-container {
-            background: #f7f7f7;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 10px;
+            background: #fbfbfd;
+            padding: 20px;
+            border-radius: var(--radius-md);
+            margin-top: 16px;
+            border: 1px solid var(--border-color);
         }
 
         .property-item {
             background: white;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 6px;
-            border: 1px solid #e5e5e5;
+            padding: 20px;
+            margin-bottom: 16px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
         }
 
         .property-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f5f5f7;
         }
 
         .btn-sm {
-            padding: 5px 10px;
-            font-size: 12px;
+            padding: 4px 10px;
+            font-size: 11px;
+            border-radius: 6px;
         }
 
         .btn-icon {
             background: transparent;
-            border: 1px solid #e5e5e5;
-            color: #666;
-            padding: 5px 8px;
-            border-radius: 4px;
+            border: none;
+            color: var(--text-secondary);
+            padding: 6px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
         }
 
         .btn-icon:hover {
-            background: #f7f7f7;
-            border-color: #d5d5d5;
+            background: rgba(0,0,0,0.05);
+            color: var(--text-primary);
         }
 
         .modal {
@@ -226,8 +278,10 @@
             top: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            animation: fadeIn 0.3s;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            animation: fadeIn 0.2s;
         }
 
         .modal.show {
@@ -238,32 +292,59 @@
 
         .modal-content {
             background: white;
-            border-radius: 12px;
+            border-radius: var(--radius-lg);
             max-width: 600px;
             width: 90%;
-            max-height: 80vh;
+            max-height: 85vh;
             overflow-y: auto;
-            animation: slideIn 0.3s;
+            animation: scaleIn 0.2s;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid rgba(0,0,0,0.1);
         }
 
         .modal-header {
-            padding: 20px;
-            border-bottom: 1px solid #e5e5e5;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background: rgba(255,255,255,0.9);
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .modal-header h2, .modal-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .close-btn:hover {
+            color: #000;
         }
 
         .modal-body {
-            padding: 20px;
+            padding: 24px;
         }
 
         .modal-footer {
-            padding: 20px;
-            border-top: 1px solid #e5e5e5;
+            padding: 20px 24px;
+            border-top: 1px solid var(--border-color);
             display: flex;
             justify-content: flex-end;
-            gap: 10px;
+            gap: 12px;
+            background: #fbfbfd;
         }
 
         .backup-list {
@@ -272,13 +353,14 @@
         }
 
         .backup-item {
-            padding: 10px;
-            border: 1px solid #e5e5e5;
-            border-radius: 6px;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
             margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background: white;
         }
 
         .backup-info {
@@ -287,37 +369,43 @@
 
         .backup-name {
             font-weight: 600;
-            color: #333;
+            color: var(--text-primary);
+            font-size: 14px;
         }
 
         .backup-date {
             font-size: 12px;
-            color: #666;
+            color: var(--text-secondary);
+            margin-top: 2px;
         }
 
         .notification {
             position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 15px 20px;
-            border-radius: 8px;
+            top: 24px;
+            right: 24px;
+            padding: 12px 20px;
+            border-radius: var(--radius-md);
             color: white;
-            font-weight: 600;
+            font-weight: 500;
             z-index: 2000;
-            animation: slideInRight 0.3s;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: var(--shadow-md);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .notification.success {
-            background: #10b981;
+            background: var(--success-color);
         }
 
         .notification.error {
-            background: #ef4444;
+            background: var(--danger-color);
         }
 
         .notification.warning {
-            background: #f59e0b;
+            background: var(--warning-color);
         }
 
         @keyframes fadeIn {
@@ -325,17 +413,120 @@
             to { opacity: 1; }
         }
 
-        @keyframes slideIn {
-            from { transform: translateY(-20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+        @keyframes scaleIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
         }
 
         @keyframes slideInRight {
-            from { transform: translateX(100px); opacity: 0; }
+            from { transform: translateX(20px); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
 
         .json-editor {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: var(--radius-md);
+            font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            overflow-x: auto;
+            border: 1px solid #333;
+        }
+
+        .add-button {
+            width: 100%;
+            padding: 12px;
+            border: 1px dashed var(--primary-color);
+            background: rgba(0, 113, 227, 0.05);
+            color: var(--primary-color);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .add-button:hover {
+            background: rgba(0, 113, 227, 0.1);
+        }
+
+        /* Collapsible sections */
+        .collapsible-header {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            padding: 8px 12px;
+            background: #f0f0f0;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+
+        .collapsible-header:hover {
+            background: #e8e8e8;
+        }
+
+        .collapse-icon {
+            margin-right: 8px;
+            transition: transform 0.2s;
+            font-family: monospace;
+            font-size: 16px;
+            color: #666;
+        }
+
+        .collapse-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .collapsible-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .collapsible-content.collapsed {
+            display: none;
+        }
+
+        .property-collapsible {
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+
+        .property-collapse-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .property-collapse-header:hover {
+            background: #f7f7ff;
+        }
+
+        .property-collapse-header.expanded {
+            background: #f7f7ff;
+            border-bottom: 1px solid #e5e5e5;
+        }
+
+        .property-collapse-content {
+            padding: 16px;
+            background: #fafafa;
+        }
+
+        .property-collapse-content.collapsed {
+            display: none;
+        }
+
+        .json-viewer {
             background: #1e1e1e;
             color: #d4d4d4;
             padding: 15px;
@@ -344,22 +535,27 @@
             font-size: 13px;
             line-height: 1.5;
             overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
         }
 
-        .add-button {
-            width: 100%;
-            padding: 15px;
-            border: 2px dashed #667eea;
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
             background: transparent;
-            color: #667eea;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-weight: 600;
         }
-
-        .add-button:hover {
-            background: #667eea10;
+        
+        ::-webkit-scrollbar-thumb {
+            background: #d2d2d7;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #86868b;
         }
     </style>
 </head>
@@ -397,7 +593,7 @@
 
             <div class="editor-area">
                 <div id="editorContent">
-                    <div style="text-align: center; padding: 50px; color: #999;">
+                    <div style="text-align: center; padding: 50px; color: var(--text-secondary);">
                         Select a tool from the left sidebar to edit
                     </div>
                 </div>
@@ -466,28 +662,97 @@
 
         // Load tools on page load
         window.onload = function() {
+            console.log('[DEBUG] window.onload triggered');
+            console.log('[DEBUG] Calling loadTools()...');
             loadTools();
+            console.log('[DEBUG] Calling loadMcpServices()...');
+            loadMcpServices();
+            console.log('[DEBUG] Calling loadGraphTypesProperties()...');
+            loadGraphTypesProperties();
+            console.log('[DEBUG] window.onload completed');
         };
 
-        function loadTools() {
-            fetch('/api/tools')
+        function loadMcpServices() {
+            fetch('/api/mcp-services')
                 .then(response => response.json())
                 .then(data => {
+                    window.mcpServices = data.services || [];
+                    console.log('MCP Services loaded:', window.mcpServices);
+                })
+                .catch(error => {
+                    console.error('Error loading MCP services:', error);
+                    window.mcpServices = [];
+                });
+        }
+
+        function loadTools() {
+            console.log('[DEBUG] loadTools() called');
+            fetch('/api/tools')
+                .then(response => {
+                    console.log('[DEBUG] Response received:', response.status, response.ok);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('[DEBUG] Data received:', data);
+                    console.log('[DEBUG] Data type:', typeof data, 'isArray:', Array.isArray(data));
+                    console.log('[DEBUG] Data length:', data.length);
                     tools = data;
+                    console.log('[DEBUG] tools variable set, tools.length:', tools.length);
+                    console.log('[DEBUG] Calling renderToolList()...');
                     renderToolList();
+                    console.log('[DEBUG] renderToolList() completed');
                     showNotification('Tools loaded successfully', 'success');
                 })
                 .catch(error => {
-                    console.error('Error loading tools:', error);
+                    console.error('[ERROR] Error loading tools:', error);
                     showNotification('Failed to load tools', 'error');
                 });
         }
 
+        // Load graph types properties and MCP services on page load
+        function loadGraphTypesProperties() {
+            fetch('/api/graph-types-properties')
+                .then(response => response.json())
+                .then(data => {
+                    window.graphTypesProperties = data;
+                    console.log('Loaded graph types properties:', data);
+                })
+                .catch(error => {
+                    console.error('Error loading graph types properties:', error);
+                });
+        }
+
+        function loadMCPServices() {
+            fetch('/api/mcp-services')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.services) {
+                        window.mcpServices = data.services;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading MCP services:', error);
+                });
+        }
+
         function renderToolList() {
+            console.log('[DEBUG] renderToolList() called');
+            console.log('[DEBUG] tools.length:', tools.length);
+            console.log('[DEBUG] currentToolIndex:', currentToolIndex);
+
             const toolList = document.getElementById('toolList');
+            if (!toolList) {
+                console.error('[ERROR] toolList element not found!');
+                return;
+            }
+            console.log('[DEBUG] toolList element found');
+
+            console.log('[DEBUG] Clearing toolList.innerHTML');
             toolList.innerHTML = '';
 
+            console.log('[DEBUG] Starting forEach loop...');
             tools.forEach((tool, index) => {
+                console.log(`[DEBUG] Processing tool ${index}: ${tool.name}`);
                 const toolItem = document.createElement('div');
                 toolItem.className = 'tool-item';
                 if (index === currentToolIndex) {
@@ -499,7 +764,9 @@
                     <p>${tool.description}</p>
                 `;
                 toolList.appendChild(toolItem);
+                console.log(`[DEBUG] Tool ${index} appended to DOM`);
             });
+            console.log('[DEBUG] forEach loop completed, total tools:', tools.length);
         }
 
         function selectTool(index) {
@@ -517,14 +784,20 @@
             let propertiesHtml = '';
             for (const [propName, propDef] of Object.entries(properties)) {
                 const isRequired = required.includes(propName);
+                const propId = `prop-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}`;
                 propertiesHtml += `
-                    <div class="property-item">
-                        <div class="property-header">
-                            <strong>${propName}</strong>
-                            <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="property-collapsible">
+                        <div class="property-collapse-header" onclick="togglePropertyCollapse('${propId}')" id="header-${propId}">
+                            <div style="display: flex; align-items: center;">
+                                <span class="collapse-icon" id="icon-${propId}">▼</span>
+                                <strong style="font-size: 15px; color: #333;">${propName}</strong>
+                                <span style="margin-left: 12px; font-size: 12px; color: #666; background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${propDef.type}</span>
+                                ${isRequired ? '<span style="margin-left: 8px; font-size: 11px; color: var(--danger-color); font-weight: 600;">REQUIRED</span>' : ''}
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;" onclick="event.stopPropagation();">
                                 ${propDef.type === 'object' ? `
                                 <button class="btn btn-sm"
-                                        style="background: ${propDef.baseModel ? '#10b981' : '#667eea'}; color: white; padding: 3px 10px; border-radius: 4px; font-size: 11px;"
+                                        style="background: ${propDef.baseModel ? 'var(--success-color)' : 'var(--primary-color)'}; color: white; padding: 4px 12px; border-radius: 980px; font-size: 11px;"
                                         onclick="showBaseModelSelector(${index}, '${propName}')">
                                     ${propDef.baseModel || 'Select BaseModel'}
                                 </button>
@@ -532,12 +805,13 @@
                                 <label style="display: flex; align-items: center; cursor: pointer; margin: 0;">
                                     <input type="checkbox" ${isRequired ? 'checked' : ''}
                                            onchange="toggleRequired(${index}, '${propName}', this.checked)"
-                                           style="margin-right: 5px;">
-                                    <span style="color: ${isRequired ? '#ef4444' : '#999'}; font-size: 13px;">Required</span>
+                                           style="margin-right: 6px;">
+                                    <span style="color: ${isRequired ? 'var(--danger-color)' : 'var(--text-secondary)'}; font-size: 13px; font-weight: 500;">Required</span>
                                 </label>
                                 <button class="btn btn-icon btn-sm" onclick="removeProperty(${index}, '${propName}')">🗑️</button>
                             </div>
                         </div>
+                        <div class="property-collapse-content" id="content-${propId}">
                         <div class="form-group">
                             <label>Type</label>
                             <select class="form-control"
@@ -578,15 +852,15 @@
                         ${propDef.type === 'object' && propDef.properties ? `
                         <div class="form-group">
                             <label>Nested Properties</label>
-                            <div style="margin-left: 20px; padding: 15px; background: #f9f9f9; border-left: 3px solid ${propDef.baseModel ? '#10b981' : '#667eea'}; border-radius: 4px;">
+                            <div style=" padding: 20px; background: var(--bg-color); border-left: 3px solid ${propDef.baseModel ? 'var(--success-color)' : 'var(--primary-color)'}; border-radius: var(--radius-sm);">
                                 ${Object.entries(propDef.properties).map(([nestedPropName, nestedProp]) => {
                                     const nestedIsRequired = propDef.required && propDef.required.includes(nestedPropName);
                                     return `
-                                    <div style="padding: 12px; margin-bottom: 10px; background: white; border: 1px solid #e5e5e5; border-radius: 4px;">
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                            <strong style="color: #333; font-size: 14px;">${nestedPropName}</strong>
+                                    <div style="padding: 16px; margin-bottom: 12px; background: white; border: 1px solid var(--border-color); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm);">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                            <strong style="color: var(--text-primary); font-size: 14px;">${nestedPropName}</strong>
                                             <div style="display: flex; gap: 8px; align-items: center;">
-                                                <select style="font-size: 11px; padding: 3px 6px; border: 1px solid #e5e5e5; border-radius: 3px;"
+                                                <select style="font-size: 12px; padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 6px; background: white;"
                                                         onchange="updateNestedPropertyType(${index}, '${propName}', '${nestedPropName}', this.value); renderToolEditor(tools[${index}], ${index});">
                                                     <option value="string" ${nestedProp.type === 'string' ? 'selected' : ''}>string</option>
                                                     <option value="number" ${nestedProp.type === 'number' ? 'selected' : ''}>number</option>
@@ -598,36 +872,36 @@
                                                 <label style="display: flex; align-items: center; margin: 0; cursor: pointer;">
                                                     <input type="checkbox" ${nestedIsRequired ? 'checked' : ''}
                                                            onchange="toggleNestedRequired(${index}, '${propName}', '${nestedPropName}', this.checked)"
-                                                           style="margin-right: 3px;">
-                                                    <span style="color: ${nestedIsRequired ? '#ef4444' : '#999'}; font-size: 11px;">Required</span>
+                                                           style="margin-right: 4px;">
+                                                    <span style="color: ${nestedIsRequired ? 'var(--danger-color)' : 'var(--text-secondary)'}; font-size: 12px;">Required</span>
                                                 </label>
-                                                <button class="btn btn-icon btn-sm" style="padding: 2px 6px;"
+                                                <button class="btn btn-icon btn-sm" style="padding: 4px 8px;"
                                                         onclick="removeNestedPropertyInline(${index}, '${propName}', '${nestedPropName}')">✕</button>
                                             </div>
                                         </div>
-                                        <textarea class="form-control" style="font-size: 12px; min-height: 40px;"
+                                        <textarea class="form-control" style="font-size: 13px; min-height: 60px;"
                                                   placeholder="Description"
                                                   onchange="updateNestedPropertyDescription(${index}, '${propName}', '${nestedPropName}', this.value)">${nestedProp.description || ''}</textarea>
 
                                         ${(nestedProp.type === 'string' || nestedProp.type === 'number' || nestedProp.type === 'integer') ? `
-                                        <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                        <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                                             <div>
-                                                <label style="font-size: 10px; color: #666; display: block; margin-bottom: 2px;">Format</label>
-                                                <input class="form-control" style="font-size: 11px;"
+                                                <label style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 4px; text-transform: uppercase;">Format</label>
+                                                <input class="form-control" style="font-size: 13px; padding: 8px;"
                                                        placeholder="e.g., date, email, uri"
                                                        value="${nestedProp.format || ''}"
                                                        onchange="updateNestedPropertyFormat(${index}, '${propName}', '${nestedPropName}', this.value)">
                                             </div>
                                             ${nestedProp.type === 'string' ? `
                                             <div>
-                                                <label style="font-size: 10px; color: #666; display: flex; align-items: center;">
+                                                <label style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; margin-bottom: 4px; text-transform: uppercase;">
                                                     <input type="checkbox" ${nestedProp.enum ? 'checked' : ''}
                                                            onchange="toggleNestedEnum(${index}, '${propName}', '${nestedPropName}', this.checked)"
-                                                           style="margin-right: 3px;">
+                                                           style="margin-right: 4px;">
                                                     Has Enum
                                                 </label>
                                                 ${nestedProp.enum ? `
-                                                <input class="form-control" style="font-size: 11px; margin-top: 4px;"
+                                                <input class="form-control" style="font-size: 13px; padding: 8px;"
                                                        placeholder="Comma-separated values"
                                                        value="${nestedProp.enum.join(', ')}"
                                                        onchange="updateNestedPropertyEnum(${index}, '${propName}', '${nestedPropName}', this.value)">
@@ -638,9 +912,9 @@
                                         ` : ''}
 
                                         ${nestedProp.type === 'array' ? `
-                                        <div style="margin-top: 8px;">
-                                            <label style="font-size: 10px; color: #666; display: block; margin-bottom: 2px;">Array Item Type</label>
-                                            <select class="form-control" style="font-size: 11px;"
+                                        <div style="margin-top: 12px;">
+                                            <label style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 4px; text-transform: uppercase;">Array Item Type</label>
+                                            <select class="form-control" style="font-size: 13px; padding: 8px;"
                                                     onchange="updateNestedPropertyItems(${index}, '${propName}', '${nestedPropName}', this.value)">
                                                 <option value="string" ${nestedProp.items?.type === 'string' ? 'selected' : ''}>string</option>
                                                 <option value="number" ${nestedProp.items?.type === 'number' ? 'selected' : ''}>number</option>
@@ -653,7 +927,7 @@
                                     </div>
                                     `;
                                 }).join('')}
-                                <button class="btn btn-secondary btn-sm" style="margin-top: 10px;"
+                                <button class="btn btn-secondary btn-sm" style="margin-top: 12px;"
                                         onclick="addNestedPropertyInline(${index}, '${propName}')">
                                     + Add Nested Property
                                 </button>
@@ -662,8 +936,8 @@
                         ` : propDef.type === 'object' ? `
                         <div class="form-group">
                             <label>Nested Properties</label>
-                            <div style="margin-left: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px;">
-                                <div style="font-size: 12px; color: #999; margin-bottom: 10px;">No nested properties defined</div>
+                            <div style=" padding: 20px; background: var(--bg-color); border-radius: var(--radius-sm);">
+                                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">No nested properties defined</div>
                                 <button class="btn btn-secondary btn-sm"
                                         onclick="addNestedPropertyInline(${index}, '${propName}')">
                                     + Add Nested Property
@@ -686,13 +960,14 @@
                             ` : ''}
                         </div>
                         ` : ''}
+                        </div>
                     </div>
                 `;
             }
 
             editorContent.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2>Edit Tool: ${tool.name}</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="font-size: 20px; font-weight: 600;">Edit Tool: ${tool.name}</h2>
                     <button class="btn btn-danger btn-sm" onclick="deleteTool(${index})">Delete Tool</button>
                 </div>
 
@@ -703,13 +978,37 @@
                 </div>
 
                 <div class="form-group">
+                    <label>MCP Service</label>
+                    <select class="form-control" id="mcpService"
+                            onchange="updateToolField(${index}, 'mcp_service', this.value)">
+                        <option value="">-- Select MCP Service --</option>
+                        ${window.mcpServices ? window.mcpServices.map(service =>
+                            `<option value="${service}" ${tool.mcp_service === service ? 'selected' : ''}>${service}</option>`
+                        ).join('') : ''}
+                    </select>
+                    <small style="color: var(--text-secondary); font-size: 12px; margin-top: 6px; display: block;">
+                        Select the MCP service function that this tool will use
+                    </small>
+                </div>
+
+                <div class="form-group">
                     <label>Description</label>
                     <textarea class="form-control" id="toolDescription"
                               onchange="updateToolField(${index}, 'description', this.value)">${tool.description}</textarea>
                 </div>
 
                 <div class="form-group">
-                    <label>Input Schema Properties</label>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="margin: 0;">Input Schema Properties</label>
+                        <div>
+                            <button class="btn btn-sm btn-secondary" onclick="expandAllProperties()" style="margin-right: 8px;">
+                                ▼ Expand All
+                            </button>
+                            <button class="btn btn-sm btn-secondary" onclick="collapseAllProperties()">
+                                ▶ Collapse All
+                            </button>
+                        </div>
+                    </div>
                     <div class="properties-container">
                         ${propertiesHtml}
                         <button class="add-button" onclick="addProperty(${index})">
@@ -719,8 +1018,11 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Raw JSON View</label>
-                    <div class="json-editor">
+                    <div class="collapsible-header" onclick="toggleJsonView()" style="background: #f0f0f0; padding: 10px; border-radius: 6px; cursor: pointer;">
+                        <span class="collapse-icon" id="json-collapse-icon" style="display: inline-block; margin-right: 8px;">▼</span>
+                        <label style="margin: 0; cursor: pointer; font-weight: 600;">Raw JSON View</label>
+                    </div>
+                    <div class="json-viewer" id="json-viewer" style="margin-top: 10px;">
                         <pre>${JSON.stringify(tool, null, 2)}</pre>
                     </div>
                 </div>
@@ -773,17 +1075,314 @@
         }
 
         function addProperty(index) {
-            const propName = prompt('Enter property name:');
-            if (propName) {
+            // Remove any existing property modal first
+            const existingModal = document.getElementById('propertyModal');
+            if (existingModal) {
+                existingModal.parentElement.remove();
+            }
+
+            // Create modal for property selection
+            const modalHtml = `
+                <div id="propertyModal" class="modal show">
+                    <div class="modal-content" style="max-width: 600px;">
+                        <div class="modal-header">
+                            <h3>Add Property</h3>
+                            <button onclick="closeModal('propertyModal')" class="close-btn">×</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label>Property Source</label>
+                                <select id="propertySource" onchange="handlePropertySourceChange()" class="form-control">
+                                    <option value="custom">Custom Property</option>
+                                    <option value="graph_types">From graph_types.py</option>
+                                </select>
+                            </div>
+
+                            <div id="customPropertyDiv">
+                                <div class="form-group">
+                                    <label>Property Name</label>
+                                    <input type="text" id="customPropName" class="form-control" placeholder="Enter property name">
+                                </div>
+                                <div class="form-group">
+                                    <label>Property Type</label>
+                                    <select id="customPropType" class="form-control">
+                                        <option value="string">string</option>
+                                        <option value="integer">integer</option>
+                                        <option value="number">number</option>
+                                        <option value="boolean">boolean</option>
+                                        <option value="array">array</option>
+                                        <option value="object">object</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Description</label>
+                                    <input type="text" id="customPropDescription" class="form-control" placeholder="Property description">
+                                </div>
+                            </div>
+
+                            <div id="graphTypesPropertyDiv" style="display: none;">
+                                <div class="form-group">
+                                    <label>Select Type (from graph_types.py)</label>
+                                    <select id="graphTypeClass" onchange="handleClassChange()" class="form-control">
+                                        <option value="">-- Select Type --</option>
+                                        <option value="FilterParams">FilterParams (Filter criteria)</option>
+                                        <option value="ExcludeParams">ExcludeParams (Exclusion criteria)</option>
+                                        <option value="SelectParams">SelectParams (Field selection)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" id="propertySelectionDiv" style="display: none;">
+                                    <label>Select Properties to Add</label>
+                                    <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 300px; overflow-y: auto;">
+                                        <div id="propertyCheckboxList">
+                                            <!-- Checkboxes will be populated here -->
+                                        </div>
+                                    </div>
+                                    <div style="margin-top: 10px;">
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllProperties(true)">Select All</button>
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllProperties(false)">Deselect All</button>
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllRequired(true)">All Required</button>
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllRequired(false)">All Optional</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button onclick="confirmAddProperty(${index})" class="btn btn-primary">Add Property</button>
+                            <button onclick="closeModal('propertyModal')" class="btn btn-secondary">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Add modal to body
+            const modalDiv = document.createElement('div');
+            modalDiv.innerHTML = modalHtml;
+            document.body.appendChild(modalDiv);
+
+            // Initialize the property source view to show custom property fields by default
+            handlePropertySourceChange();
+        }
+
+        function handlePropertySourceChange() {
+            const source = document.getElementById('propertySource').value;
+            document.getElementById('customPropertyDiv').style.display = source === 'custom' ? 'block' : 'none';
+            document.getElementById('graphTypesPropertyDiv').style.display = source === 'graph_types' ? 'block' : 'none';
+        }
+
+        function handleClassChange() {
+            const className = document.getElementById('graphTypeClass').value;
+            const selectionDiv = document.getElementById('propertySelectionDiv');
+            const checkboxList = document.getElementById('propertyCheckboxList');
+
+            if (className && window.graphTypesProperties) {
+                const properties = window.graphTypesProperties.properties_by_class[className] || [];
+
+                // Generate checkboxes for each property
+                let checkboxHtml = '';
+                properties.forEach((prop, idx) => {
+                    const propId = `prop_${className}_${idx}`;
+                    const reqId = `req_${className}_${idx}`;
+                    checkboxHtml += `
+                        <div style="padding: 8px; border-bottom: 1px solid #eee; display: flex; align-items: center;">
+                            <input type="checkbox" id="${propId}" data-prop-name="${prop.name}"
+                                   data-prop-type="${prop.type}" data-prop-desc="${prop.description || ''}"
+                                   style="margin-right: 10px;">
+                            <div style="flex-grow: 1;">
+                                <label for="${propId}" style="margin: 0; cursor: pointer;">
+                                    <strong>${prop.name}</strong>
+                                    <span style="color: #666; font-size: 12px;">(${prop.type})</span>
+                                    ${prop.description ? `<br><span style="color: #888; font-size: 11px;">${prop.description}</span>` : ''}
+                                </label>
+                            </div>
+                            <div style="margin-left: 10px;">
+                                <label style="margin: 0; font-size: 12px;">
+                                    <input type="checkbox" id="${reqId}" style="margin-right: 5px;">Required
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                checkboxList.innerHTML = checkboxHtml || '<div style="padding: 10px; text-align: center; color: #666;">No properties available</div>';
+                selectionDiv.style.display = 'block';
+            } else {
+                selectionDiv.style.display = 'none';
+            }
+        }
+
+        function selectAllProperties(select) {
+            const checkboxes = document.querySelectorAll('#propertyCheckboxList input[type="checkbox"][id^="prop_"]');
+            checkboxes.forEach(cb => cb.checked = select);
+        }
+
+        function toggleAllRequired(required) {
+            const checkboxes = document.querySelectorAll('#propertyCheckboxList input[type="checkbox"][id^="req_"]');
+            checkboxes.forEach(cb => cb.checked = required);
+        }
+
+        function confirmAddProperty(index) {
+            const source = document.getElementById('propertySource').value;
+
+            if (source === 'custom') {
+                // Handle single custom property
+                const propName = document.getElementById('customPropName').value;
+                const propType = document.getElementById('customPropType').value;
+                const propDescription = document.getElementById('customPropDescription').value;
+
+                if (propName) {
+                    if (!tools[index].inputSchema.properties) {
+                        tools[index].inputSchema.properties = {};
+                    }
+
+                    // Check if property already exists
+                    if (tools[index].inputSchema.properties[propName]) {
+                        if (!confirm(`Property "${propName}" already exists. Do you want to overwrite it?`)) {
+                            return;
+                        }
+                    }
+
+                    // For custom properties, use simple type
+                    const jsonType = mapToJsonSchemaType(propType);
+                    tools[index].inputSchema.properties[propName] = {
+                        type: jsonType,
+                        description: propDescription
+                    };
+
+                    closeModal('propertyModal');
+                    renderToolEditor(tools[index], index);
+                    showNotification(`Property "${propName}" added successfully`, 'success');
+                } else {
+                    showNotification('Please enter a property name', 'error');
+                }
+            } else {
+                // Handle multiple properties from graph_types
+                const className = document.getElementById('graphTypeClass').value;
+                const checkboxes = document.querySelectorAll('#propertyCheckboxList input[type="checkbox"][id^="prop_"]:checked');
+
+                if (!className) {
+                    showNotification('Please select a type from graph_types.py', 'error');
+                    return;
+                }
+
+                if (checkboxes.length === 0) {
+                    showNotification('Please select at least one property', 'error');
+                    return;
+                }
+
                 if (!tools[index].inputSchema.properties) {
                     tools[index].inputSchema.properties = {};
                 }
-                tools[index].inputSchema.properties[propName] = {
-                    type: 'string',
-                    description: ''
-                };
+                if (!tools[index].inputSchema.required) {
+                    tools[index].inputSchema.required = [];
+                }
+
+                let addedCount = 0;
+                const targetPropName = getTargetPropertyForGraphType(className, tools[index]);
+
+                if (targetPropName) {
+                    if (!tools[index].inputSchema.properties[targetPropName]) {
+                        tools[index].inputSchema.properties[targetPropName] = {
+                            type: 'object',
+                            description: `${className} parameters`,
+                            properties: {},
+                            required: []
+                        };
+                    }
+
+                    const targetProp = tools[index].inputSchema.properties[targetPropName];
+                    targetProp.type = 'object';
+                    targetProp.properties = targetProp.properties || {};
+                    targetProp.required = targetProp.required || [];
+                    targetProp.baseModel = className;
+                    if (!targetProp.description) {
+                        targetProp.description = `${className} parameters`;
+                    }
+
+                    checkboxes.forEach(checkbox => {
+                        const propName = checkbox.dataset.propName;
+                        const propType = checkbox.dataset.propType;
+                        const propDesc = checkbox.dataset.propDesc;
+                        const idx = checkbox.id.split('_').pop();
+                        const isRequired = document.getElementById(`req_${className}_${idx}`).checked;
+
+                        targetProp.properties[propName] = {
+                            type: mapToJsonSchemaType(propType),
+                            description: propDesc || ''
+                        };
+
+                        if (isRequired && !targetProp.required.includes(propName)) {
+                            targetProp.required.push(propName);
+                        }
+
+                        addedCount++;
+                    });
+                } else {
+                    // Fallback: add to top-level properties (legacy behavior)
+                    checkboxes.forEach(checkbox => {
+                        const propName = checkbox.dataset.propName;
+                        const propType = checkbox.dataset.propType;
+                        const propDesc = checkbox.dataset.propDesc;
+                        const idx = checkbox.id.split('_').pop();
+                        const isRequired = document.getElementById(`req_${className}_${idx}`).checked;
+
+                        tools[index].inputSchema.properties[propName] = {
+                            type: mapToJsonSchemaType(propType),
+                            description: propDesc || ''
+                        };
+
+                        if (isRequired && !tools[index].inputSchema.required.includes(propName)) {
+                            tools[index].inputSchema.required.push(propName);
+                        }
+
+                        addedCount++;
+                    });
+                }
+
+                closeModal('propertyModal');
                 renderToolEditor(tools[index], index);
+                showNotification(`${addedCount} properties added successfully${targetPropName ? ` to "${targetPropName}"` : ''}`, 'success');
             }
+        }
+
+        function mapToJsonSchemaType(type) {
+            // Map Python/graph_types types to JSON Schema types
+            const typeMap = {
+                'string': 'string',
+                'str': 'string',
+                'integer': 'integer',
+                'int': 'integer',
+                'number': 'number',
+                'float': 'number',
+                'boolean': 'boolean',
+                'bool': 'boolean',
+                'array': 'array',
+                'object': 'object',
+                'any': 'string'
+            };
+            return typeMap[type] || 'string';
+        }
+
+        function getTargetPropertyForGraphType(className, tool) {
+            const mapping = {
+                'FilterParams': ['filter'],
+                'ExcludeParams': ['exclude', 'client_filter'],
+                'SelectParams': ['select']
+            };
+
+            const candidates = mapping[className];
+            if (!candidates || candidates.length === 0) {
+                return null;
+            }
+
+            // Prefer an existing property match
+            for (const candidate of candidates) {
+                if (tool.inputSchema.properties[candidate]) {
+                    return candidate;
+                }
+            }
+
+            // Otherwise, use the primary candidate to create a new object
+            return candidates[0];
         }
 
         function removeProperty(index, propName) {
@@ -801,14 +1400,10 @@
             const newTool = {
                 name: 'new_tool_' + Date.now(),
                 description: 'New tool description',
+                mcp_service: '',  // Add mcp_service field
                 inputSchema: {
                     type: 'object',
-                    properties: {
-                        example_param: {
-                            type: 'string',
-                            description: 'Example parameter'
-                        }
-                    },
+                    properties: {},
                     required: []
                 }
             };
@@ -819,14 +1414,29 @@
 
         function deleteTool(index) {
             if (confirm(`Delete tool "${tools[index].name}"?`)) {
-                tools.splice(index, 1);
-                currentToolIndex = -1;
-                renderToolList();
-                document.getElementById('editorContent').innerHTML = `
-                    <div style="text-align: center; padding: 50px; color: #999;">
-                        Select a tool from the left sidebar to edit
-                    </div>
-                `;
+                fetch(`/api/tools/${index}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification(data.message + (data.backup ? ` (Backup: ${data.backup})` : ''), 'success');
+                        tools.splice(index, 1);
+                        currentToolIndex = -1;
+                        renderToolList();
+                        document.getElementById('editorContent').innerHTML = `
+                            <div style="text-align: center; padding: 50px; color: var(--text-secondary);">
+                                Select a tool from the left sidebar to edit
+                            </div>
+                        `;
+                    } else {
+                        showNotification(`Error deleting tool: ${data.error}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting tool:', error);
+                    showNotification('Failed to delete tool', 'error');
+                });
             }
         }
 
@@ -880,7 +1490,7 @@
                 .then(data => {
                     const backupList = document.getElementById('backupList');
                     if (data.length === 0) {
-                        backupList.innerHTML = '<p style="text-align: center; color: #999;">No backups available</p>';
+                        backupList.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No backups available</p>';
                     } else {
                         backupList.innerHTML = data.map(backup => `
                             <div class="backup-item">
@@ -938,7 +1548,16 @@
         }
 
         function closeModal(modalId) {
-            document.getElementById(modalId).classList.remove('show');
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                // If it's a dynamically created modal (like propertyModal), remove it entirely
+                if (modalId === 'propertyModal') {
+                    modal.parentElement.remove();
+                } else {
+                    // For static modals, just remove the show class
+                    modal.classList.remove('show');
+                }
+            }
         }
 
         function showNotification(message, type) {
@@ -950,6 +1569,80 @@
             setTimeout(() => {
                 notification.remove();
             }, 3000);
+        }
+
+        // Toggle functions for collapsible sections
+        function togglePropertyCollapse(propId) {
+            const content = document.getElementById(`content-${propId}`);
+            const icon = document.getElementById(`icon-${propId}`);
+            const header = document.getElementById(`header-${propId}`);
+
+            if (content.classList.contains('collapsed')) {
+                content.classList.remove('collapsed');
+                icon.classList.remove('collapsed');
+                icon.textContent = '▼';
+                header.classList.add('expanded');
+            } else {
+                content.classList.add('collapsed');
+                icon.classList.add('collapsed');
+                icon.textContent = '▶';
+                header.classList.remove('expanded');
+            }
+        }
+
+        function toggleJsonView() {
+            const viewer = document.getElementById('json-viewer');
+            const icon = document.getElementById('json-collapse-icon');
+
+            if (viewer.classList.contains('collapsed')) {
+                viewer.classList.remove('collapsed');
+                icon.classList.remove('collapsed');
+                icon.textContent = '▼';
+            } else {
+                viewer.classList.add('collapsed');
+                icon.classList.add('collapsed');
+                icon.textContent = '▶';
+            }
+        }
+
+        // Expand all properties
+        function expandAllProperties() {
+            const allProperties = document.querySelectorAll('.property-collapse-content');
+            const allIcons = document.querySelectorAll('.property-collapse-header .collapse-icon');
+            const allHeaders = document.querySelectorAll('.property-collapse-header');
+
+            allProperties.forEach(prop => {
+                prop.classList.remove('collapsed');
+            });
+
+            allIcons.forEach(icon => {
+                icon.classList.remove('collapsed');
+                icon.textContent = '▼';
+            });
+
+            allHeaders.forEach(header => {
+                header.classList.add('expanded');
+            });
+        }
+
+        // Collapse all properties
+        function collapseAllProperties() {
+            const allProperties = document.querySelectorAll('.property-collapse-content');
+            const allIcons = document.querySelectorAll('.property-collapse-header .collapse-icon');
+            const allHeaders = document.querySelectorAll('.property-collapse-header');
+
+            allProperties.forEach(prop => {
+                prop.classList.add('collapsed');
+            });
+
+            allIcons.forEach(icon => {
+                icon.classList.add('collapsed');
+                icon.textContent = '▶';
+            });
+
+            allHeaders.forEach(header => {
+                header.classList.remove('expanded');
+            });
         }
 
         // Inline nested properties management
@@ -1107,13 +1800,13 @@
 
         function renderNestedPropertiesEditor(properties, required) {
             const editor = document.getElementById('nestedPropertiesEditor');
-            let html = '<div style="max-height: 400px; overflow-y: auto;">';
+            let html = '<div style="max-height: 400px; overflow-y: auto; padding-right: 4px;">';
 
             // Render existing nested properties
             for (const [nestedPropName, nestedPropDef] of Object.entries(properties)) {
                 const isRequired = required.includes(nestedPropName);
                 html += `
-                    <div class="property-item" style="margin-bottom: 15px;">
+                    <div class="property-item" style="margin-bottom: 16px;">
                         <div class="property-header">
                             <strong>${nestedPropName}</strong>
                             <div style="display: flex; align-items: center; gap: 10px;">
@@ -1121,8 +1814,8 @@
                                     <input type="checkbox" ${isRequired ? 'checked' : ''}
                                            data-prop="${nestedPropName}"
                                            class="nested-required-checkbox"
-                                           style="margin-right: 5px;">
-                                    <span style="color: ${isRequired ? '#ef4444' : '#999'}; font-size: 13px;">Required</span>
+                                           style="margin-right: 6px;">
+                                    <span style="color: ${isRequired ? 'var(--danger-color)' : 'var(--text-secondary)'}; font-size: 13px; font-weight: 500;">Required</span>
                                 </label>
                                 <button class="btn btn-icon btn-sm" onclick="removeNestedProperty('${nestedPropName}')">🗑️</button>
                             </div>
@@ -1270,25 +1963,25 @@
                     basemodels.forEach(model => {
                         const propCount = Object.keys(model.schema.properties || {}).length;
                         html += `
-                            <div style="border: 1px solid #e5e5e5; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+                            <div style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 12px; background: white; box-shadow: var(--shadow-sm);">
                                 <div style="display: flex; justify-content: space-between; align-items: start;">
                                     <div style="flex: 1;">
-                                        <h3 style="margin: 0 0 10px 0; color: #333;">${model.name}</h3>
-                                        <p style="color: #666; margin: 0 0 10px 0;">${model.description}</p>
-                                        <div style="font-size: 12px; color: #999;">
-                                            ${propCount} properties
+                                        <h3 style="margin: 0 0 8px 0; color: var(--text-primary); font-size: 16px; font-weight: 600;">${model.name}</h3>
+                                        <p style="color: var(--text-secondary); margin: 0 0 8px 0; font-size: 13px;">${model.description}</p>
+                                        <div style="font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px;">
+                                            <span style="background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px;">${propCount} properties</span>
                                             ${model.schema.required && model.schema.required.length > 0 ?
-                                              `| ${model.schema.required.length} required` : ''}
+                                              `<span style="background: rgba(255, 59, 48, 0.1); color: var(--danger-color); padding: 2px 6px; border-radius: 4px;">${model.schema.required.length} required</span>` : ''}
                                         </div>
                                     </div>
                                     <button class="btn btn-primary btn-sm" onclick="applyBaseModel('${model.name}')">
                                         Apply Schema
                                     </button>
                                 </div>
-                                <details style="margin-top: 10px;">
-                                    <summary style="cursor: pointer; color: #667eea;">View Schema</summary>
-                                    <div style="margin-top: 10px; padding: 10px; background: #f7f7f7; border-radius: 4px;">
-                                        <pre style="font-size: 11px; overflow-x: auto;">${JSON.stringify(model.schema, null, 2)}</pre>
+                                <details style="margin-top: 12px;">
+                                    <summary style="cursor: pointer; color: var(--primary-color); font-size: 13px; font-weight: 500;">View Schema</summary>
+                                    <div style="margin-top: 10px; padding: 12px; background: var(--bg-color); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                                        <pre style="font-size: 11px; overflow-x: auto; font-family: 'SF Mono', monospace; color: var(--text-primary);">${JSON.stringify(model.schema, null, 2)}</pre>
                                     </div>
                                 </details>
                             </div>
@@ -1296,7 +1989,7 @@
                     });
 
                     if (basemodels.length === 0) {
-                        html = '<p style="text-align: center; color: #999;">No BaseModels found in graph_types.py</p>';
+                        html = '<p style="text-align: center; color: var(--text-secondary);">No BaseModels found in graph_types.py</p>';
                     }
 
                     list.innerHTML = html;

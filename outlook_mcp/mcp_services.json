@@ -1,7 +1,0 @@
-{
-  "decorated_services": [
-    "_build_query_url"
-  ],
-  "count": 1,
-  "description": "List of actual functions with @mcp_service decorator in codebase"
-}

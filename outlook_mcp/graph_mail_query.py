@@ -58,13 +58,7 @@ class GraphMailQuery:
         except Exception as e:
             print(f"Token retrieval error for {user_email}: {str(e)}")
             return None
-    @mcp_service(
-        tool_name="build_query_url",
-        category="email",
-        tags=["query", "url-builder", "internal"],
-        priority=5,
-        description="Build Microsoft Graph API query URL for email operations"
-    )
+
     def _build_query_url(self,
                          user_email: str,
                          filter_query: Optional[str] = None,
@@ -98,7 +92,14 @@ class GraphMailQuery:
             base_url += "?" + "&".join(params)
 
         return base_url
-
+    
+    @mcp_service(
+        tool_name="build_query_url",
+        category="outlook_mail",
+        tags=["query", "url-builder", "internal"],
+        priority=5,
+        description="Build Microsoft Graph API query URL for email operations"
+    )    
     async def query_filter(self,
                           user_email: str,
                           filter: FilterParams,
@@ -228,6 +229,13 @@ class GraphMailQuery:
 
         return filtered_emails
 
+    @mcp_service(
+        tool_name="query_url",
+        category="outlook_mail",
+        tags=["query", "url-builder", "internal"],
+        priority=5,
+        description="Build Microsoft Graph API query URL for email operations"
+    ) 
     async def query_url(self,
                         user_email: str,
                         url: str,
@@ -256,7 +264,14 @@ class GraphMailQuery:
 
         # Fetch data with the provided URL and apply filtering immediately
         return await self._fetch_parallel_with_url(user_email, access_token, url, top, client_filter)
-
+    
+    @mcp_service(
+        tool_name="query_search",
+        category="outlook_mail",
+        tags=["query", "url-builder", "internal"],
+        priority=5,
+        description="Build Microsoft Graph API query URL for email operations"
+    )
     async def query_search(self,
                            user_email: str,
                            search: str,
