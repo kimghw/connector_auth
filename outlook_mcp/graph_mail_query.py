@@ -10,8 +10,22 @@ from typing import Dict, Any, List, Optional, Union
 from datetime import datetime, timedelta
 import json
 
-from outlook_mcp.mcp_server.mcp_decorators import mcp_tool
-from outlook_mcp.mcp_service_decorators import mcp_service
+# Decorators are optional; provide no-op fallbacks if helper modules are absent
+try:
+    from outlook_mcp.mcp_server.mcp_decorators import mcp_tool
+except ImportError:  # pragma: no cover - decorator is metadata only
+    def mcp_tool(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+
+try:
+    from outlook_mcp.mcp_service_decorators import mcp_service
+except ImportError:  # pragma: no cover
+    def mcp_service(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -28,12 +42,39 @@ class GraphMailQuery:
     Handles authentication, filter building, and mail retrieval
     """
 
-    def __init__(self):
+    def __init__(self, user_email: Optional[str] = None, access_token: Optional[str] = None):
         """
         Initialize Graph Mail Query
-        No parameters needed - user_email will be provided per method call
+
+        Args:
+            user_email: Optional default user email
+            access_token: Optional pre-fetched access token
         """
         self.auth_manager = AuthManager()
+        self.user_email = user_email
+        self.access_token = access_token
+
+    async def initialize(self, user_email: Optional[str] = None) -> bool:
+        """
+        Lightweight initializer to align with callers that expect async setup
+        """
+        if user_email:
+            self.user_email = user_email
+
+        # If we already have a token, nothing to do
+        if self.access_token:
+            return True
+
+        # Try to fetch a token when user_email is available
+        if self.user_email:
+            token = await self._get_access_token(self.user_email)
+            if token:
+                self.access_token = token
+                return True
+            return False
+
+        # No user context; treat as initialized (caller will provide user later)
+        return True
 
     async def _get_access_token(self, user_email: str) -> Optional[str]:
         """
@@ -46,6 +87,9 @@ class GraphMailQuery:
         Returns:
             Access token or None if failed
         """
+        if self.access_token:
+            return self.access_token
+
         try:
             # AuthManager handles all token caching and refresh logic
             access_token = await self.auth_manager.validate_and_refresh_token(user_email)
@@ -655,5 +699,3 @@ async def query_emails(user_email: str,
             "status": "error",
             "error": "Must provide either url, search_term, or filter_params"
         }
-
-

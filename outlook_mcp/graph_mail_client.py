@@ -50,27 +50,41 @@ class GraphMailClient:
         self.attachment_handler: Optional[AttachmentHandler] = None
         self._initialized = False
 
-    async def initialize(self) -> bool:
+    async def initialize(self, user_email: Optional[str] = None) -> bool:
         """
         컴포넌트 초기화
 
         Returns:
             초기화 성공 여부
         """
+        if self._initialized:
+            return True
+
         try:
+            if user_email:
+                self.user_email = user_email
+
             # GraphMailQuery 초기화
             self.mail_query = GraphMailQuery(
                 user_email=self.user_email,
                 access_token=self.access_token
             )
 
-            if not await self.mail_query.initialize():
+            if not await self.mail_query.initialize(self.user_email):
                 print("❌ Failed to initialize GraphMailQuery")
                 return False
 
             # 액세스 토큰 가져오기
             if not self.access_token:
                 self.access_token = self.mail_query.access_token
+
+            if not self.access_token and self.user_email:
+                # 마지막으로 토큰을 직접 시도해 본다
+                self.access_token = await self.mail_query._get_access_token(self.user_email)
+
+            if not self.access_token:
+                print("❌ Access token is missing; cannot initialize MailProcessorHandler")
+                return False
 
             # MailProcessorHandler 초기화
             self.mail_processor = MailProcessorHandler(self.access_token)

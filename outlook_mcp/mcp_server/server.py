@@ -28,6 +28,19 @@ graph_mail_query = GraphMailQuery()
 graph_mail_client = GraphMailClient()
 
 
+async def ensure_graph_mail_client(user_email: Optional[str] = None):
+    """
+    Ensure GraphMailClient is initialized before use.
+    """
+    if user_email:
+        graph_mail_client.user_email = user_email
+
+    if not getattr(graph_mail_client, "_initialized", False):
+        initialized = await graph_mail_client.initialize(user_email=user_email)
+        if not initialized:
+            raise HTTPException(status_code=500, detail="Failed to initialize GraphMailClient")
+
+
 class MCPRequest(BaseModel):
     jsonrpc: str = "2.0"
     id: Optional[Any] = None
@@ -183,6 +196,7 @@ async def handle_query_emails(args: Dict[str, Any]) -> Dict[str, Any]:
 
 async def handle_get_email(args: Dict[str, Any]) -> Dict[str, Any]:
     """Route to GraphMailClient.get_message"""
+    await ensure_graph_mail_client(args["user_email"])
     return await graph_mail_client.get_message(
         user_email=args["user_email"],
         message_id=args["message_id"]
@@ -191,6 +205,7 @@ async def handle_get_email(args: Dict[str, Any]) -> Dict[str, Any]:
 
 async def handle_get_attachments(args: Dict[str, Any]) -> Dict[str, Any]:
     """Route to GraphMailClient.get_attachments"""
+    await ensure_graph_mail_client(args["user_email"])
     return await graph_mail_client.get_attachments(
         user_email=args["user_email"],
         message_id=args["message_id"]
@@ -199,6 +214,7 @@ async def handle_get_attachments(args: Dict[str, Any]) -> Dict[str, Any]:
 
 async def handle_download_attachment(args: Dict[str, Any]) -> Dict[str, Any]:
     """Route to GraphMailClient.download_attachment"""
+    await ensure_graph_mail_client(args["user_email"])
     return await graph_mail_client.download_attachment(
         user_email=args["user_email"],
         message_id=args["message_id"],
@@ -230,6 +246,7 @@ async def handle_search_by_date(args: Dict[str, Any]) -> Dict[str, Any]:
 
 async def handle_send_email(args: Dict[str, Any]) -> Dict[str, Any]:
     """Route to GraphMailClient.send_mail"""
+    await ensure_graph_mail_client(args["user_email"])
     return await graph_mail_client.send_mail(
         user_email=args["user_email"],
         to_recipients=args["to_recipients"],
@@ -245,6 +262,7 @@ async def handle_send_email(args: Dict[str, Any]) -> Dict[str, Any]:
 
 async def handle_reply_email(args: Dict[str, Any]) -> Dict[str, Any]:
     """Route to GraphMailClient.reply_to_message"""
+    await ensure_graph_mail_client(args["user_email"])
     if args.get("reply_all", False):
         return await graph_mail_client.reply_all(
             user_email=args["user_email"],
@@ -261,6 +279,7 @@ async def handle_reply_email(args: Dict[str, Any]) -> Dict[str, Any]:
 
 async def handle_forward_email(args: Dict[str, Any]) -> Dict[str, Any]:
     """Route to GraphMailClient.forward_message"""
+    await ensure_graph_mail_client(args["user_email"])
     return await graph_mail_client.forward_message(
         user_email=args["user_email"],
         message_id=args["message_id"],
@@ -271,6 +290,7 @@ async def handle_forward_email(args: Dict[str, Any]) -> Dict[str, Any]:
 
 async def handle_delete_email(args: Dict[str, Any]) -> Dict[str, Any]:
     """Route to GraphMailClient.delete_message"""
+    await ensure_graph_mail_client(args["user_email"])
     return await graph_mail_client.delete_message(
         user_email=args["user_email"],
         message_id=args["message_id"]
@@ -279,6 +299,7 @@ async def handle_delete_email(args: Dict[str, Any]) -> Dict[str, Any]:
 
 async def handle_mark_read(args: Dict[str, Any]) -> Dict[str, Any]:
     """Route to GraphMailClient.mark_as_read"""
+    await ensure_graph_mail_client(args["user_email"])
     return await graph_mail_client.mark_as_read(
         user_email=args["user_email"],
         message_id=args["message_id"],
