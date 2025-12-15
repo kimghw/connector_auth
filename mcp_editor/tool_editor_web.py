@@ -25,6 +25,7 @@ app = Flask(__name__)
 CORS(app)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(BASE_DIR)
 CONFIG_PATH = os.path.join(BASE_DIR, 'editor_config.json')
 DEFAULT_PROFILE = {
     "template_definitions_path": "tool_definition_templates.py",
@@ -34,6 +35,10 @@ DEFAULT_PROFILE = {
     "host": "127.0.0.1",
     "port": 8091
 }
+
+JINJA_DIR = os.path.join(ROOT_DIR, 'jinja')
+DEFAULT_SERVER_TEMPLATE = os.path.join(JINJA_DIR, 'server_template.jinja2')
+GENERATOR_SCRIPT_PATH = os.path.join(JINJA_DIR, 'generate_server.py')
 
 
 def _resolve_path(path: str) -> str:
@@ -111,6 +116,74 @@ def resolve_paths(profile_conf: dict) -> dict:
         "host": profile_conf.get("host", "127.0.0.1"),
         "port": profile_conf.get("port", 8091)
     }
+
+
+def _default_generator_paths(profile_conf: dict) -> dict:
+    """Return default generator paths for the active profile"""
+    resolved = resolve_paths(profile_conf)
+    output_dir = os.path.dirname(resolved["tool_path"])
+    output_path = os.path.join(output_dir, 'server_generated.py')
+
+    return {
+        "tools_path": resolved["template_path"],
+        "template_path": DEFAULT_SERVER_TEMPLATE if os.path.exists(DEFAULT_SERVER_TEMPLATE) else "",
+        "output_path": output_path
+    }
+
+
+def discover_mcp_modules(profile_conf: dict | None = None) -> list:
+    """
+    Detect modules that contain an MCP server folder.
+    Assumes each module has the same mcp/mcp_server structure.
+    """
+    modules = []
+    profile_conf = profile_conf or DEFAULT_PROFILE
+    fallback = _default_generator_paths(profile_conf)
+
+    if not os.path.isdir(ROOT_DIR):
+        return modules
+
+    for entry in os.listdir(ROOT_DIR):
+        module_dir = os.path.join(ROOT_DIR, entry)
+        if not os.path.isdir(module_dir):
+            continue
+
+        # Look for either mcp_server or a generic mcp folder
+        for candidate in ("mcp_server", "mcp"):
+            mcp_dir = os.path.join(module_dir, candidate)
+            if not os.path.isdir(mcp_dir):
+                continue
+
+            tools_candidates = [
+                os.path.join(mcp_dir, "tool_definition_templates.py"),
+                os.path.join(mcp_dir, "tool_definitions.py"),
+                fallback["tools_path"]
+            ]
+            tools_path = next((p for p in tools_candidates if p and os.path.exists(p)), fallback["tools_path"])
+
+            modules.append({
+                "name": entry,
+                "mcp_dir": mcp_dir,
+                "tools_path": tools_path,
+                "template_path": fallback["template_path"],
+                "output_path": os.path.join(mcp_dir, "server_generated.py")
+            })
+            break
+
+    modules.sort(key=lambda x: x["name"].lower())
+    return modules
+
+
+def load_generator_module():
+    """Load the Jinja2 generator module dynamically"""
+    if not os.path.exists(GENERATOR_SCRIPT_PATH):
+        raise FileNotFoundError(f"Generator script not found at {GENERATOR_SCRIPT_PATH}")
+
+    spec = importlib.util.spec_from_file_location("mcp_jinja_generator", GENERATOR_SCRIPT_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
 
 def ensure_dirs(paths: dict):
     os.makedirs(paths["backup_dir"], exist_ok=True)
@@ -633,6 +706,23 @@ def get_profiles():
         return jsonify({"error": str(e), "profiles": []}), 500
 
 
+@app.route('/api/server-generator/defaults', methods=['GET'])
+def get_server_generator_defaults():
+    """Expose detected modules and default paths for the Jinja2 server generator"""
+    try:
+        profile = request.args.get("profile")
+        profile_conf = get_profile_config(profile)
+        modules = discover_mcp_modules(profile_conf)
+        fallback = _default_generator_paths(profile_conf)
+
+        return jsonify({
+            "modules": modules,
+            "fallback": fallback
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "modules": [], "fallback": {}}), 500
+
+
 @app.route('/api/graph-types-properties', methods=['GET'])
 def get_graph_types_properties():
     """Get available properties from graph_types.py"""
@@ -717,6 +807,66 @@ def apply_basemodel_to_property(tool_index):
             return jsonify(result), 500
 
         return jsonify({"success": True, "tool": updated_tool})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/server-generator', methods=['POST'])
+def generate_server_from_web():
+    """Run the Jinja2 server generator with paths provided by the web editor"""
+    try:
+        profile = request.args.get("profile")
+        profile_conf = get_profile_config(profile)
+        modules = discover_mcp_modules(profile_conf)
+        defaults = _default_generator_paths(profile_conf)
+
+        data = request.json or {}
+        module_name = data.get("module")
+        selected_module = next((m for m in modules if m.get("name") == module_name), None)
+
+        tools_path = data.get("tools_path") or (selected_module["tools_path"] if selected_module else defaults["tools_path"])
+        template_path = data.get("template_path") or (selected_module["template_path"] if selected_module else defaults["template_path"])
+        output_path = data.get("output_path") or (selected_module["output_path"] if selected_module else defaults["output_path"])
+
+        if not tools_path:
+            return jsonify({"error": "tools_path is required"}), 400
+        if not template_path:
+            return jsonify({"error": "template_path is required"}), 400
+        if not output_path:
+            return jsonify({"error": "output_path is required"}), 400
+
+        def resolve_for_generator(path_value: str) -> str:
+            """Resolve a provided path against both editor and repo roots"""
+            if os.path.isabs(path_value):
+                return path_value
+            editor_path = _resolve_path(path_value)
+            if os.path.exists(editor_path):
+                return editor_path
+            return os.path.normpath(os.path.join(ROOT_DIR, path_value))
+
+        tools_path = resolve_for_generator(tools_path)
+        template_path = resolve_for_generator(template_path)
+        output_path = resolve_for_generator(output_path)
+
+        if not os.path.exists(tools_path):
+            return jsonify({"error": f"Tools file not found: {tools_path}"}), 400
+        if not os.path.exists(template_path):
+            return jsonify({"error": f"Template file not found: {template_path}"}), 400
+
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+        generator_module = load_generator_module()
+        loaded_tools = generator_module.load_tool_definitions(tools_path)
+        generator_module.generate_server(template_path, output_path, loaded_tools)
+
+        return jsonify({
+            "success": True,
+            "module": module_name,
+            "tools_path": tools_path,
+            "template_path": template_path,
+            "output_path": output_path,
+            "tool_count": len(loaded_tools)
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

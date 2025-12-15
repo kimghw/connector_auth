@@ -1,0 +1,227 @@
+"""
+FastAPI MCP Server for Outlook Graph Mail
+Routes MCP protocol requests to existing Graph Mail functions
+"""
+import json
+from typing import Dict, Any, List, Optional
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+import sys
+import os
+
+# Add parent directories to path for module access
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+grandparent_dir = os.path.dirname(parent_dir)
+sys.path.insert(0, parent_dir)  # For outlook_mcp modules
+sys.path.insert(0, grandparent_dir)  # For auth module
+
+# Dynamic imports based on tool definitions
+{%- for service, info in services.items() %}
+from {{ info.module }} import {{ service }}
+{%- endfor %}
+from graph_types import {{ param_types | join(', ') }}
+from tool_definitions import MCP_TOOLS
+
+app = FastAPI(title="Outlook MCP Server", version="1.0.0")
+
+# Initialize service objects
+{%- for service, info in services.items() %}
+{{ info.instance_name }} = {{ service }}()
+{%- endfor %}
+
+
+class MCPRequest(BaseModel):
+    jsonrpc: str = "2.0"
+    id: Optional[Any] = None
+    method: str
+    params: Optional[Dict[str, Any]] = {}
+
+
+class MCPToolCall(BaseModel):
+    name: str
+    arguments: Dict[str, Any]
+
+
+class MCPResponse(BaseModel):
+    jsonrpc: str = "2.0"
+    id: Optional[Any] = None
+    result: Optional[Any] = None
+    error: Optional[Dict[str, Any]] = None
+
+
+@app.post("/")
+async def handle_mcp_request(request: Request):
+    """Main MCP protocol handler"""
+    try:
+        body = await request.json()
+        mcp_request = MCPRequest(**body)
+
+        # Route based on MCP method
+        if mcp_request.method == "initialize":
+            return handle_initialize(mcp_request)
+        elif mcp_request.method == "tools/list":
+            return handle_list_tools(mcp_request)
+        elif mcp_request.method == "tools/call":
+            return await handle_tool_call(mcp_request)
+        else:
+            return create_error_response(
+                mcp_request.id,
+                -32601,
+                f"Method not found: {mcp_request.method}"
+            )
+    except Exception as e:
+        return create_error_response(
+            body.get("id") if "body" in locals() else None,
+            -32603,
+            f"Internal error: {str(e)}"
+        )
+
+
+def handle_initialize(request: MCPRequest) -> JSONResponse:
+    """Handle MCP initialize request"""
+    return JSONResponse(content={
+        "jsonrpc": "2.0",
+        "id": request.id,
+        "result": {
+            "protocolVersion": "0.1.0",
+            "capabilities": {
+                "tools": {}
+            },
+            "serverInfo": {
+                "name": "outlook-mcp-server",
+                "version": "1.0.0"
+            }
+        }
+    })
+
+
+def handle_list_tools(request: MCPRequest) -> JSONResponse:
+    """Handle MCP tools/list request"""
+    return JSONResponse(content={
+        "jsonrpc": "2.0",
+        "id": request.id,
+        "result": {
+            "tools": MCP_TOOLS
+        }
+    })
+
+
+async def handle_tool_call(request: MCPRequest) -> JSONResponse:
+    """Handle MCP tools/call request - routes to appropriate function"""
+    try:
+        tool_name = request.params.get("name")
+        arguments = request.params.get("arguments", {})
+
+        # Route to appropriate handler
+        {%- for tool in tools %}
+        {% if loop.first %}if{% else %}elif{% endif %} tool_name == "{{ tool.name }}":
+            result = await handle_{{ tool.name }}(arguments)
+        {%- endfor %}
+        else:
+            return create_error_response(
+                request.id,
+                -32602,
+                f"Unknown tool: {tool_name}"
+            )
+
+        return JSONResponse(content={
+            "jsonrpc": "2.0",
+            "id": request.id,
+            "result": {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(result, indent=2)
+                    }
+                ]
+            }
+        })
+    except Exception as e:
+        return create_error_response(
+            request.id,
+            -32603,
+            f"Tool execution error: {str(e)}"
+        )
+
+
+# Tool handler functions - routing to existing implementations
+{%- for tool in tools %}
+
+async def handle_{{ tool.name }}(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to {{ tool.service_class }}.{{ tool.service_method }}"""
+    {%- if tool.object_params %}
+
+    # Extract parameters from args
+    {%- for param_name, param_info in tool.params.items() %}
+    {%- if param_info.is_required %}
+    {{ param_name }} = args["{{ param_name }}"]
+    {%- elif param_info.has_default %}
+    {{ param_name }} = args.get("{{ param_name }}", {{ param_info.default }})
+    {%- else %}
+    {{ param_name }} = args.get("{{ param_name }}")
+    {%- endif %}
+    {%- endfor %}
+    {%- for param_name, param_info in tool.object_params.items() %}
+    {{ param_name }} = args.get("{{ param_name }}", {})
+    {%- endfor %}
+
+    # Convert dicts to parameter objects where needed
+    {%- for param_name, param_info in tool.object_params.items() %}
+    {%- if param_info.is_optional %}
+    {{ param_name }}_params = None
+    if {{ param_name }}:
+        {%- if param_info.is_dict %}
+        {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }})
+        {%- else %}
+        # Handle special case for {{ param_name }}
+        {{ param_name }}_params = {{ param_info.class_name }}({{ param_name }})
+        {%- endif %}
+    {%- else %}
+    {%- if param_info.is_dict %}
+    {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}) if {{ param_name }} else {{ param_info.class_name }}()
+    {%- else %}
+    # Handle special case for {{ param_name }}
+    {{ param_name }}_params = {{ param_info.class_name }}({{ param_name }})
+    {%- endif %}
+    {%- endif %}
+    {%- endfor %}
+
+    return await {{ tool.service_object }}.{{ tool.service_method }}(
+        {%- for param_name, param_info in tool.call_params.items() %}
+        {{ param_name }}={{ param_info.value }}{{ "," if not loop.last else "" }}
+        {%- endfor %}
+    )
+    {%- else %}
+
+    # Direct parameter passing
+    return await {{ tool.service_object }}.{{ tool.service_method }}(
+        {%- for param_name, param_info in tool.params.items() %}
+        {%- if param_info.is_required %}
+        {{ param_name }}=args["{{ param_name }}"]{{ "," if not loop.last else "" }}
+        {%- elif param_info.has_default %}
+        {{ param_name }}=args.get("{{ param_name }}", {{ param_info.default }}){{ "," if not loop.last else "" }}
+        {%- else %}
+        {{ param_name }}=args.get("{{ param_name }}"){{ "," if not loop.last else "" }}
+        {%- endif %}
+        {%- endfor %}
+    )
+    {%- endif %}
+{%- endfor %}
+
+
+def create_error_response(id: Any, code: int, message: str) -> JSONResponse:
+    """Create MCP error response"""
+    return JSONResponse(content={
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": {
+            "code": code,
+            "message": message
+        }
+    })
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

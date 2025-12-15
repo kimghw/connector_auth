@@ -120,6 +120,22 @@
             background: var(--danger-hover);
         }
 
+        .btn-important {
+            background: linear-gradient(135deg, #34c759 0%, #30b350 100%);
+            color: white;
+            font-weight: 600;
+            padding: 10px 24px;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(52, 199, 89, 0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .btn-important:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(52, 199, 89, 0.4);
+            filter: brightness(1.05);
+        }
+
         .main-content {
             display: flex;
             flex: 1;
@@ -577,6 +593,9 @@
                 <button class="btn btn-primary" onclick="saveTools()">
                     <span class="material-icons">save</span> Save Changes
                 </button>
+                <button class="btn btn-important" onclick="openGeneratorModal()">
+                    <span class="material-icons">auto_fix_high</span> Generate Server
+                </button>
             </div>
         </div>
         <div id="profileTabs" style="display: flex; gap: 8px; padding: 10px 20px; background: #f7f7f7; border-bottom: 1px solid #e5e5e5;">
@@ -699,12 +718,54 @@
         </div>
     </div>
 
+    <!-- Server Generator Modal -->
+    <div id="generatorModal" class="modal">
+        <div class="modal-content" style="max-width: 760px;">
+            <div class="modal-header">
+                <h2>Generate MCP Server</h2>
+                <button class="btn btn-icon" onclick="closeModal('generatorModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Select Module</label>
+                    <select id="generatorModule" class="form-control" onchange="handleGeneratorModuleChange()">
+                        <option value="">Custom / Current Profile</option>
+                    </select>
+                    <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        Detected modules share the same mcp folder layout. Choose one to auto-fill generator args.
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label>Tools path (--tools)</label>
+                    <input id="generatorToolsPath" class="form-control" placeholder="/path/to/tool_definition_templates.py">
+                </div>
+                <div class="form-group">
+                    <label>Template path (--template)</label>
+                    <input id="generatorTemplatePath" class="form-control" placeholder="/path/to/server_template.jinja2">
+                </div>
+                <div class="form-group">
+                    <label>Output path (--output)</label>
+                    <input id="generatorOutputPath" class="form-control" placeholder="/path/to/server_generated.py">
+                </div>
+                <div id="generatorResult" style="color: var(--text-secondary); font-size: 13px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-important" onclick="runServerGeneration()">
+                    <span class="material-icons">auto_fix_high</span> Generate
+                </button>
+                <button class="btn btn-secondary" onclick="closeModal('generatorModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let tools = [];
         let currentToolIndex = -1;
         let nestedGraphTarget = null;
         let currentProfile = '';
         let profiles = [];
+        let generatorModules = [];
+        let generatorFallback = {};
 
         // Load tools on page load
         window.onload = function() {
@@ -786,6 +847,7 @@
                     currentProfile = data.active || (profiles[0] || '');
                     renderProfileTabs();
                     loadTools();
+                    loadGeneratorDefaults();
                 })
                 .catch(error => {
                     console.error('Error loading profiles:', error);
@@ -793,7 +855,102 @@
                     currentProfile = '';
                     renderProfileTabs();
                     loadTools();
+                    loadGeneratorDefaults();
                 });
+        }
+
+        function loadGeneratorDefaults() {
+            const profileQuery = profileParam();
+            fetch(`/api/server-generator/defaults${profileQuery}`)
+                .then(response => response.json())
+                .then(data => {
+                    generatorModules = data.modules || [];
+                    generatorFallback = data.fallback || {};
+                    renderGeneratorOptions();
+                })
+                .catch(error => {
+                    console.error('Error loading generator defaults:', error);
+                    generatorModules = [];
+                    generatorFallback = {};
+                });
+        }
+
+        function renderGeneratorOptions() {
+            const select = document.getElementById('generatorModule');
+            if (!select) return;
+
+            select.innerHTML = '<option value="">Custom / Current Profile</option>';
+            generatorModules.forEach(mod => {
+                const opt = document.createElement('option');
+                opt.value = mod.name;
+                opt.textContent = mod.name;
+                select.appendChild(opt);
+            });
+
+            const defaultValue = generatorModules.length > 0 ? generatorModules[0].name : '';
+            select.value = defaultValue;
+            applyGeneratorDefaults(defaultValue);
+        }
+
+        function applyGeneratorDefaults(moduleName) {
+            const defaults = generatorModules.find(m => m.name === moduleName) || generatorFallback || {};
+            const toolsInput = document.getElementById('generatorToolsPath');
+            const templateInput = document.getElementById('generatorTemplatePath');
+            const outputInput = document.getElementById('generatorOutputPath');
+
+            if (toolsInput) toolsInput.value = defaults.tools_path || '';
+            if (templateInput) templateInput.value = defaults.template_path || '';
+            if (outputInput) outputInput.value = defaults.output_path || '';
+        }
+
+        function handleGeneratorModuleChange() {
+            const select = document.getElementById('generatorModule');
+            const moduleName = select ? select.value : '';
+            applyGeneratorDefaults(moduleName);
+        }
+
+        function openGeneratorModal() {
+            if (!generatorModules.length && !generatorFallback.tools_path) {
+                loadGeneratorDefaults();
+            }
+            applyGeneratorDefaults(document.getElementById('generatorModule')?.value || '');
+            const resultEl = document.getElementById('generatorResult');
+            if (resultEl) resultEl.textContent = '';
+            document.getElementById('generatorModal').classList.add('show');
+        }
+
+        function runServerGeneration() {
+            const profileQuery = profileParam();
+            const payload = {
+                module: document.getElementById('generatorModule')?.value || null,
+                tools_path: document.getElementById('generatorToolsPath')?.value || '',
+                template_path: document.getElementById('generatorTemplatePath')?.value || '',
+                output_path: document.getElementById('generatorOutputPath')?.value || ''
+            };
+
+            fetch(`/api/server-generator${profileQuery}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json().then(data => ({status: response.status, data})))
+            .then(({status, data}) => {
+                const resultEl = document.getElementById('generatorResult');
+                if (status >= 200 && status < 300 && data.success) {
+                    showNotification(`Generated server at ${data.output_path}`, 'success');
+                    if (resultEl) resultEl.textContent = `Output: ${data.output_path} (${data.tool_count} tools)`;
+                } else {
+                    const message = data.error || 'Failed to generate server';
+                    showNotification(message, 'error');
+                    if (resultEl) resultEl.textContent = message;
+                }
+            })
+            .catch(error => {
+                console.error('Error generating server:', error);
+                showNotification('Failed to generate server', 'error');
+            });
         }
 
         function renderProfileTabs() {
@@ -817,6 +974,7 @@
                     currentProfile = name;
                     renderProfileTabs();
                     loadTools();
+                    loadGeneratorDefaults();
                 };
                 tabContainer.appendChild(btn);
             });
@@ -1101,24 +1259,25 @@
                     <button class="btn btn-danger btn-sm" onclick="deleteTool(${index})">Delete Tool</button>
                 </div>
 
-                <div class="form-group">
-                    <label>Tool Name</label>
-                    <input class="form-control" id="toolName" value="${tool.name}"
-                           onchange="updateToolField(${index}, 'name', this.value)">
-                </div>
-
-                <div class="form-group">
-                    <label>MCP Service</label>
-                    <select class="form-control" id="mcpService"
-                            onchange="updateMcpService(${index}, this.value)">
-                        <option value="">-- Select MCP Service --</option>
-                        ${window.mcpServices ? window.mcpServices.map(service =>
-                            `<option value="${service}" ${tool.mcp_service === service ? 'selected' : ''}>${service}</option>`
-                        ).join('') : ''}
-                    </select>
-                    <small style="color: var(--text-secondary); font-size: 12px; margin-top: 6px; display: block;">
-                        Select the MCP service function that this tool will use
-                    </small>
+                <div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px;">
+                    <div class="form-group" style="flex: 1; min-width: 240px; margin-bottom: 0;">
+                        <label>Tool Name</label>
+                        <input class="form-control" id="toolName" value="${tool.name}"
+                               onchange="updateToolField(${index}, 'name', this.value)">
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 260px; margin-bottom: 0;">
+                        <label>MCP Service</label>
+                        <select class="form-control" id="mcpService"
+                                onchange="updateMcpService(${index}, this.value)">
+                            <option value="">-- Select MCP Service --</option>
+                            ${window.mcpServices ? window.mcpServices.map(service =>
+                                `<option value="${service}" ${tool.mcp_service === service ? 'selected' : ''}>${service}</option>`
+                            ).join('') : ''}
+                        </select>
+                        <small style="color: var(--text-secondary); font-size: 12px; margin-top: 6px; display: block;">
+                            Select the MCP service function that this tool will use
+                        </small>
+                    </div>
                 </div>
 
                 <div class="form-group">
