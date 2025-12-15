@@ -26,7 +26,7 @@ pip install pytesseract pillow
 ### 1. 기본 사용법 (한 줄!)
 
 ```python
-from attachment_mcp import convert_to_text
+from mcp_attachment import convert_to_text
 
 # 어떤 파일이든 그냥 넣으세요
 text = convert_to_text("document.pdf")
@@ -44,7 +44,7 @@ text = convert_to_text("https://example.com/document.pdf")
 ### 3. 여러 파일 한번에
 
 ```python
-from attachment_mcp import batch_convert
+from mcp_attachment import batch_convert
 
 texts = batch_convert(["file1.pdf", "file2.txt", "file3.html"])
 # 결과: {"file1.pdf": "텍스트...", "file2.txt": "텍스트...", ...}
@@ -53,7 +53,7 @@ texts = batch_convert(["file1.pdf", "file2.txt", "file3.html"])
 ### 4. 더 간단하게!
 
 ```python
-from attachment_mcp import quick_convert
+from mcp_attachment import quick_convert
 
 # 하나 파일
 text = quick_convert("document.pdf")
@@ -65,7 +65,7 @@ texts = quick_convert("doc1.pdf", "doc2.txt", "doc3.html")
 ### 5. 지원 확인
 
 ```python
-from attachment_mcp import is_supported
+from mcp_attachment import is_supported
 
 if is_supported("myfile.xyz"):
     text = convert_to_text("myfile.xyz")
@@ -99,7 +99,7 @@ else:
 ### 실제 사용 예제
 
 ```python
-from attachment_mcp import convert_to_text
+from mcp_attachment import convert_to_text
 
 # 이메일 첨부파일 처리
 attachments = ["contract.pdf", "report.docx", "data.csv"]
@@ -115,8 +115,8 @@ for file in attachments:
 
 ```python
 # Outlook 메일 첨부파일 처리
-from outlook_mcp import get_attachments
-from attachment_mcp import convert_to_text
+from mcp_outlook import get_attachments
+from mcp_attachment import convert_to_text
 
 # 메일에서 첨부파일 다운로드
 files = get_attachments(mail_id)

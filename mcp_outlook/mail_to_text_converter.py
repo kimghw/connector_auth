@@ -19,9 +19,9 @@ import hashlib
 # 상위 디렉토리를 path에 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from outlook_mcp.graph_mail_query import GraphMailQuery
-from outlook_mcp.attachment_handler import AttachmentHandler
-from attachment_mcp.attachment_converter import AttachmentAPI, UnifiedAttachmentConverter
+from mcp_outlook.graph_mail_query import GraphMailQuery
+from mcp_outlook.attachment_handler import AttachmentHandler
+from mcp_attachment.attachment_converter import AttachmentAPI, UnifiedAttachmentConverter
 
 
 class MailTextProcessor:

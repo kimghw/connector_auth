@@ -12,7 +12,7 @@ import json
 
 # Decorators are optional; provide no-op fallbacks if helper modules are absent
 try:
-    from outlook_mcp.mcp_server.mcp_decorators import mcp_tool
+    from mcp_outlook.mcp_server.mcp_decorators import mcp_tool
 except ImportError:  # pragma: no cover - decorator is metadata only
     def mcp_tool(*args, **kwargs):
         def decorator(func):
@@ -20,7 +20,7 @@ except ImportError:  # pragma: no cover - decorator is metadata only
         return decorator
 
 try:
-    from outlook_mcp.mcp_service_decorators import mcp_service
+    from mcp_outlook.mcp_service_decorators import mcp_service
 except ImportError:  # pragma: no cover
     def mcp_service(*args, **kwargs):
         def decorator(func):
