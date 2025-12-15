@@ -15,9 +15,10 @@ import logging
 # Add parent directories to path for module access
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 grandparent_dir = os.path.dirname(parent_dir)
-sys.path.insert(0, grandparent_dir)  # For session module and package imports (mcp_attachment, mcp_outlook)
-sys.path.insert(0, parent_dir)  # For direct module imports from parent directory
-from graph_types import ExcludeParams, FilterParams, SelectParams
+sys.path.insert(0, parent_dir)  # For mcp_outlook modules
+sys.path.insert(0, grandparent_dir)  # For session module
+
+from graph_types import FilterParams, ExcludeParams, SelectParams
 from tool_definitions import MCP_TOOLS
 
 # Configure logging first
@@ -38,7 +39,6 @@ except ImportError:
     USE_SESSION_MANAGER = False
 
 # Import legacy components for fallback
-# Outlook services
 from graph_mail_query import GraphMailQuery
 from graph_mail_client import GraphMailClient
 
@@ -114,21 +114,20 @@ async def get_user_session_or_legacy(user_email: str, access_token: Optional[str
     else:
         # Legacy mode - return global instances wrapped in a dict
         await ensure_graph_mail_client_legacy(user_email)
-        result = {
+        return {
             'graph_mail_query': graph_mail_query,
             'graph_mail_client': graph_mail_client,
             'user_email': user_email
         }
-        return result
 
 
 def get_query_instance(context):
-    """Get query service instance from session or legacy context"""
+    """Get GraphMailQuery instance from session or legacy context"""
     return context.graph_mail_query if USE_SESSION_MANAGER else context['graph_mail_query']
 
 
 def get_client_instance(context):
-    """Get client service instance from session or legacy context"""
+    """Get GraphMailClient instance from session or legacy context"""
     return context.graph_mail_client if USE_SESSION_MANAGER else context['graph_mail_client']
 
 
@@ -238,8 +237,24 @@ async def handle_tool_call(request: MCPRequest) -> JSONResponse:
         # Route to appropriate handler
         if tool_name == "query_emails":
             result = await handle_query_emails(arguments)
-        elif tool_name == "mail_search":
-            result = await handle_mail_search(arguments)
+        elif tool_name == "get_email":
+            result = await handle_get_email(arguments)
+        elif tool_name == "get_email_attachments":
+            result = await handle_get_attachments(arguments)
+        elif tool_name == "download_attachment":
+            result = await handle_download_attachment(arguments)
+        elif tool_name == "search_emails_by_date":
+            result = await handle_search_by_date(arguments)
+        elif tool_name == "send_email":
+            result = await handle_send_email(arguments)
+        elif tool_name == "reply_to_email":
+            result = await handle_reply_email(arguments)
+        elif tool_name == "forward_email":
+            result = await handle_forward_email(arguments)
+        elif tool_name == "delete_email":
+            result = await handle_delete_email(arguments)
+        elif tool_name == "mark_as_read":
+            result = await handle_mark_read(arguments)
         else:
             return create_error_response(
                 request.id,
@@ -268,7 +283,6 @@ async def handle_tool_call(request: MCPRequest) -> JSONResponse:
 
 
 # Tool handler functions - routing to session-specific implementations
-
 async def handle_query_emails(args: Dict[str, Any]) -> Dict[str, Any]:
     """Route to GraphMailQuery.query_filter with session or legacy support"""
     user_email = args["user_email"]
@@ -276,29 +290,20 @@ async def handle_query_emails(args: Dict[str, Any]) -> Dict[str, Any]:
     # Get session or legacy instances
     context = await get_user_session_or_legacy(user_email, args.get("access_token"))
 
-    # Extract parameters from args
-    top = args.get("top", 10)
-    orderby = args.get("orderby", "receivedDateTime desc")
-    filter = args.get("filter", {})
-    exclude = args.get("exclude", {})
-    select = args.get("select", {})
+    filter_dict = args.get("filter", {})
+    exclude_dict = args.get("exclude", {})
+    select_dict = args.get("select", {})
 
-    # Convert dicts to parameter objects where needed
-    filter_params = None
-    if filter:
-        filter_params = FilterParams(**filter)
-    exclude_params = None
-    if exclude:
-        exclude_params = ExcludeParams(**exclude)
-    select_params = None
-    if select:
-        select_params = SelectParams(**select)
+    # Convert dicts to parameter objects
+    filter_params = FilterParams(**filter_dict) if filter_dict else FilterParams()
+    exclude_params = ExcludeParams(**exclude_dict) if exclude_dict else None
+    select_params = SelectParams(**select_dict) if select_dict else None
 
     try:
-        # Use helper to get the correct instance
-        service_instance = get_query_instance(context)
+        # Use helper to get the query instance
+        query_instance = get_query_instance(context)
 
-        return await service_instance.query_filter(
+        return await query_instance.query_filter(
             user_email=user_email,
             filter=filter_params,
             exclude=exclude_params,
@@ -309,49 +314,180 @@ async def handle_query_emails(args: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         await handle_token_error(e, user_email)
 
-async def handle_mail_search(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to GraphMailQuery.query_search with session or legacy support"""
-    user_email = args["user_email"]
 
-    # Get session or legacy instances
+async def handle_get_email(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailClient.get_message with session or legacy support"""
+    user_email = args["user_email"]
     context = await get_user_session_or_legacy(user_email, args.get("access_token"))
 
-    # Extract parameters from args
-    search = args["search"]
-    top = args.get("top", 250)
-    orderby = args.get("orderby")
-    client_filter = args.get("client_filter", {})
-    select = args.get("select", {})
-
-    # Convert dicts to parameter objects where needed
-    client_filter_params = None
-    if client_filter:
-        client_filter_params = FilterParams(**client_filter)
-    select_params = None
-    if select:
-        select_params = SelectParams(**select)
-
     try:
-        # Use helper to get the correct instance
-        service_instance = get_query_instance(context)
-
-        return await service_instance.query_search(
+        client_instance = get_client_instance(context)
+        return await client_instance.get_message(
             user_email=user_email,
-            search=search,
-            client_filter=client_filter_params,
-            select=select_params,
-            top=args.get("top", 250),
-            orderby=orderby
+            message_id=args["message_id"]
         )
     except Exception as e:
         await handle_token_error(e, user_email)
 
 
-def create_error_response(id: Any, code: int, message: str) -> JSONResponse:
+async def handle_get_attachments(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailClient.get_attachments using session or legacy support"""
+    user_email = args["user_email"]
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    try:
+        client_instance = get_client_instance(context)
+        return await client_instance.get_attachments(
+            user_email=user_email,
+            message_id=args["message_id"]
+        )
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+
+async def handle_download_attachment(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailClient.download_attachment using session or legacy support"""
+    user_email = args["user_email"]
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    try:
+        client_instance = get_client_instance(context)
+        return await client_instance.download_attachment(
+            user_email=user_email,
+            message_id=args["message_id"],
+            attachment_id=args["attachment_id"],
+            save_path=args.get("save_path")
+        )
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+
+async def handle_search_by_date(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to search by date using query_filter with session or legacy support"""
+    user_email = args["user_email"]
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    filter_params = FilterParams(
+        received_after=args["start_date"],
+        received_before=args["end_date"]
+    )
+
+    select_params = None
+    if args.get("select_fields"):
+        fields = [f.strip() for f in args["select_fields"].split(",")]
+        select_params = SelectParams(fields=fields)
+
+    try:
+        query_instance = get_query_instance(context)
+        return await query_instance.query_filter(
+            user_email=user_email,
+            filter=filter_params,
+            select=select_params,
+            top=args.get("top", 10),
+            orderby=args.get("orderby", "receivedDateTime desc")
+        )
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+
+async def handle_send_email(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailClient.send_mail using session or legacy support"""
+    user_email = args["user_email"]
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    try:
+        client_instance = get_client_instance(context)
+        return await client_instance.send_mail(
+            user_email=user_email,
+            to_recipients=args["to_recipients"],
+            subject=args["subject"],
+            body=args["body"],
+            cc_recipients=args.get("cc_recipients", []),
+            bcc_recipients=args.get("bcc_recipients", []),
+            importance=args.get("importance", "normal"),
+            body_type=args.get("body_type", "text"),
+            attachments=args.get("attachments", [])
+        )
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+
+async def handle_reply_email(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailClient.reply_to_message using session or legacy support"""
+    user_email = args["user_email"]
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    try:
+        client_instance = get_client_instance(context)
+        if args.get("reply_all", False):
+            return await client_instance.reply_all(
+                user_email=user_email,
+                message_id=args["message_id"],
+                comment=args["comment"]
+            )
+        else:
+            return await client_instance.reply_to_message(
+                user_email=user_email,
+                message_id=args["message_id"],
+                comment=args["comment"]
+            )
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+
+async def handle_forward_email(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailClient.forward_message using session or legacy support"""
+    user_email = args["user_email"]
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    try:
+        client_instance = get_client_instance(context)
+        return await client_instance.forward_message(
+            user_email=user_email,
+            message_id=args["message_id"],
+            to_recipients=args["to_recipients"],
+            comment=args.get("comment", "")
+        )
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+
+async def handle_delete_email(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailClient.delete_message using session or legacy support"""
+    user_email = args["user_email"]
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    try:
+        client_instance = get_client_instance(context)
+        return await client_instance.delete_message(
+            user_email=user_email,
+            message_id=args["message_id"]
+        )
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+
+async def handle_mark_read(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailClient.mark_as_read using session or legacy support"""
+    user_email = args["user_email"]
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    try:
+        client_instance = get_client_instance(context)
+        return await client_instance.mark_as_read(
+            user_email=user_email,
+            message_id=args["message_id"],
+            is_read=args.get("is_read", True)
+        )
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+
+def create_error_response(request_id: Any, code: int, message: str) -> JSONResponse:
     """Create MCP error response"""
     return JSONResponse(content={
         "jsonrpc": "2.0",
-        "id": id,
+        "id": request_id,
         "error": {
             "code": code,
             "message": message

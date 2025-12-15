@@ -29,7 +29,7 @@ except ImportError:  # pragma: no cover
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from auth.auth_manager import AuthManager
+from session.auth_manager import AuthManager
 from graph_types import (
     FilterParams, ExcludeParams, SelectParams,
     build_filter_query, build_exclude_query, build_select_query

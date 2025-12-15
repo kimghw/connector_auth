@@ -15,12 +15,10 @@ import logging
 # Add parent directories to path for module access
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 grandparent_dir = os.path.dirname(parent_dir)
-sys.path.insert(0, grandparent_dir)  # For session module and package imports (mcp_attachment, mcp_outlook)
-sys.path.insert(0, parent_dir)  # For direct module imports from parent directory
+sys.path.insert(0, parent_dir)  # For mcp modules
+sys.path.insert(0, grandparent_dir)  # For session module
 
-{%- if 'GraphMailQuery' in services or 'GraphMailClient' in services %}
-from graph_types import {{ param_types | join(', ') }}
-{%- endif %}
+from graph_types import ExcludeParams, FilterParams, SelectParams
 from tool_definitions import MCP_TOOLS
 
 # Configure logging first
@@ -41,33 +39,13 @@ except ImportError:
     USE_SESSION_MANAGER = False
 
 # Import legacy components for fallback
-{%- if 'FileManager' in services or 'MetadataManager' in services %}
-# Attachment services use package-relative imports internally
-# We need to import them as a package, not as standalone modules
-{%- if 'FileManager' in services %}
-from mcp_attachment.file_manager import FileManager
-{%- endif %}
-{%- if 'MetadataManager' in services %}
-from mcp_attachment.metadata.manager import MetadataManager
-{%- endif %}
-{%- else %}
-# Outlook services
-{%- for service, info in services.items() %}
-from {{ info.module }} import {{ service }}
-{%- endfor %}
-{%- endif %}
+from graph_mail_query import GraphMailQuery
 
 app = FastAPI(title="Outlook MCP Server", version="1.0.0")
 
 # Global instances for legacy mode (when SessionManager not available)
 if not USE_SESSION_MANAGER:
-{%- for service, info in services.items() %}
-    {{ info.instance_name }} = {{ service }}()
-{%- endfor %}
-{%- if 'FileManager' in services %}
-    # FileManager contains metadata_manager
-    metadata_manager = file_manager.metadata_manager
-{%- endif %}
+    graph_mail_query = GraphMailQuery()
 
 
 @app.on_event("startup")
@@ -95,25 +73,8 @@ async def ensure_graph_mail_client_legacy(user_email: Optional[str] = None):
     Legacy method: Ensure GraphMailClient is initialized before use
     Used when SessionManager is not available
     """
-{%- if 'GraphMailClient' in services %}
-    if user_email:
-        graph_mail_client.user_email = user_email
-
-    if not getattr(graph_mail_client, "_initialized", False):
-        initialized = await graph_mail_client.initialize(user_email=user_email)
-        if not initialized:
-            raise HTTPException(status_code=500, detail="Failed to initialize GraphMailClient")
-{%- elif 'FileManager' in services %}
-    # FileManager doesn't need special initialization in legacy mode
-    # It's already initialized globally
-    global file_manager
-    if file_manager is None:
-        file_manager = FileManager()
-    logger.info(f"Using legacy file manager for user: {user_email or 'default'}")
-{%- else %}
     # Implement initialization logic for your services here
     pass
-{%- endif %}
 
 
 async def get_user_session_or_legacy(user_email: str, access_token: Optional[str] = None):
@@ -135,18 +96,10 @@ async def get_user_session_or_legacy(user_email: str, access_token: Optional[str
         try:
             session = await session_manager.get_or_create_session(user_email, access_token)
             if not session.initialized:
-{%- if 'FileManager' in services %}
-                # Initialize file manager for this session
-                session.file_manager = FileManager()
-                session.metadata_manager = session.file_manager.metadata_manager
-                session.initialized = True
-                logger.info(f"Initialized file manager for session: {user_email}")
-{%- else %}
                 raise HTTPException(
                     status_code=500,
                     detail=f"Failed to initialize session for user: {user_email}"
                 )
-{%- endif %}
             return session
         except Exception as e:
             logger.error(f"Error getting session for {user_email}: {str(e)}")
@@ -154,55 +107,21 @@ async def get_user_session_or_legacy(user_email: str, access_token: Optional[str
     else:
         # Legacy mode - return global instances wrapped in a dict
         await ensure_graph_mail_client_legacy(user_email)
-        result = {
-{%- for service, info in services.items() %}
-            '{{ info.instance_name }}': {{ info.instance_name }},
-{%- endfor %}
+        return {
+            'graph_mail_query': graph_mail_query,
             'user_email': user_email
         }
-{%- if 'FileManager' in services %}
-        # Add metadata_manager from file_manager
-        result['metadata_manager'] = file_manager.metadata_manager
-{%- endif %}
-        return result
 
 
 def get_query_instance(context):
-    """Get query service instance from session or legacy context"""
-{%- if 'GraphMailQuery' in services %}
+    """Get GraphMailQuery instance from session or legacy context"""
     return context.graph_mail_query if USE_SESSION_MANAGER else context['graph_mail_query']
-{%- elif 'FileManager' in services %}
-    return context.file_manager if USE_SESSION_MANAGER else context['file_manager']
-{%- else %}
-    # Adapt this helper for your service
-    pass
-{%- endif %}
 
 
 def get_client_instance(context):
-    """Get client service instance from session or legacy context"""
-{%- if 'GraphMailClient' in services %}
-    return context.graph_mail_client if USE_SESSION_MANAGER else context['graph_mail_client']
-{%- elif 'FileManager' in services %}
-    return context.file_manager if USE_SESSION_MANAGER else context['file_manager']
-{%- elif 'MetadataManager' in services %}
-    return context.metadata_manager if USE_SESSION_MANAGER else context['metadata_manager']
-{%- else %}
+    """Get GraphMailClient instance from session or legacy context"""
     # Adapt this helper for your service
     pass
-{%- endif %}
-
-
-{%- if 'FileManager' in services %}
-def get_file_manager_instance(context):
-    """Get FileManager instance from session or legacy context"""
-    return context.file_manager if USE_SESSION_MANAGER else context['file_manager']
-
-
-def get_metadata_manager_instance(context):
-    """Get MetadataManager instance from session or legacy context"""
-    return context.metadata_manager if USE_SESSION_MANAGER else context['metadata_manager']
-{%- endif %}
 
 
 async def handle_token_error(e: Exception, user_email: str):
@@ -309,10 +228,10 @@ async def handle_tool_call(request: MCPRequest) -> JSONResponse:
         arguments = request.params.get("arguments", {})
 
         # Route to appropriate handler
-        {%- for tool in tools %}
-        {% if loop.first %}if{% else %}elif{% endif %} tool_name == "{{ tool.name }}":
-            result = await handle_{{ tool.name }}(arguments)
-        {%- endfor %}
+        if tool_name == "query_emails":
+            result = await handle_query_emails(arguments)
+        elif tool_name == "mail_search":
+            result = await handle_mail_search(arguments)
         else:
             return create_error_response(
                 request.id,
@@ -341,93 +260,83 @@ async def handle_tool_call(request: MCPRequest) -> JSONResponse:
 
 
 # Tool handler functions - routing to session-specific implementations
-{%- for tool in tools %}
 
-async def handle_{{ tool.name }}(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to {{ tool.service_class }}.{{ tool.service_method }} with session or legacy support"""
+async def handle_query_emails(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailQuery.query_filter with session or legacy support"""
     user_email = args["user_email"]
 
     # Get session or legacy instances
     context = await get_user_session_or_legacy(user_email, args.get("access_token"))
 
-    {%- if tool.object_params %}
-
     # Extract parameters from args
-    {%- for param_name, param_info in tool.params.items() if param_name != 'user_email' %}
-    {%- if param_info.is_required %}
-    {{ param_name }} = args["{{ param_name }}"]
-    {%- elif param_info.has_default %}
-    {{ param_name }} = args.get("{{ param_name }}", {{ param_info.default }})
-    {%- else %}
-    {{ param_name }} = args.get("{{ param_name }}")
-    {%- endif %}
-    {%- endfor %}
-    {%- for param_name, param_info in tool.object_params.items() %}
-    {{ param_name }} = args.get("{{ param_name }}", {})
-    {%- endfor %}
+    orderby = args.get("orderby", "receivedDateTime desc")
+    top = args.get("top", 10)
+    exclude = args.get("exclude", {})
+    filter = args.get("filter", {})
+    select = args.get("select", {})
 
     # Convert dicts to parameter objects where needed
-    {%- for param_name, param_info in tool.object_params.items() %}
-    {%- if param_info.is_optional %}
-    {{ param_name }}_params = None
-    if {{ param_name }}:
-        {%- if param_info.is_dict %}
-        {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }})
-        {%- else %}
-        # Handle special case for {{ param_name }}
-        {{ param_name }}_params = {{ param_info.class_name }}({{ param_name }})
-        {%- endif %}
-    {%- else %}
-    {%- if param_info.is_dict %}
-    {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}) if {{ param_name }} else {{ param_info.class_name }}()
-    {%- else %}
-    # Handle special case for {{ param_name }}
-    {{ param_name }}_params = {{ param_info.class_name }}({{ param_name }})
-    {%- endif %}
-    {%- endif %}
-    {%- endfor %}
+    exclude_params = None
+    if exclude:
+        exclude_params = ExcludeParams(**exclude)
+    filter_params = None
+    if filter:
+        filter_params = FilterParams(**filter)
+    select_params = None
+    if select:
+        select_params = SelectParams(**select)
 
     try:
         # Use helper to get the correct instance
-        {%- if 'query' in tool.service_method.lower() %}
         service_instance = get_query_instance(context)
-        {%- else %}
-        service_instance = get_client_instance(context)
-        {%- endif %}
 
-        return await service_instance.{{ tool.service_method }}(
+        return await service_instance.query_filter(
             user_email=user_email,
-            {%- for param_name, param_info in tool.call_params.items() if param_name != 'user_email' %}
-            {{ param_name }}={{ param_info.value }}{{ "," if not loop.last else "" }}
-            {%- endfor %}
+            exclude=exclude_params,
+            filter=filter_params,
+            orderby=orderby,
+            select=select_params,
+            top=top
         )
     except Exception as e:
         await handle_token_error(e, user_email)
-    {%- else %}
+
+async def handle_mail_search(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailQuery.query_search with session or legacy support"""
+    user_email = args["user_email"]
+
+    # Get session or legacy instances
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    # Extract parameters from args
+    search = args["search"]
+    top = args.get("top", 10)
+    orderby = args.get("orderby", "receivedDateTime desc")
+    client_filter = args.get("client_filter", {})
+    select = args.get("select", {})
+
+    # Convert dicts to parameter objects where needed
+    client_filter_params = None
+    if client_filter:
+        client_filter_params = FilterParams(**client_filter)
+    select_params = None
+    if select:
+        select_params = SelectParams(**select)
 
     try:
         # Use helper to get the correct instance
-        {%- if 'query' in tool.service_method.lower() %}
         service_instance = get_query_instance(context)
-        {%- else %}
-        service_instance = get_client_instance(context)
-        {%- endif %}
 
-        return await service_instance.{{ tool.service_method }}(
-            {%- for param_name, param_info in tool.params.items() %}
-            {%- if param_info.is_required %}
-            {{ param_name }}=args["{{ param_name }}"]{{ "," if not loop.last else "" }}
-            {%- elif param_info.has_default %}
-            {{ param_name }}=args.get("{{ param_name }}", {{ param_info.default }}){{ "," if not loop.last else "" }}
-            {%- else %}
-            {{ param_name }}=args.get("{{ param_name }}"){{ "," if not loop.last else "" }}
-            {%- endif %}
-            {%- endfor %}
+        return await service_instance.query_search(
+            user_email=user_email,
+            search=search,
+            client_filter=client_filter_params,
+            select=select_params,
+            top=top,
+            orderby=orderby
         )
     except Exception as e:
         await handle_token_error(e, user_email)
-    {%- endif %}
-{%- endfor %}
 
 
 def create_error_response(id: Any, code: int, message: str) -> JSONResponse:

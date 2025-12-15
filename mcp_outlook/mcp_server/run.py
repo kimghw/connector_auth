@@ -31,7 +31,8 @@ def setup_session_manager():
     """
     try:
         # Try to import SessionManager from project root
-        from session_manager import session_manager
+        from session.session_manager import SessionManager
+        session_manager = SessionManager()
 
         # Create the SessionManager instance if not already created
         if session_manager:

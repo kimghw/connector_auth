@@ -1,7 +1,7 @@
 """
-FastAPI MCP Server for Outlook Graph Mail
-Routes MCP protocol requests to existing Graph Mail functions
-Now with SessionManager for safe multi-user support
+FastAPI MCP Server for File Attachment Management
+Routes MCP protocol requests to file and metadata management functions
+With SessionManager for safe multi-user support
 """
 import json
 from typing import Dict, Any, List, Optional
@@ -13,14 +13,16 @@ import os
 import logging
 
 # Add parent directories to path for module access
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
 grandparent_dir = os.path.dirname(parent_dir)
-sys.path.insert(0, grandparent_dir)  # For session module and package imports (mcp_attachment, mcp_outlook)
-sys.path.insert(0, parent_dir)  # For direct module imports from parent directory
+attachment_dir = os.path.join(grandparent_dir, "mcp_attachment")
 
-{%- if 'GraphMailQuery' in services or 'GraphMailClient' in services %}
-from graph_types import {{ param_types | join(', ') }}
-{%- endif %}
+# Important: Add attachment directory first for proper relative imports
+sys.path.insert(0, attachment_dir)
+sys.path.insert(0, grandparent_dir)  # For session module
+sys.path.insert(0, parent_dir)  # For direct module imports
+
 from tool_definitions import MCP_TOOLS
 
 # Configure logging first
@@ -40,34 +42,16 @@ except ImportError:
     Session = None
     USE_SESSION_MANAGER = False
 
-# Import legacy components for fallback
-{%- if 'FileManager' in services or 'MetadataManager' in services %}
-# Attachment services use package-relative imports internally
-# We need to import them as a package, not as standalone modules
-{%- if 'FileManager' in services %}
-from mcp_attachment.file_manager import FileManager
-{%- endif %}
-{%- if 'MetadataManager' in services %}
-from mcp_attachment.metadata.manager import MetadataManager
-{%- endif %}
-{%- else %}
-# Outlook services
-{%- for service, info in services.items() %}
-from {{ info.module }} import {{ service }}
-{%- endfor %}
-{%- endif %}
+# Import attachment services
+from file_manager import FileManager
+from metadata.manager import MetadataManager
 
-app = FastAPI(title="Outlook MCP Server", version="1.0.0")
+app = FastAPI(title="Attachment MCP Server", version="1.0.0")
 
 # Global instances for legacy mode (when SessionManager not available)
 if not USE_SESSION_MANAGER:
-{%- for service, info in services.items() %}
-    {{ info.instance_name }} = {{ service }}()
-{%- endfor %}
-{%- if 'FileManager' in services %}
-    # FileManager contains metadata_manager
+    file_manager = FileManager()
     metadata_manager = file_manager.metadata_manager
-{%- endif %}
 
 
 @app.on_event("startup")
@@ -90,32 +74,6 @@ async def shutdown_event():
         logger.info("Server shutdown in legacy mode")
 
 
-async def ensure_graph_mail_client_legacy(user_email: Optional[str] = None):
-    """
-    Legacy method: Ensure GraphMailClient is initialized before use
-    Used when SessionManager is not available
-    """
-{%- if 'GraphMailClient' in services %}
-    if user_email:
-        graph_mail_client.user_email = user_email
-
-    if not getattr(graph_mail_client, "_initialized", False):
-        initialized = await graph_mail_client.initialize(user_email=user_email)
-        if not initialized:
-            raise HTTPException(status_code=500, detail="Failed to initialize GraphMailClient")
-{%- elif 'FileManager' in services %}
-    # FileManager doesn't need special initialization in legacy mode
-    # It's already initialized globally
-    global file_manager
-    if file_manager is None:
-        file_manager = FileManager()
-    logger.info(f"Using legacy file manager for user: {user_email or 'default'}")
-{%- else %}
-    # Implement initialization logic for your services here
-    pass
-{%- endif %}
-
-
 async def get_user_session_or_legacy(user_email: str, access_token: Optional[str] = None):
     """
     Get session if SessionManager available, otherwise return legacy instances
@@ -135,65 +93,24 @@ async def get_user_session_or_legacy(user_email: str, access_token: Optional[str
         try:
             session = await session_manager.get_or_create_session(user_email, access_token)
             if not session.initialized:
-{%- if 'FileManager' in services %}
                 # Initialize file manager for this session
                 session.file_manager = FileManager()
                 session.metadata_manager = session.file_manager.metadata_manager
                 session.initialized = True
                 logger.info(f"Initialized file manager for session: {user_email}")
-{%- else %}
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to initialize session for user: {user_email}"
-                )
-{%- endif %}
             return session
         except Exception as e:
             logger.error(f"Error getting session for {user_email}: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))
     else:
         # Legacy mode - return global instances wrapped in a dict
-        await ensure_graph_mail_client_legacy(user_email)
-        result = {
-{%- for service, info in services.items() %}
-            '{{ info.instance_name }}': {{ info.instance_name }},
-{%- endfor %}
+        return {
+            'file_manager': file_manager,
+            'metadata_manager': metadata_manager,
             'user_email': user_email
         }
-{%- if 'FileManager' in services %}
-        # Add metadata_manager from file_manager
-        result['metadata_manager'] = file_manager.metadata_manager
-{%- endif %}
-        return result
 
 
-def get_query_instance(context):
-    """Get query service instance from session or legacy context"""
-{%- if 'GraphMailQuery' in services %}
-    return context.graph_mail_query if USE_SESSION_MANAGER else context['graph_mail_query']
-{%- elif 'FileManager' in services %}
-    return context.file_manager if USE_SESSION_MANAGER else context['file_manager']
-{%- else %}
-    # Adapt this helper for your service
-    pass
-{%- endif %}
-
-
-def get_client_instance(context):
-    """Get client service instance from session or legacy context"""
-{%- if 'GraphMailClient' in services %}
-    return context.graph_mail_client if USE_SESSION_MANAGER else context['graph_mail_client']
-{%- elif 'FileManager' in services %}
-    return context.file_manager if USE_SESSION_MANAGER else context['file_manager']
-{%- elif 'MetadataManager' in services %}
-    return context.metadata_manager if USE_SESSION_MANAGER else context['metadata_manager']
-{%- else %}
-    # Adapt this helper for your service
-    pass
-{%- endif %}
-
-
-{%- if 'FileManager' in services %}
 def get_file_manager_instance(context):
     """Get FileManager instance from session or legacy context"""
     return context.file_manager if USE_SESSION_MANAGER else context['file_manager']
@@ -202,7 +119,6 @@ def get_file_manager_instance(context):
 def get_metadata_manager_instance(context):
     """Get MetadataManager instance from session or legacy context"""
     return context.metadata_manager if USE_SESSION_MANAGER else context['metadata_manager']
-{%- endif %}
 
 
 async def handle_token_error(e: Exception, user_email: str):
@@ -284,7 +200,7 @@ def handle_initialize(request: MCPRequest) -> JSONResponse:
                 "tools": {}
             },
             "serverInfo": {
-                "name": "outlook-mcp-server",
+                "name": "attachment-mcp-server",
                 "version": "1.0.0"
             }
         }
@@ -309,11 +225,21 @@ async def handle_tool_call(request: MCPRequest) -> JSONResponse:
         arguments = request.params.get("arguments", {})
 
         # Route to appropriate handler
-        {%- for tool in tools %}
-        {% if loop.first %}if{% else %}elif{% endif %} tool_name == "{{ tool.name }}":
-            result = await handle_{{ tool.name }}(arguments)
-        {%- endfor %}
-        else:
+if tool_name == "convert_file_to_text":
+            result = await handle_convert_file_to_text(arguments)
+elif tool_name == "convert_onedrive_to_text":
+            result = await handle_convert_onedrive_to_text(arguments)
+elif tool_name == "process_directory":
+            result = await handle_process_directory(arguments)
+elif tool_name == "save_file_metadata":
+            result = await handle_save_file_metadata(arguments)
+elif tool_name == "search_metadata":
+            result = await handle_search_metadata(arguments)
+elif tool_name == "get_file_metadata":
+            result = await handle_get_file_metadata(arguments)
+elif tool_name == "delete_file_metadata":
+            result = await handle_delete_file_metadata(arguments)
+else:
             return create_error_response(
                 request.id,
                 -32602,
@@ -341,93 +267,111 @@ async def handle_tool_call(request: MCPRequest) -> JSONResponse:
 
 
 # Tool handler functions - routing to session-specific implementations
-{%- for tool in tools %}
 
-async def handle_{{ tool.name }}(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to {{ tool.service_class }}.{{ tool.service_method }} with session or legacy support"""
-    user_email = args["user_email"]
+async def handle_convert_file_to_text(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to FileManager.convert_file_to_text with session or legacy support"""
+    user_email = args.get("user_email", "default")
 
     # Get session or legacy instances
     context = await get_user_session_or_legacy(user_email, args.get("access_token"))
 
-    {%- if tool.object_params %}
-
-    # Extract parameters from args
-    {%- for param_name, param_info in tool.params.items() if param_name != 'user_email' %}
-    {%- if param_info.is_required %}
-    {{ param_name }} = args["{{ param_name }}"]
-    {%- elif param_info.has_default %}
-    {{ param_name }} = args.get("{{ param_name }}", {{ param_info.default }})
-    {%- else %}
-    {{ param_name }} = args.get("{{ param_name }}")
-    {%- endif %}
-    {%- endfor %}
-    {%- for param_name, param_info in tool.object_params.items() %}
-    {{ param_name }} = args.get("{{ param_name }}", {})
-    {%- endfor %}
-
-    # Convert dicts to parameter objects where needed
-    {%- for param_name, param_info in tool.object_params.items() %}
-    {%- if param_info.is_optional %}
-    {{ param_name }}_params = None
-    if {{ param_name }}:
-        {%- if param_info.is_dict %}
-        {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }})
-        {%- else %}
-        # Handle special case for {{ param_name }}
-        {{ param_name }}_params = {{ param_info.class_name }}({{ param_name }})
-        {%- endif %}
-    {%- else %}
-    {%- if param_info.is_dict %}
-    {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}) if {{ param_name }} else {{ param_info.class_name }}()
-    {%- else %}
-    # Handle special case for {{ param_name }}
-    {{ param_name }}_params = {{ param_info.class_name }}({{ param_name }})
-    {%- endif %}
-    {%- endif %}
-    {%- endfor %}
-
     try:
-        # Use helper to get the correct instance
-        {%- if 'query' in tool.service_method.lower() %}
-        service_instance = get_query_instance(context)
-        {%- else %}
-        service_instance = get_client_instance(context)
-        {%- endif %}
-
-        return await service_instance.{{ tool.service_method }}(
-            user_email=user_email,
-            {%- for param_name, param_info in tool.call_params.items() if param_name != 'user_email' %}
-            {{ param_name }}={{ param_info.value }}{{ "," if not loop.last else "" }}
-            {%- endfor %}
-        )
+        # Get the appropriate service instance
+service_instance = get_file_manager_instance(context)
+# Call the service method
+        return await service_instance.convert_file_to_text(file_path=args.get("file_path"),output_format=args.get("output_format"),use_ocr=args.get("use_ocr"),save_metadata=args.get("save_metadata"),keywords=args.get("keywords"))
     except Exception as e:
         await handle_token_error(e, user_email)
-    {%- else %}
+
+async def handle_convert_onedrive_to_text(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to FileManager.convert_onedrive_to_text with session or legacy support"""
+    user_email = args.get("user_email", "default")
+
+    # Get session or legacy instances
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
 
     try:
-        # Use helper to get the correct instance
-        {%- if 'query' in tool.service_method.lower() %}
-        service_instance = get_query_instance(context)
-        {%- else %}
-        service_instance = get_client_instance(context)
-        {%- endif %}
-
-        return await service_instance.{{ tool.service_method }}(
-            {%- for param_name, param_info in tool.params.items() %}
-            {%- if param_info.is_required %}
-            {{ param_name }}=args["{{ param_name }}"]{{ "," if not loop.last else "" }}
-            {%- elif param_info.has_default %}
-            {{ param_name }}=args.get("{{ param_name }}", {{ param_info.default }}){{ "," if not loop.last else "" }}
-            {%- else %}
-            {{ param_name }}=args.get("{{ param_name }}"){{ "," if not loop.last else "" }}
-            {%- endif %}
-            {%- endfor %}
-        )
+        # Get the appropriate service instance
+service_instance = get_file_manager_instance(context)
+# Call the service method
+        return await service_instance.convert_onedrive_to_text(url=args.get("url"),recursive=args.get("recursive"),output_format=args.get("output_format"),save_metadata=args.get("save_metadata"),keywords=args.get("keywords"))
     except Exception as e:
         await handle_token_error(e, user_email)
-    {%- endif %}
-{%- endfor %}
+
+async def handle_process_directory(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to FileManager.process_directory with session or legacy support"""
+    user_email = args.get("user_email", "default")
+
+    # Get session or legacy instances
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    try:
+        # Get the appropriate service instance
+service_instance = get_file_manager_instance(context)
+# Call the service method
+        return await service_instance.process_directory(directory_path=args.get("directory_path"),pattern=args.get("pattern"),recursive=args.get("recursive"),output_format=args.get("output_format"),save_metadata=args.get("save_metadata"))
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+async def handle_save_file_metadata(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to MetadataManager.save_file_metadata with session or legacy support"""
+    user_email = args.get("user_email", "default")
+
+    # Get session or legacy instances
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    try:
+        # Get the appropriate service instance
+service_instance = get_metadata_manager_instance(context)
+# Call the service method
+        return await service_instance.save_file_metadata(file_url=args.get("file_url"),keywords=args.get("keywords"),metadata=args.get("metadata"))
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+async def handle_search_metadata(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to MetadataManager.search_metadata with session or legacy support"""
+    user_email = args.get("user_email", "default")
+
+    # Get session or legacy instances
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    try:
+        # Get the appropriate service instance
+service_instance = get_metadata_manager_instance(context)
+# Call the service method
+        return await service_instance.search_metadata(keyword=args.get("keyword"),file_url=args.get("file_url"))
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+async def handle_get_file_metadata(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to MetadataManager.get_file_metadata with session or legacy support"""
+    user_email = args.get("user_email", "default")
+
+    # Get session or legacy instances
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    try:
+        # Get the appropriate service instance
+service_instance = get_metadata_manager_instance(context)
+# Call the service method
+        return await service_instance.get_file_metadata(file_url=args.get("file_url"))
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+async def handle_delete_file_metadata(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to MetadataManager.delete_file_metadata with session or legacy support"""
+    user_email = args.get("user_email", "default")
+
+    # Get session or legacy instances
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    try:
+        # Get the appropriate service instance
+service_instance = get_metadata_manager_instance(context)
+# Call the service method
+        return await service_instance.delete_file_metadata(file_url=args.get("file_url"))
+    except Exception as e:
+        await handle_token_error(e, user_email)
 
 
 def create_error_response(id: Any, code: int, message: str) -> JSONResponse:
@@ -442,6 +386,18 @@ def create_error_response(id: Any, code: int, message: str) -> JSONResponse:
     })
 
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "server": "attachment-mcp-server"}
+
+
+@app.get("/tools")
+async def list_tools():
+    """List available tools"""
+    return {"tools": [tool["name"] for tool in MCP_TOOLS]}
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=3000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)

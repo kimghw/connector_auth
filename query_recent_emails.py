@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any, List
 # 경로 설정
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from auth.auth_manager import AuthManager
+from session.auth_manager import AuthManager
 from mcp_outlook.graph_mail_query import GraphMailQuery
 from mcp_outlook.graph_types import (
     FilterParams,

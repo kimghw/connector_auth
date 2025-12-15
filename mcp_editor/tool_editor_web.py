@@ -349,12 +349,36 @@ def get_tool_names() -> List[str]:
             f.write(content)
 
         # 2. Save tool_definition_templates.py (with all metadata)
-        template_path = paths["template_path"]
+        # Determine server name from path and use server-specific template file
+        if 'mcp_outlook' in target_dir:
+            server_name = 'outlook'
+            template_filename = 'outlook_tool_definition_templates.py'
+        elif 'mcp_attachment' in target_dir:
+            server_name = 'attachment'
+            template_filename = 'attachment_tool_definition_templates.py'
+        else:
+            server_name = None
+            template_filename = 'tool_definition_templates.py'
 
-        # Load signature information from mcp_services.json
+        # Override template path with server-specific filename
+        template_path = os.path.join(os.path.dirname(__file__), template_filename)
+
+        # Load signature information from server-specific mcp_services.json
         signatures_by_name = {}
         try:
-            services_json_path = os.path.join(os.path.dirname(__file__), 'mcp_services.json')
+
+            # Try server-specific file first, then fallback to generic
+            services_json_path = None
+            if server_name:
+                specific_path = os.path.join(os.path.dirname(__file__), f'{server_name}_mcp_services.json')
+                if os.path.exists(specific_path):
+                    services_json_path = specific_path
+                    print(f"Using server-specific services file: {server_name}_mcp_services.json")
+
+            # Fallback to generic file
+            if not services_json_path or not os.path.exists(services_json_path):
+                services_json_path = os.path.join(os.path.dirname(__file__), 'mcp_services.json')
+
             with open(services_json_path, 'r', encoding='utf-8') as f:
                 services_data = json.load(f)
                 for service in services_data.get('services_with_signatures', []):
@@ -657,9 +681,31 @@ def restore_backup(filename):
 
 @app.route('/api/mcp-services', methods=['GET'])
 def get_mcp_services():
-    """Get available MCP services from mcp_services.json"""
+    """Get available MCP services from server-specific mcp_services.json"""
     try:
-        mcp_services_path = os.path.join(os.path.dirname(__file__), 'mcp_services.json')
+        # Get profile parameter to determine which server
+        profile = request.args.get('profile', 'outlook')
+
+        # Determine server name from profile
+        if 'outlook' in profile:
+            server_name = 'outlook'
+        elif 'attachment' in profile:
+            server_name = 'attachment'
+        else:
+            server_name = None
+
+        # Try server-specific file first
+        mcp_services_path = None
+        if server_name:
+            specific_path = os.path.join(os.path.dirname(__file__), f'{server_name}_mcp_services.json')
+            if os.path.exists(specific_path):
+                mcp_services_path = specific_path
+                print(f"Loading services from {server_name}_mcp_services.json")
+
+        # Fallback to generic file
+        if not mcp_services_path or not os.path.exists(mcp_services_path):
+            mcp_services_path = os.path.join(os.path.dirname(__file__), 'mcp_services.json')
+
         if os.path.exists(mcp_services_path):
             with open(mcp_services_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)

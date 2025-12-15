@@ -1,12 +1,10 @@
 {
-  "decorated_services": [
-    "query_filter",
-    "query_url",
-    "query_search"
-  ],
-  "services_with_signatures": [
+  "services": [
     {
-      "name": "query_filter",
+      "function_name": "query_filter",
+      "file": "/home/kimghw/Connector_auth/mcp_outlook/graph_mail_query.py",
+      "line": 147,
+      "is_async": true,
       "parameters": [
         {
           "name": "self",
@@ -49,10 +47,14 @@
           "default": null
         }
       ],
-      "is_async": true
+      "tool_name": "build_query_url",
+      "category": "outlook_mail"
     },
     {
-      "name": "query_url",
+      "function_name": "query_url",
+      "file": "/home/kimghw/Connector_auth/mcp_outlook/graph_mail_query.py",
+      "line": 283,
+      "is_async": true,
       "parameters": [
         {
           "name": "self",
@@ -80,10 +82,14 @@
           "default": null
         }
       ],
-      "is_async": true
+      "tool_name": "query_url",
+      "category": "outlook_mail"
     },
     {
-      "name": "query_search",
+      "function_name": "query_search",
+      "file": "/home/kimghw/Connector_auth/mcp_outlook/graph_mail_query.py",
+      "line": 319,
+      "is_async": true,
       "parameters": [
         {
           "name": "self",
@@ -121,9 +127,17 @@
           "default": null
         }
       ],
-      "is_async": true
+      "tool_name": "query_search",
+      "category": "outlook_mail"
     }
   ],
   "count": 3,
-  "description": "List of actual functions with @mcp_service decorator in codebase with signatures"
+  "by_file": {
+    "/home/kimghw/Connector_auth/mcp_outlook/graph_mail_query.py": [
+      "query_filter",
+      "query_url",
+      "query_search"
+    ]
+  },
+  "description": "Detailed information about @mcp_service decorated functions"
 }

@@ -12,6 +12,82 @@ from typing import Dict, Any, List, Optional
 from jinja2 import Environment, FileSystemLoader
 
 
+def copy_mcp_decorators(output_dir: str) -> Path:
+    """Generate mcp_decorators.py file"""
+    decorators_content = '''"""
+MCP Tool Decorator
+Decorator for marking functions as MCP tools
+"""
+from functools import wraps
+from typing import Any, Callable, Dict, Optional
+
+# Registry to store MCP tool metadata
+MCP_TOOL_REGISTRY = {}
+
+def mcp_tool(
+    tool_name: str,
+    description: str = "",
+    category: str = "",
+    tags: list = None,
+    priority: int = 0
+) -> Callable:
+    """
+    Decorator to mark a function as an MCP tool
+
+    Args:
+        tool_name: Name of the tool in MCP
+        description: Tool description
+        category: Tool category
+        tags: List of tags
+        priority: Tool priority
+    """
+    def decorator(func: Callable) -> Callable:
+        # Store metadata in registry
+        MCP_TOOL_REGISTRY[tool_name] = {
+            "function": func,
+            "tool_name": tool_name,
+            "description": description,
+            "category": category,
+            "tags": tags or [],
+            "priority": priority,
+            "module": func.__module__,
+            "function_name": func.__name__
+        }
+
+        # Add metadata to function
+        func._mcp_tool = True
+        func._mcp_metadata = {
+            "tool_name": tool_name,
+            "description": description,
+            "category": category,
+            "tags": tags or [],
+            "priority": priority
+        }
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+def get_mcp_tools() -> Dict[str, Any]:
+    """Get all registered MCP tools"""
+    return MCP_TOOL_REGISTRY
+
+def get_mcp_tool(tool_name: str) -> Optional[Dict[str, Any]]:
+    """Get a specific MCP tool by name"""
+    return MCP_TOOL_REGISTRY.get(tool_name)
+'''
+
+    decorators_path = Path(output_dir) / 'mcp_decorators.py'
+    decorators_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(decorators_path, 'w') as f:
+        f.write(decorators_content)
+    return decorators_path
+
+
 def parse_signature(signature: str) -> Dict[str, Any]:
     """Parse function signature to extract parameters and their types"""
     params = {}
@@ -87,14 +163,33 @@ def parse_signature(signature: str) -> Dict[str, Any]:
 
 def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
     """Analyze tool schema to understand parameter types and requirements"""
+
+    # Determine service based on tool name
+    tool_name = tool['name']
+
+    # Attachment server tools
+    if 'file' in tool_name or 'convert' in tool_name or 'onedrive' in tool_name or 'directory' in tool_name:
+        service_class = 'FileManager'
+        service_object = 'file_manager'
+        service_method = tool_name
+    elif 'metadata' in tool_name:
+        service_class = 'MetadataManager'
+        service_object = 'metadata_manager'
+        service_method = tool_name
+    # Outlook server tools
+    else:
+        service_class = 'GraphMailQuery' if 'query' in tool_name or 'search' in tool_name else 'GraphMailClient'
+        service_object = 'graph_mail_query' if 'query' in tool_name or 'search' in tool_name else 'graph_mail_client'
+        service_method = tool_name
+
     analyzed = {
-        'name': tool['name'],
+        'name': tool_name,
         'params': {},
         'object_params': {},
         'call_params': {},
-        'service_class': 'GraphMailQuery',  # Default
-        'service_object': 'graph_mail_query',  # Default
-        'service_method': tool['name'],  # Default to tool name
+        'service_class': service_class,
+        'service_object': service_object,
+        'service_method': service_method,
     }
 
     # Check if tool has mcp_service metadata
@@ -191,6 +286,8 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
         # Handle mail_search which maps to query_search
         if 'mcp_service' in tool:
             analyzed['service_method'] = tool['mcp_service']['name']
+        else:
+            analyzed['service_method'] = 'query_search'  # Default mapping for mail_search
 
         analyzed['object_params'] = {
             'client_filter': {'class_name': 'FilterParams', 'is_optional': True, 'is_dict': True},
@@ -247,19 +344,37 @@ def extract_service_metadata(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
                 if base_model:
                     metadata['param_types'].add(base_model)
 
-    # Add default services if none found
+    # Add default services based on tool names if none found
     if not metadata['services']:
-        metadata['services'] = {
-            'GraphMailQuery': {
-                'module': 'graph_mail_query',
-                'instance_name': 'graph_mail_query'
-            },
-            'GraphMailClient': {
-                'module': 'graph_mail_client',
-                'instance_name': 'graph_mail_client'
+        # Check if it's attachment or outlook server
+        has_attachment_tools = any('file' in tool['name'] or 'metadata' in tool['name']
+                                  or 'convert' in tool['name'] or 'onedrive' in tool['name']
+                                  for tool in tools)
+
+        if has_attachment_tools:
+            metadata['services'] = {
+                'FileManager': {
+                    'module': 'file_manager',
+                    'instance_name': 'file_manager'
+                },
+                'MetadataManager': {
+                    'module': 'metadata.manager',
+                    'instance_name': 'metadata_manager'
+                }
             }
-        }
-        metadata['modules'] = {'graph_mail_query', 'graph_mail_client'}
+            metadata['modules'] = {'file_manager', 'metadata.manager'}
+        else:
+            metadata['services'] = {
+                'GraphMailQuery': {
+                    'module': 'graph_mail_query',
+                    'instance_name': 'graph_mail_query'
+                },
+                'GraphMailClient': {
+                    'module': 'graph_mail_client',
+                    'instance_name': 'graph_mail_client'
+                }
+            }
+            metadata['modules'] = {'graph_mail_query', 'graph_mail_client'}
 
     # Ensure we have the basic parameter types
     metadata['param_types'].update(['FilterParams', 'ExcludeParams', 'SelectParams'])
@@ -331,14 +446,25 @@ def load_tool_definitions(tool_def_path: str) -> List[Dict[str, Any]]:
             data = json.load(f)
             return data.get('MCP_TOOLS', data)
     elif path.suffix == '.py':
-        # Load from Python module
-        # Add parent directory to path
-        sys.path.insert(0, str(path.parent.parent))
+        # Use AST to parse the file without importing
+        import ast
 
-        # Import the module dynamically
-        module_path = str(path.parent.name) + '.' + path.stem
-        module = __import__(module_path, fromlist=['MCP_TOOLS'])
-        return getattr(module, 'MCP_TOOLS', [])
+        with open(path, 'r') as f:
+            tree = ast.parse(f.read())
+
+        for node in tree.body:
+            # Handle regular assignment (MCP_TOOLS = [...])
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id == 'MCP_TOOLS':
+                        return ast.literal_eval(node.value)
+
+            # Handle type-annotated assignment (MCP_TOOLS: List[Dict[str, Any]] = [...])
+            if isinstance(node, ast.AnnAssign):
+                if isinstance(node.target, ast.Name) and node.target.id == 'MCP_TOOLS':
+                    return ast.literal_eval(node.value)
+
+        raise ValueError("Could not find MCP_TOOLS in the Python file")
     else:
         raise ValueError(f"Unsupported file type: {path.suffix}. Use .py or .json")
 
@@ -357,12 +483,27 @@ def main():
     )
     parser.add_argument(
         '--output', '-o',
-        required=True,
-        help='Output path for generated server.py'
+        default=None,
+        help='Output path for generated server.py (default: temp file, or server.py location with --replace)'
+    )
+    parser.add_argument(
+        '--replace', '-r',
+        action='store_true',
+        help='Replace existing server.py in place (creates backup first)'
+    )
+    parser.add_argument(
+        '--backup-dir',
+        help='Directory for backups when using --replace (default: ./backups)'
     )
     parser.add_argument(
         '--config', '-c',
         help='Path to configuration file with service metadata (JSON)'
+    )
+    parser.add_argument(
+        '--include-decorators',
+        action='store_true',
+        default=True,
+        help='Also generate mcp_decorators.py file (default: True)'
     )
 
     args = parser.parse_args()
@@ -387,16 +528,73 @@ def main():
             # You can use this config to override service metadata
             print(f"  Loaded configuration from: {args.config}")
 
+    # Handle output path
+    if args.replace:
+        # Replace mode - output to the actual server.py location
+        tools_path = Path(args.tools)
+        server_path = tools_path.parent / "server.py"
+
+        # Create backup if file exists
+        if server_path.exists():
+            from datetime import datetime
+            backup_dir = Path(args.backup_dir) if args.backup_dir else server_path.parent / "backups"
+            backup_dir.mkdir(exist_ok=True)
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_name = f"server_backup_{timestamp}.py"
+            backup_path = backup_dir / backup_name
+
+            import shutil
+            shutil.copy2(server_path, backup_path)
+            print(f"✅ Created backup: {backup_path}")
+
+        output_path = server_path
+        use_temp = False
+    elif args.output:
+        output_path = Path(args.output)
+        use_temp = False
+    else:
+        import tempfile
+        temp_fd, temp_path = tempfile.mkstemp(prefix='mcp_server_', suffix='.py')
+        os.close(temp_fd)  # Close the file descriptor
+        output_path = Path(temp_path)
+        use_temp = True
+        print(f"Using temporary file: {output_path}")
+
     # Generate server
-    output_path = Path(args.output)
     generate_server(str(template_path), str(output_path), MCP_TOOLS)
 
     print(f"\n✅ Generated server successfully!")
     print(f"   Output: {output_path}")
-    print(f"\nTo use the generated server:")
-    print(f"1. Review the generated file: {output_path}")
-    print("2. Test with: python {output_path}")
-    print("3. Replace your existing server.py if satisfied")
+
+    # Generate mcp_decorators.py if requested
+    decorators_path = None
+    if args.include_decorators:
+        # Put decorators in same directory as server.py
+        output_dir = output_path.parent
+        decorators_path = copy_mcp_decorators(str(output_dir))
+        print(f"✅ Generated mcp_decorators.py")
+        print(f"   Output: {decorators_path}")
+
+    if use_temp:
+        print(f"\n📋 Next steps:")
+        print(f"1. Review the generated files:")
+        print(f"   cat {output_path}")
+        if decorators_path:
+            print(f"   cat {decorators_path}")
+        print(f"\n2. If satisfied, copy to your project:")
+        print(f"   cp {output_path} mcp_outlook/mcp_server/server.py")
+        if decorators_path:
+            print(f"   cp {decorators_path} mcp_outlook/mcp_server/")
+        print(f"\n3. Clean up temp files when done:")
+        print(f"   rm {output_path}")
+        if decorators_path:
+            print(f"   rm {decorators_path}")
+    else:
+        print(f"\nTo use the generated server:")
+        print(f"1. Review the generated files")
+        print(f"2. Copy to mcp_outlook/mcp_server/ directory")
+        print(f"3. Test with: python -m mcp_outlook.mcp_server.server")
 
 
 if __name__ == "__main__":

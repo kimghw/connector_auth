@@ -1,43 +1,59 @@
-"""
-Attachment MCP - 간단한 첨부파일 텍스트 변환 모듈
+"""MCP Attachment Processing Module.
 
-사용법:
-    from attachment_mcp import convert_to_text
-
-    # 단일 파일 변환
-    text = convert_to_text("document.pdf")
-
-    # URL에서 변환
-    text = convert_to_text("https://example.com/file.pdf")
-
-    # 여러 파일 한번에
-    from attachment_mcp import batch_convert
-    texts = batch_convert(["file1.pdf", "file2.txt", "file3.html"])
+A comprehensive file conversion and management system that supports:
+- Multiple file formats (PDF, DOCX, HWP, Excel, Images)
+- OneDrive integration
+- OCR capabilities
+- Metadata management
+- MCP server integration
 """
 
-# 간단한 API만 노출
-from .simple_converter import (
-    convert_to_text,
-    extract_text,
-    batch_convert,
-    is_supported,
-    extract_pdf_text,
-    extract_word_text,
-    extract_from_url,
-    quick_convert
-)
-
-# 버전 정보
 __version__ = "1.0.0"
 
-# 공개 API
+from .file_manager import FileManager
+from .base_converter import BaseConverter
+from .converters import (
+    PDFConverter,
+    DOCXConverter,
+    HWPConverter,
+    ExcelConverter,
+    OCRConverter
+)
+from .metadata import MetadataManager, MetadataStorage
+from .onedrive import OneDriveClient, OneDriveDownloader, OneDriveProcessor
+from .utils import FileDetector, setup_logger
+from .config import Settings
+# Remove MCPAttachmentServer import to avoid circular import
+# from .mcp_server import MCPAttachmentServer
+
 __all__ = [
-    'convert_to_text',
-    'extract_text',
-    'batch_convert',
-    'is_supported',
-    'extract_pdf_text',
-    'extract_word_text',
-    'extract_from_url',
-    'quick_convert'
+    # Main entry point
+    'FileManager',
+
+    # Converters
+    'BaseConverter',
+    'PDFConverter',
+    'DOCXConverter',
+    'HWPConverter',
+    'ExcelConverter',
+    'OCRConverter',
+
+    # Metadata
+    'MetadataManager',
+    'MetadataStorage',
+
+    # OneDrive
+    'OneDriveClient',
+    'OneDriveDownloader',
+    'OneDriveProcessor',
+
+    # Utils
+    'FileDetector',
+    'setup_logger',
+
+    # Config
+    'Settings',
+
+    # MCP Server
+    # 'MCPAttachmentServer'  # Removed to avoid circular import
 ]

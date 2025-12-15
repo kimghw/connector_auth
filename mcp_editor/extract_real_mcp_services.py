@@ -130,11 +130,21 @@ def scan_directory(directory: str, exclude_examples: bool = True) -> List[Dict[s
 
     return all_services
 
-def main():
-    """Main function to extract and export @mcp_service decorated functions"""
+def main(server_name=None):
+    """Main function to extract and export @mcp_service decorated functions
 
-    # Scan the outlook_mcp directory
-    base_dir = "/home/kimghw/Connector_auth/outlook_mcp"
+    Args:
+        server_name: Name of the server (e.g., 'outlook', 'attachment'). If not provided, tries to detect from directory.
+    """
+
+    # Determine which server to scan
+    if server_name:
+        base_dir = f"/home/kimghw/Connector_auth/mcp_{server_name}"
+    else:
+        # Default to outlook for backward compatibility
+        base_dir = "/home/kimghw/Connector_auth/mcp_outlook"
+        server_name = "outlook"
+
     print(f"Scanning for @mcp_service decorators in {base_dir}...")
 
     all_services = scan_directory(base_dir)
@@ -177,18 +187,28 @@ def main():
             detailed_output['by_file'][file_path] = []
         detailed_output['by_file'][file_path].append(service['function_name'])
 
-    # Save simple version
-    mcp_editor_dir = os.path.join(base_dir, "mcp_editor")
-    simple_file = os.path.join(mcp_editor_dir, "mcp_services.json")
+    # Save to mcp_editor directory with server name prefix
+    mcp_editor_dir = "/home/kimghw/Connector_auth/mcp_editor"
+    os.makedirs(mcp_editor_dir, exist_ok=True)
+
+    # Save simple version with server name prefix
+    simple_file = os.path.join(mcp_editor_dir, f"{server_name}_mcp_services.json")
     with open(simple_file, 'w', encoding='utf-8') as f:
         json.dump(simple_output, f, indent=2, ensure_ascii=False)
     print(f"\nSimple service list saved to: {simple_file}")
 
-    # Save detailed version
-    detailed_file = os.path.join(mcp_editor_dir, "mcp_services_detailed.json")
+    # Save detailed version with server name prefix
+    detailed_file = os.path.join(mcp_editor_dir, f"{server_name}_mcp_services_detailed.json")
     with open(detailed_file, 'w', encoding='utf-8') as f:
         json.dump(detailed_output, f, indent=2, ensure_ascii=False)
     print(f"Detailed service info saved to: {detailed_file}")
+
+    # Also save a copy without prefix for backward compatibility (only for outlook)
+    if server_name == "outlook":
+        legacy_file = os.path.join(mcp_editor_dir, "mcp_services.json")
+        with open(legacy_file, 'w', encoding='utf-8') as f:
+            json.dump(simple_output, f, indent=2, ensure_ascii=False)
+        print(f"Legacy file saved to: {legacy_file} (for backward compatibility)")
 
     # Print summary
     print(f"\n=== Summary ===")
@@ -207,4 +227,12 @@ def main():
         print("Actual service implementations might use different patterns.")
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    # Check for command line argument
+    server_name = None
+    if len(sys.argv) > 1:
+        server_name = sys.argv[1]
+        print(f"Using server name from command line: {server_name}")
+
+    main(server_name)

@@ -57,7 +57,7 @@ class Session:
             # If no access token provided, try to get from AuthManager
             if not access_token:
                 # AuthManager will handle DB lookup and refresh
-                from auth.auth_manager import AuthManager
+                from session.auth_manager import AuthManager
                 auth_manager = AuthManager()
 
                 # Try to get valid token (will refresh if expired)
@@ -95,7 +95,7 @@ class Session:
             True if token refreshed successfully
         """
         try:
-            from auth.auth_manager import AuthManager
+            from session.auth_manager import AuthManager
             auth_manager = AuthManager()
 
             # Refresh token using AuthManager
