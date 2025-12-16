@@ -852,6 +852,97 @@ def generate_server_from_web():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/scaffold/create', methods=['POST'])
+def create_new_server():
+    """Create a new MCP server project from scratch"""
+    try:
+        data = request.json
+        server_name = data.get('server_name', '').strip()
+        description = data.get('description', '').strip()
+        port = data.get('port', 8080)
+
+        # Validation
+        if not server_name:
+            return jsonify({"error": "Server name is required"}), 400
+
+        # Check if server already exists
+        server_dir = os.path.join(ROOT_DIR, f"mcp_{server_name}")
+        if os.path.exists(server_dir):
+            return jsonify({"error": f"Server 'mcp_{server_name}' already exists"}), 409
+
+        # Import scaffold generator
+        sys.path.insert(0, JINJA_DIR)
+        from scaffold_generator import MCPServerScaffold
+
+        # Create the server
+        generator = MCPServerScaffold(ROOT_DIR)
+        result = generator.create_server_project(
+            server_name=server_name,
+            description=description,
+            port=port,
+            create_venv=False  # Don't create venv in web context
+        )
+
+        if result.get("errors"):
+            return jsonify({
+                "error": "Server created with errors",
+                "details": result
+            }), 500
+
+        return jsonify({
+            "success": True,
+            "message": f"Successfully created MCP server: {server_name}",
+            "server_name": server_name,
+            "created_files": result["created_files"],
+            "created_dirs": result["created_dirs"],
+            "next_steps": [
+                f"cd mcp_{server_name}/mcp_server",
+                "python -m venv venv && source venv/bin/activate",
+                "pip install fastapi uvicorn pydantic",
+                f"Select '{server_name}' profile in web editor"
+            ]
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+
+@app.route('/api/scaffold/check', methods=['POST'])
+def check_server_exists():
+    """Check if a server name is available"""
+    try:
+        data = request.json
+        server_name = data.get('server_name', '').strip()
+
+        if not server_name:
+            return jsonify({"valid": False, "error": "Server name is required"}), 400
+
+        # Check naming rules
+        if not server_name.replace('_', '').isalnum():
+            return jsonify({
+                "valid": False,
+                "error": "Server name must contain only letters, numbers, and underscores"
+            }), 400
+
+        # Check if exists
+        server_dir = os.path.join(ROOT_DIR, f"mcp_{server_name}")
+        exists = os.path.exists(server_dir)
+
+        return jsonify({
+            "valid": not exists,
+            "exists": exists,
+            "server_name": server_name,
+            "path": server_dir
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # Serve static files (CSS, JS)
 @app.route('/static/<path:path>')
 def send_static(path):

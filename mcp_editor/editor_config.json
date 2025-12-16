@@ -18,5 +18,13 @@
     ],
     "host": "0.0.0.0",
     "port": 8091
+  },
+  "file_handler": {
+    "template_definitions_path": "tool_definition_file_handler_templates.py",
+    "tool_definitions_path": "../mcp_file_handler/mcp_server/tool_definitions.py",
+    "backup_dir": "backups",
+    "graph_types_files": [],
+    "host": "0.0.0.0",
+    "port": 8092
   }
 }
