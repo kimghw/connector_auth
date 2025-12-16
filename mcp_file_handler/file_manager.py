@@ -17,6 +17,10 @@ from .metadata.manager import MetadataManager
 from .onedrive.processor import OneDriveProcessor
 from .config.settings import Settings
 
+# Import mcp_service decorator
+sys.path.insert(0, str(Path(__file__).parent.parent / 'mcp_editor'))
+from mcp_service_decorator import mcp_service
+
 logger = setup_logger('file_manager')
 
 
@@ -41,6 +45,16 @@ class FileManager:
             log_file=self.settings.get('log_file')
         )
 
+    @mcp_service(
+        tool_name="process_file",
+        server_name="file_handler",
+        service_name="process",
+        category="file_conversion",
+        tags=["file", "conversion", "text-extraction"],
+        priority=10,
+        description="Process file or URL for text extraction with support for PDF, DOCX, HWP, Excel, Images, and OneDrive URLs",
+        related_objects=["mcp_file_handler.file_manager.FileManager"]
+    )
     def process(self, input_path: str, **kwargs) -> Dict[str, Any]:
         """Process file or URL for text extraction.
 
@@ -184,6 +198,16 @@ class FileManager:
 
         return result
 
+    @mcp_service(
+        tool_name="process_directory",
+        server_name="file_handler",
+        service_name="process_directory",
+        category="file_conversion",
+        tags=["directory", "batch", "conversion"],
+        priority=8,
+        description="Process all files in a directory with optional recursive scanning",
+        related_objects=["mcp_file_handler.file_manager.FileManager"]
+    )
     def process_directory(self, directory_path: str, **kwargs) -> List[Dict[str, Any]]:
         """Process all files in a directory.
 
@@ -220,6 +244,16 @@ class FileManager:
 
         return results
 
+    @mcp_service(
+        tool_name="save_file_metadata",
+        server_name="file_handler",
+        service_name="save_metadata",
+        category="metadata",
+        tags=["metadata", "storage", "keywords"],
+        priority=5,
+        description="Save metadata for a processed file with keywords and additional information",
+        related_objects=["mcp_file_handler.file_manager.FileManager"]
+    )
     def save_metadata(self, file_url: str, keywords: List[str],
                       additional_metadata: Optional[Dict[str, Any]] = None) -> bool:
         """Save metadata for a file.
@@ -238,6 +272,16 @@ class FileManager:
             logger.error(f"Failed to save metadata: {e}")
             return False
 
+    @mcp_service(
+        tool_name="search_file_metadata",
+        server_name="file_handler",
+        service_name="search_metadata",
+        category="metadata",
+        tags=["metadata", "search", "query"],
+        priority=5,
+        description="Search file metadata by various criteria (keywords, date, file type, etc.)",
+        related_objects=["mcp_file_handler.file_manager.FileManager"]
+    )
     def search_metadata(self, **search_criteria) -> List[Dict[str, Any]]:
         """Search metadata.
 

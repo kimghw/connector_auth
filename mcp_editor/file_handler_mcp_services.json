@@ -1,0 +1,96 @@
+{
+  "decorated_services": [
+    "process",
+    "process_directory",
+    "save_metadata",
+    "search_metadata"
+  ],
+  "services_with_signatures": [
+    {
+      "name": "process",
+      "parameters": [
+        {
+          "name": "self",
+          "type": null,
+          "default": null
+        },
+        {
+          "name": "input_path",
+          "type": "str",
+          "default": null
+        },
+        {
+          "name": "**kwargs",
+          "type": null,
+          "default": null
+        }
+      ],
+      "is_async": false
+    },
+    {
+      "name": "process_directory",
+      "parameters": [
+        {
+          "name": "self",
+          "type": null,
+          "default": null
+        },
+        {
+          "name": "directory_path",
+          "type": "str",
+          "default": null
+        },
+        {
+          "name": "**kwargs",
+          "type": null,
+          "default": null
+        }
+      ],
+      "is_async": false
+    },
+    {
+      "name": "save_metadata",
+      "parameters": [
+        {
+          "name": "self",
+          "type": null,
+          "default": null
+        },
+        {
+          "name": "file_url",
+          "type": "str",
+          "default": null
+        },
+        {
+          "name": "keywords",
+          "type": "List[str]",
+          "default": null
+        },
+        {
+          "name": "additional_metadata",
+          "type": "Optional[Dict[str, Any]]",
+          "default": null
+        }
+      ],
+      "is_async": false
+    },
+    {
+      "name": "search_metadata",
+      "parameters": [
+        {
+          "name": "self",
+          "type": null,
+          "default": null
+        },
+        {
+          "name": "**search_criteria",
+          "type": null,
+          "default": null
+        }
+      ],
+      "is_async": false
+    }
+  ],
+  "count": 4,
+  "description": "List of actual functions with @mcp_service decorator in codebase with signatures"
+}
