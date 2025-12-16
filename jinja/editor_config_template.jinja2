@@ -7,34 +7,22 @@
       - template_definitions_path: path to template file
       - tool_definitions_path: path to tool definitions
       - backup_dir: backup directory
-      - graph_types_files: list of graph_types.py paths
+      - types_files: list of {server_name}_types.py paths
       - host: host address
       - port: port number
-    - default_server: The default server configuration
 
   Note: Templates are now organized in mcp_editor/{server_name}/ folders
+        First server in the list will be used as default when no profile is specified
 #}
 {
-  "_default": {
-    "template_definitions_path": "{{ default_server.name }}/tool_definition_templates.py",
-    "tool_definitions_path": "{{ default_server.tool_definitions_path }}",
-    "backup_dir": "{{ default_server.name }}/backups",
-    "graph_types_files": [
-{% for graph_file in default_server.graph_types_files %}
-      "{{ graph_file }}"{{ "," if not loop.last else "" }}
-{% endfor %}
-    ],
-    "host": "{{ default_server.host }}",
-    "port": {{ default_server.port }}
-  }{{ "," if servers else "" }}
 {% for server in servers %}
   "{{ server.name }}": {
     "template_definitions_path": "{{ server.name }}/tool_definition_templates.py",
     "tool_definitions_path": "{{ server.tool_definitions_path }}",
     "backup_dir": "{{ server.name }}/backups",
-    "graph_types_files": [
-{% for graph_file in server.graph_types_files %}
-      "{{ graph_file }}"{{ "," if not loop.last else "" }}
+    "types_files": [
+{% for types_file in server.types_files %}
+      "{{ types_file }}"{{ "," if not loop.last else "" }}
 {% endfor %}
     ],
     "host": "{{ server.host }}",

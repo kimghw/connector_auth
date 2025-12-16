@@ -1,0 +1,177 @@
+{
+  "handle_email_query": {
+    "decorator_metadata": {
+      "tool_name": "handle_email",
+      "description": "Handle email operations",
+      "category": "email",
+      "priority": 1
+    },
+    "parameters": [
+      {
+        "name": "user_email",
+        "type": "str"
+      },
+      {
+        "name": "filter",
+        "type": "Optional[str]"
+      },
+      {
+        "name": "top",
+        "type": "int"
+      }
+    ],
+    "is_async": true,
+    "used_objects": {
+      "variables": [
+        "e",
+        "str",
+        "open",
+        "top",
+        "result",
+        "datetime",
+        "client",
+        "Optional",
+        "sorted",
+        "total",
+        "status",
+        "email",
+        "filter",
+        "f",
+        "json",
+        "self",
+        "ConnectionError",
+        "int",
+        "email_ids",
+        "current_time",
+        "response",
+        "user_email",
+        "mcp_service",
+        "sorted_emails",
+        "print",
+        "dict",
+        "x",
+        "len"
+      ],
+      "attributes": [
+        "self.cache",
+        "self.api_client",
+        "self.cache.get"
+      ],
+      "function_calls": [
+        "client.fetch_emails",
+        "f.write",
+        "open",
+        "datetime.now",
+        "sorted",
+        "mcp_service",
+        "print",
+        "current_time.isoformat",
+        "len",
+        "json.dumps",
+        "self.cache.get"
+      ],
+      "imports": [],
+      "class_names": [],
+      "module_attrs": [
+        "client.fetch_emails",
+        "f.write",
+        "datetime.now",
+        "json.JSONDecodeError",
+        "json.dumps",
+        "current_time.isoformat"
+      ],
+      "constants": [
+        null,
+        10,
+        "Complex function showing various object usages",
+        "user",
+        "important",
+        1,
+        "high",
+        0,
+        "normal",
+        "log.txt",
+        "w",
+        "Query for ",
+        "id",
+        "items",
+        "items",
+        "date",
+        "Connection error: ",
+        "error",
+        "Invalid JSON",
+        "user",
+        "count",
+        "emails",
+        "timestamp",
+        "status",
+        "handle_email",
+        "Handle email operations",
+        "email",
+        "email",
+        "outlook",
+        1
+      ],
+      "async_calls": [],
+      "context_managers": [
+        "open"
+      ],
+      "exception_types": [
+        "json.JSONDecodeError",
+        "ConnectionError"
+      ]
+    },
+    "line_number": 19
+  },
+  "send_email": {
+    "decorator_metadata": {
+      "tool_name": "send_email"
+    },
+    "parameters": [
+      {
+        "name": "to",
+        "type": "str"
+      },
+      {
+        "name": "subject",
+        "type": "str"
+      },
+      {
+        "name": "body",
+        "type": "str"
+      }
+    ],
+    "is_async": false,
+    "used_objects": {
+      "variables": [
+        "subject",
+        "to",
+        "str",
+        "bool",
+        "self",
+        "mcp_service",
+        "body"
+      ],
+      "attributes": [
+        "self.client",
+        "self.client.send"
+      ],
+      "function_calls": [
+        "mcp_service",
+        "self.client.send"
+      ],
+      "imports": [],
+      "class_names": [],
+      "module_attrs": [],
+      "constants": [
+        "Simple sync function",
+        true,
+        "send_email"
+      ],
+      "async_calls": [],
+      "context_managers": [],
+      "exception_types": []
+    },
+    "line_number": 75
+  }
+}

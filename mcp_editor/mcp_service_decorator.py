@@ -232,7 +232,6 @@ if __name__ == "__main__":
         tool_name="example_service",
         server_name="outlook",
         description="Example MCP service",
-        server_name="outlook",
         category="email_operations",
         tags=["email", "query"],
         priority=5

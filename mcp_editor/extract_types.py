@@ -35,19 +35,36 @@ def _get_config_path() -> str:
 
 def load_graph_type_paths() -> List[str]:
     config_path = _get_config_path()
-    default_paths = ["../outlook_mcp/graph_types.py"]
+    default_paths = ["../mcp_outlook/outlook_types.py"]
     try:
         if os.path.exists(config_path):
             with open(config_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, dict):
-                    # multi-profile
-                    if isinstance(data.get("_default"), dict) or any(isinstance(v, dict) for v in data.values()):
-                        profile = data.get("_default", {})
-                        if isinstance(profile, dict) and isinstance(profile.get("graph_types_files"), list):
-                            return [_resolve_path(p) for p in profile["graph_types_files"]]
+                    # multi-profile - check first profile if no _default
+                    if any(isinstance(v, dict) for v in data.values()):
+                        # Try _default first, then first profile with types_files
+                        profile = data.get("_default")
+
+                        # If no _default or _default has no types, find first profile with types
+                        if not profile or not (profile.get("types_files") or profile.get("graph_types_files")):
+                            for profile_data in data.values():
+                                if isinstance(profile_data, dict):
+                                    if profile_data.get("types_files") or profile_data.get("graph_types_files"):
+                                        profile = profile_data
+                                        break
+
+                        if isinstance(profile, dict):
+                            # Support both types_files (new) and graph_types_files (legacy)
+                            if isinstance(profile.get("types_files"), list) and profile["types_files"]:
+                                return [_resolve_path(p) for p in profile["types_files"]]
+                            elif isinstance(profile.get("graph_types_files"), list) and profile["graph_types_files"]:
+                                return [_resolve_path(p) for p in profile["graph_types_files"]]
+
                     # legacy single profile
-                    if isinstance(data.get("graph_types_files"), list):
+                    if isinstance(data.get("types_files"), list):
+                        return [_resolve_path(p) for p in data["types_files"]]
+                    elif isinstance(data.get("graph_types_files"), list):
                         return [_resolve_path(p) for p in data["graph_types_files"]]
     except Exception as e:
         print(f"Warning: could not load editor config: {e}")

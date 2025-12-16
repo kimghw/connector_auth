@@ -103,13 +103,32 @@ def detect_module_paths(server_name: str, base_dir: str) -> Dict[str, Any]:
 
     # Construct paths
     mcp_server_dir = f"{module_dir}/mcp_server"
-    graph_types_file = f"../{module_dir}/graph_types.py"
+
+    # Check for types files - try multiple patterns
+    types_files = []
+    possible_type_files = [
+        os.path.join(base_dir, module_dir, f"{server_name}_types.py"),
+        os.path.join(base_dir, module_dir, "types.py"),
+        os.path.join(base_dir, module_dir, "graph_types.py"),
+    ]
+
+    for type_file_path in possible_type_files:
+        if os.path.exists(type_file_path):
+            # Get relative path from mcp_editor directory
+            rel_path = os.path.relpath(type_file_path, os.path.join(base_dir, "mcp_editor"))
+            types_files.append(rel_path)
+            print(f"    Found types file: {rel_path}")
+            break
+
+    # If no types file found, leave empty array (optional types)
+    if not types_files:
+        print(f"    No types file found for {server_name}")
 
     return {
         "template_definitions_path": f"tool_definition_{server_name}_templates.py",
         "tool_definitions_path": f"../{mcp_server_dir}/tool_definitions.py",
         "backup_dir": "backups",
-        "graph_types_files": [graph_types_file],
+        "types_files": types_files,
         "host": "0.0.0.0",
         "port": 8091
     }
@@ -162,8 +181,8 @@ def generate_editor_config(server_names: Set[str], base_dir: str, output_path: s
         f.write(rendered_content)
 
     print(f"\n✓ Generated {output_path}")
-    print(f"  Total profiles: {len(servers) + 1}")  # +1 for _default
-    print(f"  Profiles: _default, {', '.join(s['name'] for s in servers)}")
+    print(f"  Total profiles: {len(servers)}")
+    print(f"  Profiles: {', '.join(s['name'] for s in servers)}")
 
 
 def main():

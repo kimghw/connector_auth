@@ -18,7 +18,7 @@ grandparent_dir = os.path.dirname(parent_dir)
 sys.path.insert(0, grandparent_dir)  # For session module and package imports (mcp_file_handler, mcp_outlook)
 sys.path.insert(0, parent_dir)  # For direct module imports from parent directory
 from outlook_types import ExcludeParams, FilterParams, SelectParams
-from tool_definitions import MCP_TOOLS
+from .tool_definitions import MCP_TOOLS
 
 # Configure logging first
 logging.basicConfig(level=logging.INFO)

@@ -41,7 +41,7 @@ DEFAULT_PROFILE = {
     "template_definitions_path": "tool_definition_templates.py",
     "tool_definitions_path": "../outlook_mcp/mcp_server/tool_definitions.py",
     "backup_dir": "backups",
-    "graph_types_files": ["../outlook_mcp/graph_types.py"],
+    "types_files": ["../outlook_mcp/outlook_types.py"],
     "host": "127.0.0.1",
     "port": 8091
 }
@@ -171,7 +171,7 @@ def list_profile_names() -> list:
         if all(not isinstance(v, dict) for v in data.values()):
             return ["_default"]
         return list(data.keys())
-    return ["_default"]
+    return []
 
 
 def get_profile_config(profile_name: str | None = None) -> dict:
@@ -180,14 +180,14 @@ def get_profile_config(profile_name: str | None = None) -> dict:
     if isinstance(data, dict) and all(not isinstance(v, dict) for v in data.values()):
         return _merge_profile({}, data)
 
-    if isinstance(data, dict):
-        default_profile = data.get("_default", {})
-        # If no _default and no profile specified, use first available profile
-        if not default_profile and not profile_name and data:
-            first_profile = next(iter(data.values()), {})
-            return _merge_profile({}, first_profile)
-        selected = data.get(profile_name) if profile_name else None
-        return _merge_profile(default_profile, selected)
+    if isinstance(data, dict) and data:
+        # If no profile specified, use first available profile
+        if not profile_name:
+            first_profile_name = next(iter(data.keys()))
+            return _merge_profile({}, data[first_profile_name])
+        # Use specified profile if exists
+        if profile_name in data:
+            return _merge_profile({}, data[profile_name])
 
     return DEFAULT_PROFILE.copy()
 
@@ -197,7 +197,7 @@ def resolve_paths(profile_conf: dict) -> dict:
         "template_path": _resolve_path(profile_conf["template_definitions_path"]),
         "tool_path": _resolve_path(profile_conf["tool_definitions_path"]),
         "backup_dir": _resolve_path(profile_conf["backup_dir"]),
-        "graph_types_files": profile_conf.get("graph_types_files", ["../outlook_mcp/graph_types.py"]),
+        "types_files": profile_conf.get("types_files", profile_conf.get("graph_types_files", ["../outlook_mcp/outlook_types.py"])),
         "host": profile_conf.get("host", "127.0.0.1"),
         "port": profile_conf.get("port", 8091)
     }
@@ -829,7 +829,7 @@ def create_profile():
             "template_definitions_path": template_path,
             "tool_definitions_path": f"{mcp_server_path}/tool_definitions.py",
             "backup_dir": backup_dir,
-            "graph_types_files": [],
+            "types_files": [],
             "host": "0.0.0.0",
             "port": port
         }
@@ -946,7 +946,7 @@ def get_basemodels():
         profile = request.args.get("profile")
         profile_conf = get_profile_config(profile)
         paths = resolve_paths(profile_conf)
-        graph_type_paths = paths.get("graph_types_files")
+        graph_type_paths = paths.get("types_files")
 
         models = load_graph_types_models(graph_type_paths)
         schemas = generate_mcp_schemas_from_graph_types(graph_type_paths)
@@ -972,7 +972,7 @@ def apply_basemodel_to_property(tool_index):
         profile = request.args.get("profile")
         profile_conf = get_profile_config(profile)
         paths = resolve_paths(profile_conf)
-        graph_type_paths = paths.get("graph_types_files")
+        graph_type_paths = paths.get("types_files")
 
         data = request.json
         property_name = data.get('property_name')

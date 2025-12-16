@@ -136,9 +136,15 @@ def _load_graph_type_modules(graph_type_paths: List[str] | None = None) -> List[
                         # Multi-profile
                         if isinstance(data.get("_default"), dict) or any(isinstance(v, dict) for v in data.values()):
                             profile = data.get("_default", {})
-                            if isinstance(profile, dict) and isinstance(profile.get("graph_types_files"), list):
-                                graph_type_paths = profile["graph_types_files"]
+                            # Support both new types_files and legacy graph_types_files
+                            if isinstance(profile, dict):
+                                if isinstance(profile.get("types_files"), list):
+                                    graph_type_paths = profile["types_files"]
+                                elif isinstance(profile.get("graph_types_files"), list):
+                                    graph_type_paths = profile["graph_types_files"]
                         # Legacy single profile
+                        elif isinstance(data.get("types_files"), list):
+                            graph_type_paths = data["types_files"]
                         elif isinstance(data.get("graph_types_files"), list):
                             graph_type_paths = data["graph_types_files"]
         except Exception as e:
