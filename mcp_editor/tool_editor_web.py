@@ -4,6 +4,7 @@ Web interface for editing MCP Tool Definitions
 import json
 import os
 import sys
+import pprint
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
 import importlib.util
@@ -430,8 +431,8 @@ from typing import List, Dict, Any
 # MCP Tool Definitions
 MCP_TOOLS: List[Dict[str, Any]] = '''
 
-        # Format the tools data nicely
-        formatted_tools = json.dumps(cleaned_tools, indent=4, ensure_ascii=False)
+        # Format the tools data nicely using Python repr
+        formatted_tools = pprint.pformat(cleaned_tools, indent=4, width=120, compact=False)
         content += formatted_tools
 
         # Add helper functions
@@ -497,7 +498,7 @@ Signatures extracted from source code using AST parsing
 """
 from typing import List, Dict, Any
 
-MCP_TOOLS: List[Dict[str, Any]] = {json.dumps(template_tools, indent=4, ensure_ascii=False)}
+MCP_TOOLS: List[Dict[str, Any]] = {pprint.pformat(template_tools, indent=4, width=120, compact=False)}
 '''
 
         # Ensure template directory exists
