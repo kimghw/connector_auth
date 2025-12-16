@@ -64,7 +64,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {},
-            "additionalProperties": true,
+            "additionalProperties": True,
             "description": "Search criteria as key-value pairs"
         }
     },
