@@ -670,7 +670,7 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>Select Type (from graph_types.py)</label>
+                    <label>Select Type (from outlook_types.py)</label>
                     <select id="nestedGraphTypeClass" onchange="handleNestedGraphClassChange()" class="form-control">
                         <option value="">-- Select Type --</option>
                         <option value="FilterParams">FilterParams (Filter criteria)</option>
@@ -1431,7 +1431,7 @@
 
                             <div id="graphTypesPropertyDiv" style="display: none;">
                                 <div class="form-group">
-                                    <label>Select Type (from graph_types.py)</label>
+                                    <label>Select Type (from outlook_types.py)</label>
                                     <select id="graphTypeClass" onchange="handleClassChange()" class="form-control">
                                         <option value="">-- Select Type --</option>
                                         <option value="FilterParams">FilterParams (Filter criteria)</option>
@@ -1612,7 +1612,7 @@
             const checkboxes = document.querySelectorAll('#nestedPropertyCheckboxList input[type="checkbox"][id^="nested_prop_"]:checked');
 
             if (!className) {
-                showNotification('Please select a type from graph_types.py', 'error');
+                showNotification('Please select a type from outlook_types.py', 'error');
                 return;
             }
 
@@ -1700,7 +1700,7 @@
                 const checkboxes = document.querySelectorAll('#propertyCheckboxList input[type="checkbox"][id^="prop_"]:checked');
 
                 if (!className) {
-                    showNotification('Please select a type from graph_types.py', 'error');
+                    showNotification('Please select a type from outlook_types.py', 'error');
                     return;
                 }
 

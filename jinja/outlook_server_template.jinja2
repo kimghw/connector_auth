@@ -15,11 +15,11 @@ import logging
 # Add parent directories to path for module access
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 grandparent_dir = os.path.dirname(parent_dir)
-sys.path.insert(0, grandparent_dir)  # For session module and package imports (mcp_attachment, mcp_outlook)
+sys.path.insert(0, grandparent_dir)  # For session module and package imports (mcp_file_handler, mcp_outlook)
 sys.path.insert(0, parent_dir)  # For direct module imports from parent directory
 
 {%- if 'GraphMailQuery' in services or 'GraphMailClient' in services %}
-from graph_types import {{ param_types | join(', ') }}
+from outlook_types import {{ param_types | join(', ') }}
 {%- endif %}
 from tool_definitions import MCP_TOOLS
 
@@ -42,13 +42,13 @@ except ImportError:
 
 # Import legacy components for fallback
 {%- if 'FileManager' in services or 'MetadataManager' in services %}
-# Attachment services use package-relative imports internally
+# File handler services use package-relative imports internally
 # We need to import them as a package, not as standalone modules
 {%- if 'FileManager' in services %}
-from mcp_attachment.file_manager import FileManager
+from mcp_file_handler.file_manager import FileManager
 {%- endif %}
 {%- if 'MetadataManager' in services %}
-from mcp_attachment.metadata.manager import MetadataManager
+from mcp_file_handler.metadata.manager import MetadataManager
 {%- endif %}
 {%- else %}
 # Outlook services

@@ -98,8 +98,21 @@ def find_mcp_service_functions(file_path: str) -> List[Dict[str, Any]]:
                             for keyword in decorator.keywords:
                                 if keyword.arg == 'tool_name' and isinstance(keyword.value, ast.Constant):
                                     service_info['tool_name'] = keyword.value.value
+                                elif keyword.arg == 'description' and isinstance(keyword.value, ast.Constant):
+                                    service_info['description'] = keyword.value.value
+                                elif keyword.arg == 'server_name' and isinstance(keyword.value, ast.Constant):
+                                    service_info['server_name'] = keyword.value.value
                                 elif keyword.arg == 'category' and isinstance(keyword.value, ast.Constant):
                                     service_info['category'] = keyword.value.value
+                                elif keyword.arg == 'priority' and isinstance(keyword.value, ast.Constant):
+                                    service_info['priority'] = keyword.value.value
+                                elif keyword.arg == 'tags' and isinstance(keyword.value, ast.List):
+                                    # Extract list of tags
+                                    tags = []
+                                    for elt in keyword.value.elts:
+                                        if isinstance(elt, ast.Constant):
+                                            tags.append(elt.value)
+                                    service_info['tags'] = tags
 
                         services.append(service_info)
                         break

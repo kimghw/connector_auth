@@ -12,7 +12,7 @@ class Settings:
     # Default settings
     DEFAULTS = {
         # Paths
-        'temp_dir': '/tmp/mcp_attachment',
+        'temp_dir': '/tmp/mcp_file_handler',
         'output_dir': './output',
 
         # Metadata storage
@@ -99,9 +99,9 @@ class Settings:
     def _load_from_file(self):
         """Load settings from config file."""
         config_paths = [
-            Path.home() / '.mcp_attachment' / 'config.json',
+            Path.home() / '.mcp_file_handler' / 'config.json',
             Path('./config.json'),
-            Path('./mcp_attachment.json')
+            Path('./mcp_file_handler.json')
         ]
 
         for config_path in config_paths:

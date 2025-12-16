@@ -1,1 +1,0 @@
-"""Test suite for mcp_attachment."""

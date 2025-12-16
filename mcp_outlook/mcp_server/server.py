@@ -15,9 +15,9 @@ import logging
 # Add parent directories to path for module access
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 grandparent_dir = os.path.dirname(parent_dir)
-sys.path.insert(0, grandparent_dir)  # For session module and package imports (mcp_attachment, mcp_outlook)
+sys.path.insert(0, grandparent_dir)  # For session module and package imports (mcp_file_handler, mcp_outlook)
 sys.path.insert(0, parent_dir)  # For direct module imports from parent directory
-from graph_types import ExcludeParams, FilterParams, SelectParams
+from outlook_types import ExcludeParams, FilterParams, SelectParams
 from tool_definitions import MCP_TOOLS
 
 # Configure logging first

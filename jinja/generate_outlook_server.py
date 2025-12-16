@@ -473,8 +473,8 @@ def main():
     parser = argparse.ArgumentParser(description='Generate MCP server from tool definitions')
     parser.add_argument(
         '--tools', '-t',
-        required=True,
-        help='Path to tool definitions file (Python or JSON)'
+        default='/home/kimghw/Connector_auth/mcp_editor/tool_definition_outlook_templates.py',
+        help='Path to tool definition templates file (default: mcp_editor/tool_definition_outlook_templates.py)'
     )
     parser.add_argument(
         '--template', '-p',

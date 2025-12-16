@@ -11,7 +11,7 @@ echo ""
 cd "$(dirname "$0")"
 
 # Use the mcp_server's venv
-MCP_SERVER_VENV="../mcp_server/venv"
+MCP_SERVER_VENV="../mcp_outlook/mcp_server/venv"
 
 # Check if virtual environment exists
 if [ ! -d "$MCP_SERVER_VENV" ]; then
@@ -24,6 +24,15 @@ fi
 
 # Create backups directory if it doesn't exist
 mkdir -p backups
+
+# Generate editor_config.json and server mappings from @mcp_service decorators
+echo "Generating editor_config.json from @mcp_service decorators..."
+python ../jinja/generate_editor_config.py
+echo ""
+
+echo "Generating server mappings from @mcp_service decorators..."
+python ../jinja/generate_server_mappings.py
+echo ""
 
 echo "Starting web server..."
 echo "Access the editor at: http://localhost:8080"

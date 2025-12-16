@@ -30,7 +30,7 @@ except ImportError:  # pragma: no cover
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session.auth_manager import AuthManager
-from graph_types import (
+from outlook_types import (
     FilterParams, ExcludeParams, SelectParams,
     build_filter_query, build_exclude_query, build_select_query
 )
@@ -138,7 +138,9 @@ class GraphMailQuery:
         return base_url
     
     @mcp_service(
-        tool_name="build_query_url",
+        tool_name="Handle_query_filter",
+        server_name="outlook",
+        service_name="query_filter",
         category="outlook_mail",
         tags=["query", "url-builder", "internal"],
         priority=5,
@@ -274,7 +276,9 @@ class GraphMailQuery:
         return filtered_emails
 
     @mcp_service(
-        tool_name="query_url",
+        tool_name="handlequery_url",
+        service_name="query_url",
+        server_name="outlook",
         category="outlook_mail",
         tags=["query", "url-builder", "internal"],
         priority=5,
@@ -310,11 +314,14 @@ class GraphMailQuery:
         return await self._fetch_parallel_with_url(user_email, access_token, url, top, client_filter)
     
     @mcp_service(
-        tool_name="query_search",
+        tool_name="handle_query_search",
+        server_name="outlook",
+        service_name="query_search",
         category="outlook_mail",
         tags=["query", "url-builder", "internal"],
         priority=5,
-        description="Build Microsoft Graph API query URL for email operations"
+        description="Build Microsoft Graph API query URL for email operations",
+        related_objects=["mcp_outlook.graph_mail_query.GraphMailQuery"]
     )
     async def query_search(self,
                            user_email: str,

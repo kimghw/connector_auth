@@ -4,7 +4,7 @@
     "tool_definitions_path": "../mcp_outlook/mcp_server/tool_definitions.py",
     "backup_dir": "backups",
     "graph_types_files": [
-      "../mcp_outlook/outlook_types.py"
+      "../mcp_outlook/graph_types.py"
     ],
     "host": "0.0.0.0",
     "port": 8091
@@ -14,7 +14,7 @@
     "tool_definitions_path": "../mcp_outlook/mcp_server/tool_definitions.py",
     "backup_dir": "backups",
     "graph_types_files": [
-      "../mcp_outlook/outlook_types.py"
+      "../mcp_outlook/graph_types.py"
     ],
     "host": "0.0.0.0",
     "port": 8091

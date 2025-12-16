@@ -21,7 +21,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from mcp_outlook.graph_mail_query import GraphMailQuery
 from mcp_outlook.attachment_handler import AttachmentHandler
-from mcp_attachment.attachment_converter import AttachmentAPI, UnifiedAttachmentConverter
+from mcp_file_handler.attachment_converter import AttachmentAPI, UnifiedAttachmentConverter
 
 
 class MailTextProcessor:

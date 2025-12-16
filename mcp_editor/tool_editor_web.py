@@ -21,6 +21,15 @@ from pydantic_to_schema import (
     load_graph_types_models
 )
 
+# Import server name mappings
+from tool_editor_web_server_mappings import (
+    get_server_name_from_profile,
+    get_server_name_from_path
+)
+
+# Import MCP service extractor
+from mcp_service_extractor import get_signatures_by_name
+
 app = Flask(__name__)
 CORS(app)
 
@@ -192,10 +201,10 @@ def ensure_dirs(paths: dict):
 def load_tool_definitions(paths: dict):
     """
     Load MCP_TOOLS, preferring the template file (with mcp_service metadata)
-    so the editor displays the full structure. Falls back to cleaned definitions.
+    Templates are auto-generated with AST-extracted signatures
     """
     try:
-        # Try loading from templates first
+        # Try loading from templates first (has metadata)
         if os.path.exists(paths["template_path"]):
             spec = importlib.util.spec_from_file_location("tool_definition_templates", paths["template_path"])
             module = importlib.util.module_from_spec(spec)
@@ -348,123 +357,54 @@ def get_tool_names() -> List[str]:
         with open(paths["tool_path"], 'w', encoding='utf-8') as f:
             f.write(content)
 
-        # 2. Save tool_definition_templates.py (with all metadata)
-        # Determine server name from path and use server-specific template file
-        if 'mcp_outlook' in target_dir:
-            server_name = 'outlook'
-            template_filename = 'outlook_tool_definition_templates.py'
-        elif 'mcp_attachment' in target_dir:
-            server_name = 'attachment'
-            template_filename = 'attachment_tool_definition_templates.py'
-        else:
-            server_name = None
-            template_filename = 'tool_definition_templates.py'
+        # 2. Save tool_definition_templates.py (with AST-extracted metadata)
+        server_name = get_server_name_from_path(paths.get("tool_path", ""))
 
-        # Override template path with server-specific filename
-        template_path = os.path.join(os.path.dirname(__file__), template_filename)
-
-        # Load signature information from server-specific mcp_services.json
+        # Extract signatures from source code using AST
         signatures_by_name = {}
-        try:
+        if server_name:
+            module_patterns = [
+                os.path.join(ROOT_DIR, f'mcp_{server_name}'),
+                os.path.join(ROOT_DIR, f'{server_name}_mcp'),
+            ]
+            scan_dir = next((p for p in module_patterns if os.path.isdir(p)), None)
 
-            # Try server-specific file first, then fallback to generic
-            services_json_path = None
-            if server_name:
-                specific_path = os.path.join(os.path.dirname(__file__), f'{server_name}_mcp_services.json')
-                if os.path.exists(specific_path):
-                    services_json_path = specific_path
-                    print(f"Using server-specific services file: {server_name}_mcp_services.json")
+            if scan_dir:
+                signatures_by_name = get_signatures_by_name(scan_dir, server_name)
+                print(f"Extracted {len(signatures_by_name)} signatures from source code")
 
-            # Fallback to generic file
-            if not services_json_path or not os.path.exists(services_json_path):
-                services_json_path = os.path.join(os.path.dirname(__file__), 'mcp_services.json')
-
-            with open(services_json_path, 'r', encoding='utf-8') as f:
-                services_data = json.load(f)
-                for service in services_data.get('services_with_signatures', []):
-                    # Build signature string from parameters
-                    param_strs = []
-                    for param in service['parameters']:
-                        if param['name'] == 'self':
-                            continue
-                        param_str = param['name']
-                        if param.get('type'):
-                            param_str += f": {param['type']}"
-                        if param.get('default') is not None:
-                            param_str += f" = {param['default']}"
-                        param_strs.append(param_str)
-
-                    # Only store the parameters part (what's inside parentheses)
-                    signature = f"{', '.join(param_strs)}"
-                    signatures_by_name[service['name']] = signature
-        except Exception as e:
-            print(f"Warning: Could not load signatures from mcp_services.json: {e}")
-
-        # Reorder fields for templates too
+        # Build template tools
         template_tools = []
         for tool in tools_data:
-            # Create template tool with specific field order
-            template_tool = {}
-            # Add fields in desired order
-            if 'name' in tool:
-                template_tool['name'] = tool['name']
-            if 'description' in tool:
-                template_tool['description'] = tool['description']
-            if 'inputSchema' in tool:
-                # Use the recursive ordering function for templates too
-                template_tool['inputSchema'] = order_schema_fields(tool['inputSchema'])
-            if 'mcp_service' in tool:
-                # Check if mcp_service is already an object or a string
-                if isinstance(tool['mcp_service'], dict):
-                    # Already an object, just update signature if needed
-                    mcp_service_obj = tool['mcp_service'].copy()
-                    service_name = mcp_service_obj.get('name', '')
-                    if service_name and service_name in signatures_by_name:
-                        mcp_service_obj['signature'] = signatures_by_name[service_name]
-                else:
-                    # String format, convert to object
-                    mcp_service_obj = {
-                        'name': tool['mcp_service']
-                    }
-                    # Add signature if we have it
-                    if tool['mcp_service'] in signatures_by_name:
-                        mcp_service_obj['signature'] = signatures_by_name[tool['mcp_service']]
-                template_tool['mcp_service'] = mcp_service_obj
-            if 'mcp_service_factors' in tool:
-                template_tool['mcp_service_factors'] = tool['mcp_service_factors']
-            # Add any other fields
-            for k, v in tool.items():
-                if k not in ['name', 'description', 'inputSchema', 'mcp_service', 'mcp_service_factors']:
-                    template_tool[k] = v
+            template_tool = {k: v for k, v in tool.items()}
+            if 'inputSchema' in template_tool:
+                template_tool['inputSchema'] = order_schema_fields(template_tool['inputSchema'])
+
+            # Add signature if available
+            if 'mcp_service' in template_tool and isinstance(template_tool['mcp_service'], dict):
+                service_name = template_tool['mcp_service'].get('name')
+                if service_name and service_name in signatures_by_name:
+                    template_tool['mcp_service']['signature'] = signatures_by_name[service_name]
+
             template_tools.append(template_tool)
 
-        template_content = '''"""
-MCP Tool Definition Templates - AUTO-GENERATED FILE
-DO NOT EDIT THIS FILE MANUALLY!
+        # Write template file
+        template_filename = f'tool_definition_{server_name}_templates.py' if server_name else 'tool_definition_templates.py'
+        template_path = os.path.join(os.path.dirname(__file__), template_filename)
 
-This file is automatically generated when you save changes in the MCP Tool Editor.
-It contains the full tool definitions including internal metadata fields:
-- mcp_service: Object containing:
-  - name: The handler function name
-  - signature: The function parameters from the @mcp_service decorator
-- mcp_service_factors: Internal routing and parameter mapping information
-
-Generated from: MCP Tool Editor Web Interface
-To modify: Use the web editor at http://localhost:8091
+        template_content = f'''"""
+MCP Tool Definition Templates - AUTO-GENERATED
+Signatures extracted from source code using AST parsing
 """
-
 from typing import List, Dict, Any
 
-# MCP Tool Templates with service field and service factors
-MCP_TOOLS: List[Dict[str, Any]] = '''
+MCP_TOOLS: List[Dict[str, Any]] = {json.dumps(template_tools, indent=4, ensure_ascii=False)}
+'''
 
-        # Format the template tools data nicely
-        formatted_template_tools = json.dumps(template_tools, indent=4, ensure_ascii=False)
-        template_content += formatted_template_tools
-
-        # Write tool_definition_templates.py
         with open(template_path, 'w', encoding='utf-8') as f:
             f.write(template_content)
+
+        print(f"Saved template to: {template_filename}")
 
         return {"success": True, "backup": backup_filename}
     except Exception as e:
@@ -686,13 +626,8 @@ def get_mcp_services():
         # Get profile parameter to determine which server
         profile = request.args.get('profile', 'outlook')
 
-        # Determine server name from profile
-        if 'outlook' in profile:
-            server_name = 'outlook'
-        elif 'attachment' in profile:
-            server_name = 'attachment'
-        else:
-            server_name = None
+        # Determine server name from profile using mappings
+        server_name = get_server_name_from_profile(profile)
 
         # Try server-specific file first
         mcp_services_path = None
@@ -771,9 +706,9 @@ def get_server_generator_defaults():
 
 @app.route('/api/graph-types-properties', methods=['GET'])
 def get_graph_types_properties():
-    """Get available properties from graph_types.py"""
+    """Get available properties from outlook_types.py"""
     try:
-        properties_path = os.path.join(os.path.dirname(__file__), 'graph_types_properties.json')
+        properties_path = os.path.join(os.path.dirname(__file__), 'types_properties.json')
         if os.path.exists(properties_path):
             with open(properties_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -795,7 +730,7 @@ def get_graph_types_properties():
 
 @app.route('/api/basemodels', methods=['GET'])
 def get_basemodels():
-    """Get available BaseModel schemas from graph_types.py"""
+    """Get available BaseModel schemas from outlook_types.py"""
     try:
         profile = request.args.get("profile")
         profile_conf = get_profile_config(profile)

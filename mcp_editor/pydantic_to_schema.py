@@ -122,12 +122,12 @@ def _get_config_path() -> str:
 
 
 def _load_graph_type_modules(graph_type_paths: List[str] | None = None) -> List[Any]:
-    """Load graph_types modules from configured paths"""
+    """Load outlook_types modules from configured paths"""
     if graph_type_paths is None:
         config_path = _get_config_path()
 
         # Default path if config missing
-        graph_type_paths = ["../outlook_mcp/graph_types.py"]
+        graph_type_paths = ["../outlook_mcp/outlook_types.py"]
         try:
             if os.path.exists(config_path):
                 with open(config_path, "r", encoding="utf-8") as f:
@@ -148,9 +148,9 @@ def _load_graph_type_modules(graph_type_paths: List[str] | None = None) -> List[
     for path in graph_type_paths:
         resolved = _resolve_path(path)
         if not os.path.exists(resolved):
-            print(f"Warning: graph_types file not found: {resolved}")
+            print(f"Warning: outlook_types file not found: {resolved}")
             continue
-        spec = importlib.util.spec_from_file_location("graph_types", resolved)
+        spec = importlib.util.spec_from_file_location("outlook_types", resolved)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         modules.append(module)
@@ -158,7 +158,7 @@ def _load_graph_type_modules(graph_type_paths: List[str] | None = None) -> List[
 
 
 def load_graph_types_models(graph_type_paths: List[str] | None = None):
-    """Load and merge BaseModel classes from configured graph_types files"""
+    """Load and merge BaseModel classes from configured outlook_types files"""
     models = {}
     modules = _load_graph_type_modules(graph_type_paths)
     for module in modules:
@@ -170,7 +170,7 @@ def load_graph_types_models(graph_type_paths: List[str] | None = None):
 
 
 def generate_mcp_schemas_from_graph_types(graph_type_paths: List[str] | None = None):
-    """Generate MCP schemas for all BaseModel classes in graph_types.py"""
+    """Generate MCP schemas for all BaseModel classes in outlook_types.py"""
     models = load_graph_types_models(graph_type_paths)
     schemas = {}
 
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     # Generate all schemas
     schemas = generate_mcp_schemas_from_graph_types()
 
-    print("Available BaseModel schemas from graph_types.py:")
+    print("Available BaseModel schemas from outlook_types.py:")
     print("=" * 50)
 
     for name, schema in schemas.items():

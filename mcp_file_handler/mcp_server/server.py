@@ -16,7 +16,7 @@ import logging
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 grandparent_dir = os.path.dirname(parent_dir)
-attachment_dir = os.path.join(grandparent_dir, "mcp_attachment")
+attachment_dir = os.path.join(grandparent_dir, "mcp_file_handler")
 
 # Important: Add attachment directory first for proper relative imports
 sys.path.insert(0, attachment_dir)

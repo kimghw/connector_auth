@@ -18,7 +18,7 @@ grandparent_dir = os.path.dirname(parent_dir)
 sys.path.insert(0, parent_dir)  # For mcp modules
 sys.path.insert(0, grandparent_dir)  # For session module
 
-from graph_types import ExcludeParams, FilterParams, SelectParams
+from outlook_types import ExcludeParams, FilterParams, SelectParams
 from tool_definitions import MCP_TOOLS
 
 # Configure logging first

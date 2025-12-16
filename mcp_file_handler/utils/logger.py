@@ -7,7 +7,7 @@ from typing import Optional
 
 
 def setup_logger(
-    name: str = 'mcp_attachment',
+    name: str = 'mcp_file_handler',
     level: str = 'INFO',
     log_file: Optional[str] = None,
     format_string: Optional[str] = None

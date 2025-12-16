@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Extract property definitions from graph_types.py (supports multiple files via config)
+Extract property definitions from outlook_types.py (supports multiple files via config)
 for the MCP tool editor.
 """
 
@@ -242,7 +242,7 @@ def main():
             })
 
     # Save to JSON file
-    output_path = os.path.join(os.path.dirname(__file__), 'graph_types_properties.json')
+    output_path = os.path.join(os.path.dirname(__file__), 'types_properties.json')
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
 

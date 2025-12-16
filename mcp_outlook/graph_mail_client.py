@@ -10,7 +10,7 @@ from enum import Enum
 from graph_mail_query import GraphMailQuery
 from mail_processing_options import MailProcessorHandler, ProcessingOptions, MailStorageOption, AttachmentOption, OutputFormat
 from attachment_handler import AttachmentHandler
-from graph_types import FilterParams, ExcludeParams, SelectParams
+from outlook_types import FilterParams, ExcludeParams, SelectParams
 
 
 class QueryMethod(Enum):

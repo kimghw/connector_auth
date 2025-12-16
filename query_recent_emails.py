@@ -14,7 +14,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from session.auth_manager import AuthManager
 from mcp_outlook.graph_mail_query import GraphMailQuery
-from mcp_outlook.graph_types import (
+from mcp_outlook.outlook_types import (
     FilterParams,
     ExcludeParams,
     SelectParams,

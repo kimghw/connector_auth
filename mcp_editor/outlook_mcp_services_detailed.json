@@ -3,7 +3,7 @@
     {
       "function_name": "query_filter",
       "file": "/home/kimghw/Connector_auth/mcp_outlook/graph_mail_query.py",
-      "line": 147,
+      "line": 148,
       "is_async": true,
       "parameters": [
         {
@@ -48,12 +48,20 @@
         }
       ],
       "tool_name": "build_query_url",
-      "category": "outlook_mail"
+      "server_name": "outlook_mail",
+      "category": "outlook_mail",
+      "tags": [
+        "query",
+        "url-builder",
+        "internal"
+      ],
+      "priority": 5,
+      "description": "Build Microsoft Graph API query URL for email operations"
     },
     {
       "function_name": "query_url",
       "file": "/home/kimghw/Connector_auth/mcp_outlook/graph_mail_query.py",
-      "line": 283,
+      "line": 285,
       "is_async": true,
       "parameters": [
         {
@@ -83,12 +91,20 @@
         }
       ],
       "tool_name": "query_url",
-      "category": "outlook_mail"
+      "server_name": "outlook_mail",
+      "category": "outlook_mail",
+      "tags": [
+        "query",
+        "url-builder",
+        "internal"
+      ],
+      "priority": 5,
+      "description": "Build Microsoft Graph API query URL for email operations"
     },
     {
       "function_name": "query_search",
       "file": "/home/kimghw/Connector_auth/mcp_outlook/graph_mail_query.py",
-      "line": 319,
+      "line": 322,
       "is_async": true,
       "parameters": [
         {
@@ -128,7 +144,15 @@
         }
       ],
       "tool_name": "query_search",
-      "category": "outlook_mail"
+      "server_name": "outlook_mail",
+      "category": "outlook_mail",
+      "tags": [
+        "query",
+        "url-builder",
+        "internal"
+      ],
+      "priority": 5,
+      "description": "Build Microsoft Graph API query URL for email operations"
     }
   ],
   "count": 3,

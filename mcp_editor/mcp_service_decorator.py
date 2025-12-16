@@ -12,6 +12,13 @@ MCP_SERVICE_REGISTRY: Dict[str, Dict[str, Any]] = {}
 
 def mcp_service(tool_name: Optional[str] = None,
                 description: Optional[str] = None,
+                server_name: Optional[str] = None,
+                service_name: Optional[str] = None,
+                category: Optional[str] = None,
+                tags: Optional[List[str]] = None,
+                priority: Optional[int] = None,
+                related_objects: Optional[List[str]] = None,
+                service_signature: Optional[List[Dict[str, Any]]] = None,
                 include_in_registry: bool = True):
     """
     Decorator for MCP service functions that captures function signature
@@ -19,6 +26,13 @@ def mcp_service(tool_name: Optional[str] = None,
     Args:
         tool_name: Optional tool name (defaults to function name)
         description: Optional description of the service
+        server_name: Server/module name (e.g., 'outlook', 'attachment')
+        service_name: Service function name (e.g., 'query_search')
+        category: Category classification
+        tags: List of tags for the service
+        priority: Priority level (integer)
+        related_objects: List of related object paths
+        service_signature: Optional manual service signature definition (list of param dicts)
         include_in_registry: Whether to include in global registry
     """
     def decorator(func: Callable) -> Callable:
@@ -68,14 +82,24 @@ def mcp_service(tool_name: Optional[str] = None,
                 required_params.append(param_name)
 
         # Create service metadata
-        service_name = tool_name or func.__name__
+        final_service_name = tool_name or func.__name__
+
+        # Use service_signature if provided, otherwise use auto-detected param_info
+        final_parameters = service_signature if service_signature else param_info
+
         service_metadata = {
-            'name': service_name,
+            'name': final_service_name,
             'function': func.__name__,
             'module': func.__module__,
-            'description': description or func.__doc__ or f"{service_name} MCP service",
+            'description': description or func.__doc__ or f"{final_service_name} MCP service",
+            'server_name': server_name,
+            'service_name': service_name or func.__name__,
+            'category': category,
+            'tags': tags or [],
+            'priority': priority,
+            'related_objects': related_objects or [],
             'is_async': inspect.iscoroutinefunction(func),
-            'parameters': param_info,
+            'parameters': final_parameters,
             'required_parameters': required_params,
             'return_type': str(type_hints.get('return', 'Any')).replace('typing.', ''),
             'signature': str(sig)
@@ -83,7 +107,7 @@ def mcp_service(tool_name: Optional[str] = None,
 
         # Add to registry if requested
         if include_in_registry:
-            MCP_SERVICE_REGISTRY[service_name] = service_metadata
+            MCP_SERVICE_REGISTRY[final_service_name] = service_metadata
 
         # Attach metadata to function
         func._mcp_service_metadata = service_metadata
@@ -204,7 +228,15 @@ def generate_inputschema_from_service(service_name: str) -> Dict[str, Any]:
 # Example usage
 if __name__ == "__main__":
     # Example service function
-    @mcp_service(tool_name="example_service", description="Example MCP service")
+    @mcp_service(
+        tool_name="example_service",
+        server_name="outlook",
+        description="Example MCP service",
+        server_name="outlook",
+        category="email_operations",
+        tags=["email", "query"],
+        priority=5
+    )
     async def example_function(
         user_email: str,
         message_id: str,

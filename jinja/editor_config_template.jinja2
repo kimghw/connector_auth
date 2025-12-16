@@ -1,0 +1,42 @@
+{#
+  Jinja2 Template for editor_config.json
+
+  Variables:
+    - servers: List of server dictionaries with keys:
+      - name: server name (e.g., 'outlook', 'attachment')
+      - template_definitions_path: path to template file
+      - tool_definitions_path: path to tool definitions
+      - backup_dir: backup directory
+      - graph_types_files: list of graph_types.py paths
+      - host: host address
+      - port: port number
+    - default_server: The default server configuration
+#}
+{
+  "_default": {
+    "template_definitions_path": "{{ default_server.template_definitions_path }}",
+    "tool_definitions_path": "{{ default_server.tool_definitions_path }}",
+    "backup_dir": "{{ default_server.backup_dir }}",
+    "graph_types_files": [
+{% for graph_file in default_server.graph_types_files %}
+      "{{ graph_file }}"{{ "," if not loop.last else "" }}
+{% endfor %}
+    ],
+    "host": "{{ default_server.host }}",
+    "port": {{ default_server.port }}
+  }{{ "," if servers else "" }}
+{% for server in servers %}
+  "{{ server.name }}": {
+    "template_definitions_path": "{{ server.template_definitions_path }}",
+    "tool_definitions_path": "{{ server.tool_definitions_path }}",
+    "backup_dir": "{{ server.backup_dir }}",
+    "graph_types_files": [
+{% for graph_file in server.graph_types_files %}
+      "{{ graph_file }}"{{ "," if not loop.last else "" }}
+{% endfor %}
+    ],
+    "host": "{{ server.host }}",
+    "port": {{ server.port }}
+  }{{ "," if not loop.last else "" }}
+{% endfor %}
+}
