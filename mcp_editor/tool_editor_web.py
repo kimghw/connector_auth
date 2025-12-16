@@ -729,7 +729,8 @@ def get_mcp_services():
     """Get available MCP services from server-specific mcp_services.json"""
     try:
         # Get profile parameter to determine which server
-        profile = request.args.get('profile', 'outlook')
+        profiles = list_profile_names()
+        profile = request.args.get('profile') or (profiles[0] if profiles else 'default')
 
         # Determine server name from profile using mappings
         server_name = get_server_name_from_profile(profile)
