@@ -23,62 +23,62 @@
     "is_async": true,
     "used_objects": {
       "variables": [
-        "e",
         "str",
-        "open",
-        "top",
-        "result",
-        "datetime",
-        "client",
-        "Optional",
-        "sorted",
-        "total",
-        "status",
-        "email",
-        "filter",
-        "f",
-        "json",
-        "self",
-        "ConnectionError",
-        "int",
-        "email_ids",
-        "current_time",
-        "response",
         "user_email",
-        "mcp_service",
+        "e",
+        "x",
+        "status",
+        "filter",
         "sorted_emails",
+        "email",
+        "email_ids",
+        "result",
         "print",
         "dict",
-        "x",
+        "total",
+        "Optional",
+        "int",
+        "datetime",
+        "mcp_service",
+        "ConnectionError",
+        "open",
+        "current_time",
+        "f",
+        "self",
+        "sorted",
+        "json",
+        "response",
+        "top",
+        "client",
         "len"
       ],
       "attributes": [
-        "self.cache",
         "self.api_client",
+        "self.cache",
         "self.cache.get"
       ],
       "function_calls": [
-        "client.fetch_emails",
-        "f.write",
-        "open",
         "datetime.now",
         "sorted",
+        "f.write",
         "mcp_service",
+        "open",
         "print",
+        "client.fetch_emails",
         "current_time.isoformat",
-        "len",
+        "self.cache.get",
         "json.dumps",
-        "self.cache.get"
+        "len"
       ],
       "imports": [],
       "class_names": [],
       "module_attrs": [
-        "client.fetch_emails",
-        "f.write",
         "datetime.now",
-        "json.JSONDecodeError",
+        "f.write",
+        "client.fetch_emails",
+        "current_time.isoformat",
         "json.dumps",
-        "current_time.isoformat"
+        "json.JSONDecodeError"
       ],
       "constants": [
         null,
@@ -117,8 +117,8 @@
         "open"
       ],
       "exception_types": [
-        "json.JSONDecodeError",
-        "ConnectionError"
+        "ConnectionError",
+        "json.JSONDecodeError"
       ]
     },
     "line_number": 19
@@ -144,21 +144,21 @@
     "is_async": false,
     "used_objects": {
       "variables": [
-        "subject",
-        "to",
-        "str",
         "bool",
         "self",
+        "str",
         "mcp_service",
-        "body"
+        "body",
+        "subject",
+        "to"
       ],
       "attributes": [
         "self.client",
         "self.client.send"
       ],
       "function_calls": [
-        "mcp_service",
-        "self.client.send"
+        "self.client.send",
+        "mcp_service"
       ],
       "imports": [],
       "class_names": [],

@@ -11,7 +11,7 @@ from typing import List, Dict, Any
 # MCP Tool Definitions
 MCP_TOOLS: List[Dict[str, Any]] = [
     {
-        "name": "Handle_query_filter",
+        "name": "handle_query_filter",
         "description": "Build Microsoft Graph API query URL for email operations",
         "inputSchema": {
             "type": "object",
@@ -76,7 +76,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         }
     },
     {
-        "name": "handlequery_url",
+        "name": "handle_query_url",
         "description": "Build Microsoft Graph API query URL for email operations",
         "inputSchema": {
             "type": "object",
