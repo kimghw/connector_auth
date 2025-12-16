@@ -799,6 +799,103 @@ def get_profiles():
         return jsonify({"error": str(e), "profiles": []}), 500
 
 
+@app.route('/api/profiles', methods=['POST'])
+def create_profile():
+    """Create a new profile (project) with directory structure"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        profile_name = data.get("name", "").strip().lower().replace(" ", "_")
+        if not profile_name:
+            return jsonify({"error": "Profile name is required"}), 400
+
+        # Check if profile already exists
+        existing = list_profile_names()
+        if profile_name in existing:
+            return jsonify({"error": f"Profile '{profile_name}' already exists"}), 400
+
+        # Get paths from request or generate defaults
+        mcp_server_path = data.get("mcp_server_path", f"../mcp_{profile_name}/mcp_server")
+        template_path = data.get("template_path", f"{profile_name}/tool_definition_templates.py")
+        backup_dir = data.get("backup_dir", f"{profile_name}/backups")
+        port = data.get("port", 8091)
+
+        # Create profile config
+        new_profile = {
+            "template_definitions_path": template_path,
+            "tool_definitions_path": f"{mcp_server_path}/tool_definitions.py",
+            "backup_dir": backup_dir,
+            "graph_types_files": [],
+            "host": "0.0.0.0",
+            "port": port
+        }
+
+        # Create directory structure in mcp_editor
+        editor_profile_dir = os.path.join(BASE_DIR, profile_name)
+        os.makedirs(editor_profile_dir, exist_ok=True)
+        os.makedirs(os.path.join(editor_profile_dir, "backups"), exist_ok=True)
+
+        # Create empty tool_definition_templates.py
+        template_file_path = os.path.join(BASE_DIR, template_path)
+        if not os.path.exists(template_file_path):
+            with open(template_file_path, 'w', encoding='utf-8') as f:
+                f.write('''"""
+MCP Tool Definition Templates - AUTO-GENERATED
+Signatures extracted from source code using AST parsing
+"""
+from typing import List, Dict, Any
+
+MCP_TOOLS: List[Dict[str, Any]] = []
+''')
+
+        # Create MCP server directory structure if requested
+        if data.get("create_mcp_structure", False):
+            mcp_dir = _resolve_path(mcp_server_path)
+            os.makedirs(mcp_dir, exist_ok=True)
+
+            # Create empty tool_definitions.py
+            tool_def_path = os.path.join(mcp_dir, "tool_definitions.py")
+            if not os.path.exists(tool_def_path):
+                with open(tool_def_path, 'w', encoding='utf-8') as f:
+                    f.write('''"""
+MCP Tool Definitions - AUTO-GENERATED FILE
+"""
+from typing import List, Dict, Any
+
+MCP_TOOLS: List[Dict[str, Any]] = []
+
+
+def get_tool_by_name(tool_name: str) -> Dict[str, Any] | None:
+    for tool in MCP_TOOLS:
+        if tool["name"] == tool_name:
+            return tool
+    return None
+
+
+def get_tool_names() -> List[str]:
+    return [tool["name"] for tool in MCP_TOOLS]
+''')
+
+        # Update editor_config.json
+        config_path = os.path.join(BASE_DIR, 'editor_config.json')
+        config_data = _load_config_file()
+        config_data[profile_name] = new_profile
+
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config_data, indent=2, ensure_ascii=False, fp=f)
+
+        return jsonify({
+            "success": True,
+            "profile": profile_name,
+            "config": new_profile,
+            "created_dirs": [editor_profile_dir]
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/server-generator/defaults', methods=['GET'])
 def get_server_generator_defaults():
     """Expose detected modules and default paths for the Jinja2 server generator"""

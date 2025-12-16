@@ -72,6 +72,10 @@ tmp/
 mcp_editor/*/backups/
 mcp_editor/*/__pycache__/
 mcp_editor/backups/
+mcp_*/mcp_server/backups/
+*.py.backup
+*.backup
+*.bak
 
 # MCP Editor - server-specific files (auto-generated)
 mcp_editor/*/*.json
