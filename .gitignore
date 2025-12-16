@@ -68,5 +68,11 @@ logs/
 temp/
 tmp/
 
-# MCP Editor backups
-outlook_mcp/mcp_editor/backups/
+# MCP Editor backups and cache
+mcp_editor/*/backups/
+mcp_editor/*/__pycache__/
+mcp_editor/backups/
+
+# MCP Editor - server-specific files (auto-generated)
+mcp_editor/*/*.json
+!mcp_editor/editor_config.json

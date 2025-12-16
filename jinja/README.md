@@ -13,33 +13,35 @@ Jinja2 템플릿 기반 MCP 서버 자동 생성 도구
 - ✅ 동적 import 및 서비스 객체 관리
 - ✅ Python과 JSON 형식의 tool definitions 지원
 - ✅ 커스텀 템플릿 지원
+- ✅ `generate_server.py` 하나로 outlook/file_handler/scaffold 템플릿 자동 선택
 
 ## 사용법
 
-### 기본 사용법
+### 기본 사용법 (Outlook)
 
 ```bash
 python generate_server.py \
-  --tools ../mcp_editor/tool_definition_templates.py \
+  --tools ../mcp_editor/outlook/tool_definition_templates.py \
+  --server outlook \
   --output ../outlook_mcp/mcp_server/server_generated.py
 ```
 
-### 커스텀 템플릿 사용
+### File Handler 템플릿 사용
+
+```bash
+python generate_server.py \
+  --tools ../mcp_editor/file_handler/tool_definition_templates.py \
+  --server file_handler \
+  --output ../mcp_file_handler/mcp_server/server_generated.py
+```
+
+### 커스텀 템플릿 지정
 
 ```bash
 python generate_server.py \
   --tools ../mcp_editor/tool_definition_templates.py \
   --template ./custom_template.jinja2 \
   --output ../outlook_mcp/mcp_server/server_custom.py
-```
-
-### 설정 파일 사용
-
-```bash
-python generate_server.py \
-  --tools ../mcp_editor/tool_definition_templates.py \
-  --config ./config.json \
-  --output ../outlook_mcp/mcp_server/server_configured.py
 ```
 
 ### JSON 입력 사용
@@ -50,34 +52,30 @@ python generate_server.py \
   --output ./generated_server.py
 ```
 
+### 스캐폴드 템플릿 (mcp_server_scaffold_template.jinja2)
+
+```bash
+python generate_server.py \
+  --template ./mcp_server_scaffold_template.jinja2 \
+  --output ../mcp_new/mcp_server/server.py \
+  --server new_server
+```
+
 ## 파일 구조
 
 ```
 jinja/
-├── generate_server.py           # 메인 생성 스크립트
-├── outlook_server_template.jinja2  # Outlook MCP 서버용 Jinja2 템플릿
-├── config.json                  # 선택적 설정 파일
-├── run_generator.sh             # 사용 예제 스크립트
-└── README.md                   # 이 문서
-```
-
-## 설정 파일 형식
-
-`config.json` 예제:
-
-```json
-{
-  "services": {
-    "GraphMailQuery": {
-      "module": "graph_mail_query",
-      "instance_name": "graph_mail_query"
-    }
-  },
-  "param_types": ["FilterParams", "ExcludeParams", "SelectParams"],
-  "method_mappings": {
-    "query_emails": "query_filter"
-  }
-}
+├── generate_server.py               # 통합 생성 스크립트 (웹 에디터와 공유)
+├── generate_outlook_server.py       # 서비스 분석 로직 포함
+├── generate_file_handler_server.py  # 파일 핸들러 전용 생성기
+├── generate_editor_config.py        # editor_config.json 생성기
+├── generate_server_mappings.py      # 서버 매핑 자동 생성
+├── scaffold_generator.py            # 신규 MCP 서버 스캐폴드 생성
+├── outlook_server_template.jinja2   # Outlook 서버 템플릿
+├── file_handler_server_template.jinja2  # 파일 핸들러 서버 템플릿
+├── mcp_server_scaffold_template.jinja2  # 신규 서버 기본 템플릿
+├── run_generator.sh                 # 사용 예제 스크립트
+└── README.md                       # 이 문서
 ```
 
 ## Tool Definition 형식

@@ -8,11 +8,12 @@ To regenerate: python ../jinja/generate_server_mappings.py
 
 # List of all known server names
 SERVER_NAMES = [
+    'file_handler',
     'outlook',
 ]
 
 # Default server name
-DEFAULT_SERVER = 'outlook'
+DEFAULT_SERVER = 'file_handler'
 
 
 def get_server_name_from_profile(profile: str) -> str | None:

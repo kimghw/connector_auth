@@ -46,7 +46,7 @@ class FileManager:
         )
 
     @mcp_service(
-        tool_name="process_file",
+        tool_name="convert_file_to_text",
         server_name="file_handler",
         service_name="process",
         category="file_conversion",
@@ -273,7 +273,7 @@ class FileManager:
             return False
 
     @mcp_service(
-        tool_name="search_file_metadata",
+        tool_name="search_metadata",
         server_name="file_handler",
         service_name="search_metadata",
         category="metadata",
@@ -296,6 +296,78 @@ class FileManager:
         except Exception as e:
             logger.error(f"Metadata search failed: {e}")
             return []
+
+    @mcp_service(
+        tool_name="convert_onedrive_to_text",
+        server_name="file_handler",
+        service_name="process_onedrive",
+        category="file_conversion",
+        tags=["onedrive", "cloud", "conversion"],
+        priority=9,
+        description="Convert OneDrive file or folder to text",
+        related_objects=["mcp_file_handler.file_manager.FileManager"]
+    )
+    def process_onedrive(self, url: str, **kwargs) -> Dict[str, Any]:
+        """Process OneDrive URL for text extraction.
+
+        Args:
+            url: OneDrive URL
+            **kwargs: Additional options
+
+        Returns:
+            Processing result dictionary
+        """
+        return self._process_onedrive_url(url, **kwargs)
+
+    @mcp_service(
+        tool_name="get_file_metadata",
+        server_name="file_handler",
+        service_name="get_metadata",
+        category="metadata",
+        tags=["metadata", "retrieval"],
+        priority=5,
+        description="Get metadata for a specific file by URL",
+        related_objects=["mcp_file_handler.file_manager.FileManager"]
+    )
+    def get_metadata(self, file_url: str) -> Optional[Dict[str, Any]]:
+        """Get metadata for a file.
+
+        Args:
+            file_url: File URL or path
+
+        Returns:
+            Metadata dictionary or None if not found
+        """
+        try:
+            return self.metadata_manager.get(file_url)
+        except Exception as e:
+            logger.error(f"Failed to get metadata: {e}")
+            return None
+
+    @mcp_service(
+        tool_name="delete_file_metadata",
+        server_name="file_handler",
+        service_name="delete_metadata",
+        category="metadata",
+        tags=["metadata", "deletion"],
+        priority=3,
+        description="Delete metadata for a specific file",
+        related_objects=["mcp_file_handler.file_manager.FileManager"]
+    )
+    def delete_metadata(self, file_url: str) -> bool:
+        """Delete metadata for a file.
+
+        Args:
+            file_url: File URL or path
+
+        Returns:
+            True if successful
+        """
+        try:
+            return self.metadata_manager.delete(file_url)
+        except Exception as e:
+            logger.error(f"Failed to delete metadata: {e}")
+            return False
 
 
 def main():

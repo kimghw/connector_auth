@@ -11,12 +11,14 @@
       - host: host address
       - port: port number
     - default_server: The default server configuration
+
+  Note: Templates are now organized in mcp_editor/{server_name}/ folders
 #}
 {
   "_default": {
-    "template_definitions_path": "{{ default_server.template_definitions_path }}",
+    "template_definitions_path": "{{ default_server.name }}/tool_definition_templates.py",
     "tool_definitions_path": "{{ default_server.tool_definitions_path }}",
-    "backup_dir": "{{ default_server.backup_dir }}",
+    "backup_dir": "{{ default_server.name }}/backups",
     "graph_types_files": [
 {% for graph_file in default_server.graph_types_files %}
       "{{ graph_file }}"{{ "," if not loop.last else "" }}
@@ -27,9 +29,9 @@
   }{{ "," if servers else "" }}
 {% for server in servers %}
   "{{ server.name }}": {
-    "template_definitions_path": "{{ server.template_definitions_path }}",
+    "template_definitions_path": "{{ server.name }}/tool_definition_templates.py",
     "tool_definitions_path": "{{ server.tool_definitions_path }}",
-    "backup_dir": "{{ server.backup_dir }}",
+    "backup_dir": "{{ server.name }}/backups",
     "graph_types_files": [
 {% for graph_file in server.graph_types_files %}
       "{{ graph_file }}"{{ "," if not loop.last else "" }}

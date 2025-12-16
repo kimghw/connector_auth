@@ -71,6 +71,22 @@
             font-weight: 600;
             color: var(--text-primary);
             letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logos {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: nowrap;
+        }
+
+        .brand-logo {
+            width: 24px;
+            height: 24px;
+            display: inline-block;
         }
 
         .header-buttons {
@@ -579,7 +595,15 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1><span class="material-icons" style="vertical-align: middle; font-size: 28px;">build</span> MCP Tool Definitions Editor</h1>
+            <h1>
+                <span class="brand-logos" aria-label="MCP, Claude, OpenAI, Gemini">
+                    <img class="brand-logo" src="/static/brands/mcp.svg" alt="MCP" title="MCP" />
+                    <img class="brand-logo" src="/static/brands/claude.svg" alt="Claude" title="Claude" />
+                    <img class="brand-logo" src="/static/brands/openai.svg" alt="OpenAI" title="OpenAI" />
+                    <img class="brand-logo" src="/static/brands/gemini.svg" alt="Gemini" title="Gemini" />
+                </span>
+                <span>MCP Tool Definitions Editor</span>
+            </h1>
             <div class="header-buttons">
                 <button class="btn btn-secondary" onclick="loadTools()">
                     <span class="material-icons">refresh</span> Reload
@@ -783,11 +807,13 @@
             fetch('/api/mcp-services')
                 .then(response => response.json())
                 .then(data => {
-                    window.mcpServices = data.services || [];
                     window.mcpServiceDetails = data.services_with_signatures || [];
-                    // If only detailed data exists, populate names from it
-                    if ((!window.mcpServices || window.mcpServices.length === 0) && window.mcpServiceDetails.length > 0) {
+                    // Use service names from services_with_signatures (these match mcp_service.name)
+                    // Fall back to data.services if services_with_signatures is empty
+                    if (window.mcpServiceDetails.length > 0) {
                         window.mcpServices = window.mcpServiceDetails.map(svc => svc.name).filter(Boolean);
+                    } else {
+                        window.mcpServices = data.services || [];
                     }
                     console.log('MCP Services loaded:', window.mcpServices);
                     console.log('MCP Service details loaded:', window.mcpServiceDetails);
@@ -1270,9 +1296,10 @@
                         <select class="form-control" id="mcpService"
                                 onchange="updateMcpService(${index}, this.value)">
                             <option value="">-- Select MCP Service --</option>
-                            ${window.mcpServices ? window.mcpServices.map(service =>
-                                `<option value="${service}" ${tool.mcp_service === service ? 'selected' : ''}>${service}</option>`
-                            ).join('') : ''}
+                            ${window.mcpServices ? window.mcpServices.map(service => {
+                                const currentService = typeof tool.mcp_service === 'object' ? tool.mcp_service?.name : tool.mcp_service;
+                                return `<option value="${service}" ${currentService === service ? 'selected' : ''}>${service}</option>`;
+                            }).join('') : ''}
                         </select>
                         <small style="color: var(--text-secondary); font-size: 12px; margin-top: 6px; display: block;">
                             Select the MCP service function that this tool will use

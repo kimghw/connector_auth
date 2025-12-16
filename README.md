@@ -156,10 +156,10 @@ python jinja/generate_editor_config.py
 ```json
 {
   "_default": {
-    "template_definitions_path": "tool_definition_outlook_templates.py",
+    "template_definitions_path": "outlook/tool_definition_templates.py",
     "tool_definitions_path": "../mcp_outlook/mcp_server/tool_definitions.py",
-    "backup_dir": "backups",
-    "graph_types_files": ["../mcp_outlook/graph_types.py"],
+    "backup_dir": "outlook/backups",
+    "graph_types_files": ["../mcp_outlook/outlook_types.py"],
     "host": "0.0.0.0",
     "port": 8091
   },
@@ -167,6 +167,15 @@ python jinja/generate_editor_config.py
   "file_handler": { ... }
 }
 ```
+
+**서버별 폴더 구조:**
+- 각 서버별로 별도의 폴더 관리: `mcp_editor/{server_name}/`
+- 서버별 파일들:
+  - `tool_definition_templates.py`: 템플릿 파일 (mcp_service 메타데이터 포함)
+  - `{server_name}_mcp_services.json`: 서비스 메타데이터 (간단)
+  - `{server_name}_mcp_services_detailed.json`: 서비스 메타데이터 (상세)
+  - `backups/`: 백업 파일 디렉토리
+- 모든 서버별 파일이 한 곳에서 관리됨
 
 #### 1.2 수동 생성
 
@@ -325,19 +334,24 @@ async def handle_query_emails(**kwargs):
 
 ```
 mcp_editor/
-├── editor_config.json                    # 1. 설정 파일 (generate_editor_config.py로 생성)
-├── tool_definition_{server}_templates.py # 2. 템플릿 (웹 에디터가 읽음)
-└── tool_editor_web.py                    # 3. 웹 서버
+├── editor_config.json                              # 1. 설정 파일 (generate_editor_config.py로 생성)
+├── tool_editor_web.py                              # 2. 웹 서버
+├── outlook/                                        # 3. outlook 서버 템플릿 폴더
+│   ├── tool_definition_templates.py                # outlook 템플릿
+│   └── backups/                                    # outlook 백업
+└── file_handler/                                   # 4. file_handler 서버 템플릿 폴더
+    ├── tool_definition_templates.py                # file_handler 템플릿
+    └── backups/                                    # file_handler 백업
 
 mcp_{server}/mcp_server/
-├── tool_definitions.py                   # 4. 깔끔한 정의 (Save 시 생성)
-└── server_generated.py                   # 5. 서버 코드 (템플릿 생성 시 생성)
+├── tool_definitions.py                             # 4. 깔끔한 정의 (Save 시 생성)
+└── server_generated.py                             # 5. 서버 코드 (템플릿 생성 시 생성)
 
 jinja/
-├── generate_editor_config.py             # 설정 생성 스크립트
-├── editor_config_template.jinja2         # 설정 파일 템플릿
-├── generate_{server}_server.py           # 서버 생성 스크립트
-└── {server}_server_template.jinja2       # 서버 코드 템플릿
+├── generate_editor_config.py                       # 설정 생성 스크립트
+├── editor_config_template.jinja2                   # 설정 파일 템플릿
+├── generate_{server}_server.py                     # 서버 생성 스크립트
+└── {server}_server_template.jinja2                 # 서버 코드 템플릿
 ```
 
 ### 6. 주요 워크플로우
@@ -358,8 +372,8 @@ python tool_editor_web.py
 3. Tool Definition 편집
 4. Save 버튼 클릭
    - → `tool_definitions.py` 갱신 (깔끔한 버전)
-   - → `tool_definition_{server}_templates.py` 갱신 (메타데이터 포함)
-   - → `backups/` 디렉토리에 백업 생성
+   - → `{server}/tool_definition_templates.py` 갱신 (메타데이터 포함)
+   - → `{server}/backups/` 디렉토리에 백업 생성
 
 #### 6.3 MCP 서버 코드 생성
 1. "Generate Server Template" 버튼 클릭

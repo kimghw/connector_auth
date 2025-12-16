@@ -94,11 +94,12 @@ MCP 서버의 툴 정의를 시각적으로 편집하고 관리하는 웹 기반
   - `outlook_mcp_services.json`, `outlook_mcp_services_detailed.json` 생성
 - **실행**: `python extract_real_mcp_services.py outlook`
 
-#### `mcp_service_extractor.py`
-- **용도**: MCP 서비스 함수의 시그니처 추출
+#### `mcp_service_scanner.py`
+- **용도**: `@mcp_service` AST 기반 스캐너 (웹 에디터와 CLI에서 공용 사용)
 - **기능**:
-  - `get_signatures_by_name()`: 함수명으로 시그니처 검색
-  - 웹 에디터에서 `mcp_service` 필드 자동 채우기에 사용
+  - 프로젝트 재귀 탐색 (venv, backups 등 기본 제외 경로 적용)
+  - 함수 시그니처, 파라미터, 데코레이터 메타데이터 추출
+  - `get_services_map()`으로 서버별 캐시 제공
 
 #### `mcp_service_decorator.py`
 - **용도**: `@mcp_service` 데코레이터 정의
@@ -218,19 +219,14 @@ tool_definition_outlook_templates.py  ← [우선순위 1]
   ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ 2️⃣ 소스코드 스캔 (AST 파싱)                                 │
-│   mcp_service_extractor.py:212 get_signatures_by_name()    │
+│   mcp_service_scanner.get_services_map() 호출               │
 │   ↓                                                         │
-│   mcp_{server}/  디렉토리 재귀 스캔                         │
+│   mcp_{server}/ 디렉토리 재귀 스캔 (venv/backups 제외)      │
 │   ↓                                                         │
-│   @mcp_service 데코레이터가 붙은 함수 찾기                  │
-│   ↓                                                         │
-│   AST로 함수 시그니처 추출                                  │
+│   @mcp_service 함수의 파라미터·시그니처 추출                │
 │   예: "user_email: str, search: str, max_results: int = 10" │
 │   ↓                                                         │
-│   signatures_by_name = {                                    │
-│     "query_search": "user_email: str, search: str, ...",    │
-│     "send_mail": "user_email: str, to: str, ..."            │
-│   }                                                         │
+│   signatures_by_name = {...}                                │
 └─────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -331,7 +327,7 @@ tool_definition_outlook_templates.py  ← [우선순위 1]
   ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ 3️⃣ Jinja2 템플릿 렌더링                                     │
-│   템플릿: outlook_server_template.jinja2                    │
+│   템플릿: 서버별 템플릿 (예: outlook_server_template.jinja2)│
 │   ↓                                                         │
 │   템플릿 변수:                                              │
 │   - services: 사용할 서비스 클래스 목록                     │

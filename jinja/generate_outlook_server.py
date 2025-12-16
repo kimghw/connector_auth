@@ -161,6 +161,46 @@ def parse_signature(signature: str) -> Dict[str, Any]:
     return params
 
 
+def params_from_service_info(service_info: Dict[str, Any]) -> Dict[str, Any]:
+    """Prefer structured parameters over re-parsing signature strings."""
+    signature_params: Dict[str, Any] = {}
+
+    if not service_info:
+        return signature_params
+
+    structured = service_info.get("parameters")
+    if isinstance(structured, list):
+        for param in structured:
+            name = param.get("name")
+            if not name or name == "self":
+                continue
+
+            param_type = param.get("type") or "Any"
+            has_default = param.get("has_default", False)
+            default_val = param.get("default")
+
+            # If has_default not explicitly provided, infer from presence of default value
+            if not has_default and default_val is not None:
+                has_default = True
+
+            signature_params[name] = {
+                "type": param_type,
+                "has_default": has_default,
+                "default": default_val,
+                "is_required": param.get(
+                    "is_required",
+                    not has_default and "Optional" not in str(param_type),
+                ),
+            }
+        return signature_params
+
+    signature = service_info.get("signature")
+    if signature:
+        return parse_signature(signature)
+
+    return signature_params
+
+
 def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
     """Analyze tool schema to understand parameter types and requirements"""
 
@@ -196,10 +236,7 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
     if 'mcp_service' in tool:
         service_info = tool['mcp_service']
         analyzed['service_method'] = service_info.get('name', tool['name'])
-
-        # Parse signature if available
-        if 'signature' in service_info:
-            signature_params = parse_signature(service_info['signature'])
+        signature_params = params_from_service_info(service_info)
     else:
         signature_params = {}
 
@@ -473,8 +510,8 @@ def main():
     parser = argparse.ArgumentParser(description='Generate MCP server from tool definitions')
     parser.add_argument(
         '--tools', '-t',
-        default='/home/kimghw/Connector_auth/mcp_editor/tool_definition_outlook_templates.py',
-        help='Path to tool definition templates file (default: mcp_editor/tool_definition_outlook_templates.py)'
+        default='/home/kimghw/Connector_auth/mcp_editor/outlook/tool_definition_templates.py',
+        help='Path to tool definition templates file (default: mcp_editor/outlook/tool_definition_templates.py)'
     )
     parser.add_argument(
         '--template', '-p',

@@ -1,127 +1,149 @@
 {
   "decorated_services": [
-    "query_filter",
-    "query_url",
-    "query_search"
+    "Handle_query_filter",
+    "handlequery_url",
+    "handle_query_search"
   ],
   "services_with_signatures": [
     {
       "name": "query_filter",
       "parameters": [
         {
-          "name": "self",
-          "type": null,
-          "default": null
-        },
-        {
           "name": "user_email",
           "type": "str",
-          "default": null
+          "default": null,
+          "has_default": false,
+          "is_required": true
         },
         {
           "name": "filter",
           "type": "FilterParams",
-          "default": null
+          "default": null,
+          "has_default": false,
+          "is_required": true
         },
         {
           "name": "exclude",
           "type": "Optional[ExcludeParams]",
-          "default": null
+          "default": null,
+          "has_default": true,
+          "is_required": false
         },
         {
           "name": "select",
           "type": "Optional[SelectParams]",
-          "default": null
+          "default": null,
+          "has_default": true,
+          "is_required": false
         },
         {
           "name": "client_filter",
           "type": "Optional[ExcludeParams]",
-          "default": null
+          "default": null,
+          "has_default": true,
+          "is_required": false
         },
         {
           "name": "top",
           "type": "int",
-          "default": 450
+          "default": 450,
+          "has_default": true,
+          "is_required": false
         },
         {
           "name": "orderby",
           "type": "Optional[str]",
-          "default": null
+          "default": null,
+          "has_default": true,
+          "is_required": false
         }
       ],
-      "is_async": true
+      "is_async": true,
+      "signature": "user_email: str, filter: FilterParams, exclude: Optional[ExcludeParams] = None, select: Optional[SelectParams] = None, client_filter: Optional[ExcludeParams] = None, top: int = 450, orderby: Optional[str] = None"
     },
     {
       "name": "query_url",
       "parameters": [
         {
-          "name": "self",
-          "type": null,
-          "default": null
-        },
-        {
           "name": "user_email",
           "type": "str",
-          "default": null
+          "default": null,
+          "has_default": false,
+          "is_required": true
         },
         {
           "name": "url",
           "type": "str",
-          "default": null
+          "default": null,
+          "has_default": false,
+          "is_required": true
         },
         {
           "name": "top",
           "type": "int",
-          "default": 450
+          "default": 450,
+          "has_default": true,
+          "is_required": false
         },
         {
           "name": "client_filter",
           "type": "Optional[ExcludeParams]",
-          "default": null
+          "default": null,
+          "has_default": true,
+          "is_required": false
         }
       ],
-      "is_async": true
+      "is_async": true,
+      "signature": "user_email: str, url: str, top: int = 450, client_filter: Optional[ExcludeParams] = None"
     },
     {
       "name": "query_search",
       "parameters": [
         {
-          "name": "self",
-          "type": null,
-          "default": null
-        },
-        {
           "name": "user_email",
           "type": "str",
-          "default": null
+          "default": null,
+          "has_default": false,
+          "is_required": true
         },
         {
           "name": "search",
           "type": "str",
-          "default": null
+          "default": null,
+          "has_default": false,
+          "is_required": true
         },
         {
           "name": "client_filter",
           "type": "Optional[ExcludeParams]",
-          "default": null
+          "default": null,
+          "has_default": true,
+          "is_required": false
         },
         {
           "name": "select",
           "type": "Optional[SelectParams]",
-          "default": null
+          "default": null,
+          "has_default": true,
+          "is_required": false
         },
         {
           "name": "top",
           "type": "int",
-          "default": 250
+          "default": 250,
+          "has_default": true,
+          "is_required": false
         },
         {
           "name": "orderby",
           "type": "Optional[str]",
-          "default": null
+          "default": null,
+          "has_default": true,
+          "is_required": false
         }
       ],
-      "is_async": true
+      "is_async": true,
+      "signature": "user_email: str, search: str, client_filter: Optional[ExcludeParams] = None, select: Optional[SelectParams] = None, top: int = 250, orderby: Optional[str] = None"
     }
   ],
   "count": 3,

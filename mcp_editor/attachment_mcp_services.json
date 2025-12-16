@@ -1,6 +1,0 @@
-{
-  "decorated_services": [],
-  "services_with_signatures": [],
-  "count": 0,
-  "description": "List of actual functions with @mcp_service decorator in codebase with signatures"
-}

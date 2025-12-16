@@ -27,8 +27,8 @@ from tool_editor_web_server_mappings import (
     get_server_name_from_path
 )
 
-# Import MCP service extractor
-from mcp_service_extractor import get_signatures_by_name
+# Import MCP service scanner (shared)
+from mcp_service_scanner import get_services_map
 
 app = Flask(__name__)
 CORS(app)
@@ -46,8 +46,15 @@ DEFAULT_PROFILE = {
 }
 
 JINJA_DIR = os.path.join(ROOT_DIR, 'jinja')
-DEFAULT_SERVER_TEMPLATE = os.path.join(JINJA_DIR, 'server_template.jinja2')
+SERVER_TEMPLATES = {
+    "outlook": os.path.join(JINJA_DIR, "outlook_server_template.jinja2"),
+    "file_handler": os.path.join(JINJA_DIR, "file_handler_server_template.jinja2"),
+    "scaffold": os.path.join(JINJA_DIR, "mcp_server_scaffold_template.jinja2"),
+}
+DEFAULT_SERVER_TEMPLATE = SERVER_TEMPLATES["outlook"]
 GENERATOR_SCRIPT_PATH = os.path.join(JINJA_DIR, 'generate_server.py')
+EDITOR_CONFIG_TEMPLATE = os.path.join(JINJA_DIR, 'editor_config_template.jinja2')
+EDITOR_CONFIG_GENERATOR = os.path.join(JINJA_DIR, 'generate_editor_config.py')
 
 
 def _resolve_path(path: str) -> str:
@@ -65,6 +72,64 @@ def _get_config_path() -> str:
     return CONFIG_PATH
 
 
+def _get_template_for_server(server_name: str | None) -> str:
+    """Return the best template path for a given server name."""
+    if server_name and server_name in SERVER_TEMPLATES:
+        candidate = SERVER_TEMPLATES[server_name]
+        if os.path.exists(candidate):
+            return candidate
+
+    for candidate in SERVER_TEMPLATES.values():
+        if os.path.exists(candidate):
+            return candidate
+
+    return ""
+
+
+def _guess_server_name(profile_conf: dict | None, profile_name: str | None = None) -> str | None:
+    """Attempt to infer the server name from profile info or config keys."""
+    if profile_name:
+        guessed = get_server_name_from_profile(profile_name)
+        if guessed:
+            return guessed
+
+    profile_conf = profile_conf or {}
+    for key in ("template_definitions_path", "tool_definitions_path"):
+        value = profile_conf.get(key)
+        if isinstance(value, str):
+            guessed = get_server_name_from_path(value)
+            if guessed:
+                return guessed
+
+    return None
+
+
+def _generate_config_from_template(config_path: str) -> dict | None:
+    """
+    Try to render editor_config.json using the Jinja template and generator utility.
+    Falls back silently if the template or generator script is missing.
+    """
+    if not (os.path.exists(EDITOR_CONFIG_TEMPLATE) and os.path.exists(EDITOR_CONFIG_GENERATOR)):
+        return None
+
+    try:
+        spec = importlib.util.spec_from_file_location("editor_config_generator", EDITOR_CONFIG_GENERATOR)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        server_names = module.scan_codebase_for_servers(ROOT_DIR)
+        if not server_names:
+            fallback = _guess_server_name(None, "_default") or "outlook"
+            server_names = {fallback}
+
+        module.generate_editor_config(server_names, ROOT_DIR, config_path, EDITOR_CONFIG_TEMPLATE)
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:  # pragma: no cover - best effort
+        print(f"Warning: Could not generate editor_config.json from template: {e}")
+    return None
+
+
 def _load_config_file():
     config_path = _get_config_path()
     if os.path.exists(config_path):
@@ -73,7 +138,13 @@ def _load_config_file():
                 return json.load(f)
         except Exception as e:
             print(f"Warning: Could not load editor_config.json: {e}")
+        generated = _generate_config_from_template(config_path)
+        if generated:
+            return generated
     else:
+        generated = _generate_config_from_template(config_path)
+        if generated:
+            return generated
         try:
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump({"_default": DEFAULT_PROFILE}, f, indent=2, ensure_ascii=False)
@@ -110,6 +181,10 @@ def get_profile_config(profile_name: str | None = None) -> dict:
 
     if isinstance(data, dict):
         default_profile = data.get("_default", {})
+        # If no _default and no profile specified, use first available profile
+        if not default_profile and not profile_name and data:
+            first_profile = next(iter(data.values()), {})
+            return _merge_profile({}, first_profile)
         selected = data.get(profile_name) if profile_name else None
         return _merge_profile(default_profile, selected)
 
@@ -127,15 +202,17 @@ def resolve_paths(profile_conf: dict) -> dict:
     }
 
 
-def _default_generator_paths(profile_conf: dict) -> dict:
+def _default_generator_paths(profile_conf: dict, profile_name: str | None = None) -> dict:
     """Return default generator paths for the active profile"""
     resolved = resolve_paths(profile_conf)
     output_dir = os.path.dirname(resolved["tool_path"])
     output_path = os.path.join(output_dir, 'server_generated.py')
+    server_name = _guess_server_name(profile_conf, profile_name)
+    template_path = _get_template_for_server(server_name)
 
     return {
         "tools_path": resolved["template_path"],
-        "template_path": DEFAULT_SERVER_TEMPLATE if os.path.exists(DEFAULT_SERVER_TEMPLATE) else "",
+        "template_path": template_path,
         "output_path": output_path
     }
 
@@ -163,6 +240,8 @@ def discover_mcp_modules(profile_conf: dict | None = None) -> list:
             if not os.path.isdir(mcp_dir):
                 continue
 
+            server_name = get_server_name_from_path(module_dir)
+            template_path = _get_template_for_server(server_name) or fallback["template_path"]
             tools_candidates = [
                 os.path.join(mcp_dir, "tool_definition_templates.py"),
                 os.path.join(mcp_dir, "tool_definitions.py"),
@@ -174,7 +253,7 @@ def discover_mcp_modules(profile_conf: dict | None = None) -> list:
                 "name": entry,
                 "mcp_dir": mcp_dir,
                 "tools_path": tools_path,
-                "template_path": fallback["template_path"],
+                "template_path": template_path,
                 "output_path": os.path.join(mcp_dir, "server_generated.py")
             })
             break
@@ -281,7 +360,26 @@ def remove_defaults(schema):
     return schema
 
 
-def save_tool_definitions(tools_data, paths: dict):
+SERVICE_SCAN_CACHE: dict[tuple[str, str], dict] = {}
+
+
+def _load_services_for_server(server_name: str | None, scan_dir: str | None, force_rescan: bool = False):
+    """Load service metadata with simple in-process caching."""
+    if not scan_dir:
+        return {}
+
+    cache_key = (server_name or "", scan_dir)
+    if not force_rescan and cache_key in SERVICE_SCAN_CACHE:
+        print(f"Using cached service signatures for {cache_key[0] or 'default'}")
+        return SERVICE_SCAN_CACHE[cache_key]
+
+    services = get_services_map(scan_dir, server_name)
+    SERVICE_SCAN_CACHE[cache_key] = services
+    print(f"Extracted {len(services)} services from source code ({'rescan' if force_rescan else 'fresh'})")
+    return services
+
+
+def save_tool_definitions(tools_data, paths: dict, force_rescan: bool = False):
     """Save MCP_TOOLS to both tool_definitions.py and tool_definition_templates.py"""
     try:
         ensure_dirs(paths)
@@ -360,8 +458,8 @@ def get_tool_names() -> List[str]:
         # 2. Save tool_definition_templates.py (with AST-extracted metadata)
         server_name = get_server_name_from_path(paths.get("tool_path", ""))
 
-        # Extract signatures from source code using AST
-        signatures_by_name = {}
+        # Extract signatures from source code using AST (cached)
+        services_by_name = {}
         if server_name:
             module_patterns = [
                 os.path.join(ROOT_DIR, f'mcp_{server_name}'),
@@ -370,8 +468,7 @@ def get_tool_names() -> List[str]:
             scan_dir = next((p for p in module_patterns if os.path.isdir(p)), None)
 
             if scan_dir:
-                signatures_by_name = get_signatures_by_name(scan_dir, server_name)
-                print(f"Extracted {len(signatures_by_name)} signatures from source code")
+                services_by_name = _load_services_for_server(server_name, scan_dir, force_rescan=force_rescan)
 
         # Build template tools
         template_tools = []
@@ -383,14 +480,16 @@ def get_tool_names() -> List[str]:
             # Add signature if available
             if 'mcp_service' in template_tool and isinstance(template_tool['mcp_service'], dict):
                 service_name = template_tool['mcp_service'].get('name')
-                if service_name and service_name in signatures_by_name:
-                    template_tool['mcp_service']['signature'] = signatures_by_name[service_name]
+                if service_name and service_name in services_by_name:
+                    service_info = services_by_name[service_name]
+                    template_tool['mcp_service']['signature'] = service_info.get('signature')
+                    if service_info.get('parameters'):
+                        template_tool['mcp_service']['parameters'] = service_info['parameters']
 
             template_tools.append(template_tool)
 
-        # Write template file
-        template_filename = f'tool_definition_{server_name}_templates.py' if server_name else 'tool_definition_templates.py'
-        template_path = os.path.join(os.path.dirname(__file__), template_filename)
+        # Write template file (use path from config, which includes server folder structure)
+        template_path = paths.get("template_path")
 
         template_content = f'''"""
 MCP Tool Definition Templates - AUTO-GENERATED
@@ -401,10 +500,13 @@ from typing import List, Dict, Any
 MCP_TOOLS: List[Dict[str, Any]] = {json.dumps(template_tools, indent=4, ensure_ascii=False)}
 '''
 
+        # Ensure template directory exists
+        os.makedirs(os.path.dirname(template_path), exist_ok=True)
+
         with open(template_path, 'w', encoding='utf-8') as f:
             f.write(template_content)
 
-        print(f"Saved template to: {template_filename}")
+        print(f"Saved template to: {os.path.relpath(template_path, BASE_DIR)}")
 
         return {"success": True, "backup": backup_filename}
     except Exception as e:
@@ -450,7 +552,8 @@ def get_tools():
     tools = load_tool_definitions(paths)
     if isinstance(tools, dict) and "error" in tools:
         return jsonify(tools), 500
-    return jsonify({"tools": tools, "profile": profile or "_default"})
+    actual_profile = profile or list_profile_names()[0] if list_profile_names() else "default"
+    return jsonify({"tools": tools, "profile": actual_profile})
 
 
 @app.route('/api/tools', methods=['POST'])
@@ -461,7 +564,8 @@ def save_tools():
         profile_conf = get_profile_config(profile)
         paths = resolve_paths(profile_conf)
         tools_data = request.json
-        result = save_tool_definitions(tools_data, paths)
+        force_rescan = str(request.args.get("force_rescan", "")).lower() in ("1", "true", "yes")
+        result = save_tool_definitions(tools_data, paths, force_rescan=force_rescan)
         if "error" in result:
             return jsonify(result), 500
         return jsonify(result)
@@ -492,7 +596,8 @@ def delete_tool(tool_index):
         tools.pop(tool_index)
 
         # Save the updated tools
-        result = save_tool_definitions(tools, paths)
+        force_rescan = str(request.args.get("force_rescan", "")).lower() in ("1", "true", "yes")
+        result = save_tool_definitions(tools, paths, force_rescan=force_rescan)
         if "error" in result:
             return jsonify(result), 500
 
@@ -629,13 +734,20 @@ def get_mcp_services():
         # Determine server name from profile using mappings
         server_name = get_server_name_from_profile(profile)
 
-        # Try server-specific file first
+        # Try server-specific file first from server folder
         mcp_services_path = None
         if server_name:
-            specific_path = os.path.join(os.path.dirname(__file__), f'{server_name}_mcp_services.json')
+            # New path: mcp_editor/{server_name}/{server_name}_mcp_services.json
+            specific_path = os.path.join(os.path.dirname(__file__), server_name, f'{server_name}_mcp_services.json')
             if os.path.exists(specific_path):
                 mcp_services_path = specific_path
-                print(f"Loading services from {server_name}_mcp_services.json")
+                print(f"Loading services from {server_name}/{server_name}_mcp_services.json")
+            else:
+                # Fallback to old location for backward compatibility
+                old_path = os.path.join(os.path.dirname(__file__), f'{server_name}_mcp_services.json')
+                if os.path.exists(old_path):
+                    mcp_services_path = old_path
+                    print(f"Loading services from {server_name}_mcp_services.json (legacy location)")
 
         # Fallback to generic file
         if not mcp_services_path or not os.path.exists(mcp_services_path):
@@ -681,7 +793,7 @@ def get_profiles():
     """List available profiles from editor_config.json"""
     try:
         profiles = list_profile_names()
-        active = request.args.get("profile") or os.environ.get("MCP_EDITOR_MODULE") or "_default"
+        active = request.args.get("profile") or os.environ.get("MCP_EDITOR_MODULE") or (profiles[0] if profiles else "default")
         return jsonify({"profiles": profiles, "active": active})
     except Exception as e:
         return jsonify({"error": str(e), "profiles": []}), 500
@@ -694,7 +806,7 @@ def get_server_generator_defaults():
         profile = request.args.get("profile")
         profile_conf = get_profile_config(profile)
         modules = discover_mcp_modules(profile_conf)
-        fallback = _default_generator_paths(profile_conf)
+        fallback = _default_generator_paths(profile_conf, profile)
 
         return jsonify({
             "modules": modules,
@@ -783,7 +895,8 @@ def apply_basemodel_to_property(tool_index):
         updated_tool = update_tool_with_basemodel_schema(tool, basemodel_name, property_name, graph_type_paths)
 
         # Save the updated tools
-        result = save_tool_definitions(tools, paths)
+        force_rescan = str(request.args.get("force_rescan", "")).lower() in ("1", "true", "yes")
+        result = save_tool_definitions(tools, paths, force_rescan=force_rescan)
         if "error" in result:
             return jsonify(result), 500
 
@@ -799,15 +912,28 @@ def generate_server_from_web():
         profile = request.args.get("profile")
         profile_conf = get_profile_config(profile)
         modules = discover_mcp_modules(profile_conf)
-        defaults = _default_generator_paths(profile_conf)
+        defaults = _default_generator_paths(profile_conf, profile)
 
         data = request.json or {}
         module_name = data.get("module")
         selected_module = next((m for m in modules if m.get("name") == module_name), None)
+        server_name = data.get("server_name") or get_server_name_from_profile(profile)
+        if not server_name and selected_module:
+            server_name = get_server_name_from_path(selected_module.get("mcp_dir", ""))
 
         tools_path = data.get("tools_path") or (selected_module["tools_path"] if selected_module else defaults["tools_path"])
         template_path = data.get("template_path") or (selected_module["template_path"] if selected_module else defaults["template_path"])
         output_path = data.get("output_path") or (selected_module["output_path"] if selected_module else defaults["output_path"])
+
+        if not server_name:
+            for candidate_path in (tools_path, template_path, output_path):
+                if candidate_path:
+                    server_name = get_server_name_from_path(str(candidate_path))
+                    if server_name:
+                        break
+
+        if not template_path:
+            template_path = _get_template_for_server(server_name)
 
         if not tools_path:
             return jsonify({"error": "tools_path is required"}), 400
@@ -838,7 +964,11 @@ def generate_server_from_web():
 
         generator_module = load_generator_module()
         loaded_tools = generator_module.load_tool_definitions(tools_path)
-        generator_module.generate_server(template_path, output_path, loaded_tools)
+        try:
+            generator_module.generate_server(template_path, output_path, loaded_tools, server_name=server_name)
+        except TypeError:
+            # Backwards compatibility with older generator signature
+            generator_module.generate_server(template_path, output_path, loaded_tools)
 
         return jsonify({
             "success": True,
@@ -871,6 +1001,9 @@ def create_new_server():
             return jsonify({"error": f"Server 'mcp_{server_name}' already exists"}), 409
 
         # Import scaffold generator
+        scaffold_path = os.path.join(JINJA_DIR, "scaffold_generator.py")
+        if not os.path.exists(scaffold_path):
+            return jsonify({"error": f"scaffold_generator.py not found at {scaffold_path}"}), 500
         sys.path.insert(0, JINJA_DIR)
         from scaffold_generator import MCPServerScaffold
 
@@ -946,7 +1079,7 @@ def check_server_exists():
 # Serve static files (CSS, JS)
 @app.route('/static/<path:path>')
 def send_static(path):
-    return send_from_directory('static', path)
+    return send_from_directory(os.path.join(BASE_DIR, 'static'), path)
 
 
 if __name__ == '__main__':

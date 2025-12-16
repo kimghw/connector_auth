@@ -11,37 +11,7 @@ from typing import List, Dict, Any
 # MCP Tool Definitions
 MCP_TOOLS: List[Dict[str, Any]] = [
     {
-        "name": "delete_file_metadata",
-        "description": "Delete metadata for a specific file",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "file_url": {
-                    "type": "string"
-                }
-            },
-            "required": [
-                "file_url"
-            ]
-        }
-    },
-    {
-        "name": "get_file_metadata",
-        "description": "Get metadata for a specific file by URL",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "file_url": {
-                    "type": "string"
-                }
-            },
-            "required": [
-                "file_url"
-            ]
-        }
-    },
-    {
-        "name": "convert_file_to_text",
+        "name": "process_file",
         "description": "Process file or URL for text extraction with support for PDF, DOCX, HWP, Excel, Images, and OneDrive URLs",
         "inputSchema": {
             "type": "object",
@@ -71,21 +41,6 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         }
     },
     {
-        "name": "convert_onedrive_to_text",
-        "description": "Convert OneDrive file or folder to text",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "url": {
-                    "type": "string"
-                }
-            },
-            "required": [
-                "url"
-            ]
-        }
-    },
-    {
         "name": "save_file_metadata",
         "description": "Save metadata for a processed file with keywords and additional information",
         "inputSchema": {
@@ -111,7 +66,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         }
     },
     {
-        "name": "search_metadata",
+        "name": "search_file_metadata",
         "description": "Search file metadata by various criteria (keywords, date, file type, etc.)",
         "inputSchema": {
             "type": "object",

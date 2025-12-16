@@ -6,26 +6,14 @@ import asyncio
 import aiohttp
 import sys
 import os
+from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
 from datetime import datetime, timedelta
 import json
 
-# Decorators are optional; provide no-op fallbacks if helper modules are absent
-try:
-    from mcp_outlook.mcp_server.mcp_decorators import mcp_tool
-except ImportError:  # pragma: no cover - decorator is metadata only
-    def mcp_tool(*args, **kwargs):
-        def decorator(func):
-            return func
-        return decorator
-
-try:
-    from mcp_outlook.mcp_service_decorators import mcp_service
-except ImportError:  # pragma: no cover
-    def mcp_service(*args, **kwargs):
-        def decorator(func):
-            return func
-        return decorator
+# Import mcp_service decorator
+sys.path.insert(0, str(Path(__file__).parent.parent / 'mcp_editor'))
+from mcp_service_decorator import mcp_service
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
