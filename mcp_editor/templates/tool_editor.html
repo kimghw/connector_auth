@@ -2520,6 +2520,32 @@
             return candidates[0];
         }
 
+        function removeNestedPropertyInline(index, propName, nestedPropName) {
+            if (confirm(`Remove nested property "${nestedPropName}" from "${propName}"?`)) {
+                const tool = tools[index];
+                const toolName = tool.name;
+
+                // Check if this is an internal property
+                const isInternal = internalArgs[toolName]?.[propName];
+
+                if (isInternal) {
+                    // Remove from internal args nested properties
+                    if (internalArgs[toolName][propName].original_schema?.properties) {
+                        delete internalArgs[toolName][propName].original_schema.properties[nestedPropName];
+                    }
+                } else {
+                    // Remove from regular inputSchema nested properties
+                    if (tool.inputSchema.properties[propName]?.properties) {
+                        delete tool.inputSchema.properties[propName].properties[nestedPropName];
+                    }
+                }
+
+                // Re-render the tool editor
+                renderToolEditor(tool, index);
+                showNotification(`Nested property "${nestedPropName}" removed from "${propName}"`, 'info');
+            }
+        }
+
         function removeProperty(index, propName) {
             if (confirm(`Remove property "${propName}"?`)) {
                 const tool = tools[index];
