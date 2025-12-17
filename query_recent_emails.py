@@ -75,16 +75,14 @@ async def query_recent_emails_excluding_blocked(
 
         # 선택 필드 설정 (필요한 필드만 가져오기)
         select_params: SelectParams = create_select_params(
-            fields=[
-                "id",
-                "subject",
-                "from",
-                "receivedDateTime",
-                "hasAttachments",
-                "importance",
-                "isRead",
-                "bodyPreview"
-            ]
+            id=True,
+            subject=True,
+            from_recipient=True,
+            received_date_time=True,
+            has_attachments=True,
+            importance=True,
+            is_read=True,
+            body_preview=True
         )
 
         # 쿼리 실행
@@ -93,6 +91,7 @@ async def query_recent_emails_excluding_blocked(
         # Graph API filter가 ne 연산자를 제대로 처리하지 못하는 경우가 있으므로
         # client-side filtering 사용
         result = await query.query_filter(
+            user_email=query.user_email,  # user_email 파라미터 추가
             filter=filter_params,
             exclude=None,  # Server-side exclude 사용 안함
             select=select_params,

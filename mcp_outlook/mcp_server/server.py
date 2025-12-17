@@ -292,9 +292,14 @@ async def handle_query_filter(args: Dict[str, Any]) -> Dict[str, Any]:
     exclude_params = None
     if exclude:
         exclude_params = ExcludeParams(**exclude)
+    # select: fields 키가 있거나 리스트면 raw로 전달, 아니면 SelectParams로 변환
     select_params = None
     if select:
-        select_params = SelectParams(**select)
+        if isinstance(select, list) or 'fields' in select:
+            # 하위 호환성: GraphMailQuery가 dict/list 직접 처리
+            select_params = select
+        else:
+            select_params = SelectParams(**select)
 
     try:
         # Use helper to get the correct instance
@@ -328,10 +333,15 @@ async def handle_query_search(args: Dict[str, Any]) -> Dict[str, Any]:
     # Convert dicts to parameter objects where needed
     client_filter_params = None
     if client_filter:
-        client_filter_params = FilterParams(**client_filter)
+        client_filter_params = ExcludeParams(**client_filter)
+    # select: fields 키가 있거나 리스트면 raw로 전달, 아니면 SelectParams로 변환
     select_params = None
     if select:
-        select_params = SelectParams(**select)
+        if isinstance(select, list) or 'fields' in select:
+            # 하위 호환성: GraphMailQuery가 dict/list 직접 처리
+            select_params = select
+        else:
+            select_params = SelectParams(**select)
 
     try:
         # Use helper to get the correct instance

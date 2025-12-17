@@ -327,7 +327,7 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
             analyzed['service_method'] = 'query_search'  # Default mapping for mail_search
 
         analyzed['object_params'] = {
-            'client_filter': {'class_name': 'FilterParams', 'is_optional': True, 'is_dict': True},
+            'client_filter': {'class_name': 'ExcludeParams', 'is_optional': True, 'is_dict': True},
             'select': {'class_name': 'SelectParams', 'is_optional': True, 'is_dict': True},
         }
         analyzed['params'] = {

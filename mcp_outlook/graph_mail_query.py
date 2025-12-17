@@ -166,9 +166,13 @@ class GraphMailQuery:
             exclude_params: ExcludeParams = {
                 'exclude_from_address': 'spam@mail.com'
             }
-            select_params: SelectParams = {
-                'fields': ['id', 'subject', 'from', 'receivedDateTime']
-            }
+            # SelectParams: 각 필드를 True로 지정
+            select_params = SelectParams(
+                id=True,
+                subject=True,
+                from_recipient=True,
+                received_date_time=True
+            )
             client_filter_params: ExcludeParams = {
                 'exclude_subject_keywords': ['newsletter', 'unsubscribe']
             }
@@ -203,8 +207,18 @@ class GraphMailQuery:
         # Combine filter and exclude with AND
         combined_filter = " and ".join(query_parts) if query_parts else None
 
-        # Get select fields
-        select_fields = select.get('fields') if select else None
+        # Get select fields (새 SelectParams 구조에 맞게 처리)
+        select_fields = None
+        if select:
+            if isinstance(select, SelectParams):
+                select_fields = select.get_selected_fields()
+            elif isinstance(select, dict):
+                # Dict인 경우 build_select_query 사용
+                select_query = build_select_query(select)
+                select_fields = select_query.split(',') if select_query else None
+            elif isinstance(select, list):
+                # 리스트 형태는 그대로 사용 (이미 필드명이 들어 있다고 가정)
+                select_fields = select
 
         # Build final URL
         base_url = self._build_query_url(
@@ -334,9 +348,13 @@ class GraphMailQuery:
 
         Example:
             search_term = "from:ceo@company.com OR subject:urgent"
-            select_params: SelectParams = {
-                'fields': ['id', 'subject', 'from', 'receivedDateTime']
-            }
+            # SelectParams: 각 필드를 True로 지정
+            select_params = SelectParams(
+                id=True,
+                subject=True,
+                from_recipient=True,
+                received_date_time=True
+            )
             client_filter_params: ExcludeParams = {
                 'exclude_subject_keywords': ['newsletter', 'spam']
             }
@@ -357,8 +375,18 @@ class GraphMailQuery:
         if not access_token:
             raise Exception(f"Failed to get access token for {user_email}")
 
-        # Get select fields
-        select_fields = select.get('fields') if select else None
+        # Get select fields (새 SelectParams 구조에 맞게 처리)
+        select_fields = None
+        if select:
+            if isinstance(select, SelectParams):
+                select_fields = select.get_selected_fields()
+            elif isinstance(select, dict):
+                # Dict인 경우 build_select_query 사용
+                select_query_str = build_select_query(select)
+                select_fields = select_query_str.split(',') if select_query_str else None
+            elif isinstance(select, list):
+                # 리스트 형태는 그대로 사용 (이미 필드명이 들어 있다고 가정)
+                select_fields = select
 
         # Build search URL
         base_url = f"https://graph.microsoft.com/v1.0/users/{user_email}/messages"
@@ -366,11 +394,9 @@ class GraphMailQuery:
         # Add search parameter (따옴표로 감싸서 전체 구문 검색)
         base_url += f'?$search="{search}"'
 
-        # Add select fields if provided
+        # Add select fields if provided (이미 get_selected_fields()로 변환된 리스트)
         if select_fields:
-            select_query = build_select_query({'fields': select_fields})
-            if select_query:
-                base_url += f"&{select_query}"
+            base_url += f"&$select={','.join(select_fields)}"
 
         # Add orderby if provided
         if orderby:

@@ -271,57 +271,146 @@ class ExcludeParams(BaseModel):
 
 
 class SelectParams(BaseModel):
-    """메일 조회 시 선택할 필드"""
+    """메일 조회 시 선택할 필드 ($select 파라미터)"""
 
     model_config = ConfigDict(extra='ignore')
 
-    fields: Optional[List[Literal[
-        # 기본 정보
-        "id",
-        "createdDateTime",
-        "lastModifiedDateTime",
-        "changeKey",
-
-        # 카테고리
-        "categories",
-
-        # 날짜/시간
-        "receivedDateTime",
-        "sentDateTime",
-
-        # 메일 속성
-        "hasAttachments",
-        "internetMessageId",
-        "subject",
-        "bodyPreview",
-        "importance",
-        "parentFolderId",
-        "conversationId",
-        "conversationIndex",
-
-        # 상태
-        "isDeliveryReceiptRequested",
-        "isReadReceiptRequested",
-        "isRead",
-        "isDraft",
-
-        # 링크 및 분류
-        "webLink",
-        "inferenceClassification",
-
-        # 복합 객체
-        "body",
-        "sender",
-        "from",
-        "toRecipients",
-        "ccRecipients",
-        "bccRecipients",
-        "replyTo",
-        "flag"
-    ]]] = Field(
+    # 기본 정보
+    id: Optional[bool] = Field(
         None,
-        description="조회할 필드 목록 (미지정 시 모든 필드 반환)",
-        examples=[["id", "subject", "from", "receivedDateTime", "hasAttachments"]]
+        description="메시지 고유 식별자 (읽기 전용)"
+    )
+    created_date_time: Optional[bool] = Field(
+        None,
+        description="메시지 생성 날짜/시간 (ISO 8601 형식, UTC)"
+    )
+    last_modified_date_time: Optional[bool] = Field(
+        None,
+        description="메시지 최종 수정 날짜/시간 (ISO 8601 형식, UTC)"
+    )
+    change_key: Optional[bool] = Field(
+        None,
+        description="메시지 버전 키"
+    )
+
+    # 카테고리
+    categories: Optional[bool] = Field(
+        None,
+        description="메시지에 연결된 카테고리 목록"
+    )
+
+    # 날짜/시간
+    received_date_time: Optional[bool] = Field(
+        None,
+        description="메시지 수신 날짜/시간 (ISO 8601 형식, UTC)"
+    )
+    sent_date_time: Optional[bool] = Field(
+        None,
+        description="메시지 발신 날짜/시간 (ISO 8601 형식, UTC)"
+    )
+
+    # 메일 속성
+    has_attachments: Optional[bool] = Field(
+        None,
+        description="첨부파일 포함 여부"
+    )
+    internet_message_id: Optional[bool] = Field(
+        None,
+        description="RFC2822 형식의 메시지 ID"
+    )
+    subject: Optional[bool] = Field(
+        None,
+        description="메시지 제목"
+    )
+    body_preview: Optional[bool] = Field(
+        None,
+        description="메시지 본문의 처음 255자 (텍스트 형식)"
+    )
+    importance: Optional[bool] = Field(
+        None,
+        description="메시지 중요도 (low, normal, high)"
+    )
+    parent_folder_id: Optional[bool] = Field(
+        None,
+        description="부모 메일 폴더의 고유 식별자"
+    )
+    conversation_id: Optional[bool] = Field(
+        None,
+        description="이메일이 속한 대화의 ID"
+    )
+    conversation_index: Optional[bool] = Field(
+        None,
+        description="대화 내 메시지 위치를 나타내는 인덱스"
+    )
+
+    # 상태
+    is_delivery_receipt_requested: Optional[bool] = Field(
+        None,
+        description="배달 확인 요청 여부"
+    )
+    is_read_receipt_requested: Optional[bool] = Field(
+        None,
+        description="읽음 확인 요청 여부"
+    )
+    is_read: Optional[bool] = Field(
+        None,
+        description="메시지 읽음 상태"
+    )
+    is_draft: Optional[bool] = Field(
+        None,
+        description="메시지가 임시 저장 상태인지 여부"
+    )
+
+    # 링크 및 분류
+    web_link: Optional[bool] = Field(
+        None,
+        description="Outlook Web에서 메시지를 열기 위한 URL"
+    )
+    inference_classification: Optional[bool] = Field(
+        None,
+        description="메시지 분류 (focused 또는 other)"
+    )
+
+    # 복합 객체
+    body: Optional[bool] = Field(
+        None,
+        description="메시지 본문 (HTML 또는 텍스트 형식)"
+    )
+    sender: Optional[bool] = Field(
+        None,
+        description="메시지를 생성하는 데 사용된 계정"
+    )
+    from_recipient: Optional[bool] = Field(
+        None,
+        description="메시지가 전송된 사서함의 소유자 (from 필드)"
+    )
+    to_recipients: Optional[bool] = Field(
+        None,
+        description="받는 사람 (To:) 목록"
+    )
+    cc_recipients: Optional[bool] = Field(
+        None,
+        description="참조 (Cc:) 수신자 목록"
+    )
+    bcc_recipients: Optional[bool] = Field(
+        None,
+        description="숨은 참조 (Bcc:) 수신자 목록"
+    )
+    reply_to: Optional[bool] = Field(
+        None,
+        description="회신 시 사용할 이메일 주소 목록"
+    )
+    flag: Optional[bool] = Field(
+        None,
+        description="메시지의 플래그 상태, 시작 날짜, 기한, 완료 날짜"
+    )
+    unique_body: Optional[bool] = Field(
+        None,
+        description="현재 메시지에 고유한 본문 부분"
+    )
+    internet_message_headers: Optional[bool] = Field(
+        None,
+        description="RFC5322에 정의된 메시지 헤더 컬렉션 (읽기 전용)"
     )
 
     # TypedDict 호환성을 위한 메서드
@@ -332,6 +421,48 @@ class SelectParams(BaseModel):
     def __getitem__(self, key: str) -> Any:
         """dict['key'] 스타일 접근을 위한 메서드"""
         return getattr(self, key)
+
+    def get_selected_fields(self) -> List[str]:
+        """True로 설정된 필드들의 Graph API 필드명 목록 반환"""
+        field_mapping = {
+            'id': 'id',
+            'created_date_time': 'createdDateTime',
+            'last_modified_date_time': 'lastModifiedDateTime',
+            'change_key': 'changeKey',
+            'categories': 'categories',
+            'received_date_time': 'receivedDateTime',
+            'sent_date_time': 'sentDateTime',
+            'has_attachments': 'hasAttachments',
+            'internet_message_id': 'internetMessageId',
+            'subject': 'subject',
+            'body_preview': 'bodyPreview',
+            'importance': 'importance',
+            'parent_folder_id': 'parentFolderId',
+            'conversation_id': 'conversationId',
+            'conversation_index': 'conversationIndex',
+            'is_delivery_receipt_requested': 'isDeliveryReceiptRequested',
+            'is_read_receipt_requested': 'isReadReceiptRequested',
+            'is_read': 'isRead',
+            'is_draft': 'isDraft',
+            'web_link': 'webLink',
+            'inference_classification': 'inferenceClassification',
+            'body': 'body',
+            'sender': 'sender',
+            'from_recipient': 'from',
+            'to_recipients': 'toRecipients',
+            'cc_recipients': 'ccRecipients',
+            'bcc_recipients': 'bccRecipients',
+            'reply_to': 'replyTo',
+            'flag': 'flag',
+            'unique_body': 'uniqueBody',
+            'internet_message_headers': 'internetMessageHeaders',
+        }
+
+        selected = []
+        for python_field, api_field in field_mapping.items():
+            if getattr(self, python_field, None) is True:
+                selected.append(api_field)
+        return selected
 
 
 class MailQueryParams(BaseModel):
@@ -389,11 +520,20 @@ def create_exclude_params(**kwargs) -> ExcludeParams:
     return ExcludeParams(**kwargs)
 
 
-def create_select_params(fields: Optional[List[str]] = None) -> SelectParams:
-    """SelectParams 객체를 생성하는 헬퍼 함수"""
-    if fields:
-        return SelectParams(fields=fields)
-    return SelectParams()
+def create_select_params(**kwargs) -> SelectParams:
+    """SelectParams 객체를 생성하는 헬퍼 함수
+
+    Examples:
+        # 특정 필드만 선택
+        select = create_select_params(
+            id=True,
+            subject=True,
+            from_recipient=True,
+            received_date_time=True,
+            has_attachments=True
+        )
+    """
+    return SelectParams(**kwargs)
 
 
 # 헬퍼 함수들 - 쿼리 빌드
@@ -606,17 +746,107 @@ def build_exclude_query(params: Union[ExcludeParams, Dict]) -> str:
     return " and ".join(excludes)
 
 
-def build_select_query(params: Union[SelectParams, Dict]) -> str:
-    """SelectParams를 Graph API $select 쿼리 문자열로 변환"""
-    # Pydantic 모델이면 dict로 변환
-    if isinstance(params, SelectParams):
-        params_dict = params.model_dump(exclude_none=True)
-    else:
-        params_dict = params
+def build_select_query(params: Union[SelectParams, Dict, List[str]]) -> str:
+    """SelectParams를 Graph API $select 쿼리 문자열로 변환
 
-    if params_dict.get('fields'):
-        return ",".join(params_dict['fields'])
-    return ""
+    Args:
+        params: SelectParams 객체, bool 플래그가 있는 dict, 또는 필드명 리스트
+
+    Returns:
+        $select 쿼리 문자열 (예: "id,subject,from,receivedDateTime")
+
+    Examples:
+        # SelectParams 객체
+        build_select_query(SelectParams(id=True, subject=True))
+
+        # Bool 플래그 dict - snake_case (권장)
+        build_select_query({'id': True, 'subject': True, 'received_date_time': True})
+
+        # Bool 플래그 dict - camelCase (Graph API 스타일)
+        build_select_query({'id': True, 'subject': True, 'receivedDateTime': True})
+
+        # 필드 리스트 (하위 호환성)
+        build_select_query({'fields': ['id', 'subject']})
+        build_select_query(['id', 'subject'])
+    """
+    # Pydantic 모델이면 get_selected_fields 사용
+    if isinstance(params, SelectParams):
+        selected_fields = params.get_selected_fields()
+        return ",".join(selected_fields) if selected_fields else ""
+
+    # 리스트인 경우 직접 반환
+    if isinstance(params, list):
+        return ",".join(params) if params else ""
+
+    # Dict인 경우 필드 매핑 적용
+    # snake_case -> camelCase 매핑
+    field_mapping = {
+        'id': 'id',
+        'created_date_time': 'createdDateTime',
+        'last_modified_date_time': 'lastModifiedDateTime',
+        'change_key': 'changeKey',
+        'categories': 'categories',
+        'received_date_time': 'receivedDateTime',
+        'sent_date_time': 'sentDateTime',
+        'has_attachments': 'hasAttachments',
+        'internet_message_id': 'internetMessageId',
+        'subject': 'subject',
+        'body_preview': 'bodyPreview',
+        'importance': 'importance',
+        'parent_folder_id': 'parentFolderId',
+        'conversation_id': 'conversationId',
+        'conversation_index': 'conversationIndex',
+        'is_delivery_receipt_requested': 'isDeliveryReceiptRequested',
+        'is_read_receipt_requested': 'isReadReceiptRequested',
+        'is_read': 'isRead',
+        'is_draft': 'isDraft',
+        'web_link': 'webLink',
+        'inference_classification': 'inferenceClassification',
+        'body': 'body',
+        'sender': 'sender',
+        'from_recipient': 'from',
+        'to_recipients': 'toRecipients',
+        'cc_recipients': 'ccRecipients',
+        'bcc_recipients': 'bccRecipients',
+        'reply_to': 'replyTo',
+        'flag': 'flag',
+        'unique_body': 'uniqueBody',
+        'internet_message_headers': 'internetMessageHeaders',
+    }
+
+    # camelCase -> snake_case 역매핑 (camelCase 입력 지원용)
+    camel_to_snake = {v: k for k, v in field_mapping.items()}
+    # 'from'은 특수 케이스 (from_recipient과 매핑)
+    camel_to_snake['from'] = 'from_recipient'
+
+    # 하위 호환성: {'fields': [...]} 형태 지원
+    if 'fields' in params and isinstance(params.get('fields'), list):
+        fields_list = params['fields']
+        # Python 필드명을 API 필드명으로 변환 (필요시)
+        converted = []
+        for field in fields_list:
+            if field in field_mapping:
+                converted.append(field_mapping[field])
+            else:
+                # 이미 API 필드명이거나 알 수 없는 필드는 그대로 사용
+                converted.append(field)
+        return ",".join(converted) if converted else ""
+
+    selected = []
+    # snake_case 키 처리
+    for python_field, api_field in field_mapping.items():
+        if params.get(python_field) is True:
+            selected.append(api_field)
+
+    # camelCase 키 처리 (Graph API 스타일 입력 지원)
+    for camel_key, snake_key in camel_to_snake.items():
+        # 이미 snake_case로 처리되지 않은 경우만
+        if camel_key not in field_mapping and params.get(camel_key) is True:
+            # camelCase 키는 그대로 API 필드명
+            if camel_key not in selected:
+                selected.append(camel_key)
+
+    return ",".join(selected) if selected else ""
 
 
 def build_complete_query(query_params: Union[MailQueryParams, Dict]) -> str:
@@ -709,10 +939,15 @@ if __name__ == "__main__":
         exclude_subject_keywords=["newsletter", "광고", "홍보"]
     )
 
-    # 선택 필드 설정
+    # 선택 필드 설정 (각 필드를 True로 지정)
     select_params = SelectParams(
-        fields=["id", "subject", "from", "receivedDateTime", "hasAttachments"]
+        id=True,
+        subject=True,
+        from_recipient=True,
+        received_date_time=True,
+        has_attachments=True
     )
+    print(f"\n선택된 필드: {select_params.get_selected_fields()}")
 
     # 전체 쿼리 파라미터
     query = MailQueryParams(

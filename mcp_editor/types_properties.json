@@ -10,7 +10,7 @@
     },
     {
       "name": "SelectParams",
-      "property_count": 1
+      "property_count": 31
     }
   ],
   "properties_by_class": {
@@ -428,18 +428,250 @@
     ],
     "SelectParams": [
       {
-        "name": "fields",
-        "type": "string",
-        "description": "조회할 필드 목록 (미지정 시 모든 필드 반환)",
-        "examples": [
-          [
-            "id",
-            "subject",
-            "from",
-            "receivedDateTime",
-            "hasAttachments"
-          ]
-        ],
+        "name": "id",
+        "type": "boolean",
+        "description": "메시지 고유 식별자 (읽기 전용)",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "created_date_time",
+        "type": "boolean",
+        "description": "메시지 생성 날짜/시간 (ISO 8601 형식, UTC)",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "last_modified_date_time",
+        "type": "boolean",
+        "description": "메시지 최종 수정 날짜/시간 (ISO 8601 형식, UTC)",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "change_key",
+        "type": "boolean",
+        "description": "메시지 버전 키",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "categories",
+        "type": "boolean",
+        "description": "메시지에 연결된 카테고리 목록",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "received_date_time",
+        "type": "boolean",
+        "description": "메시지 수신 날짜/시간 (ISO 8601 형식, UTC)",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "sent_date_time",
+        "type": "boolean",
+        "description": "메시지 발신 날짜/시간 (ISO 8601 형식, UTC)",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "has_attachments",
+        "type": "boolean",
+        "description": "첨부파일 포함 여부",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "internet_message_id",
+        "type": "boolean",
+        "description": "RFC2822 형식의 메시지 ID",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "subject",
+        "type": "boolean",
+        "description": "메시지 제목",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "body_preview",
+        "type": "boolean",
+        "description": "메시지 본문의 처음 255자 (텍스트 형식)",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "importance",
+        "type": "boolean",
+        "description": "메시지 중요도 (low, normal, high)",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "parent_folder_id",
+        "type": "boolean",
+        "description": "부모 메일 폴더의 고유 식별자",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "conversation_id",
+        "type": "boolean",
+        "description": "이메일이 속한 대화의 ID",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "conversation_index",
+        "type": "boolean",
+        "description": "대화 내 메시지 위치를 나타내는 인덱스",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "is_delivery_receipt_requested",
+        "type": "boolean",
+        "description": "배달 확인 요청 여부",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "is_read_receipt_requested",
+        "type": "boolean",
+        "description": "읽음 확인 요청 여부",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "is_read",
+        "type": "boolean",
+        "description": "메시지 읽음 상태",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "is_draft",
+        "type": "boolean",
+        "description": "메시지가 임시 저장 상태인지 여부",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "web_link",
+        "type": "boolean",
+        "description": "Outlook Web에서 메시지를 열기 위한 URL",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "inference_classification",
+        "type": "boolean",
+        "description": "메시지 분류 (focused 또는 other)",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "body",
+        "type": "boolean",
+        "description": "메시지 본문 (HTML 또는 텍스트 형식)",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "sender",
+        "type": "boolean",
+        "description": "메시지를 생성하는 데 사용된 계정",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "from_recipient",
+        "type": "boolean",
+        "description": "메시지가 전송된 사서함의 소유자 (from 필드)",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "to_recipients",
+        "type": "boolean",
+        "description": "받는 사람 (To:) 목록",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "cc_recipients",
+        "type": "boolean",
+        "description": "참조 (Cc:) 수신자 목록",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "bcc_recipients",
+        "type": "boolean",
+        "description": "숨은 참조 (Bcc:) 수신자 목록",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "reply_to",
+        "type": "boolean",
+        "description": "회신 시 사용할 이메일 주소 목록",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "flag",
+        "type": "boolean",
+        "description": "메시지의 플래그 상태, 시작 날짜, 기한, 완료 날짜",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "unique_body",
+        "type": "boolean",
+        "description": "현재 메시지에 고유한 본문 부분",
+        "examples": [],
+        "default": null,
+        "class": "SelectParams"
+      },
+      {
+        "name": "internet_message_headers",
+        "type": "boolean",
+        "description": "RFC5322에 정의된 메시지 헤더 컬렉션 (읽기 전용)",
+        "examples": [],
         "default": null,
         "class": "SelectParams"
       }
@@ -855,20 +1087,252 @@
       "examples": []
     },
     {
-      "name": "fields",
-      "type": "string",
-      "description": "조회할 필드 목록 (미지정 시 모든 필드 반환)",
+      "name": "id",
+      "type": "boolean",
+      "description": "메시지 고유 식별자 (읽기 전용)",
       "class": "SelectParams",
-      "full_path": "SelectParams.fields",
-      "examples": [
-        [
-          "id",
-          "subject",
-          "from",
-          "receivedDateTime",
-          "hasAttachments"
-        ]
-      ]
+      "full_path": "SelectParams.id",
+      "examples": []
+    },
+    {
+      "name": "created_date_time",
+      "type": "boolean",
+      "description": "메시지 생성 날짜/시간 (ISO 8601 형식, UTC)",
+      "class": "SelectParams",
+      "full_path": "SelectParams.created_date_time",
+      "examples": []
+    },
+    {
+      "name": "last_modified_date_time",
+      "type": "boolean",
+      "description": "메시지 최종 수정 날짜/시간 (ISO 8601 형식, UTC)",
+      "class": "SelectParams",
+      "full_path": "SelectParams.last_modified_date_time",
+      "examples": []
+    },
+    {
+      "name": "change_key",
+      "type": "boolean",
+      "description": "메시지 버전 키",
+      "class": "SelectParams",
+      "full_path": "SelectParams.change_key",
+      "examples": []
+    },
+    {
+      "name": "categories",
+      "type": "boolean",
+      "description": "메시지에 연결된 카테고리 목록",
+      "class": "SelectParams",
+      "full_path": "SelectParams.categories",
+      "examples": []
+    },
+    {
+      "name": "received_date_time",
+      "type": "boolean",
+      "description": "메시지 수신 날짜/시간 (ISO 8601 형식, UTC)",
+      "class": "SelectParams",
+      "full_path": "SelectParams.received_date_time",
+      "examples": []
+    },
+    {
+      "name": "sent_date_time",
+      "type": "boolean",
+      "description": "메시지 발신 날짜/시간 (ISO 8601 형식, UTC)",
+      "class": "SelectParams",
+      "full_path": "SelectParams.sent_date_time",
+      "examples": []
+    },
+    {
+      "name": "has_attachments",
+      "type": "boolean",
+      "description": "첨부파일 포함 여부",
+      "class": "SelectParams",
+      "full_path": "SelectParams.has_attachments",
+      "examples": []
+    },
+    {
+      "name": "internet_message_id",
+      "type": "boolean",
+      "description": "RFC2822 형식의 메시지 ID",
+      "class": "SelectParams",
+      "full_path": "SelectParams.internet_message_id",
+      "examples": []
+    },
+    {
+      "name": "subject",
+      "type": "boolean",
+      "description": "메시지 제목",
+      "class": "SelectParams",
+      "full_path": "SelectParams.subject",
+      "examples": []
+    },
+    {
+      "name": "body_preview",
+      "type": "boolean",
+      "description": "메시지 본문의 처음 255자 (텍스트 형식)",
+      "class": "SelectParams",
+      "full_path": "SelectParams.body_preview",
+      "examples": []
+    },
+    {
+      "name": "importance",
+      "type": "boolean",
+      "description": "메시지 중요도 (low, normal, high)",
+      "class": "SelectParams",
+      "full_path": "SelectParams.importance",
+      "examples": []
+    },
+    {
+      "name": "parent_folder_id",
+      "type": "boolean",
+      "description": "부모 메일 폴더의 고유 식별자",
+      "class": "SelectParams",
+      "full_path": "SelectParams.parent_folder_id",
+      "examples": []
+    },
+    {
+      "name": "conversation_id",
+      "type": "boolean",
+      "description": "이메일이 속한 대화의 ID",
+      "class": "SelectParams",
+      "full_path": "SelectParams.conversation_id",
+      "examples": []
+    },
+    {
+      "name": "conversation_index",
+      "type": "boolean",
+      "description": "대화 내 메시지 위치를 나타내는 인덱스",
+      "class": "SelectParams",
+      "full_path": "SelectParams.conversation_index",
+      "examples": []
+    },
+    {
+      "name": "is_delivery_receipt_requested",
+      "type": "boolean",
+      "description": "배달 확인 요청 여부",
+      "class": "SelectParams",
+      "full_path": "SelectParams.is_delivery_receipt_requested",
+      "examples": []
+    },
+    {
+      "name": "is_read_receipt_requested",
+      "type": "boolean",
+      "description": "읽음 확인 요청 여부",
+      "class": "SelectParams",
+      "full_path": "SelectParams.is_read_receipt_requested",
+      "examples": []
+    },
+    {
+      "name": "is_read",
+      "type": "boolean",
+      "description": "메시지 읽음 상태",
+      "class": "SelectParams",
+      "full_path": "SelectParams.is_read",
+      "examples": []
+    },
+    {
+      "name": "is_draft",
+      "type": "boolean",
+      "description": "메시지가 임시 저장 상태인지 여부",
+      "class": "SelectParams",
+      "full_path": "SelectParams.is_draft",
+      "examples": []
+    },
+    {
+      "name": "web_link",
+      "type": "boolean",
+      "description": "Outlook Web에서 메시지를 열기 위한 URL",
+      "class": "SelectParams",
+      "full_path": "SelectParams.web_link",
+      "examples": []
+    },
+    {
+      "name": "inference_classification",
+      "type": "boolean",
+      "description": "메시지 분류 (focused 또는 other)",
+      "class": "SelectParams",
+      "full_path": "SelectParams.inference_classification",
+      "examples": []
+    },
+    {
+      "name": "body",
+      "type": "boolean",
+      "description": "메시지 본문 (HTML 또는 텍스트 형식)",
+      "class": "SelectParams",
+      "full_path": "SelectParams.body",
+      "examples": []
+    },
+    {
+      "name": "sender",
+      "type": "boolean",
+      "description": "메시지를 생성하는 데 사용된 계정",
+      "class": "SelectParams",
+      "full_path": "SelectParams.sender",
+      "examples": []
+    },
+    {
+      "name": "from_recipient",
+      "type": "boolean",
+      "description": "메시지가 전송된 사서함의 소유자 (from 필드)",
+      "class": "SelectParams",
+      "full_path": "SelectParams.from_recipient",
+      "examples": []
+    },
+    {
+      "name": "to_recipients",
+      "type": "boolean",
+      "description": "받는 사람 (To:) 목록",
+      "class": "SelectParams",
+      "full_path": "SelectParams.to_recipients",
+      "examples": []
+    },
+    {
+      "name": "cc_recipients",
+      "type": "boolean",
+      "description": "참조 (Cc:) 수신자 목록",
+      "class": "SelectParams",
+      "full_path": "SelectParams.cc_recipients",
+      "examples": []
+    },
+    {
+      "name": "bcc_recipients",
+      "type": "boolean",
+      "description": "숨은 참조 (Bcc:) 수신자 목록",
+      "class": "SelectParams",
+      "full_path": "SelectParams.bcc_recipients",
+      "examples": []
+    },
+    {
+      "name": "reply_to",
+      "type": "boolean",
+      "description": "회신 시 사용할 이메일 주소 목록",
+      "class": "SelectParams",
+      "full_path": "SelectParams.reply_to",
+      "examples": []
+    },
+    {
+      "name": "flag",
+      "type": "boolean",
+      "description": "메시지의 플래그 상태, 시작 날짜, 기한, 완료 날짜",
+      "class": "SelectParams",
+      "full_path": "SelectParams.flag",
+      "examples": []
+    },
+    {
+      "name": "unique_body",
+      "type": "boolean",
+      "description": "현재 메시지에 고유한 본문 부분",
+      "class": "SelectParams",
+      "full_path": "SelectParams.unique_body",
+      "examples": []
+    },
+    {
+      "name": "internet_message_headers",
+      "type": "boolean",
+      "description": "RFC5322에 정의된 메시지 헤더 컬렉션 (읽기 전용)",
+      "class": "SelectParams",
+      "full_path": "SelectParams.internet_message_headers",
+      "examples": []
     }
   ]
 }
