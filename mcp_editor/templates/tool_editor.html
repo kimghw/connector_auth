@@ -479,6 +479,10 @@
             transition: all 0.2s;
             font-weight: 500;
             font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
 
         .add-button:hover {
@@ -622,8 +626,24 @@
                 </button>
             </div>
         </div>
-        <div id="profileTabs" style="display: flex; gap: 8px; padding: 10px 20px; background: #f7f7f7; border-bottom: 1px solid #e5e5e5;">
+        <div id="profileTabs" style="display: flex; justify-content: flex-start; gap: 8px; padding: 10px 20px; background: #f7f7f7; border-bottom: 1px solid #e5e5e5;">
             <!-- Profile tabs will be rendered here -->
+        </div>
+        <div id="templateSelector" style="display: flex; gap: 12px; align-items: center; padding: 8px 20px; background: #fff9e6; border-bottom: 1px solid #e5e5e5;">
+            <label style="font-size: 13px; font-weight: 500; color: #666; white-space: nowrap;">
+                <span class="material-icons" style="font-size: 16px; vertical-align: middle;">description</span>
+                Load Template:
+            </label>
+            <select id="templateSource" class="form-control" style="flex: 1; max-width: 400px; padding: 6px 12px; font-size: 13px;">
+                <option value="">-- Current Template --</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" onclick="loadFromSelectedTemplate()" title="Load tools from selected template">
+                <span class="material-icons" style="font-size: 14px;">file_download</span> Load
+            </button>
+            <span id="templateLoadStatus" style="font-size: 12px; color: #666;"></span>
+            <span style="font-size: 11px; color: #999; margin-left: auto;">
+                * Save will update: <strong id="saveTargetLabel">current profile</strong>
+            </span>
         </div>
 
         <div class="main-content">
@@ -790,21 +810,134 @@
         let profiles = [];
         let generatorModules = [];
         let generatorFallback = {};
+        let templateSources = [];  // Available template files (current, backups, other profiles)
+        let originalProfile = '';  // The profile that tools were originally loaded from (for saving)
 
         // Load tools on page load
         window.onload = function() {
             console.log('[DEBUG] window.onload triggered');
             console.log('[DEBUG] Calling loadProfiles()...');
             loadProfiles();
-            console.log('[DEBUG] Calling loadMcpServices()...');
-            loadMcpServices();
             console.log('[DEBUG] Calling loadGraphTypesProperties()...');
             loadGraphTypesProperties();
             console.log('[DEBUG] window.onload completed');
         };
 
+        function loadTemplateSources() {
+            // Load available template files (current, backups, other profiles)
+            const profileQuery = profileParam();
+            fetch(`/api/template-sources${profileQuery}`)
+                .then(response => response.json())
+                .then(data => {
+                    templateSources = data.sources || [];
+                    renderTemplateSourceSelector();
+                })
+                .catch(error => {
+                    console.error('Error loading template sources:', error);
+                    templateSources = [];
+                    renderTemplateSourceSelector();
+                });
+        }
+
+        function renderTemplateSourceSelector() {
+            const select = document.getElementById('templateSource');
+            if (!select) return;
+
+            select.innerHTML = '<option value="">-- Current Template --</option>';
+            templateSources.forEach(source => {
+                if (source.type === 'current') return; // Skip current, it's the default
+
+                const opt = document.createElement('option');
+                opt.value = source.path;
+                // Format: "backup_20241217.py (5 tools)" or "outlook template (3 tools)"
+                const dateStr = source.modified ? new Date(source.modified).toLocaleString() : '';
+                let label = source.name;
+                if (source.type === 'backup') {
+                    label = `📦 ${source.name}`;
+                } else if (source.type === 'other_profile') {
+                    label = `📁 ${source.name}`;
+                }
+                opt.textContent = `${label} (${source.count} tools)`;
+                opt.title = dateStr ? `Modified: ${dateStr}` : '';
+                select.appendChild(opt);
+            });
+
+            // Update save target label
+            const saveLabel = document.getElementById('saveTargetLabel');
+            if (saveLabel) {
+                saveLabel.textContent = originalProfile || 'default';
+            }
+        }
+
+        function loadFromSelectedTemplate() {
+            const select = document.getElementById('templateSource');
+            const statusEl = document.getElementById('templateLoadStatus');
+            const sourcePath = select ? select.value : '';
+
+            if (!sourcePath) {
+                // Load from current template (default behavior)
+                loadTools();
+                return;
+            }
+
+            if (statusEl) {
+                statusEl.textContent = 'Loading...';
+                statusEl.style.color = '#666';
+            }
+
+            fetch('/api/template-sources/load', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: sourcePath })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    tools = data.tools;
+                    currentToolIndex = -1;
+                    renderToolList();
+
+                    if (statusEl) {
+                        statusEl.textContent = `✓ Loaded ${data.count} tools`;
+                        statusEl.style.color = '#34c759';
+                        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+                    }
+
+                    showNotification(`Loaded ${data.count} tools from template. Save will update "${originalProfile || 'default'}"`, 'success');
+
+                    // Clear editor
+                    const editorContent = document.getElementById('editorContent');
+                    if (editorContent) {
+                        editorContent.innerHTML = `
+                            <div style="text-align: center; padding: 50px; color: var(--text-secondary);">
+                                <p>Loaded ${data.count} tools from: ${sourcePath.split('/').pop()}</p>
+                                <p style="font-size: 12px; margin-top: 10px;">Select a tool from the left sidebar to edit</p>
+                            </div>
+                        `;
+                    }
+                } else {
+                    if (statusEl) {
+                        statusEl.textContent = '✗ Failed';
+                        statusEl.style.color = '#ff3b30';
+                    }
+                    showNotification(`Error: ${data.error}`, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading template:', error);
+                if (statusEl) {
+                    statusEl.textContent = '✗ Failed';
+                    statusEl.style.color = '#ff3b30';
+                }
+                showNotification('Failed to load template', 'error');
+            });
+        }
+
         function loadMcpServices() {
-            fetch('/api/mcp-services')
+            // Load MCP services for current profile
+            const profileQuery = originalProfile ? `?profile=${encodeURIComponent(originalProfile)}` : '';
+
+            fetch(`/api/mcp-services${profileQuery}`)
                 .then(response => response.json())
                 .then(data => {
                     window.mcpServiceDetails = data.services_with_signatures || [];
@@ -815,8 +948,9 @@
                     } else {
                         window.mcpServices = data.services || [];
                     }
-                    console.log('MCP Services loaded:', window.mcpServices);
+                    console.log('MCP Services loaded:', window.mcpServices, 'from profile:', originalProfile || 'default');
                     console.log('MCP Service details loaded:', window.mcpServiceDetails);
+
                     if (currentToolIndex >= 0) {
                         renderToolEditor(tools[currentToolIndex], currentToolIndex);
                     }
@@ -852,16 +986,22 @@
                 });
         }
 
-        // Load graph types properties and MCP services on page load
+        // Load graph types properties for current profile
         function loadGraphTypesProperties() {
-            fetch('/api/graph-types-properties')
+            const profileQuery = originalProfile ? `?profile=${encodeURIComponent(originalProfile)}` : '';
+            fetch(`/api/graph-types-properties${profileQuery}`)
                 .then(response => response.json())
                 .then(data => {
                     window.graphTypesProperties = data;
-                    console.log('Loaded graph types properties:', data);
+                    window.hasTypesFile = data.has_types || false;
+                    window.typesName = data.types_name || 'types';
+                    console.log('Loaded graph types properties:', data, 'hasTypes:', window.hasTypesFile, 'typesName:', window.typesName);
                 })
                 .catch(error => {
                     console.error('Error loading graph types properties:', error);
+                    window.graphTypesProperties = null;
+                    window.hasTypesFile = false;
+                    window.typesName = 'types';
                 });
         }
 
@@ -871,17 +1011,23 @@
                 .then(data => {
                     profiles = data.profiles || [];
                     currentProfile = data.active || (profiles[0] || '');
+                    originalProfile = currentProfile;  // Store original profile for saving
                     renderProfileTabs();
                     loadTools();
                     loadGeneratorDefaults();
+                    loadTemplateSources();  // Load available template sources
+                    loadMcpServices();  // Load MCP services for current profile
                 })
                 .catch(error => {
                     console.error('Error loading profiles:', error);
                     profiles = [];
                     currentProfile = '';
+                    originalProfile = '';
                     renderProfileTabs();
                     loadTools();
                     loadGeneratorDefaults();
+                    loadTemplateSources();
+                    loadMcpServices();
                 });
         }
 
@@ -989,7 +1135,7 @@
                 profiles.forEach(name => {
                     const btn = document.createElement('button');
                     btn.className = 'btn btn-secondary';
-                    btn.style = 'border-radius: 6px; padding: 6px 10px;';
+                    btn.style = 'border-radius: 8px; padding: 10px 20px; font-size: 15px; min-width: 120px; text-align: center; font-weight: bold;';
                     if (name === currentProfile) {
                         btn.style.background = 'var(--primary-color)';
                         btn.style.color = '#fff';
@@ -997,9 +1143,16 @@
                     btn.textContent = name;
                     btn.onclick = () => {
                         currentProfile = name;
+                        originalProfile = name;  // Update original profile when switching
                         renderProfileTabs();
                         loadTools();
                         loadGeneratorDefaults();
+                        loadTemplateSources();  // Reload template sources for new profile
+                        loadMcpServices();  // Reload MCP services for new profile
+                        loadGraphTypesProperties();  // Reload types for new profile
+                        // Reset template selector to default
+                        const templateSelect = document.getElementById('templateSource');
+                        if (templateSelect) templateSelect.value = '';
                     };
                     tabContainer.appendChild(btn);
                 });
@@ -1007,7 +1160,7 @@
             // Add "+" button for new project
             const addBtn = document.createElement('button');
             addBtn.className = 'btn btn-secondary';
-            addBtn.style = 'border-radius: 6px; padding: 6px 12px; font-weight: bold;';
+            addBtn.style = 'border-radius: 8px; padding: 10px 16px; font-weight: bold; font-size: 18px; display: flex; align-items: center; justify-content: center;';
             addBtn.textContent = '+';
             addBtn.title = 'Add new project';
             addBtn.onclick = () => showNewProjectModal();
@@ -1109,7 +1262,10 @@
         }
 
         function profileParam() {
-            return currentProfile ? `?profile=${encodeURIComponent(currentProfile)}` : '';
+            // Always use originalProfile for saving operations
+            // This ensures changes are saved to the profile where tools were loaded from,
+            // even if MCP services are loaded from a different template source
+            return originalProfile ? `?profile=${encodeURIComponent(originalProfile)}` : '';
         }
 
         function populateGraphTypeOptions(selectEl) {
@@ -1335,14 +1491,11 @@
                                     </div>
                                     `;
                                 }).join('')}
+                                ${window.hasTypesFile ? `
                                 <button class="btn btn-secondary btn-sm" style="margin-top: 12px;"
-                                        onclick="addNestedPropertyInline(${index}, '${propName}')">
-                                    <span class="material-icons">add</span> Add Nested Property
-                                </button>
-                                <button class="btn btn-secondary btn-sm" style="margin-top: 12px; margin-left: 8px;"
                                         onclick="openNestedGraphTypesModal(${index}, '${propName}')">
-                                    <span class="material-icons">add</span> Add from graph_types
-                                </button>
+                                    <span class="material-icons">add</span> Add from ${window.typesName || 'types'}
+                                </button>` : ''}
                             </div>
                         </div>
                         ` : propDef.type === 'object' ? `
@@ -1350,14 +1503,11 @@
                             <label>Nested Properties</label>
                             <div style=" padding: 20px; background: var(--bg-color); border-radius: var(--radius-sm);">
                                 <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">No nested properties defined</div>
+                                ${window.hasTypesFile ? `
                                 <button class="btn btn-secondary btn-sm"
-                                        onclick="addNestedPropertyInline(${index}, '${propName}')">
-                                    <span class="material-icons">add</span> Add Nested Property
-                                </button>
-                                <button class="btn btn-secondary btn-sm" style="margin-left: 8px;"
                                         onclick="openNestedGraphTypesModal(${index}, '${propName}')">
-                                    <span class="material-icons">add</span> Add from graph_types
-                                </button>
+                                    <span class="material-icons">add</span> Add from ${window.typesName || 'types'}
+                                </button>` : ''}
                             </div>
                         </div>
                         ` : ''}
@@ -1403,9 +1553,6 @@
                                 return `<option value="${service}" ${currentService === service ? 'selected' : ''}>${service}</option>`;
                             }).join('') : ''}
                         </select>
-                        <small style="color: var(--text-secondary); font-size: 12px; margin-top: 6px; display: block;">
-                            Select the MCP service function that this tool will use
-                        </small>
                     </div>
                 </div>
 
@@ -1520,6 +1667,8 @@
             }
 
             // Create modal for property selection
+            const hasTypes = window.hasTypesFile || false;
+            const typesName = window.typesName || 'types';
             const modalHtml = `
                 <div id="propertyModal" class="modal show">
                     <div class="modal-content" style="max-width: 600px;">
@@ -1532,7 +1681,7 @@
                                 <label>Property Source</label>
                                 <select id="propertySource" onchange="handlePropertySourceChange()" class="form-control">
                                     <option value="custom">Custom Property</option>
-                                    <option value="graph_types">From graph_types.py</option>
+                                    ${hasTypes ? `<option value="graph_types">From ${typesName}.py</option>` : ''}
                                 </select>
                             </div>
 
@@ -2104,6 +2253,7 @@
 
         function saveTools() {
             const profileQuery = profileParam();
+            const saveProfile = originalProfile || 'default';
             fetch(`/api/tools${profileQuery}`, {
                 method: 'POST',
                 headers: {
@@ -2114,7 +2264,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showNotification(`Tools saved successfully! Backup created: ${data.backup}`, 'success');
+                    showNotification(`Tools saved to "${saveProfile}"! Backup: ${data.backup}`, 'success');
                 } else {
                     showNotification(`Error saving tools: ${data.error}`, 'error');
                 }

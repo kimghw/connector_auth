@@ -790,6 +790,131 @@ def get_mcp_services():
         return jsonify({"error": str(e), "services": [], "services_with_signatures": []}), 500
 
 
+@app.route('/api/template-sources', methods=['GET'])
+def get_template_sources():
+    """Get available template files (tool_definition_templates.py and backups) for loading"""
+    try:
+        profile = request.args.get('profile')
+        profile_conf = get_profile_config(profile)
+        paths = resolve_paths(profile_conf)
+
+        sources = []
+        editor_dir = os.path.dirname(__file__)
+
+        # 1. Current template file (primary)
+        template_path = paths.get("template_path")
+        if template_path and os.path.exists(template_path):
+            try:
+                spec = importlib.util.spec_from_file_location("template", template_path)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                tool_count = len(getattr(module, 'MCP_TOOLS', []))
+                sources.append({
+                    "name": "Current Template",
+                    "path": template_path,
+                    "type": "current",
+                    "count": tool_count,
+                    "modified": datetime.fromtimestamp(os.path.getmtime(template_path)).isoformat()
+                })
+            except Exception as e:
+                print(f"Warning: Could not read current template {template_path}: {e}")
+
+        # 2. Backup files
+        backup_dir = paths.get("backup_dir")
+        if backup_dir and os.path.isdir(backup_dir):
+            for filename in os.listdir(backup_dir):
+                if filename.startswith('tool_definitions_') and filename.endswith('.py'):
+                    filepath = os.path.join(backup_dir, filename)
+                    try:
+                        spec = importlib.util.spec_from_file_location("backup", filepath)
+                        module = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(module)
+                        tool_count = len(getattr(module, 'MCP_TOOLS', []))
+                        sources.append({
+                            "name": filename,
+                            "path": filepath,
+                            "type": "backup",
+                            "count": tool_count,
+                            "modified": datetime.fromtimestamp(os.path.getmtime(filepath)).isoformat()
+                        })
+                    except Exception as e:
+                        print(f"Warning: Could not read backup {filepath}: {e}")
+
+        # 3. Other profile templates
+        all_profiles = list_profile_names()
+        current_profile_name = profile or (all_profiles[0] if all_profiles else None)
+        for other_profile in all_profiles:
+            if other_profile == current_profile_name:
+                continue
+            other_conf = get_profile_config(other_profile)
+            other_paths = resolve_paths(other_conf)
+            other_template = other_paths.get("template_path")
+            if other_template and os.path.exists(other_template):
+                try:
+                    spec = importlib.util.spec_from_file_location("other", other_template)
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                    tool_count = len(getattr(module, 'MCP_TOOLS', []))
+                    sources.append({
+                        "name": f"{other_profile} template",
+                        "path": other_template,
+                        "type": "other_profile",
+                        "profile": other_profile,
+                        "count": tool_count,
+                        "modified": datetime.fromtimestamp(os.path.getmtime(other_template)).isoformat()
+                    })
+                except Exception as e:
+                    print(f"Warning: Could not read {other_profile} template: {e}")
+
+        # Sort: current first, then by modified date descending
+        sources.sort(key=lambda x: (0 if x['type'] == 'current' else 1, x.get('modified', ''), x['name']), reverse=False)
+
+        return jsonify({"sources": sources})
+    except Exception as e:
+        return jsonify({"error": str(e), "sources": []}), 500
+
+
+@app.route('/api/template-sources/load', methods=['POST'])
+def load_from_template_source():
+    """Load MCP_TOOLS from a specific template file"""
+    try:
+        data = request.json or {}
+        source_path = data.get('path')
+
+        if not source_path:
+            return jsonify({"error": "path is required"}), 400
+
+        if not os.path.exists(source_path):
+            return jsonify({"error": f"File not found: {source_path}"}), 404
+
+        # Security check - only allow .py files in expected directories
+        editor_dir = os.path.dirname(__file__)
+        abs_source = os.path.abspath(source_path)
+        abs_editor = os.path.abspath(editor_dir)
+        abs_root = os.path.abspath(ROOT_DIR)
+
+        if not (abs_source.startswith(abs_editor) or abs_source.startswith(abs_root)):
+            return jsonify({"error": "Access denied: path outside allowed directories"}), 403
+
+        if not source_path.endswith('.py'):
+            return jsonify({"error": "Only .py files are allowed"}), 400
+
+        # Load MCP_TOOLS from the file
+        spec = importlib.util.spec_from_file_location("source_template", source_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        tools = getattr(module, 'MCP_TOOLS', [])
+
+        return jsonify({
+            "success": True,
+            "tools": tools,
+            "source": source_path,
+            "count": len(tools)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/profiles', methods=['GET'])
 def get_profiles():
     """List available profiles from editor_config.json"""
@@ -917,26 +1042,64 @@ def get_server_generator_defaults():
 
 @app.route('/api/graph-types-properties', methods=['GET'])
 def get_graph_types_properties():
-    """Get available properties from outlook_types.py"""
+    """Get available properties from types files for the current profile"""
     try:
-        properties_path = os.path.join(os.path.dirname(__file__), 'types_properties.json')
+        profile = request.args.get('profile')
+        profile_conf = get_profile_config(profile)
+        paths = resolve_paths(profile_conf)
+
+        types_files = paths.get("types_files", [])
+
+        # If no types_files configured, return empty with a flag
+        if not types_files:
+            return jsonify({
+                "classes": [],
+                "properties_by_class": {},
+                "all_properties": [],
+                "has_types": False,
+                "types_name": None
+            })
+
+        # Get server name for display
+        server_name = get_server_name_from_profile(profile) or "types"
+
+        # Try to load from cached properties file for this profile
+        profile_name = profile or "default"
+        properties_path = os.path.join(os.path.dirname(__file__), profile_name, 'types_properties.json')
+
+        # Fallback to legacy path
+        if not os.path.exists(properties_path):
+            properties_path = os.path.join(os.path.dirname(__file__), 'types_properties.json')
+
         if os.path.exists(properties_path):
             with open(properties_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+                data["has_types"] = True
+                data["types_name"] = f"{server_name}_types"
                 return jsonify(data)
         else:
-            # Try to generate if not exists
+            # Try to generate using extract script
             import subprocess
             extract_script = os.path.join(os.path.dirname(__file__), 'extract_graph_types.py')
             if os.path.exists(extract_script):
-                subprocess.run([sys.executable, extract_script], check=True)
+                # Pass types files as arguments
+                subprocess.run([sys.executable, extract_script] + types_files, check=True)
                 if os.path.exists(properties_path):
                     with open(properties_path, 'r', encoding='utf-8') as f:
                         data = json.load(f)
+                        data["has_types"] = True
+                        data["types_name"] = f"{server_name}_types"
                         return jsonify(data)
-        return jsonify({"classes": [], "properties_by_class": {}, "all_properties": []})
+
+        return jsonify({
+            "classes": [],
+            "properties_by_class": {},
+            "all_properties": [],
+            "has_types": bool(types_files),
+            "types_name": f"{server_name}_types" if types_files else None
+        })
     except Exception as e:
-        return jsonify({"error": str(e), "classes": [], "properties_by_class": {}, "all_properties": []}), 500
+        return jsonify({"error": str(e), "classes": [], "properties_by_class": {}, "all_properties": [], "has_types": False}), 500
 
 
 @app.route('/api/basemodels', methods=['GET'])
