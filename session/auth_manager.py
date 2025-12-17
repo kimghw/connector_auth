@@ -34,7 +34,9 @@ class AuthManager:
         # DB 경로 결정 (환경변수 > 파라미터 > 기본값)
         import os
         if db_path is None:
-            db_path = os.getenv('DB_PATH', 'database/auth.db')
+            # Use absolute path for database
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            db_path = os.getenv('DB_PATH', os.path.join(base_dir, 'database', 'auth.db'))
 
         # 1. DB 인스턴스 생성 (단일 인스턴스)
         self.auth_db = AuthDatabase(db_path)

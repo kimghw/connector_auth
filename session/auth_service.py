@@ -32,7 +32,10 @@ class AuthService:
         if auth_db:
             self.auth_db = auth_db
         else:
-            self.auth_db = AuthDatabase("database/auth.db")
+            import os
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            db_path = os.path.join(base_dir, 'database', 'auth.db')
+            self.auth_db = AuthDatabase(db_path)
 
         # Config 인스턴스 (전달받거나 새로 생성)
         if config:

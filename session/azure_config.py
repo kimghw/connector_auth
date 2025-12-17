@@ -26,13 +26,17 @@ class AzureConfig:
             client_id: 사용할 client_id (None이면 환경변수에서 로드)
         """
         self.auth_db = auth_db
-        self.db_path = auth_db.db_path if auth_db else "database/auth.db"
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        default_db_path = os.getenv("DB_PATH", os.path.join(base_dir, "database", "auth.db"))
 
         # DB가 없으면 직접 생성 (하위 호환성)
         if not self.auth_db:
             from .auth_database import AuthDatabase
-            self.auth_db = AuthDatabase(self.db_path)
+            self.auth_db = AuthDatabase(default_db_path)
             # AuthDatabase가 이미 초기화를 처리함
+
+        # Always use the resolved path from AuthDatabase
+        self.db_path = self.auth_db.db_path
 
         # 우선순위: 1. 매개변수 2. 환경변수
         self.target_client_id = client_id or os.getenv("AZURE_CLIENT_ID")

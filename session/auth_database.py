@@ -22,7 +22,18 @@ class AuthDatabase:
         Args:
             db_path: 데이터베이스 파일 경로
         """
-        self.db_path = db_path
+        # Always resolve to an absolute path so callers can use relative or env paths
+        resolved_path = os.path.expanduser(db_path)
+        if not os.path.isabs(resolved_path):
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            resolved_path = os.path.join(base_dir, resolved_path)
+
+        # Ensure the directory exists (no-op if already present)
+        db_dir = os.path.dirname(resolved_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+
+        self.db_path = resolved_path
         # 기본 app_id (환경 변수에서 가져옴)
         self.default_client_id = os.getenv('AZURE_CLIENT_ID')
         self.ensure_tables()
