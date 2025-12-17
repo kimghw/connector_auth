@@ -193,9 +193,19 @@ def get_profile_config(profile_name: str | None = None) -> dict:
 
 
 def resolve_paths(profile_conf: dict) -> dict:
+    # internal_args_path는 선택적 - 없으면 template_path 기반으로 자동 생성
+    internal_args_path = profile_conf.get("internal_args_path")
+    if internal_args_path:
+        internal_args_path = _resolve_path(internal_args_path)
+    else:
+        # 기본값: template_path와 같은 디렉토리의 tool_internal_args.json
+        template_dir = os.path.dirname(_resolve_path(profile_conf["template_definitions_path"]))
+        internal_args_path = os.path.join(template_dir, "tool_internal_args.json")
+
     return {
         "template_path": _resolve_path(profile_conf["template_definitions_path"]),
         "tool_path": _resolve_path(profile_conf["tool_definitions_path"]),
+        "internal_args_path": internal_args_path,
         "backup_dir": _resolve_path(profile_conf["backup_dir"]),
         "types_files": profile_conf.get("types_files", profile_conf.get("graph_types_files", ["../outlook_mcp/outlook_types.py"])),
         "host": profile_conf.get("host", "127.0.0.1"),
@@ -207,7 +217,7 @@ def _default_generator_paths(profile_conf: dict, profile_name: str | None = None
     """Return default generator paths for the active profile"""
     resolved = resolve_paths(profile_conf)
     output_dir = os.path.dirname(resolved["tool_path"])
-    output_path = os.path.join(output_dir, 'server_generated.py')
+    output_path = os.path.join(output_dir, 'server.py')
     server_name = _guess_server_name(profile_conf, profile_name)
     template_path = _get_template_for_server(server_name)
 
@@ -241,7 +251,7 @@ def discover_mcp_modules(profile_conf: dict | None = None) -> list:
             if not os.path.isdir(mcp_dir):
                 continue
 
-            server_name = get_server_name_from_path(module_dir)
+            server_name = get_server_name_from_path(module_dir) or get_server_name_from_profile(entry)
             template_path = _get_template_for_server(server_name) or fallback["template_path"]
             tools_candidates = [
                 os.path.join(mcp_dir, "tool_definition_templates.py"),
@@ -252,10 +262,11 @@ def discover_mcp_modules(profile_conf: dict | None = None) -> list:
 
             modules.append({
                 "name": entry,
+                "server_name": server_name,
                 "mcp_dir": mcp_dir,
                 "tools_path": tools_path,
                 "template_path": template_path,
-                "output_path": os.path.join(mcp_dir, "server_generated.py")
+                "output_path": os.path.join(mcp_dir, "server.py")
             })
             break
 
@@ -298,6 +309,39 @@ def load_tool_definitions(paths: dict):
         return module.MCP_TOOLS
     except Exception as e:
         return {"error": str(e)}
+
+
+def load_internal_args(paths: dict) -> dict:
+    """
+    Load internal args from tool_internal_args.json
+    Returns empty dict if file doesn't exist (graceful fallback)
+    """
+    internal_args_path = paths.get("internal_args_path")
+    if not internal_args_path or not os.path.exists(internal_args_path):
+        return {}
+    try:
+        with open(internal_args_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Warning: Failed to load internal_args from {internal_args_path}: {e}")
+        return {}
+
+
+def get_file_mtimes(paths: dict) -> dict:
+    """
+    Collect file modification times for conflict detection
+    """
+    mtimes = {}
+    path_keys = [
+        ("tool_path", "definitions"),
+        ("template_path", "templates"),
+        ("internal_args_path", "internal_args")
+    ]
+    for path_key, mtime_key in path_keys:
+        path = paths.get(path_key)
+        if path and os.path.exists(path):
+            mtimes[mtime_key] = os.path.getmtime(path)
+    return mtimes
 
 
 def order_schema_fields(schema):
@@ -380,15 +424,24 @@ def _load_services_for_server(server_name: str | None, scan_dir: str | None, for
     return services
 
 
-def save_tool_definitions(tools_data, paths: dict, force_rescan: bool = False):
-    """Save MCP_TOOLS to both tool_definitions.py and tool_definition_templates.py"""
+def save_tool_definitions(tools_data, paths: dict, force_rescan: bool = False, skip_backup: bool = False):
+    """Save MCP_TOOLS to both tool_definitions.py and tool_definition_templates.py
+
+    Args:
+        tools_data: List of tool definitions to save
+        paths: Resolved paths dict from resolve_paths()
+        force_rescan: Force rescan of service signatures
+        skip_backup: Skip internal backup (use when caller already handles backup)
+    """
     try:
         ensure_dirs(paths)
-        # Create backup first
-        backup_filename = f"tool_definitions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py"
-        backup_path = os.path.join(paths["backup_dir"], backup_filename)
-        if os.path.exists(paths["tool_path"]):
-            shutil.copy2(paths["tool_path"], backup_path)
+        backup_filename = None
+        # Create backup first (unless caller is handling backups)
+        if not skip_backup:
+            backup_filename = f"tool_definitions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py"
+            backup_path = os.path.join(paths["backup_dir"], backup_filename)
+            if os.path.exists(paths["tool_path"]):
+                shutil.copy2(paths["tool_path"], backup_path)
 
         # 1. Save tool_definitions.py (without mcp_service fields)
         # Remove mcp_service field from all tools before saving
@@ -414,8 +467,10 @@ def save_tool_definitions(tools_data, paths: dict, force_rescan: bool = False):
             cleaned_tools.append(cleaned_tool)
 
         # Generate tool_definitions.py content
-        content = '''"""
-MCP Tool Definitions for Outlook Graph Mail Server - AUTO-GENERATED FILE
+        server_name = get_server_name_from_path(paths.get("tool_path", "")) or get_server_name_from_path(paths.get("template_path", ""))
+        server_label = (server_name or "MCP").replace("_", " ").title()
+        content = f'''"""
+MCP Tool Definitions for {server_label} Server - AUTO-GENERATED FILE
 DO NOT EDIT THIS FILE MANUALLY!
 
 This file is automatically generated when you save changes in the MCP Tool Editor.
@@ -427,13 +482,16 @@ To modify: Use the web editor at http://localhost:8091
 """
 
 from typing import List, Dict, Any
+import json
 
 # MCP Tool Definitions
-MCP_TOOLS: List[Dict[str, Any]] = '''
+MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
+'''
 
-        # Format the tools data nicely using Python repr
-        formatted_tools = pprint.pformat(cleaned_tools, indent=4, width=120, compact=False)
+        # Format the tools data using JSON for consistent alignment/readability
+        formatted_tools = json.dumps(cleaned_tools, indent=4, ensure_ascii=False)
         content += formatted_tools
+        content += '\n""")\n\n'
 
         # Add helper functions
         content += '''
@@ -457,8 +515,6 @@ def get_tool_names() -> List[str]:
             f.write(content)
 
         # 2. Save tool_definition_templates.py (with AST-extracted metadata)
-        server_name = get_server_name_from_path(paths.get("tool_path", ""))
-
         # Extract signatures from source code using AST (cached)
         services_by_name = {}
         if server_name:
@@ -546,15 +602,29 @@ def debug_index():
 
 @app.route('/api/tools', methods=['GET'])
 def get_tools():
-    """API endpoint to get current tool definitions"""
+    """API endpoint to get current tool definitions + internal args"""
     profile = request.args.get("profile")
     profile_conf = get_profile_config(profile)
     paths = resolve_paths(profile_conf)
+
+    # 1. Load tool definitions (templates)
     tools = load_tool_definitions(paths)
     if isinstance(tools, dict) and "error" in tools:
         return jsonify(tools), 500
+
+    # 2. Load internal args
+    internal_args = load_internal_args(paths)
+
+    # 3. Collect file mtimes for conflict detection
+    file_mtimes = get_file_mtimes(paths)
+
     actual_profile = profile or list_profile_names()[0] if list_profile_names() else "default"
-    return jsonify({"tools": tools, "profile": actual_profile})
+    return jsonify({
+        "tools": tools,
+        "internal_args": internal_args,
+        "profile": actual_profile,
+        "file_mtimes": file_mtimes
+    })
 
 
 @app.route('/api/tools', methods=['POST'])
@@ -602,10 +672,19 @@ def delete_tool(tool_index):
         if "error" in result:
             return jsonify(result), 500
 
+        # CRITICAL: Clean up internal args for deleted tool (Issue 3 fix)
+        internal_args = load_internal_args(paths)
+        internal_args_cleaned = False
+        if tool_name in internal_args:
+            del internal_args[tool_name]
+            internal_args_cleaned = True
+            save_internal_args(internal_args, paths)
+
         return jsonify({
             "success": True,
             "message": f"Tool '{tool_name}' deleted successfully",
-            "backup": result.get("backup")
+            "backup": result.get("backup"),
+            "internal_args_cleaned": internal_args_cleaned
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1031,10 +1110,25 @@ def get_server_generator_defaults():
         profile_conf = get_profile_config(profile)
         modules = discover_mcp_modules(profile_conf)
         fallback = _default_generator_paths(profile_conf, profile)
+        preferred_server = _guess_server_name(profile_conf, profile)
+        active_module = None
+
+        if preferred_server:
+            for mod in modules:
+                mod_server = mod.get("server_name") or get_server_name_from_path(mod.get("mcp_dir", "")) \
+                    or get_server_name_from_profile(mod.get("name", ""))
+                if mod_server == preferred_server:
+                    active_module = mod.get("name")
+                    break
+
+        if not active_module and modules:
+            active_module = modules[0]["name"]
 
         return jsonify({
             "modules": modules,
-            "fallback": fallback
+            "fallback": fallback,
+            "active_module": active_module,
+            "server_name": preferred_server
         })
     except Exception as e:
         return jsonify({"error": str(e), "modules": [], "fallback": {}}), 500
@@ -1227,10 +1321,15 @@ def generate_server_from_web():
         generator_module = load_generator_module()
         loaded_tools = generator_module.load_tool_definitions(tools_path)
         try:
-            generator_module.generate_server(template_path, output_path, loaded_tools, server_name=server_name)
+            # Pass tools_path so generator can find internal_args
+            generator_module.generate_server(template_path, output_path, loaded_tools,
+                                            tools_path=tools_path, server_name=server_name)
         except TypeError:
             # Backwards compatibility with older generator signature
-            generator_module.generate_server(template_path, output_path, loaded_tools)
+            try:
+                generator_module.generate_server(template_path, output_path, loaded_tools, server_name=server_name)
+            except TypeError:
+                generator_module.generate_server(template_path, output_path, loaded_tools)
 
         return jsonify({
             "success": True,
@@ -1333,6 +1432,274 @@ def check_server_exists():
             "server_name": server_name,
             "path": server_dir
         })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+# Internal Args API Endpoints
+# ============================================================
+
+def save_internal_args(internal_args: dict, paths: dict) -> dict:
+    """Save internal args to JSON file"""
+    try:
+        internal_args_path = paths.get("internal_args_path")
+        if not internal_args_path:
+            return {"error": "internal_args_path not configured"}
+
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(internal_args_path), exist_ok=True)
+
+        with open(internal_args_path, 'w', encoding='utf-8') as f:
+            json.dump(internal_args, f, indent=2, ensure_ascii=False)
+
+        return {"success": True, "path": internal_args_path}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def backup_file(file_path: str, backup_dir: str, timestamp: str) -> str | None:
+    """Create backup of a file with shared timestamp"""
+    if not os.path.exists(file_path):
+        return None
+
+    os.makedirs(backup_dir, exist_ok=True)
+    filename = os.path.basename(file_path)
+    backup_path = os.path.join(backup_dir, f"{filename}_{timestamp}.bak")
+
+    shutil.copy2(file_path, backup_path)
+    return backup_path
+
+
+def cleanup_old_backups(backup_dir: str, keep_count: int = 10):
+    """Remove old backups keeping only the most recent ones (by timestamp group)"""
+    if not os.path.exists(backup_dir):
+        return
+
+    # Group backups by timestamp
+    backup_groups = {}
+    for filename in os.listdir(backup_dir):
+        if not filename.endswith('.bak'):
+            continue
+        # Extract timestamp from filename (format: filename_YYYYMMDD_HHMMSS.bak)
+        parts = filename.rsplit('_', 2)
+        if len(parts) >= 3:
+            timestamp = f"{parts[-2]}_{parts[-1].replace('.bak', '')}"
+            if timestamp not in backup_groups:
+                backup_groups[timestamp] = []
+            backup_groups[timestamp].append(filename)
+
+    # Sort timestamps and remove old groups
+    sorted_timestamps = sorted(backup_groups.keys(), reverse=True)
+    for old_timestamp in sorted_timestamps[keep_count:]:
+        for filename in backup_groups[old_timestamp]:
+            try:
+                os.remove(os.path.join(backup_dir, filename))
+            except Exception as e:
+                print(f"Warning: Could not remove old backup {filename}: {e}")
+
+
+@app.route('/api/internal-args', methods=['GET'])
+def get_internal_args():
+    """Get internal args for the current profile"""
+    try:
+        profile = request.args.get("profile")
+        profile_conf = get_profile_config(profile)
+        paths = resolve_paths(profile_conf)
+
+        internal_args = load_internal_args(paths)
+        return jsonify({
+            "internal_args": internal_args,
+            "profile": profile or list_profile_names()[0] if list_profile_names() else "default",
+            "path": paths.get("internal_args_path")
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/internal-args', methods=['POST'])
+def post_internal_args():
+    """Save internal args (full replacement)"""
+    try:
+        profile = request.args.get("profile")
+        profile_conf = get_profile_config(profile)
+        paths = resolve_paths(profile_conf)
+
+        internal_args = request.json
+        if not isinstance(internal_args, dict):
+            return jsonify({"error": "Request body must be a JSON object"}), 400
+
+        # Create backup before saving
+        backup_dir = paths.get("backup_dir")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = backup_file(paths.get("internal_args_path"), backup_dir, timestamp)
+
+        result = save_internal_args(internal_args, paths)
+        if "error" in result:
+            return jsonify(result), 500
+
+        result["backup"] = backup_path
+        result["warning"] = "internal_args saved but tool_definitions may be out of sync. Consider using POST /api/tools/save-all"
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/internal-args/<tool_name>', methods=['PUT'])
+def put_internal_args_tool(tool_name: str):
+    """Update internal args for a specific tool (merge)"""
+    try:
+        profile = request.args.get("profile")
+        profile_conf = get_profile_config(profile)
+        paths = resolve_paths(profile_conf)
+
+        tool_args = request.json
+        if not isinstance(tool_args, dict):
+            return jsonify({"error": "Request body must be a JSON object"}), 400
+
+        # Load existing internal args
+        internal_args = load_internal_args(paths)
+
+        # Merge tool args
+        internal_args[tool_name] = tool_args
+
+        # Create backup before saving
+        backup_dir = paths.get("backup_dir")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = backup_file(paths.get("internal_args_path"), backup_dir, timestamp)
+
+        result = save_internal_args(internal_args, paths)
+        if "error" in result:
+            return jsonify(result), 500
+
+        result["backup"] = backup_path
+        result["tool"] = tool_name
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/tools/save-all', methods=['POST'])
+def save_all_definitions():
+    """
+    Atomic save of all 3 files: tool_definitions.py, tool_definition_templates.py, tool_internal_args.json
+    This is the recommended API for saving to ensure consistency.
+    """
+    try:
+        profile = request.args.get("profile")
+        profile_conf = get_profile_config(profile)
+        paths = resolve_paths(profile_conf)
+        ensure_dirs(paths)
+
+        data = request.json
+        if not isinstance(data, dict):
+            return jsonify({"error": "Request body must be a JSON object"}), 400
+
+        tools_data = data.get("tools")
+        internal_args = data.get("internal_args", {})
+        loaded_mtimes = data.get("file_mtimes")  # For conflict detection
+
+        if not tools_data or not isinstance(tools_data, list):
+            return jsonify({"error": "tools must be a list"}), 400
+
+        # CRITICAL: Clean up orphaned internal_args (Issue 3 fix)
+        # Remove internal_args for tools that no longer exist
+        tool_names = {tool.get("name") for tool in tools_data if tool.get("name")}
+        orphaned_tools = [t for t in internal_args.keys() if t not in tool_names]
+        for orphaned in orphaned_tools:
+            del internal_args[orphaned]
+
+        # CRITICAL: Validate internal_args structure (Issue 5 fix)
+        # Each internal arg must have a 'type' field for code generation
+        validation_errors = []
+        for tool_name, tool_args in internal_args.items():
+            for arg_name, arg_info in tool_args.items():
+                if not isinstance(arg_info, dict):
+                    validation_errors.append(f"{tool_name}.{arg_name}: must be an object")
+                elif not arg_info.get("type"):
+                    validation_errors.append(f"{tool_name}.{arg_name}: missing required 'type' field")
+
+        if validation_errors:
+            return jsonify({
+                "error": "Invalid internal_args",
+                "validation_errors": validation_errors,
+                "action": "fix_required",
+                "message": "Each internal arg must have a 'type' field (e.g., SelectParams, FilterParams)"
+            }), 400
+
+        # Check for file conflicts (optional)
+        if loaded_mtimes:
+            current_mtimes = get_file_mtimes(paths)
+            conflicts = []
+            for key in ["definitions", "templates", "internal_args"]:
+                if key in loaded_mtimes and key in current_mtimes:
+                    if abs(current_mtimes[key] - loaded_mtimes[key]) > 1:  # 1 second tolerance
+                        conflicts.append(key)
+            if conflicts:
+                return jsonify({
+                    "error": "File conflict detected",
+                    "conflicts": conflicts,
+                    "action": "reload_required",
+                    "message": "Files were modified externally. Please reload before saving."
+                }), 409
+
+        # Create backups with shared timestamp
+        backup_dir = paths.get("backup_dir")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backups = {
+            "definitions": backup_file(paths.get("tool_path"), backup_dir, timestamp),
+            "templates": backup_file(paths.get("template_path"), backup_dir, timestamp),
+            "internal_args": backup_file(paths.get("internal_args_path"), backup_dir, timestamp)
+        }
+
+        saved_files = []
+        try:
+            # 1. Save tool_definitions.py and templates (existing function)
+            # skip_backup=True because we already created backups above with backup_file()
+            force_rescan = str(request.args.get("force_rescan", "")).lower() in ("1", "true", "yes")
+            result = save_tool_definitions(tools_data, paths, force_rescan=force_rescan, skip_backup=True)
+            if "error" in result:
+                raise Exception(result["error"])
+            saved_files.extend(["definitions", "templates"])
+
+            # 2. Save internal_args.json
+            result = save_internal_args(internal_args, paths)
+            if "error" in result:
+                raise Exception(result["error"])
+            saved_files.append("internal_args")
+
+            # Cleanup old backups
+            cleanup_old_backups(backup_dir, keep_count=10)
+
+            return jsonify({
+                "success": True,
+                "saved": saved_files,
+                "backups": backups,
+                "timestamp": timestamp,
+                "profile": profile or list_profile_names()[0] if list_profile_names() else "default"
+            })
+
+        except Exception as e:
+            # Rollback: restore from backups
+            for key, backup_path in backups.items():
+                if backup_path and os.path.exists(backup_path):
+                    target_key = {
+                        "definitions": "tool_path",
+                        "templates": "template_path",
+                        "internal_args": "internal_args_path"
+                    }.get(key)
+                    if target_key and paths.get(target_key):
+                        try:
+                            shutil.copy2(backup_path, paths[target_key])
+                        except Exception as restore_error:
+                            print(f"Warning: Could not restore {key}: {restore_error}")
+
+            return jsonify({
+                "error": str(e),
+                "rolled_back": saved_files,
+                "action": "all_files_restored"
+            }), 500
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

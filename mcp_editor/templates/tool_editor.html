@@ -724,7 +724,7 @@
                 </div>
                 <div class="form-group" id="nestedPropertySelectionDiv" style="display: none;">
                     <label>Select Properties to Add</label>
-                    <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 300px; overflow-y: auto;">
+                    <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 600px; overflow-y: auto;">
                         <div id="nestedPropertyCheckboxList">
                             <!-- Checkboxes will be populated here -->
                         </div>
@@ -771,12 +771,12 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>Select Module</label>
+                    <label>Select MCP Server</label>
                     <select id="generatorModule" class="form-control" onchange="handleGeneratorModuleChange()">
                         <option value="">Custom / Current Profile</option>
                     </select>
                     <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
-                        Detected modules share the same mcp folder layout. Choose one to auto-fill generator args.
+                        Select an MCP server to auto-fill paths based on the current profile.
                     </p>
                 </div>
                 <div class="form-group">
@@ -789,7 +789,7 @@
                 </div>
                 <div class="form-group">
                     <label>Output path (--output)</label>
-                    <input id="generatorOutputPath" class="form-control" placeholder="/path/to/server_generated.py">
+                    <input id="generatorOutputPath" class="form-control" placeholder="/path/to/server.py">
                 </div>
                 <div id="generatorResult" style="color: var(--text-secondary); font-size: 13px;"></div>
             </div>
@@ -804,12 +804,15 @@
 
     <script>
         let tools = [];
+        let internalArgs = {};  // Internal args (hidden from MCP signature)
+        let fileMtimes = {};    // File modification times for conflict detection
         let currentToolIndex = -1;
         let nestedGraphTarget = null;
         let currentProfile = '';
         let profiles = [];
         let generatorModules = [];
         let generatorFallback = {};
+        let generatorActiveModule = '';
         let templateSources = [];  // Available template files (current, backups, other profiles)
         let originalProfile = '';  // The profile that tools were originally loaded from (for saving)
 
@@ -974,7 +977,11 @@
                     console.log('[DEBUG] Data received:', data);
                     const loadedTools = data.tools || data;
                     tools = loadedTools;
+                    // Load internal args and file mtimes from new API response format
+                    internalArgs = data.internal_args || {};
+                    fileMtimes = data.file_mtimes || {};
                     console.log('[DEBUG] tools variable set, tools.length:', tools.length);
+                    console.log('[DEBUG] internalArgs loaded:', Object.keys(internalArgs).length, 'tools');
                     console.log('[DEBUG] Calling renderToolList()...');
                     renderToolList();
                     console.log('[DEBUG] renderToolList() completed');
@@ -1038,12 +1045,14 @@
                 .then(data => {
                     generatorModules = data.modules || [];
                     generatorFallback = data.fallback || {};
+                    generatorActiveModule = data.active_module || data.active || '';
                     renderGeneratorOptions();
                 })
                 .catch(error => {
                     console.error('Error loading generator defaults:', error);
                     generatorModules = [];
                     generatorFallback = {};
+                    generatorActiveModule = '';
                 });
         }
 
@@ -1051,17 +1060,49 @@
             const select = document.getElementById('generatorModule');
             if (!select) return;
 
-            select.innerHTML = '<option value="">Custom / Current Profile</option>';
+            select.innerHTML = '';
+
+            // Add detected modules
             generatorModules.forEach(mod => {
                 const opt = document.createElement('option');
                 opt.value = mod.name;
-                opt.textContent = mod.name;
+                const serverLabel = mod.server_name && mod.server_name !== mod.name
+                    ? `${mod.server_name} (${mod.name})`
+                    : mod.name;
+                opt.textContent = serverLabel;
                 select.appendChild(opt);
             });
 
-            const defaultValue = generatorModules.length > 0 ? generatorModules[0].name : '';
+            // Add custom option at the end
+            const customOpt = document.createElement('option');
+            customOpt.value = '';
+            customOpt.textContent = 'Custom';
+            select.appendChild(customOpt);
+
+            // Choose default value: API preferred -> profile match -> first module
+            const normalizedProfile = (currentProfile || '').replace(/^_/, '');
+            const profileMatch = generatorModules.find(mod => {
+                const server = mod.server_name || '';
+                const name = mod.name || '';
+                return (server && server === normalizedProfile)
+                    || name === normalizedProfile
+                    || name.replace(/^mcp_/, '') === normalizedProfile
+                    || name.includes(normalizedProfile);
+            });
+            let defaultValue = generatorActiveModule && generatorModules.some(mod => mod.name === generatorActiveModule)
+                ? generatorActiveModule
+                : (profileMatch ? profileMatch.name : (generatorModules[0] ? generatorModules[0].name : ''));
+
             select.value = defaultValue;
-            applyGeneratorDefaults(defaultValue);
+
+            // Ensure we always apply defaults with a valid module or fallback
+            if (!select.value && defaultValue) {
+                const fallbackModule = generatorModules[0] ? generatorModules[0].name : '';
+                select.value = fallbackModule;
+                defaultValue = select.value;
+            }
+
+            applyGeneratorDefaults(select.value || '');
         }
 
         function applyGeneratorDefaults(moduleName) {
@@ -1331,18 +1372,54 @@
             const properties = tool.inputSchema?.properties || {};
             const required = tool.inputSchema?.required || [];
 
+            // Helper to check if property is internal
+            const getToolInternalArgs = () => internalArgs[tool.name] || {};
+            const isPropertyInternal = (propName) => {
+                const toolInternalArgs = getToolInternalArgs();
+                return propName in toolInternalArgs;
+            };
+
+            // CRITICAL: Merge properties from inputSchema AND internalArgs
+            // This ensures internal-only properties remain visible and editable
+            const toolInternalArgs = getToolInternalArgs();
+            const allPropertyNames = new Set([
+                ...Object.keys(properties),
+                ...Object.keys(toolInternalArgs)
+            ]);
+
             let propertiesHtml = '';
-            for (const [propName, propDef] of Object.entries(properties)) {
+            for (const propName of allPropertyNames) {
+                // Get propDef from inputSchema if it exists, otherwise reconstruct from internalArgs
+                const isInternal = isPropertyInternal(propName);
+                let propDef;
+                if (properties[propName]) {
+                    propDef = properties[propName];
+                } else if (isInternal && toolInternalArgs[propName].original_schema) {
+                    // Use stored original_schema for display (but don't modify inputSchema)
+                    propDef = toolInternalArgs[propName].original_schema;
+                } else if (isInternal) {
+                    // Fallback: create minimal schema from internal arg info
+                    propDef = {
+                        type: toolInternalArgs[propName].type || 'object',
+                        description: toolInternalArgs[propName].description || ''
+                    };
+                } else {
+                    continue; // Skip if neither in properties nor internal
+                }
+                // Original loop logic below uses propName and propDef
                 const isRequired = required.includes(propName);
+                // isInternal already set above
                 const propId = `prop-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}`;
                 propertiesHtml += `
-                    <div class="property-collapsible">
-                        <div class="property-collapse-header" onclick="togglePropertyCollapse('${propId}')" id="header-${propId}">
+                    <div class="property-collapsible" data-internal="${isInternal}">
+                        <div class="property-collapse-header" onclick="togglePropertyCollapse('${propId}')" id="header-${propId}"
+                             style="${isInternal ? 'border-left: 3px solid var(--warning-color);' : ''}">
                             <div style="display: flex; align-items: center;">
                                 <span class="collapse-icon" id="icon-${propId}">▼</span>
                                 <strong style="font-size: 15px; color: #333;">${propName}</strong>
                                 <span style="margin-left: 12px; font-size: 12px; color: #666; background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${propDef.type}</span>
                                 ${isRequired ? '<span style="margin-left: 8px; font-size: 11px; color: var(--danger-color); font-weight: 600;">REQUIRED</span>' : ''}
+                                ${isInternal ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--warning-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">INTERNAL</span>' : ''}
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px;" onclick="event.stopPropagation();">
                                 ${propDef.type === 'object' ? `
@@ -1362,6 +1439,31 @@
                             </div>
                         </div>
                         <div class="property-collapse-content" id="content-${propId}">
+                        <div class="form-group" style="background: ${isInternal ? 'rgba(255, 159, 10, 0.1)' : 'rgba(0, 113, 227, 0.05)'}; padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                            <label style="font-weight: 600; color: ${isInternal ? 'var(--warning-color)' : 'var(--primary-color)'};">Destination</label>
+                            <div style="display: flex; gap: 12px; margin-top: 8px;">
+                                <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 16px; border: 2px solid ${!isInternal ? 'var(--primary-color)' : 'var(--border-color)'}; border-radius: 8px; background: ${!isInternal ? 'rgba(0, 113, 227, 0.1)' : 'white'};">
+                                    <input type="radio" name="dest-${propId}" value="signature" ${!isInternal ? 'checked' : ''}
+                                           onchange="setPropertyDestination(${index}, '${propName}', 'signature')" style="margin-right: 8px;">
+                                    <span style="font-size: 13px; font-weight: 500;">To Signature</span>
+                                    <span style="font-size: 11px; color: var(--text-secondary); margin-left: 4px;">(MCP visible)</span>
+                                </label>
+                                <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 16px; border: 2px solid ${isInternal ? 'var(--warning-color)' : 'var(--border-color)'}; border-radius: 8px; background: ${isInternal ? 'rgba(255, 159, 10, 0.1)' : 'white'};">
+                                    <input type="radio" name="dest-${propId}" value="internal" ${isInternal ? 'checked' : ''}
+                                           onchange="setPropertyDestination(${index}, '${propName}', 'internal')" style="margin-right: 8px;">
+                                    <span style="font-size: 13px; font-weight: 500;">To Internal</span>
+                                    <span style="font-size: 11px; color: var(--text-secondary); margin-left: 4px;">(pre-configured)</span>
+                                </label>
+                            </div>
+                            ${isInternal ? `
+                            <div style="margin-top: 12px; padding: 10px; background: white; border-radius: 6px; border: 1px solid var(--border-color);">
+                                <label style="font-size: 12px; font-weight: 600; color: var(--warning-color);">Internal Value (JSON)</label>
+                                <textarea class="form-control" style="font-family: monospace; font-size: 12px; min-height: 80px; margin-top: 6px;"
+                                          onchange="updateInternalArgValue(${index}, '${propName}', this.value)"
+                                          placeholder='{"key": "value"}'>${JSON.stringify(toolInternalArgs[propName]?.value, null, 2) || 'null'}</textarea>
+                            </div>
+                            ` : ''}
+                        </div>
                         <div class="form-group">
                             <label>Type</label>
                             <select class="form-control"
@@ -1605,44 +1707,237 @@
             renderToolEditor(tools[index], index);
         }
 
-        function updatePropertyField(index, propName, field, value) {
-            if (!tools[index].inputSchema.properties[propName]) {
-                tools[index].inputSchema.properties[propName] = {};
+        // ============================================================
+        // Internal Args Functions
+        // ============================================================
+
+        function getInternalArgValue(toolName, propName) {
+            const toolInternalArgs = internalArgs[toolName] || {};
+            const propArg = toolInternalArgs[propName];
+            return propArg ? propArg.value : null;
+        }
+
+        function setPropertyDestination(index, propName, destination) {
+            const tool = tools[index];
+            const toolName = tool.name;
+            const propDef = tool.inputSchema?.properties?.[propName];
+
+            // For "to signature", check if we have stored original_schema
+            const existingInternal = internalArgs[toolName]?.[propName];
+
+            if (destination === 'internal') {
+                // If already internal, nothing to do
+                if (existingInternal && !propDef) {
+                    console.log('Property already internal:', propName);
+                    return;
+                }
+                if (!propDef) {
+                    console.error('Property not found in inputSchema:', propName);
+                    return;
+                }
+
+                // Move to Internal: add to internalArgs and REMOVE from inputSchema
+                if (!internalArgs[toolName]) {
+                    internalArgs[toolName] = {};
+                }
+
+                // Store original schema info for potential restoration
+                const wasRequired = (tool.inputSchema.required || []).includes(propName);
+                // CRITICAL: Use explicit undefined check to preserve falsy defaults (false, 0, "")
+                const defaultValue = propDef.default !== undefined
+                    ? propDef.default
+                    : (propDef.type === 'object' ? {} : null);
+                internalArgs[toolName][propName] = {
+                    type: propDef.baseModel || propDef.type,  // Use baseModel if available
+                    description: propDef.description || '',
+                    value: defaultValue,
+                    original_schema: JSON.parse(JSON.stringify(propDef)),  // Deep copy for restoration
+                    was_required: wasRequired
+                };
+
+                // CRITICAL: Remove from inputSchema.properties (spec FR-03)
+                delete tool.inputSchema.properties[propName];
+
+                // Remove from required array if present
+                if (tool.inputSchema.required) {
+                    tool.inputSchema.required = tool.inputSchema.required.filter(r => r !== propName);
+                }
+
+                showNotification(`Property "${propName}" moved to Internal (removed from MCP signature)`, 'info');
+            } else {
+                // Move to Signature: restore from internalArgs
+                if (!existingInternal) {
+                    console.error('No internal arg found to restore:', propName);
+                    return;
+                }
+
+                // Restore original schema from stored original_schema
+                if (existingInternal.original_schema) {
+                    tool.inputSchema.properties[propName] = JSON.parse(JSON.stringify(existingInternal.original_schema));
+                } else {
+                    // Fallback: create basic schema from internal arg info
+                    tool.inputSchema.properties[propName] = {
+                        type: existingInternal.type === 'object' ? 'object' : existingInternal.type,
+                        description: existingInternal.description || ''
+                    };
+                }
+
+                // Restore required status if it was required before
+                if (existingInternal.was_required) {
+                    if (!tool.inputSchema.required) {
+                        tool.inputSchema.required = [];
+                    }
+                    if (!tool.inputSchema.required.includes(propName)) {
+                        tool.inputSchema.required.push(propName);
+                    }
+                }
+
+                // Remove from internalArgs
+                delete internalArgs[toolName][propName];
+
+                // Clean up empty tool entry
+                if (Object.keys(internalArgs[toolName]).length === 0) {
+                    delete internalArgs[toolName];
+                }
+
+                showNotification(`Property "${propName}" restored to Signature`, 'info');
             }
-            tools[index].inputSchema.properties[propName][field] = value;
+
+            // Re-render to update UI
+            renderToolEditor(tool, index);
+        }
+
+        function updateInternalArgValue(index, propName, jsonString) {
+            const tool = tools[index];
+            const toolName = tool.name;
+
+            if (!internalArgs[toolName] || !internalArgs[toolName][propName]) {
+                console.error('Internal arg not found:', toolName, propName);
+                return;
+            }
+
+            try {
+                const value = JSON.parse(jsonString);
+                internalArgs[toolName][propName].value = value;
+                showNotification(`Internal value updated for "${propName}"`, 'success');
+            } catch (e) {
+                showNotification(`Invalid JSON: ${e.message}`, 'error');
+            }
+        }
+
+        // ============================================================
+        // Property Field Functions
+        // ============================================================
+
+        function updatePropertyField(index, propName, field, value) {
+            const tool = tools[index];
+            const toolName = tool.name;
+
+            // Check if this property is internal (not in inputSchema but in internalArgs)
+            const isInternal = !tool.inputSchema.properties[propName] &&
+                               internalArgs[toolName]?.[propName];
+
+            if (isInternal) {
+                // Update original_schema in internalArgs instead of inputSchema
+                if (!internalArgs[toolName][propName].original_schema) {
+                    internalArgs[toolName][propName].original_schema = {};
+                }
+                internalArgs[toolName][propName].original_schema[field] = value;
+
+                // CRITICAL: Also update the main internal arg fields that the generator uses
+                if (field === 'description') {
+                    internalArgs[toolName][propName].description = value;
+                }
+                // Issue 10 fix: Update type in internalArgs so generator uses the new type
+                if (field === 'type') {
+                    // Only update if there's no baseModel (baseModel takes precedence)
+                    if (!internalArgs[toolName][propName].original_schema?.baseModel) {
+                        internalArgs[toolName][propName].type = value;
+                    }
+                }
+            } else {
+                // Normal signature property - update inputSchema
+                if (!tool.inputSchema.properties[propName]) {
+                    tool.inputSchema.properties[propName] = {};
+                }
+                tool.inputSchema.properties[propName][field] = value;
+            }
         }
 
         function updatePropertyEnum(index, propName, value) {
+            const tool = tools[index];
+            const toolName = tool.name;
             const enumValues = value.split(',').map(v => v.trim()).filter(v => v);
-            tools[index].inputSchema.properties[propName].enum = enumValues;
+
+            // Check if this property is internal
+            const isInternal = !tool.inputSchema.properties[propName] &&
+                               internalArgs[toolName]?.[propName];
+
+            if (isInternal) {
+                if (!internalArgs[toolName][propName].original_schema) {
+                    internalArgs[toolName][propName].original_schema = {};
+                }
+                internalArgs[toolName][propName].original_schema.enum = enumValues;
+            } else {
+                tool.inputSchema.properties[propName].enum = enumValues;
+            }
         }
 
         function toggleEnum(index, propName, hasEnum) {
-            if (hasEnum) {
-                tools[index].inputSchema.properties[propName].enum = [];
+            const tool = tools[index];
+            const toolName = tool.name;
+
+            // Check if this property is internal
+            const isInternal = !tool.inputSchema.properties[propName] &&
+                               internalArgs[toolName]?.[propName];
+
+            if (isInternal) {
+                if (!internalArgs[toolName][propName].original_schema) {
+                    internalArgs[toolName][propName].original_schema = {};
+                }
+                if (hasEnum) {
+                    internalArgs[toolName][propName].original_schema.enum = [];
+                } else {
+                    delete internalArgs[toolName][propName].original_schema.enum;
+                }
             } else {
-                delete tools[index].inputSchema.properties[propName].enum;
+                if (hasEnum) {
+                    tool.inputSchema.properties[propName].enum = [];
+                } else {
+                    delete tool.inputSchema.properties[propName].enum;
+                }
             }
-            renderToolEditor(tools[index], index);
+            renderToolEditor(tool, index);
         }
 
         function toggleRequired(index, propName, isChecked) {
-            if (!tools[index].inputSchema.required) {
-                tools[index].inputSchema.required = [];
-            }
+            const tool = tools[index];
+            const toolName = tool.name;
 
-            if (isChecked) {
-                // Add to required if not already there
-                if (!tools[index].inputSchema.required.includes(propName)) {
-                    tools[index].inputSchema.required.push(propName);
-                }
+            // Check if this property is internal
+            const isInternal = !tool.inputSchema.properties[propName] &&
+                               internalArgs[toolName]?.[propName];
+
+            if (isInternal) {
+                // For internal properties, update was_required in internalArgs
+                internalArgs[toolName][propName].was_required = isChecked;
             } else {
-                // Remove from required
-                tools[index].inputSchema.required = tools[index].inputSchema.required.filter(r => r !== propName);
+                // Normal signature property - update inputSchema.required
+                if (!tool.inputSchema.required) {
+                    tool.inputSchema.required = [];
+                }
+
+                if (isChecked) {
+                    if (!tool.inputSchema.required.includes(propName)) {
+                        tool.inputSchema.required.push(propName);
+                    }
+                } else {
+                    tool.inputSchema.required = tool.inputSchema.required.filter(r => r !== propName);
+                }
             }
 
             // Re-render to update the JSON view
-            renderToolEditor(tools[index], index);
+            renderToolEditor(tool, index);
         }
 
         function parseDefaultValue(value, type) {
@@ -1719,7 +2014,7 @@
                                 </div>
                                 <div class="form-group" id="propertySelectionDiv" style="display: none;">
                                     <label>Select Properties to Add</label>
-                                    <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 300px; overflow-y: auto;">
+                                    <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 600px; overflow-y: auto;">
                                         <div id="propertyCheckboxList">
                                             <!-- Checkboxes will be populated here -->
                                         </div>
@@ -1998,22 +2293,52 @@
                 const targetPropName = getTargetPropertyForGraphType(className, tools[index]);
 
                 if (targetPropName) {
-                    if (!tools[index].inputSchema.properties[targetPropName]) {
-                        tools[index].inputSchema.properties[targetPropName] = {
-                            type: 'object',
-                            description: `${className} parameters`,
-                            properties: {},
-                            required: []
-                        };
-                    }
+                    const toolName = tools[index].name;
+                    // Check if target property is internal
+                    const isTargetInternal = !tools[index].inputSchema.properties[targetPropName] &&
+                                             internalArgs[toolName]?.[targetPropName];
 
-                    const targetProp = tools[index].inputSchema.properties[targetPropName];
-                    targetProp.type = 'object';
-                    targetProp.properties = targetProp.properties || {};
-                    targetProp.required = targetProp.required || [];
-                    targetProp.baseModel = className;
-                    if (!targetProp.description) {
-                        targetProp.description = `${className} parameters`;
+                    let targetProp;  // Declare outside if blocks for shared access
+
+                    if (isTargetInternal) {
+                        // Update internalArgs for internal property (Issue 10 fix)
+                        if (!internalArgs[toolName][targetPropName].original_schema) {
+                            internalArgs[toolName][targetPropName].original_schema = {
+                                type: 'object',
+                                description: `${className} parameters`,
+                                properties: {},
+                                required: []
+                            };
+                        }
+                        targetProp = internalArgs[toolName][targetPropName].original_schema;
+                        targetProp.type = 'object';
+                        targetProp.properties = targetProp.properties || {};
+                        targetProp.required = targetProp.required || [];
+                        targetProp.baseModel = className;
+                        // CRITICAL: Update internalArgs.type for generator
+                        internalArgs[toolName][targetPropName].type = className;
+                        if (!targetProp.description) {
+                            targetProp.description = `${className} parameters`;
+                        }
+                    } else {
+                        // Normal signature property
+                        if (!tools[index].inputSchema.properties[targetPropName]) {
+                            tools[index].inputSchema.properties[targetPropName] = {
+                                type: 'object',
+                                description: `${className} parameters`,
+                                properties: {},
+                                required: []
+                            };
+                        }
+
+                        targetProp = tools[index].inputSchema.properties[targetPropName];
+                        targetProp.type = 'object';
+                        targetProp.properties = targetProp.properties || {};
+                        targetProp.required = targetProp.required || [];
+                        targetProp.baseModel = className;
+                        if (!targetProp.description) {
+                            targetProp.description = `${className} parameters`;
+                        }
                     }
 
                     checkboxes.forEach(checkbox => {
@@ -2197,12 +2522,58 @@
 
         function removeProperty(index, propName) {
             if (confirm(`Remove property "${propName}"?`)) {
-                delete tools[index].inputSchema.properties[propName];
-                // Also remove from required if present
-                if (tools[index].inputSchema.required) {
-                    tools[index].inputSchema.required = tools[index].inputSchema.required.filter(r => r !== propName);
+                const tool = tools[index];
+                const toolName = tool.name;
+
+                // Save current collapsed state before re-rendering
+                const collapsedStates = {};
+                document.querySelectorAll('.property-collapse-content').forEach(el => {
+                    if (el.id && el.id.startsWith('content-')) {
+                        collapsedStates[el.id] = el.classList.contains('collapsed');
+                    }
+                });
+
+                // Remove from inputSchema.properties if present
+                delete tool.inputSchema.properties[propName];
+
+                // Remove from required if present
+                if (tool.inputSchema.required) {
+                    tool.inputSchema.required = tool.inputSchema.required.filter(r => r !== propName);
                 }
-                renderToolEditor(tools[index], index);
+
+                // CRITICAL: Also remove from internalArgs if present (Issue 9 fix)
+                if (internalArgs[toolName]?.[propName]) {
+                    delete internalArgs[toolName][propName];
+                    // Clean up empty tool entry
+                    if (Object.keys(internalArgs[toolName]).length === 0) {
+                        delete internalArgs[toolName];
+                    }
+                    showNotification(`Property "${propName}" removed from both schema and internal args`, 'info');
+                }
+
+                renderToolEditor(tool, index);
+
+                // Restore collapsed states after re-rendering
+                setTimeout(() => {
+                    Object.keys(collapsedStates).forEach(id => {
+                        const element = document.getElementById(id);
+                        const iconId = id.replace('content-', 'icon-');
+                        const headerId = id.replace('content-', 'header-');
+                        const icon = document.getElementById(iconId);
+                        const header = document.getElementById(headerId);
+
+                        if (element && collapsedStates[id]) {
+                            element.classList.add('collapsed');
+                            if (icon) {
+                                icon.classList.add('collapsed');
+                                icon.textContent = '▶';
+                            }
+                            if (header) {
+                                header.classList.remove('expanded');
+                            }
+                        }
+                    });
+                }, 0);
             }
         }
 
@@ -2254,24 +2625,44 @@
         function saveTools() {
             const profileQuery = profileParam();
             const saveProfile = originalProfile || 'default';
-            fetch(`/api/tools${profileQuery}`, {
+
+            // Use the new save-all API to atomically save tools + internal_args
+            fetch(`/api/tools/save-all${profileQuery}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(tools)
+                body: JSON.stringify({
+                    tools: tools,
+                    internal_args: internalArgs,
+                    file_mtimes: fileMtimes  // For conflict detection
+                })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (response.status === 409) {
+                    // Conflict detected
+                    return response.json().then(data => {
+                        showNotification(`${data.message}. Please reload and try again.`, 'error');
+                        throw new Error('Conflict');
+                    });
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
-                    showNotification(`Tools saved to "${saveProfile}"! Backup: ${data.backup}`, 'success');
+                    const savedInfo = data.saved.join(', ');
+                    showNotification(`Saved: ${savedInfo} to "${saveProfile}"!`, 'success');
+                    // Update file mtimes after successful save
+                    loadTools();  // Reload to get fresh mtimes
                 } else {
-                    showNotification(`Error saving tools: ${data.error}`, 'error');
+                    showNotification(`Error saving: ${data.error}`, 'error');
                 }
             })
             .catch(error => {
-                console.error('Error saving tools:', error);
-                showNotification('Failed to save tools', 'error');
+                if (error.message !== 'Conflict') {
+                    console.error('Error saving:', error);
+                    showNotification('Failed to save', 'error');
+                }
             });
         }
 
