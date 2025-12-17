@@ -88,6 +88,86 @@ def get_mcp_tool(tool_name: str) -> Optional[Dict[str, Any]]:
     return decorators_path
 
 
+def find_internal_args_file(tools_path: str) -> Optional[str]:
+    """
+    Find tool_internal_args.json based on tools_path location.
+    Searches in the same directory or common editor directories.
+    """
+    tools_path = Path(tools_path)
+
+    # Search patterns (in order of priority)
+    search_paths = [
+        # Same directory as tools file
+        tools_path.parent / "tool_internal_args.json",
+        # mcp_editor/{server_name}/ pattern
+        tools_path.parent.parent / tools_path.parent.name / "tool_internal_args.json",
+    ]
+
+    # Try to find the file
+    for candidate in search_paths:
+        if candidate.exists():
+            return str(candidate)
+
+    # Fallback: search in mcp_editor directories
+    project_root = tools_path.parent
+    while project_root.parent != project_root:
+        mcp_editor_dir = project_root / "mcp_editor"
+        if mcp_editor_dir.exists():
+            # Look for tool_internal_args.json in subdirectories
+            for subdir in mcp_editor_dir.iterdir():
+                if subdir.is_dir():
+                    candidate = subdir / "tool_internal_args.json"
+                    if candidate.exists():
+                        return str(candidate)
+            break
+        project_root = project_root.parent
+
+    return None
+
+
+def load_internal_args(internal_args_path: Optional[str]) -> Dict[str, Any]:
+    """
+    Load internal args from JSON file.
+    Returns empty dict if file doesn't exist.
+    """
+    if not internal_args_path or not Path(internal_args_path).exists():
+        return {}
+
+    try:
+        with open(internal_args_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Warning: Failed to load internal_args from {internal_args_path}: {e}")
+        return {}
+
+
+def collect_all_param_types(tools: List[Dict[str, Any]], internal_args: Dict[str, Any]) -> set:
+    """
+    Collect all parameter types from both Signature (inputSchema) and Internal args.
+    This ensures all necessary types are imported in the generated server.
+    """
+    types = set()
+
+    # Collect from Signature parameters (inputSchema)
+    for tool in tools:
+        schema = tool.get('inputSchema', {})
+        properties = schema.get('properties', {})
+        for prop_name, prop_schema in properties.items():
+            if prop_schema.get('type') == 'object':
+                base_model = prop_schema.get('baseModel')
+                if base_model:
+                    types.add(base_model)
+
+    # Collect from Internal args
+    for tool_name, params in internal_args.items():
+        for param_name, param_info in params.items():
+            param_type = param_info.get('type')
+            if param_type:
+                types.add(param_type)
+
+    return types
+
+
 def parse_signature(signature: str) -> Dict[str, Any]:
     """Parse function signature to extract parameters and their types"""
     params = {}
@@ -235,8 +315,14 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
     # Check if tool has mcp_service metadata
     if 'mcp_service' in tool:
         service_info = tool['mcp_service']
-        analyzed['service_method'] = service_info.get('name', tool['name'])
-        signature_params = params_from_service_info(service_info)
+        # If mcp_service is a string, use it directly as the service method
+        if isinstance(service_info, str):
+            analyzed['service_method'] = service_info
+            analyzed['mcp_service'] = service_info
+            signature_params = {}
+        else:
+            analyzed['service_method'] = service_info.get('name', tool['name'])
+            signature_params = params_from_service_info(service_info)
     else:
         signature_params = {}
 
@@ -419,11 +505,29 @@ def extract_service_metadata(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
     return metadata
 
 
-def generate_server(template_path: str, output_path: str, tools: List[Dict[str, Any]] = None):
-    """Generate server.py from template and tool definitions"""
+def generate_server(template_path: str, output_path: str, tools: List[Dict[str, Any]] = None,
+                    tools_path: str = None, internal_args_path: str = None, server_name: str = None):
+    """Generate server.py from template and tool definitions
+
+    Args:
+        template_path: Path to Jinja2 template file
+        output_path: Path for generated server.py
+        tools: List of tool definitions (optional, falls back to global MCP_TOOLS)
+        tools_path: Path to tools definition file (used for finding internal_args)
+        internal_args_path: Explicit path to tool_internal_args.json (optional)
+        server_name: Server name for context (optional)
+    """
     # Use provided tools or fall back to global MCP_TOOLS
     if tools is None:
         tools = MCP_TOOLS
+
+    # Load internal args
+    if not internal_args_path and tools_path:
+        internal_args_path = find_internal_args_file(tools_path)
+    internal_args = load_internal_args(internal_args_path)
+
+    if internal_args:
+        print(f"Loaded internal args for {len(internal_args)} tools from: {internal_args_path}")
 
     # Set up Jinja2 environment
     template_dir = os.path.dirname(template_path)
@@ -432,6 +536,10 @@ def generate_server(template_path: str, output_path: str, tools: List[Dict[str, 
 
     # Extract service metadata
     service_metadata = extract_service_metadata(tools)
+
+    # Collect all param types (Signature + Internal)
+    all_param_types = collect_all_param_types(tools, internal_args)
+    service_metadata['param_types'].update(all_param_types)
 
     # Analyze all tools
     analyzed_tools = []
@@ -446,6 +554,19 @@ def generate_server(template_path: str, output_path: str, tools: List[Dict[str, 
                 analyzed['service_object'] = service_metadata['services'][class_name]['instance_name']
                 analyzed['service_module'] = service_metadata['services'][class_name]['module']
 
+        # Add internal args for this tool (if any)
+        tool_internal_args = internal_args.get(analyzed['name'], {})
+        analyzed['internal_args'] = tool_internal_args
+
+        # CRITICAL: Merge internal_args into call_params so they are passed to service methods
+        # Internal args use {arg_name}_params naming convention in the template
+        for arg_name, arg_info in tool_internal_args.items():
+            # Only add to call_params if not already present (internal args should not override schema params)
+            if arg_name not in analyzed['call_params']:
+                analyzed['call_params'][arg_name] = {
+                    'value': f"{arg_name}_params"
+                }
+
         analyzed_tools.append(analyzed)
 
     # Prepare context for template
@@ -453,7 +574,9 @@ def generate_server(template_path: str, output_path: str, tools: List[Dict[str, 
         'tools': analyzed_tools,
         'services': service_metadata['services'],
         'param_types': sorted(service_metadata['param_types']),
-        'modules': sorted(service_metadata['modules'])
+        'modules': sorted(service_metadata['modules']),
+        'internal_args': internal_args,  # Full internal args dict for reference
+        'server_name': server_name
     }
 
     # Render template
@@ -466,7 +589,9 @@ def generate_server(template_path: str, output_path: str, tools: List[Dict[str, 
     print(f"Generated {output_path} successfully!")
     print(f"Processed {len(analyzed_tools)} tools:")
     for tool in analyzed_tools:
-        print(f"  - {tool['name']} -> {tool['service_method']}()")
+        internal_count = len(tool.get('internal_args', {}))
+        internal_info = f" (+ {internal_count} internal args)" if internal_count else ""
+        print(f"  - {tool['name']} -> {tool['service_method']}(){internal_info}")
     print(f"\nServices detected:")
     for service, info in service_metadata['services'].items():
         print(f"  - {service} from {info['module']}")
@@ -486,6 +611,30 @@ def load_tool_definitions(tool_def_path: str) -> List[Dict[str, Any]]:
         # Use AST to parse the file without importing
         import ast
 
+        def _eval_mcp_tools(node_value):
+            """
+            Evaluate the MCP_TOOLS assignment node.
+            Supports both literal lists/dicts and json.loads(\"\"\"...\"\"\") patterns
+            produced by the web editor.
+            """
+            # Handle json.loads(\"\"\"...\"\"\") style (Call node)
+            if isinstance(node_value, ast.Call):
+                func = node_value.func
+                func_name = None
+                if isinstance(func, ast.Attribute):
+                    # e.g., json.loads(...)
+                    func_name = f"{getattr(func.value, 'id', None)}.{func.attr}"
+                elif isinstance(func, ast.Name):
+                    # e.g., loads(...)
+                    func_name = func.id
+
+                if func_name in ('json.loads', 'loads') and node_value.args:
+                    first_arg = node_value.args[0]
+                    if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
+                        return json.loads(first_arg.value)
+            # Fallback to literal eval for plain list/dict constants
+            return ast.literal_eval(node_value)
+
         with open(path, 'r') as f:
             tree = ast.parse(f.read())
 
@@ -494,12 +643,12 @@ def load_tool_definitions(tool_def_path: str) -> List[Dict[str, Any]]:
             if isinstance(node, ast.Assign):
                 for target in node.targets:
                     if isinstance(target, ast.Name) and target.id == 'MCP_TOOLS':
-                        return ast.literal_eval(node.value)
+                        return _eval_mcp_tools(node.value)
 
             # Handle type-annotated assignment (MCP_TOOLS: List[Dict[str, Any]] = [...])
             if isinstance(node, ast.AnnAssign):
                 if isinstance(node.target, ast.Name) and node.target.id == 'MCP_TOOLS':
-                    return ast.literal_eval(node.value)
+                    return _eval_mcp_tools(node.value)
 
         raise ValueError("Could not find MCP_TOOLS in the Python file")
     else:
@@ -598,8 +747,8 @@ def main():
         use_temp = True
         print(f"Using temporary file: {output_path}")
 
-    # Generate server
-    generate_server(str(template_path), str(output_path), MCP_TOOLS)
+    # Generate server (with tools_path for internal_args discovery)
+    generate_server(str(template_path), str(output_path), MCP_TOOLS, tools_path=args.tools)
 
     print(f"\n✅ Generated server successfully!")
     print(f"   Output: {output_path}")

@@ -373,7 +373,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Build Microsoft Graph 
                                         'None, select: Optional[SelectParams] = None, client_filter: '
                                         'Optional[ExcludeParams] = None, top: int = 450, orderby: Optional[str] = '
                                         'None'},
-        'name': 'query_filter'},
+        'name': 'Outlook'},
     {   'description': 'Build Microsoft Graph API query URL for email operations',
         'inputSchema': {   'properties': {   'client_filter': {   'description': 'ExcludeParams for client-side '
                                                                                  'filtering',
@@ -528,7 +528,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Build Microsoft Graph 
                            'signature': 'user_email: str, search: str, client_filter: Optional[ExcludeParams] = None, '
                                         'select: Optional[SelectParams] = None, top: int = 250, orderby: Optional[str] '
                                         '= None'},
-        'name': 'query_search'},
+        'name': 'keyword_search'},
     {   'description': 'Build Microsoft Graph API query URL for email operations',
         'inputSchema': {   'properties': {   'client_filter': {   'description': 'ExcludeParams for client-side '
                                                                                  'filtering',
@@ -668,7 +668,16 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Build Microsoft Graph 
     {   'description': 'New tool description',
         'inputSchema': {   'properties': {   'client_filter': {   'description': 'ExcludeParams parameters',
                                                                   'type': 'object'},
-                                             'exclude': {'description': 'ExcludeParams parameters', 'type': 'object'},
+                                             'exclude': {   'baseModel': 'ExcludeParams',
+                                                            'description': 'ExcludeParams parameters',
+                                                            'properties': {   'exclude_from_address': {   'description': '제외할 '
+                                                                                                                         '발신자 '
+                                                                                                                         '주소 '
+                                                                                                                         '(from '
+                                                                                                                         '필드)',
+                                                                                                          'type': 'string'}},
+                                                            'required': [],
+                                                            'type': 'object'},
                                              'filter': {   'baseModel': 'FilterParams',
                                                            'description': 'FilterParams parameters',
                                                            'properties': {   'has_attachments': {   'description': '첨부파일 '
@@ -731,7 +740,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Build Microsoft Graph 
                                                                                             'type': 'boolean'}},
                                                            'required': [],
                                                            'type': 'object'},
-                                             'top': {'description': '', 'type': 'integer'},
+                                             'top': {'default': 100, 'description': '', 'type': 'integer'},
                                              'user_email': {'description': '', 'type': 'string'}},
                            'required': ['user_email', 'filter'],
                            'type': 'object'},

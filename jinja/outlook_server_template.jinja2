@@ -366,8 +366,9 @@ async def handle_{{ tool.name }}(args: Dict[str, Any]) -> Dict[str, Any]:
     {{ param_name }} = args.get("{{ param_name }}", {})
     {%- endfor %}
 
-    # Convert dicts to parameter objects where needed
+    # Convert dicts to parameter objects where needed (Signature params from args)
     {%- for param_name, param_info in tool.object_params.items() %}
+    {%- if param_name not in tool.internal_args %}
     {%- if param_info.is_optional %}
     {{ param_name }}_params = None
     if {{ param_name }}:
@@ -385,17 +386,34 @@ async def handle_{{ tool.name }}(args: Dict[str, Any]) -> Dict[str, Any]:
     {{ param_name }}_params = {{ param_info.class_name }}({{ param_name }})
     {%- endif %}
     {%- endif %}
+    {%- endif %}
     {%- endfor %}
+    {%- if tool.internal_args %}
+
+    # Internal Args (pre-configured defaults, not exposed to MCP signature)
+    {%- for arg_name, arg_info in tool.internal_args.items() %}
+    {%- if arg_info.value is none %}
+    # {{ arg_name }}: None - parameter not passed
+    {{ arg_name }}_params = None
+    {%- elif arg_info.value == {} %}
+    # {{ arg_name }}: empty object - use default constructor
+    {{ arg_name }}_params = {{ arg_info.type }}()
+    {%- else %}
+    # {{ arg_name }}: pre-configured default value
+    {{ arg_name }}_params = {{ arg_info.type }}(**{{ arg_info.value | pprint }})
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
 
     try:
         # Use helper to get the correct instance
-        {%- if 'query' in tool.service_method.lower() %}
+        {%- if 'query' in (tool.mcp_service or tool.service_method or '').lower() %}
         service_instance = get_query_instance(context)
         {%- else %}
         service_instance = get_client_instance(context)
         {%- endif %}
 
-        return await service_instance.{{ tool.service_method }}(
+        return await service_instance.{{ tool.mcp_service or tool.service_method }}(
             user_email=user_email,
             {%- for param_name, param_info in tool.call_params.items() if param_name != 'user_email' %}
             {{ param_name }}={{ param_info.value }}{{ "," if not loop.last else "" }}
@@ -407,13 +425,13 @@ async def handle_{{ tool.name }}(args: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         # Use helper to get the correct instance
-        {%- if 'query' in tool.service_method.lower() %}
+        {%- if 'query' in (tool.mcp_service or tool.service_method or '').lower() %}
         service_instance = get_query_instance(context)
         {%- else %}
         service_instance = get_client_instance(context)
         {%- endif %}
 
-        return await service_instance.{{ tool.service_method }}(
+        return await service_instance.{{ tool.mcp_service or tool.service_method }}(
             {%- for param_name, param_info in tool.params.items() %}
             {%- if param_info.is_required %}
             {{ param_name }}=args["{{ param_name }}"]{{ "," if not loop.last else "" }}

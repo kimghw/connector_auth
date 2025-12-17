@@ -17,7 +17,7 @@ import json
 MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
 [
     {
-        "name": "query_filter",
+        "name": "Outlook",
         "description": "Build Microsoft Graph API query URL for email operations",
         "inputSchema": {
             "type": "object",
@@ -388,7 +388,7 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
         }
     },
     {
-        "name": "query_search",
+        "name": "keyword_search",
         "description": "Build Microsoft Graph API query URL for email operations",
         "inputSchema": {
             "type": "object",
@@ -724,7 +724,15 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
                 },
                 "exclude": {
                     "type": "object",
-                    "description": "ExcludeParams parameters"
+                    "description": "ExcludeParams parameters",
+                    "properties": {
+                        "exclude_from_address": {
+                            "type": "string",
+                            "description": "제외할 발신자 주소 (from 필드)"
+                        }
+                    },
+                    "required": [],
+                    "baseModel": "ExcludeParams"
                 },
                 "filter": {
                     "type": "object",

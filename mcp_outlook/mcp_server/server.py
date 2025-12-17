@@ -236,10 +236,10 @@ async def handle_tool_call(request: MCPRequest) -> JSONResponse:
         arguments = request.params.get("arguments", {})
 
         # Route to appropriate handler
-        if tool_name == "query_filter":
-            result = await handle_query_filter(arguments)
-        elif tool_name == "query_search":
-            result = await handle_query_search(arguments)
+        if tool_name == "Outlook":
+            result = await handle_Outlook(arguments)
+        elif tool_name == "keyword_search":
+            result = await handle_keyword_search(arguments)
         elif tool_name == "query_url":
             result = await handle_query_url(arguments)
         elif tool_name == "mail_list":
@@ -273,118 +273,8 @@ async def handle_tool_call(request: MCPRequest) -> JSONResponse:
 
 # Tool handler functions - routing to session-specific implementations
 
-async def handle_query_filter(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to GraphMailQuery.query_filter with session or legacy support"""
-    user_email = args["user_email"]
-
-    # Get session or legacy instances
-    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
-
-    # Extract parameters from args
-    orderby = args.get("orderby", None)
-    top = args.get("top", 450)
-    client_filter = args.get("client_filter", {})
-    exclude = args.get("exclude", {})
-    filter = args.get("filter", {})
-    select = args.get("select", {})
-
-    # Convert dicts to parameter objects where needed (Signature params from args)
-    client_filter_params = None
-    if client_filter:
-        client_filter_params = FilterParams(**client_filter)
-    exclude_params = None
-    if exclude:
-        exclude_params = ExcludeParams(**exclude)
-    filter_params = FilterParams(**filter) if filter else FilterParams()
-    select_params = None
-    if select:
-        select_params = SelectParams(**select)
-
-    try:
-        # Use helper to get the correct instance
-        service_instance = get_query_instance(context)
-
-        return await service_instance.query_filter(
-            user_email=user_email,
-            client_filter=client_filter_params,
-            exclude=exclude_params,
-            filter=filter_params,
-            orderby=orderby,
-            select=select_params,
-            top=top
-        )
-    except Exception as e:
-        await handle_token_error(e, user_email)
-
-async def handle_query_search(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to GraphMailQuery.query_search with session or legacy support"""
-    user_email = args["user_email"]
-
-    # Get session or legacy instances
-    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
-
-    # Extract parameters from args
-    orderby = args.get("orderby", None)
-    search = args["search"]
-    top = args.get("top", 250)
-    client_filter = args.get("client_filter", {})
-    select = args.get("select", {})
-
-    # Convert dicts to parameter objects where needed (Signature params from args)
-    client_filter_params = None
-    if client_filter:
-        client_filter_params = FilterParams(**client_filter)
-    select_params = None
-    if select:
-        select_params = SelectParams(**select)
-
-    try:
-        # Use helper to get the correct instance
-        service_instance = get_query_instance(context)
-
-        return await service_instance.query_search(
-            user_email=user_email,
-            client_filter=client_filter_params,
-            orderby=orderby,
-            search=search,
-            select=select_params,
-            top=top
-        )
-    except Exception as e:
-        await handle_token_error(e, user_email)
-
-async def handle_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to GraphMailQuery.query_url with session or legacy support"""
-    user_email = args["user_email"]
-
-    # Get session or legacy instances
-    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
-
-    # Extract parameters from args
-    top = args.get("top", 450)
-    url = args["url"]
-    client_filter = args.get("client_filter", {})
-
-    # Convert dicts to parameter objects where needed (Signature params from args)
-    client_filter_params = None
-    if client_filter:
-        client_filter_params = FilterParams(**client_filter)
-
-    try:
-        # Use helper to get the correct instance
-        service_instance = get_query_instance(context)
-
-        return await service_instance.query_url(
-            user_email=user_email,
-            client_filter=client_filter_params,
-            top=top,
-            url=url
-        )
-    except Exception as e:
-        await handle_token_error(e, user_email)
-
-async def handle_mail_list(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to GraphMailClient.query_filter with session or legacy support"""
+async def handle_Outlook(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailClient.Outlook with session or legacy support"""
     user_email = args["user_email"]
 
     # Get session or legacy instances
@@ -412,9 +302,119 @@ async def handle_mail_list(args: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         # Use helper to get the correct instance
+        service_instance = get_client_instance(context)
+
+        return await service_instance.Outlook(
+            user_email=user_email,
+            client_filter=client_filter_params,
+            exclude=exclude_params,
+            filter=filter_params,
+            orderby=orderby,
+            select=select_params,
+            top=top
+        )
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+async def handle_keyword_search(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailQuery.keyword_search with session or legacy support"""
+    user_email = args["user_email"]
+
+    # Get session or legacy instances
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    # Extract parameters from args
+    orderby = args.get("orderby")
+    search = args["search"]
+    top = args.get("top")
+    client_filter = args.get("client_filter", {})
+    select = args.get("select", {})
+
+    # Convert dicts to parameter objects where needed (Signature params from args)
+    client_filter_params = None
+    if client_filter:
+        client_filter_params = FilterParams(**client_filter)
+    select_params = None
+    if select:
+        select_params = SelectParams(**select)
+
+    try:
+        # Use helper to get the correct instance
+        service_instance = get_client_instance(context)
+
+        return await service_instance.keyword_search(
+            user_email=user_email,
+            client_filter=client_filter_params,
+            orderby=orderby,
+            search=search,
+            select=select_params,
+            top=top
+        )
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+async def handle_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailQuery.query_url with session or legacy support"""
+    user_email = args["user_email"]
+
+    # Get session or legacy instances
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    # Extract parameters from args
+    top = args.get("top")
+    url = args["url"]
+    client_filter = args.get("client_filter", {})
+
+    # Convert dicts to parameter objects where needed (Signature params from args)
+    client_filter_params = None
+    if client_filter:
+        client_filter_params = FilterParams(**client_filter)
+
+    try:
+        # Use helper to get the correct instance
         service_instance = get_query_instance(context)
 
-        return await service_instance.query_filter(
+        return await service_instance.query_url(
+            user_email=user_email,
+            client_filter=client_filter_params,
+            top=top,
+            url=url
+        )
+    except Exception as e:
+        await handle_token_error(e, user_email)
+
+async def handle_mail_list(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to GraphMailClient.mail_list with session or legacy support"""
+    user_email = args["user_email"]
+
+    # Get session or legacy instances
+    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+
+    # Extract parameters from args
+    orderby = args.get("orderby")
+    top = args.get("top")
+    client_filter = args.get("client_filter", {})
+    exclude = args.get("exclude", {})
+    filter = args.get("filter", {})
+    select = args.get("select", {})
+
+    # Convert dicts to parameter objects where needed (Signature params from args)
+    client_filter_params = None
+    if client_filter:
+        client_filter_params = FilterParams(**client_filter)
+    exclude_params = None
+    if exclude:
+        exclude_params = ExcludeParams(**exclude)
+    filter_params = FilterParams(**filter) if filter else FilterParams()
+    select_params = None
+    if select:
+        select_params = SelectParams(**select)
+
+    try:
+        # Use helper to get the correct instance
+        service_instance = get_client_instance(context)
+
+        return await service_instance.mail_list(
             user_email=user_email,
             client_filter=client_filter_params,
             exclude=exclude_params,
