@@ -832,9 +832,9 @@ def main():
 
     # Handle output path
     if args.replace:
-        # Replace mode - output to the actual server.py location
-        tools_path = Path(args.tools)
-        server_path = tools_path.parent / "server.py"
+        # Replace mode - output to the CORRECT server.py location
+        # The server.py should be in mcp_outlook/mcp_server/, NOT in mcp_editor/outlook/
+        server_path = Path("/home/kimghw/Connector_auth/mcp_outlook/mcp_server/server.py")
 
         # Create backup if file exists
         if server_path.exists():
@@ -872,9 +872,9 @@ def main():
     # Generate mcp_decorators.py if requested
     decorators_path = None
     if args.include_decorators:
-        # Put decorators in same directory as server.py
-        output_dir = output_path.parent
-        decorators_path = copy_mcp_decorators(str(output_dir))
+        # Put decorators in mcp_editor/outlook/ directory, NOT with server.py
+        decorators_dir = Path("/home/kimghw/Connector_auth/mcp_editor/outlook")
+        decorators_path = copy_mcp_decorators(str(decorators_dir))
         print(f"✅ Generated mcp_decorators.py")
         print(f"   Output: {decorators_path}")
 

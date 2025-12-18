@@ -233,7 +233,7 @@ def extract_schema_defaults(arg_info: dict) -> dict:
 def load_internal_args() -> dict:
     """Load internal args from tool_internal_args.json"""
     possible_paths = [
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mcp_editor", "{{ module_name }}", "tool_internal_args.json"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mcp_editor", "{{ server_name or 'outlook' }}", "tool_internal_args.json"),
         os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tool_internal_args.json"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "tool_internal_args.json"),
     ]
