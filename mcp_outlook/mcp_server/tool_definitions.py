@@ -24,7 +24,15 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
             "properties": {
                 "client_filter": {
                     "type": "object",
-                    "description": "Additional ExcludeParams for client-side filtering"
+                    "description": "Additional ExcludeParams for client-side filtering",
+                    "properties": {
+                        "received_date_from": {
+                            "type": "string",
+                            "description": "메일 수신 시작 날짜 (포함, receivedDateTime >= 이 값)"
+                        }
+                    },
+                    "required": [],
+                    "baseModel": "FilterParams"
                 },
                 "exclude": {
                     "type": "object",

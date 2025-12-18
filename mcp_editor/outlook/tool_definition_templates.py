@@ -5,8 +5,20 @@ Signatures extracted from source code using AST parsing
 from typing import List, Dict, Any
 
 MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Build Microsoft Graph API query URL for email operations',
-        'inputSchema': {   'properties': {   'client_filter': {   'description': 'Additional ExcludeParams for '
+        'inputSchema': {   'properties': {   'client_filter': {   'baseModel': 'FilterParams',
+                                                                  'description': 'Additional ExcludeParams for '
                                                                                  'client-side filtering',
+                                                                  'properties': {   'received_date_from': {   'description': '메일 '
+                                                                                                                             '수신 '
+                                                                                                                             '시작 '
+                                                                                                                             '날짜 '
+                                                                                                                             '(포함, '
+                                                                                                                             'receivedDateTime '
+                                                                                                                             '>= '
+                                                                                                                             '이 '
+                                                                                                                             '값)',
+                                                                                                              'type': 'string'}},
+                                                                  'required': [],
                                                                   'type': 'object'},
                                              'exclude': {   'description': 'ExcludeParams for filtering out emails',
                                                             'properties': {   'exclude_attachment_status': {   'description': '제외할 '
