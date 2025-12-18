@@ -193,7 +193,11 @@ INTERNAL_ARG_TYPES = {
 
 
 def build_internal_param(tool_name: str, arg_name: str):
-    """Instantiate internal parameter object for a tool based on internal args config"""
+    """Instantiate internal parameter object for a tool based on internal args config.
+
+    Extracts default values from original_schema.properties and uses them to
+    instantiate the parameter class.
+    """
     arg_info = INTERNAL_ARGS.get(tool_name, {}).get(arg_name)
     if not arg_info:
         return None
@@ -203,10 +207,18 @@ def build_internal_param(tool_name: str, arg_name: str):
         logger.warning(f"Unknown internal arg type for {tool_name}.{arg_name}: {arg_info.get('type')}")
         return None
 
-    value = arg_info.get("value")
-    if value is None:
-        return None
-    if value == {}:
+    # Extract default values from original_schema.properties
+    original_schema = arg_info.get("original_schema", {})
+    properties = original_schema.get("properties", {})
+
+    # Build value dict from property defaults
+    value = {}
+    for prop_name, prop_def in properties.items():
+        if "default" in prop_def:
+            value[prop_name] = prop_def["default"]
+
+    if not value:
+        # No defaults defined, use empty constructor
         return param_cls()
 
     try:

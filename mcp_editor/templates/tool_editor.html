@@ -1472,34 +1472,20 @@
                             </div>
                         </div>
                         <div class="property-collapse-content" id="content-${propId}">
-                        <div class="form-group" style="background: ${isInternal ? 'rgba(255, 159, 10, 0.1)' : 'rgba(0, 113, 227, 0.05)'}; padding: 12px; border-radius: 8px; margin-bottom: 12px;">
-                            <label style="font-weight: 600; color: ${isInternal ? 'var(--warning-color)' : 'var(--primary-color)'};">Destination</label>
-                            <div style="display: flex; gap: 12px; margin-top: 8px;">
-                                <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 16px; border: 2px solid ${!isInternal ? 'var(--primary-color)' : 'var(--border-color)'}; border-radius: 8px; background: ${!isInternal ? 'rgba(0, 113, 227, 0.1)' : 'white'};">
-                                    <input type="radio" name="dest-${propId}" value="signature" ${!isInternal ? 'checked' : ''}
-                                           onchange="setPropertyDestination(${index}, '${propName}', 'signature')" style="margin-right: 8px;">
-                                    <span style="font-size: 13px; font-weight: 500;">To Signature</span>
-                                    <span style="font-size: 11px; color: var(--text-secondary); margin-left: 4px;">(MCP visible)</span>
-                                </label>
-                                <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 16px; border: 2px solid ${isInternal ? 'var(--warning-color)' : 'var(--border-color)'}; border-radius: 8px; background: ${isInternal ? 'rgba(255, 159, 10, 0.1)' : 'white'};">
-                                    <input type="radio" name="dest-${propId}" value="internal" ${isInternal ? 'checked' : ''}
-                                           onchange="setPropertyDestination(${index}, '${propName}', 'internal')" style="margin-right: 8px;">
-                                    <span style="font-size: 13px; font-weight: 500;">To Internal</span>
-                                    <span style="font-size: 11px; color: var(--text-secondary); margin-left: 4px;">(pre-configured)</span>
-                                </label>
-                            </div>
-                            ${isInternal ? `
-                            <div style="margin-top: 12px; padding: 10px; background: white; border-radius: 6px; border: 1px solid var(--border-color);">
-                                <label style="font-size: 12px; font-weight: 600; color: var(--warning-color);">Internal Default Values (JSON)</label>
-                                <textarea class="form-control" style="font-family: monospace; font-size: 12px; min-height: 80px; margin-top: 6px;"
-                                          onchange="updateInternalArgDefaults(${index}, '${propName}', this.value)"
-                                          placeholder='{"key": "value"}'>${JSON.stringify(getInternalArgDefaults(toolInternalArgs[propName]), null, 2) || '{}'}</textarea>
-                            </div>
-                            ` : ''}
-                        </div>
-                        <div class="form-group">
-                            <label>Type</label>
-                            <select class="form-control"
+                        <div style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center; flex-wrap: wrap;">
+                            <span style="font-size: 11px; color: var(--text-secondary);">Dest:</span>
+                            <label style="display: flex; align-items: center; cursor: pointer; padding: 4px 10px; border: 2px solid ${!isInternal ? 'var(--primary-color)' : 'var(--border-color)'}; border-radius: 5px; background: ${!isInternal ? 'rgba(0, 113, 227, 0.1)' : 'white'};">
+                                <input type="radio" name="dest-${propId}" value="signature" ${!isInternal ? 'checked' : ''}
+                                       onchange="setPropertyDestination(${index}, '${propName}', 'signature')" style="margin-right: 4px;">
+                                <span style="font-size: 11px; font-weight: 500;">Signature</span>
+                            </label>
+                            <label style="display: flex; align-items: center; cursor: pointer; padding: 4px 10px; border: 2px solid ${isInternal ? 'var(--warning-color)' : 'var(--border-color)'}; border-radius: 5px; background: ${isInternal ? 'rgba(255, 159, 10, 0.1)' : 'white'};">
+                                <input type="radio" name="dest-${propId}" value="internal" ${isInternal ? 'checked' : ''}
+                                       onchange="setPropertyDestination(${index}, '${propName}', 'internal')" style="margin-right: 4px;">
+                                <span style="font-size: 11px; font-weight: 500;">Internal</span>
+                            </label>
+                            <span style="font-size: 11px; color: var(--text-secondary); margin-left: 8px;">Type:</span>
+                            <select class="form-control" style="width: auto; padding: 4px 8px; font-size: 11px;"
                                     onchange="updatePropertyField(${index}, '${propName}', 'type', this.value); renderToolEditor(tools[${index}], ${index});">
                                 <option value="string" ${propDef.type === 'string' ? 'selected' : ''}>string</option>
                                 <option value="number" ${propDef.type === 'number' ? 'selected' : ''}>number</option>
@@ -1509,27 +1495,27 @@
                                 <option value="object" ${propDef.type === 'object' ? 'selected' : ''}>object</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label>Description</label>
-                            <textarea class="form-control"
-                                      onchange="updatePropertyField(${index}, '${propName}', 'description', this.value)">${propDef.description || ''}</textarea>
+                        <div class="form-group" style="margin-bottom: 8px;">
+                            <label style="font-size: 11px;">Description</label>
+                            <input class="form-control" style="font-size: 12px;"
+                                   value="${(propDef.description || '').replace(/"/g, '&quot;')}"
+                                   onchange="updatePropertyField(${index}, '${propName}', 'description', this.value)">
                         </div>
+                        ${propDef.type !== 'object' ? `
                         <div class="form-group" id="default-value-group-${propId}" style="${isRequired ? 'display:none' : ''}">
-                            <label>Default Value ${propDef.type === 'object' || propDef.type === 'array' ? '(JSON)' : ''}</label>
-                            ${propDef.type === 'object' || propDef.type === 'array' ? `
-                            <textarea class="form-control" style="font-family: monospace; font-size: 12px; min-height: 80px;"
-                                      placeholder='${propDef.type === 'object' ? '{"key": "value"}' : '["item1", "item2"]'}'
+                            <label style="font-size: 11px;">Default Value ${propDef.type === 'array' ? '(JSON)' : ''}</label>
+                            ${propDef.type === 'array' ? `
+                            <textarea class="form-control" style="font-family: monospace; font-size: 12px; min-height: 60px;"
+                                      placeholder='["item1", "item2"]'
                                       onchange="updatePropertyField(${index}, '${propName}', 'default', parseDefaultValue(this.value, '${propDef.type}'))">${propDef.default !== undefined ? (typeof propDef.default === 'string' ? propDef.default : JSON.stringify(propDef.default, null, 2)) : ''}</textarea>
                             ` : `
-                            <input class="form-control"
+                            <input class="form-control" style="font-size: 12px;"
                                    value="${propDef.default !== undefined ? propDef.default : ''}"
                                    placeholder="Optional default value"
                                    onchange="updatePropertyField(${index}, '${propName}', 'default', parseDefaultValue(this.value, '${propDef.type}'))">
                             `}
-                            <small class="text-muted" style="display: block; margin-top: 4px; font-size: 11px; color: var(--text-secondary);">
-                                LLM이 값을 전달하지 않을 때 사용할 기본값${propDef.type === 'object' || propDef.type === 'array' ? ' (JSON 형식)' : ''}
-                            </small>
                         </div>
+                        ` : ''}
                         ${propDef.enum ? `
                         <div class="form-group">
                             <label>Enum Values (comma-separated)</label>
@@ -1553,15 +1539,22 @@
                         ${propDef.type === 'object' && propDef.properties ? `
                         <div class="form-group">
                             <label>Nested Properties</label>
-                            <div style=" padding: 20px; background: var(--bg-color); border-left: 3px solid ${propDef.baseModel ? 'var(--success-color)' : 'var(--primary-color)'}; border-radius: var(--radius-sm);">
+                            <div style="padding: 12px; background: var(--bg-color); border-left: 3px solid ${propDef.baseModel ? 'var(--success-color)' : 'var(--primary-color)'}; border-radius: var(--radius-sm);">
                                 ${Object.entries(propDef.properties).map(([nestedPropName, nestedProp]) => {
                                     const nestedIsRequired = propDef.required && propDef.required.includes(nestedPropName);
+                                    const nestedPropId = `nested-${index}-${propName}-${nestedPropName}`.replace(/[^a-zA-Z0-9-]/g, '_');
                                     return `
-                                    <div style="padding: 16px; margin-bottom: 12px; background: white; border: 1px solid var(--border-color); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm);">
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                                            <strong style="color: var(--text-primary); font-size: 14px;">${nestedPropName}</strong>
-                                            <div style="display: flex; gap: 8px; align-items: center;">
-                                                <select style="font-size: 12px; padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 6px; background: white;"
+                                    <div class="nested-prop-collapsible" style="margin-bottom: 6px; background: white; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden;">
+                                        <div class="nested-prop-header" onclick="toggleNestedPropCollapse('${nestedPropId}')"
+                                             style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; cursor: pointer; background: #fafafa;">
+                                            <div style="display: flex; align-items: center; gap: 8px;">
+                                                <span class="nested-collapse-icon" id="nested-icon-${nestedPropId}" style="font-size: 10px; color: var(--text-secondary);">▶</span>
+                                                <strong style="color: var(--text-primary); font-size: 12px;">${nestedPropName}</strong>
+                                                <span style="font-size: 10px; color: #888; background: #eee; padding: 1px 6px; border-radius: 3px;">${nestedProp.type}</span>
+                                                ${nestedIsRequired ? '<span style="font-size: 9px; color: var(--danger-color); font-weight: 600;">REQ</span>' : ''}
+                                            </div>
+                                            <div style="display: flex; gap: 6px; align-items: center;" onclick="event.stopPropagation();">
+                                                <select style="font-size: 10px; padding: 2px 4px; border: 1px solid var(--border-color); border-radius: 4px; background: white;"
                                                         onchange="updateNestedPropertyType(${index}, '${propName}', '${nestedPropName}', this.value); renderToolEditor(tools[${index}], ${index});">
                                                     <option value="string" ${nestedProp.type === 'string' ? 'selected' : ''}>string</option>
                                                     <option value="number" ${nestedProp.type === 'number' ? 'selected' : ''}>number</option>
@@ -1573,72 +1566,73 @@
                                                 <label style="display: flex; align-items: center; margin: 0; cursor: pointer;">
                                                     <input type="checkbox" ${nestedIsRequired ? 'checked' : ''}
                                                            onchange="toggleNestedRequired(${index}, '${propName}', '${nestedPropName}', this.checked)"
-                                                           style="margin-right: 4px;">
-                                                    <span style="color: ${nestedIsRequired ? 'var(--danger-color)' : 'var(--text-secondary)'}; font-size: 12px;">Required</span>
+                                                           style="margin-right: 2px; transform: scale(0.8);">
+                                                    <span style="color: ${nestedIsRequired ? 'var(--danger-color)' : 'var(--text-secondary)'}; font-size: 10px;">Req</span>
                                                 </label>
-                                                <button class="btn btn-icon btn-sm" style="padding: 4px 8px;"
-                                                        onclick="removeNestedPropertyInline(${index}, '${propName}', '${nestedPropName}')"><span class="material-icons">close</span></button>
+                                                <button class="btn btn-icon btn-sm" style="padding: 2px 4px; font-size: 14px;"
+                                                        onclick="removeNestedPropertyInline(${index}, '${propName}', '${nestedPropName}')"><span class="material-icons" style="font-size: 14px;">close</span></button>
                                             </div>
                                         </div>
-                                        <textarea class="form-control" style="font-size: 13px; min-height: 60px;"
-                                                  placeholder="Description"
-                                                  onchange="updateNestedPropertyDescription(${index}, '${propName}', '${nestedPropName}', this.value)">${nestedProp.description || ''}</textarea>
-                                        <div class="form-group" style="margin-top: 10px;">
-                                            <label style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 4px; text-transform: uppercase;">Default</label>
-                                            <input class="form-control" style="font-size: 13px; padding: 8px;"
-                                                   placeholder="Optional default value"
-                                                   value="${nestedProp.default !== undefined ? nestedProp.default : ''}"
-                                                   onchange="updateNestedPropertyDefault(${index}, '${propName}', '${nestedPropName}', parseDefaultValue(this.value, '${nestedProp.type}'))">
-                                        </div>
-
-                                        ${(nestedProp.type === 'string' || nestedProp.type === 'number' || nestedProp.type === 'integer') ? `
-                                        <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                                            <div>
-                                                <label style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 4px; text-transform: uppercase;">Format</label>
-                                                <input class="form-control" style="font-size: 13px; padding: 8px;"
-                                                       placeholder="e.g., date, email, uri"
-                                                       value="${nestedProp.format || ''}"
-                                                       onchange="updateNestedPropertyFormat(${index}, '${propName}', '${nestedPropName}', this.value)">
+                                        <div class="nested-prop-content collapsed" id="nested-content-${nestedPropId}" style="padding: 10px; display: none;">
+                                            <input class="form-control" style="font-size: 11px; margin-bottom: 6px; padding: 5px;"
+                                                   placeholder="Description"
+                                                   value="${(nestedProp.description || '').replace(/"/g, '&quot;')}"
+                                                   onchange="updateNestedPropertyDescription(${index}, '${propName}', '${nestedPropName}', this.value)">
+                                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                                                <div>
+                                                    <label style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Default</label>
+                                                    <input class="form-control" style="font-size: 11px; padding: 5px;"
+                                                           placeholder="default value"
+                                                           value="${nestedProp.default !== undefined ? nestedProp.default : ''}"
+                                                           onchange="updateNestedPropertyDefault(${index}, '${propName}', '${nestedPropName}', parseDefaultValue(this.value, '${nestedProp.type}'))">
+                                                </div>
+                                                ${(nestedProp.type === 'string' || nestedProp.type === 'number' || nestedProp.type === 'integer') ? `
+                                                <div>
+                                                    <label style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Format</label>
+                                                    <input class="form-control" style="font-size: 11px; padding: 5px;"
+                                                           placeholder="date, email, uri"
+                                                           value="${nestedProp.format || ''}"
+                                                           onchange="updateNestedPropertyFormat(${index}, '${propName}', '${nestedPropName}', this.value)">
+                                                </div>
+                                                ` : '<div></div>'}
                                             </div>
                                             ${nestedProp.type === 'string' ? `
-                                            <div>
-                                                <label style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; margin-bottom: 4px; text-transform: uppercase;">
+                                            <div style="margin-top: 6px;">
+                                                <label style="font-size: 9px; color: var(--text-secondary); display: flex; align-items: center; text-transform: uppercase;">
                                                     <input type="checkbox" ${nestedProp.enum ? 'checked' : ''}
                                                            onchange="toggleNestedEnum(${index}, '${propName}', '${nestedPropName}', this.checked)"
-                                                           style="margin-right: 4px;">
+                                                           style="margin-right: 4px; transform: scale(0.8);">
                                                     Has Enum
                                                 </label>
                                                 ${nestedProp.enum ? `
-                                                <input class="form-control" style="font-size: 13px; padding: 8px;"
+                                                <input class="form-control" style="font-size: 11px; padding: 5px; margin-top: 4px;"
                                                        placeholder="Comma-separated values"
                                                        value="${nestedProp.enum.join(', ')}"
                                                        onchange="updateNestedPropertyEnum(${index}, '${propName}', '${nestedPropName}', this.value)">
                                                 ` : ''}
                                             </div>
-                                            ` : '<div></div>'}
+                                            ` : ''}
+                                            ${nestedProp.type === 'array' ? `
+                                            <div style="margin-top: 6px;">
+                                                <label style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Array Item Type</label>
+                                                <select class="form-control" style="font-size: 11px; padding: 5px;"
+                                                        onchange="updateNestedPropertyItems(${index}, '${propName}', '${nestedPropName}', this.value)">
+                                                    <option value="string" ${nestedProp.items?.type === 'string' ? 'selected' : ''}>string</option>
+                                                    <option value="number" ${nestedProp.items?.type === 'number' ? 'selected' : ''}>number</option>
+                                                    <option value="integer" ${nestedProp.items?.type === 'integer' ? 'selected' : ''}>integer</option>
+                                                    <option value="boolean" ${nestedProp.items?.type === 'boolean' ? 'selected' : ''}>boolean</option>
+                                                    <option value="object" ${nestedProp.items?.type === 'object' ? 'selected' : ''}>object</option>
+                                                </select>
+                                            </div>
+                                            ` : ''}
                                         </div>
-                                        ` : ''}
-
-                                        ${nestedProp.type === 'array' ? `
-                                        <div style="margin-top: 12px;">
-                                            <label style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 4px; text-transform: uppercase;">Array Item Type</label>
-                                            <select class="form-control" style="font-size: 13px; padding: 8px;"
-                                                    onchange="updateNestedPropertyItems(${index}, '${propName}', '${nestedPropName}', this.value)">
-                                                <option value="string" ${nestedProp.items?.type === 'string' ? 'selected' : ''}>string</option>
-                                                <option value="number" ${nestedProp.items?.type === 'number' ? 'selected' : ''}>number</option>
-                                                <option value="integer" ${nestedProp.items?.type === 'integer' ? 'selected' : ''}>integer</option>
-                                                <option value="boolean" ${nestedProp.items?.type === 'boolean' ? 'selected' : ''}>boolean</option>
-                                                <option value="object" ${nestedProp.items?.type === 'object' ? 'selected' : ''}>object</option>
-                                            </select>
-                                        </div>
-                                        ` : ''}
                                     </div>
                                     `;
                                 }).join('')}
                                 ${window.hasTypesFile ? `
-                                <button class="btn btn-secondary btn-sm" style="margin-top: 12px;"
+                                <button class="btn btn-secondary btn-sm" style="margin-top: 8px; font-size: 11px; padding: 4px 10px;"
                                         onclick="openNestedGraphTypesModal(${index}, '${propName}')">
-                                    <span class="material-icons">add</span> Add from ${window.typesName || 'types'}
+                                    <span class="material-icons" style="font-size: 14px;">add</span> Add from ${window.typesName || 'types'}
                                 </button>` : ''}
                             </div>
                         </div>
@@ -3110,6 +3104,19 @@
                 icon.classList.add('collapsed');
                 icon.textContent = '▶';
                 header.classList.remove('expanded');
+            }
+        }
+
+        function toggleNestedPropCollapse(nestedPropId) {
+            const content = document.getElementById(`nested-content-${nestedPropId}`);
+            const icon = document.getElementById(`nested-icon-${nestedPropId}`);
+
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.textContent = '▼';
+            } else {
+                content.style.display = 'none';
+                icon.textContent = '▶';
             }
         }
 

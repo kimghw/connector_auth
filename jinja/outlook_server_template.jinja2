@@ -213,6 +213,95 @@ async def handle_token_error(e: Exception, user_email: str):
     raise e
 
 
+# ============================================================
+# Internal Args Support
+# ============================================================
+def extract_schema_defaults(arg_info: dict) -> dict:
+    """Extract default values from original_schema.properties"""
+    original_schema = arg_info.get("original_schema", {})
+    properties = original_schema.get("properties", {})
+    defaults = {}
+    for prop_name, prop_def in properties.items():
+        if "default" in prop_def:
+            defaults[prop_name] = prop_def["default"]
+    return defaults
+
+
+def load_internal_args() -> dict:
+    """Load internal args from tool_internal_args.json"""
+    possible_paths = [
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mcp_editor", "{{ module_name }}", "tool_internal_args.json"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tool_internal_args.json"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "tool_internal_args.json"),
+    ]
+    for path in possible_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    raw_args = json.load(f)
+                # Enrich: compute "value" from defaults if empty
+                enriched = {}
+                for tool_name, tool_args in raw_args.items():
+                    enriched[tool_name] = {}
+                    for arg_name, arg_info in tool_args.items():
+                        arg_copy = dict(arg_info)
+                        if arg_copy.get("value") == {}:
+                            defaults = extract_schema_defaults(arg_copy)
+                            if defaults:
+                                arg_copy["value"] = defaults
+                        enriched[tool_name][arg_name] = arg_copy
+                logger.info(f"Loaded internal args from {path}")
+                return enriched
+            except Exception as exc:
+                logger.warning(f"Failed to load internal args from {path}: {exc}")
+    return {}
+
+
+INTERNAL_ARGS = load_internal_args()
+
+INTERNAL_ARG_TYPES = {
+    "FilterParams": FilterParams,
+    "ExcludeParams": ExcludeParams,
+    "SelectParams": SelectParams,
+}
+
+
+def build_internal_param(tool_name: str, arg_name: str):
+    """Instantiate internal parameter object for a tool based on internal args config.
+
+    Extracts default values from original_schema.properties and uses them to
+    instantiate the parameter class.
+    """
+    arg_info = INTERNAL_ARGS.get(tool_name, {}).get(arg_name)
+    if not arg_info:
+        return None
+
+    param_cls = INTERNAL_ARG_TYPES.get(arg_info.get("type"))
+    if not param_cls:
+        logger.warning(f"Unknown internal arg type for {tool_name}.{arg_name}: {arg_info.get('type')}")
+        return None
+
+    # Extract default values from original_schema.properties
+    original_schema = arg_info.get("original_schema", {})
+    properties = original_schema.get("properties", {})
+
+    # Build value dict from property defaults
+    value = {}
+    for prop_name, prop_def in properties.items():
+        if "default" in prop_def:
+            value[prop_name] = prop_def["default"]
+
+    if not value:
+        # No defaults defined, use empty constructor
+        return param_cls()
+
+    try:
+        return param_cls(**value)
+    except Exception as exc:
+        logger.warning(f"Failed to build internal arg {tool_name}.{arg_name}: {exc}")
+        return None
+
+
 class MCPRequest(BaseModel):
     jsonrpc: str = "2.0"
     id: Optional[Any] = None
