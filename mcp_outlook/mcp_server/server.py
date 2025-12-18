@@ -142,7 +142,10 @@ async def handle_token_error(e: Exception, user_email: str):
 
 
 def extract_schema_defaults(arg_info: Dict[str, Any]) -> Dict[str, Any]:
-    """Extract default values from internal arg schema metadata"""
+    """Extract default values from original_schema.properties.
+
+    These are the static defaults from UI/Pydantic/saved settings.
+    """
     defaults = {}
     for prop_name, prop in arg_info.get("original_schema", {}).get("properties", {}).items():
         if "default" in prop:
@@ -151,8 +154,8 @@ def extract_schema_defaults(arg_info: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def load_internal_args() -> Dict[str, Any]:
-    """
-    Load tool_internal_args.json (web editor output) and enrich empty values with schema defaults.
+    """Load tool_internal_args.json (web editor output).
+
     Searches both the server directory and mcp_editor/outlook.
     """
     base_dir = Path(__file__).resolve().parent
@@ -166,18 +169,8 @@ def load_internal_args() -> Dict[str, Any]:
             try:
                 with path.open("r", encoding="utf-8") as f:
                     raw_args = json.load(f)
-                enriched = {}
-                for tool_name, tool_args in raw_args.items():
-                    enriched[tool_name] = {}
-                    for arg_name, arg_info in tool_args.items():
-                        arg_copy = dict(arg_info)
-                        if arg_copy.get("value") == {}:
-                            defaults = extract_schema_defaults(arg_copy)
-                            if defaults:
-                                arg_copy["value"] = defaults
-                        enriched[tool_name][arg_name] = arg_copy
                 logger.info(f"Loaded internal args from {path}")
-                return enriched
+                return raw_args
             except Exception as exc:
                 logger.warning(f"Failed to load internal args from {path}: {exc}")
     return {}
@@ -192,11 +185,20 @@ INTERNAL_ARG_TYPES = {
 }
 
 
-def build_internal_param(tool_name: str, arg_name: str):
-    """Instantiate internal parameter object for a tool based on internal args config.
+def build_internal_param(tool_name: str, arg_name: str, runtime_value: Dict[str, Any] = None):
+    """Instantiate internal parameter object for a tool.
 
-    Extracts default values from original_schema.properties and uses them to
-    instantiate the parameter class.
+    Value resolution priority:
+    1. runtime_value (value): Dynamic value passed from function arguments at runtime
+    2. default: Static value from original_schema.properties (UI/Pydantic/saved settings)
+
+    Args:
+        tool_name: Name of the tool
+        arg_name: Name of the internal argument
+        runtime_value: Optional runtime value passed from function call (value field)
+
+    Returns:
+        Instantiated parameter object or None
     """
     arg_info = INTERNAL_ARGS.get(tool_name, {}).get(arg_name)
     if not arg_info:
@@ -207,25 +209,46 @@ def build_internal_param(tool_name: str, arg_name: str):
         logger.warning(f"Unknown internal arg type for {tool_name}.{arg_name}: {arg_info.get('type')}")
         return None
 
-    # Extract default values from original_schema.properties
-    original_schema = arg_info.get("original_schema", {})
-    properties = original_schema.get("properties", {})
+    # Get default values from original_schema.properties (static defaults)
+    defaults = extract_schema_defaults(arg_info)
 
-    # Build value dict from property defaults
-    value = {}
-    for prop_name, prop_def in properties.items():
-        if "default" in prop_def:
-            value[prop_name] = prop_def["default"]
+    # Get stored value field (may be set by previous runtime or config)
+    stored_value = arg_info.get("value")
 
-    if not value:
-        # No defaults defined, use empty constructor
+    # Priority: runtime_value > stored value > defaults
+    if runtime_value is not None and runtime_value != {}:
+        # Runtime value provided - merge with defaults (runtime takes precedence)
+        final_value = {**defaults, **runtime_value}
+        logger.debug(f"Using runtime value for {tool_name}.{arg_name}: {runtime_value}")
+    elif stored_value is not None and stored_value != {}:
+        # Stored value exists - merge with defaults (stored takes precedence)
+        final_value = {**defaults, **stored_value}
+        logger.debug(f"Using stored value for {tool_name}.{arg_name}: {stored_value}")
+    else:
+        # No value provided - use defaults only
+        final_value = defaults
+        logger.debug(f"Using defaults for {tool_name}.{arg_name}: {defaults}")
+
+    if not final_value:
+        # No values at all, use empty constructor
         return param_cls()
 
     try:
-        return param_cls(**value)
+        return param_cls(**final_value)
     except Exception as exc:
         logger.warning(f"Failed to build internal arg {tool_name}.{arg_name}: {exc}")
         return None
+
+
+def get_internal_arg_defaults(tool_name: str, arg_name: str) -> Dict[str, Any]:
+    """Get default values for an internal arg (from original_schema.properties).
+
+    Use this to get the static defaults without instantiating the parameter.
+    """
+    arg_info = INTERNAL_ARGS.get(tool_name, {}).get(arg_name)
+    if not arg_info:
+        return {}
+    return extract_schema_defaults(arg_info)
 
 
 class MCPRequest(BaseModel):

@@ -1476,8 +1476,15 @@ def check_server_exists():
 def save_internal_args(internal_args: dict, paths: dict) -> dict:
     """Save internal args to JSON file.
 
-    Note: 'value' field is no longer saved here. The server's build_internal_param
-    function extracts defaults directly from original_schema.properties.
+    Structure:
+    - default: Static values stored in original_schema.properties[prop].default
+              (from UI/Pydantic/saved settings)
+    - value: Optional stored runtime value (if needed for persistence)
+
+    The server's build_internal_param function uses priority:
+    1. runtime_value (passed at function call time)
+    2. stored value field (if exists)
+    3. defaults from original_schema.properties
     """
     try:
         internal_args_path = paths.get("internal_args_path")
