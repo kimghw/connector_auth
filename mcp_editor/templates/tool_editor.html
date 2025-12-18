@@ -1501,12 +1501,11 @@
                                    value="${(propDef.description || '').replace(/"/g, '&quot;')}"
                                    onchange="updatePropertyField(${index}, '${propName}', 'description', this.value)">
                         </div>
-                        ${propDef.type !== 'object' ? `
-                        <div class="form-group" id="default-value-group-${propId}" style="${isRequired ? 'display:none' : ''}">
-                            <label style="font-size: 11px;">Default Value ${propDef.type === 'array' ? '(JSON)' : ''}</label>
-                            ${propDef.type === 'array' ? `
+                        <div class="form-group" id="default-value-group-${propId}">
+                            <label style="font-size: 11px;">Default Value ${propDef.type === 'array' || propDef.type === 'object' ? '(JSON)' : ''}</label>
+                            ${propDef.type === 'array' || propDef.type === 'object' ? `
                             <textarea class="form-control" style="font-family: monospace; font-size: 12px; min-height: 60px;"
-                                      placeholder='["item1", "item2"]'
+                                      placeholder='${propDef.type === 'array' ? '["item1", "item2"]' : '{"key": "value"}'}'
                                       onchange="updatePropertyField(${index}, '${propName}', 'default', parseDefaultValue(this.value, '${propDef.type}'))">${propDef.default !== undefined ? (typeof propDef.default === 'string' ? propDef.default : JSON.stringify(propDef.default, null, 2)) : ''}</textarea>
                             ` : `
                             <input class="form-control" style="font-size: 12px;"
@@ -1515,7 +1514,6 @@
                                    onchange="updatePropertyField(${index}, '${propName}', 'default', parseDefaultValue(this.value, '${propDef.type}'))">
                             `}
                         </div>
-                        ` : ''}
                         ${propDef.enum ? `
                         <div class="form-group">
                             <label>Enum Values (comma-separated)</label>
@@ -1538,7 +1536,22 @@
                         ` : ''}
                         ${propDef.type === 'object' && propDef.properties ? `
                         <div class="form-group">
-                            <label>Nested Properties</label>
+                            <label style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>Nested Properties</span>
+                                <div style="display: flex; gap: 6px; align-items: center;">
+                                    <label style="font-size: 10px; color: var(--text-secondary); display: flex; align-items: center; margin: 0; cursor: pointer;">
+                                        <input type="checkbox" id="nested-select-all-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}"
+                                               onchange="toggleAllNestedCheckboxes(${index}, '${propName}', this.checked)"
+                                               style="margin-right: 3px; transform: scale(0.9);">
+                                        All
+                                    </label>
+                                    <button class="btn btn-icon btn-sm" style="padding: 2px 4px; color: var(--danger-color);"
+                                            onclick="removeSelectedNestedProperties(${index}, '${propName}')"
+                                            title="Delete selected properties">
+                                        <span class="material-icons" style="font-size: 16px;">delete</span>
+                                    </button>
+                                </div>
+                            </label>
                             <div style="padding: 12px; background: var(--bg-color); border-left: 3px solid ${propDef.baseModel ? 'var(--success-color)' : 'var(--primary-color)'}; border-radius: var(--radius-sm);">
                                 ${Object.entries(propDef.properties).map(([nestedPropName, nestedProp]) => {
                                     const nestedIsRequired = propDef.required && propDef.required.includes(nestedPropName);
@@ -1548,6 +1561,10 @@
                                         <div class="nested-prop-header" onclick="toggleNestedPropCollapse('${nestedPropId}')"
                                              style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; cursor: pointer; background: #fafafa;">
                                             <div style="display: flex; align-items: center; gap: 8px;">
+                                                <input type="checkbox" class="nested-prop-checkbox"
+                                                       data-tool-index="${index}" data-parent-prop="${propName}" data-nested-prop="${nestedPropName}"
+                                                       onclick="event.stopPropagation(); updateNestedSelectAllState(${index}, '${propName}')"
+                                                       style="margin: 0;">
                                                 <span class="nested-collapse-icon" id="nested-icon-${nestedPropId}" style="font-size: 10px; color: var(--text-secondary);">▶</span>
                                                 <strong style="color: var(--text-primary); font-size: 12px;">${nestedPropName}</strong>
                                                 <span style="font-size: 10px; color: #888; background: #eee; padding: 1px 6px; border-radius: 3px;">${nestedProp.type}</span>
@@ -2664,10 +2681,82 @@
         // Nested Property Functions
         // ============================================================
 
+        function toggleAllNestedCheckboxes(toolIndex, parentPropName, checked) {
+            const checkboxes = document.querySelectorAll(
+                `.nested-prop-checkbox[data-tool-index="${toolIndex}"][data-parent-prop="${parentPropName}"]`
+            );
+            checkboxes.forEach(cb => cb.checked = checked);
+        }
+
+        function updateNestedSelectAllState(toolIndex, parentPropName) {
+            const checkboxes = document.querySelectorAll(
+                `.nested-prop-checkbox[data-tool-index="${toolIndex}"][data-parent-prop="${parentPropName}"]`
+            );
+            const selectAllId = `nested-select-all-${toolIndex}-${parentPropName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            const selectAllCheckbox = document.getElementById(selectAllId);
+
+            if (selectAllCheckbox && checkboxes.length > 0) {
+                const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+                const someChecked = Array.from(checkboxes).some(cb => cb.checked);
+                selectAllCheckbox.checked = allChecked;
+                selectAllCheckbox.indeterminate = someChecked && !allChecked;
+            }
+        }
+
+        function removeSelectedNestedProperties(toolIndex, parentPropName) {
+            const checkboxes = document.querySelectorAll(
+                `.nested-prop-checkbox[data-tool-index="${toolIndex}"][data-parent-prop="${parentPropName}"]:checked`
+            );
+
+            if (checkboxes.length === 0) {
+                showNotification('No properties selected', 'warning');
+                return;
+            }
+
+            const selectedProps = Array.from(checkboxes).map(cb => cb.dataset.nestedProp);
+
+            if (confirm(`Remove ${selectedProps.length} nested properties?\n\n${selectedProps.join(', ')}`)) {
+                const tool = tools[toolIndex];
+                const toolName = tool.name;
+
+                // Check if parent is in inputSchema or internalArgs
+                let parentProp = tool.inputSchema.properties?.[parentPropName];
+                let isInternal = false;
+
+                if (!parentProp && internalArgs[toolName]?.[parentPropName]) {
+                    parentProp = internalArgs[toolName][parentPropName].original_schema;
+                    isInternal = true;
+                }
+
+                if (parentProp && parentProp.properties) {
+                    selectedProps.forEach(nestedPropName => {
+                        delete parentProp.properties[nestedPropName];
+
+                        // Remove from required array if present
+                        if (parentProp.required) {
+                            parentProp.required = parentProp.required.filter(r => r !== nestedPropName);
+                        }
+                    });
+
+                    showNotification(`Removed ${selectedProps.length} nested properties`, 'info');
+                    renderToolEditor(tool, toolIndex);
+                }
+            }
+        }
+
         function removeNestedPropertyInline(toolIndex, parentPropName, nestedPropName) {
             if (confirm(`Remove nested property "${nestedPropName}" from "${parentPropName}"?`)) {
                 const tool = tools[toolIndex];
-                const parentProp = tool.inputSchema.properties[parentPropName];
+                const toolName = tool.name;
+
+                // Check if parent is in inputSchema or internalArgs
+                let parentProp = tool.inputSchema.properties?.[parentPropName];
+                let isInternal = false;
+
+                if (!parentProp && internalArgs[toolName]?.[parentPropName]) {
+                    parentProp = internalArgs[toolName][parentPropName].original_schema;
+                    isInternal = true;
+                }
 
                 if (parentProp && parentProp.properties) {
                     delete parentProp.properties[nestedPropName];

@@ -226,6 +226,9 @@ def collect_all_param_types(tools: List[Dict[str, Any]], internal_args: Dict[str
     """
     types = set()
 
+    # JSON schema types that should NOT be imported (they are Python built-ins or schema keywords)
+    EXCLUDED_TYPES = {'object', 'array', 'string', 'number', 'integer', 'boolean', 'null'}
+
     # Collect from Signature parameters (inputSchema)
     for tool in tools:
         schema = tool.get('inputSchema', {})
@@ -233,14 +236,15 @@ def collect_all_param_types(tools: List[Dict[str, Any]], internal_args: Dict[str
         for prop_name, prop_schema in properties.items():
             if prop_schema.get('type') == 'object':
                 base_model = prop_schema.get('baseModel')
-                if base_model:
+                if base_model and base_model not in EXCLUDED_TYPES:
                     types.add(base_model)
 
     # Collect from Internal args
     for tool_name, params in internal_args.items():
         for param_name, param_info in params.items():
             param_type = param_info.get('type')
-            if param_type:
+            # Only add actual class names, not JSON schema types
+            if param_type and param_type not in EXCLUDED_TYPES:
                 types.add(param_type)
 
     return types

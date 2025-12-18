@@ -84,9 +84,18 @@ def generate_server(
     template_path: str | None,
     output_path: str,
     tools: Optional[List[Dict[str, Any]]] = None,
-    server_name: str | None = None
+    server_name: str | None = None,
+    tools_path: str | None = None
 ):
-    """Generate server.py from tool definitions and the chosen template."""
+    """Generate server.py from tool definitions and the chosen template.
+
+    Args:
+        template_path: Path to Jinja2 template file
+        output_path: Path for generated server.py
+        tools: List of tool definitions
+        server_name: Server name for context
+        tools_path: Path to tools definition file (used for finding internal_args)
+    """
     resolved_template = resolve_template_path(template_path, server_name)
     output_path = str(output_path)
     Path(os.path.dirname(output_path)).mkdir(parents=True, exist_ok=True)
@@ -95,7 +104,7 @@ def generate_server(
         _render_scaffold_template(resolved_template, output_path, server_name)
         return
 
-    _generate_outlook_server(resolved_template, output_path, tools)
+    _generate_outlook_server(resolved_template, output_path, tools, tools_path=tools_path)
 
 
 def _default_tools_path() -> Optional[str]:
