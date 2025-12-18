@@ -405,6 +405,38 @@ def remove_defaults(schema):
     return schema
 
 
+def prune_internal_properties(tools_data: list, internal_args: dict):
+    """Remove inputSchema properties that are marked as internal args.
+
+    This keeps tool_definition_templates/tool_definitions in sync even if
+    internal_args were added/edited outside the UI toggle flow.
+    """
+    if not internal_args:
+        return tools_data
+
+    for tool in tools_data:
+        name = tool.get("name")
+        internal_props = internal_args.get(name)
+        if not internal_props:
+            continue
+
+        schema = tool.get("inputSchema")
+        if not isinstance(schema, dict):
+            continue
+
+        props = schema.get("properties")
+        if not isinstance(props, dict):
+            continue
+
+        for prop_name in list(internal_props.keys()):
+            if prop_name in props:
+                del props[prop_name]
+            if isinstance(schema.get("required"), list):
+                schema["required"] = [r for r in schema["required"] if r != prop_name]
+
+    return tools_data
+
+
 SERVICE_SCAN_CACHE: dict[tuple[str, str], dict] = {}
 
 
@@ -1627,6 +1659,9 @@ def save_all_definitions():
                 "action": "fix_required",
                 "message": "Each internal arg must have a 'type' field (e.g., SelectParams, FilterParams)"
             }), 400
+
+        # CRITICAL: Strip any properties that are marked as internal before saving
+        tools_data = prune_internal_properties(tools_data, internal_args)
 
         # Check for file conflicts (optional)
         if loaded_mtimes:

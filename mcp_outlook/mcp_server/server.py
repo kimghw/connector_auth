@@ -4,6 +4,7 @@ Routes MCP protocol requests to existing Graph Mail functions
 Now with SessionManager for safe multi-user support
 """
 import json
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
@@ -138,6 +139,81 @@ async def handle_token_error(e: Exception, user_email: str):
         await session_manager.invalidate_session(user_email)
         raise HTTPException(status_code=401, detail="Access token expired")
     raise e
+
+
+def extract_schema_defaults(arg_info: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract default values from internal arg schema metadata"""
+    defaults = {}
+    for prop_name, prop in arg_info.get("original_schema", {}).get("properties", {}).items():
+        if "default" in prop:
+            defaults[prop_name] = prop["default"]
+    return defaults
+
+
+def load_internal_args() -> Dict[str, Any]:
+    """
+    Load tool_internal_args.json (web editor output) and enrich empty values with schema defaults.
+    Searches both the server directory and mcp_editor/outlook.
+    """
+    base_dir = Path(__file__).resolve().parent
+    candidates = [
+        base_dir / "tool_internal_args.json",
+        base_dir.parent.parent / "mcp_editor" / "outlook" / "tool_internal_args.json",
+    ]
+
+    for path in candidates:
+        if path.exists():
+            try:
+                with path.open("r", encoding="utf-8") as f:
+                    raw_args = json.load(f)
+                enriched = {}
+                for tool_name, tool_args in raw_args.items():
+                    enriched[tool_name] = {}
+                    for arg_name, arg_info in tool_args.items():
+                        arg_copy = dict(arg_info)
+                        if arg_copy.get("value") == {}:
+                            defaults = extract_schema_defaults(arg_copy)
+                            if defaults:
+                                arg_copy["value"] = defaults
+                        enriched[tool_name][arg_name] = arg_copy
+                logger.info(f"Loaded internal args from {path}")
+                return enriched
+            except Exception as exc:
+                logger.warning(f"Failed to load internal args from {path}: {exc}")
+    return {}
+
+
+INTERNAL_ARGS = load_internal_args()
+
+INTERNAL_ARG_TYPES = {
+    "FilterParams": FilterParams,
+    "ExcludeParams": ExcludeParams,
+    "SelectParams": SelectParams,
+}
+
+
+def build_internal_param(tool_name: str, arg_name: str):
+    """Instantiate internal parameter object for a tool based on internal args config"""
+    arg_info = INTERNAL_ARGS.get(tool_name, {}).get(arg_name)
+    if not arg_info:
+        return None
+
+    param_cls = INTERNAL_ARG_TYPES.get(arg_info.get("type"))
+    if not param_cls:
+        logger.warning(f"Unknown internal arg type for {tool_name}.{arg_name}: {arg_info.get('type')}")
+        return None
+
+    value = arg_info.get("value")
+    if value is None:
+        return None
+    if value == {}:
+        return param_cls()
+
+    try:
+        return param_cls(**value)
+    except Exception as exc:
+        logger.warning(f"Failed to build internal arg {tool_name}.{arg_name}: {exc}")
+        return None
 
 
 class MCPRequest(BaseModel):
@@ -283,22 +359,15 @@ async def handle_Outlook(args: Dict[str, Any]) -> Dict[str, Any]:
     # Extract parameters from args
     orderby = args.get("orderby")
     top = args.get("top")
-    client_filter = args.get("client_filter", {})
-    exclude = args.get("exclude", {})
-    filter = args.get("filter", {})
-    select = args.get("select", {})
 
     # Convert dicts to parameter objects where needed (Signature params from args)
-    client_filter_params = None
-    if client_filter:
-        client_filter_params = FilterParams(**client_filter)
-    exclude_params = None
-    if exclude:
-        exclude_params = ExcludeParams(**exclude)
-    filter_params = FilterParams(**filter) if filter else FilterParams()
-    select_params = None
-    if select:
-        select_params = SelectParams(**select)
+    client_filter_raw = args.get("client_filter")
+    client_filter_params = FilterParams(**client_filter_raw) if client_filter_raw is not None else None
+    exclude_raw = args.get("exclude")
+    exclude_params = ExcludeParams(**exclude_raw) if exclude_raw is not None else None
+    filter_params = FilterParams(**args["filter"])
+    select_raw = args.get("select")
+    select_params = SelectParams(**select_raw) if select_raw is not None else None
 
     try:
         # Use helper to get the correct instance
@@ -327,16 +396,12 @@ async def handle_keyword_search(args: Dict[str, Any]) -> Dict[str, Any]:
     orderby = args.get("orderby")
     search = args["search"]
     top = args.get("top")
-    client_filter = args.get("client_filter", {})
-    select = args.get("select", {})
 
     # Convert dicts to parameter objects where needed (Signature params from args)
-    client_filter_params = None
-    if client_filter:
-        client_filter_params = FilterParams(**client_filter)
-    select_params = None
-    if select:
-        select_params = SelectParams(**select)
+    client_filter_raw = args.get("client_filter")
+    client_filter_params = FilterParams(**client_filter_raw) if client_filter_raw is not None else None
+    select_raw = args.get("select")
+    select_params = SelectParams(**select_raw) if select_raw is not None else None
 
     try:
         # Use helper to get the correct instance
@@ -363,12 +428,10 @@ async def handle_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     # Extract parameters from args
     top = args.get("top")
     url = args["url"]
-    client_filter = args.get("client_filter", {})
 
     # Convert dicts to parameter objects where needed (Signature params from args)
-    client_filter_params = None
-    if client_filter:
-        client_filter_params = FilterParams(**client_filter)
+    client_filter_raw = args.get("client_filter")
+    client_filter_params = FilterParams(**client_filter_raw) if client_filter_raw is not None else None
 
     try:
         # Use helper to get the correct instance
@@ -384,42 +447,32 @@ async def handle_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
         await handle_token_error(e, user_email)
 
 async def handle_mail_list(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to GraphMailClient.mail_list with session or legacy support"""
+    """Route to GraphMailQuery.query_filter with session or legacy support"""
     user_email = args["user_email"]
 
     # Get session or legacy instances
     context = await get_user_session_or_legacy(user_email, args.get("access_token"))
 
     # Extract parameters from args
-    orderby = args.get("orderby")
-    top = args.get("top")
-    client_filter = args.get("client_filter", {})
-    exclude = args.get("exclude", {})
-    filter = args.get("filter", {})
-    select = args.get("select", {})
+    top = args.get("top", 100)
 
     # Convert dicts to parameter objects where needed (Signature params from args)
-    client_filter_params = None
-    if client_filter:
-        client_filter_params = FilterParams(**client_filter)
-    exclude_params = None
-    if exclude:
-        exclude_params = ExcludeParams(**exclude)
-    filter_params = FilterParams(**filter) if filter else FilterParams()
-    select_params = None
-    if select:
-        select_params = SelectParams(**select)
+    filter_params = FilterParams(**args["filter"])
+
+    
+    client_filter_params = build_internal_param("mail_list", "client_filter")
+    exclude_params = build_internal_param("mail_list", "exclude")
+    select_params = build_internal_param("mail_list", "select")
 
     try:
         # Use helper to get the correct instance
-        service_instance = get_client_instance(context)
+        service_instance = get_query_instance(context)
 
-        return await service_instance.mail_list(
+        return await service_instance.query_filter(
             user_email=user_email,
             client_filter=client_filter_params,
             exclude=exclude_params,
             filter=filter_params,
-            orderby=orderby,
             select=select_params,
             top=top
         )

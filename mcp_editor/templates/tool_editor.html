@@ -152,6 +152,57 @@
             filter: brightness(1.05);
         }
 
+        /* Tooltip styles */
+        .btn-tooltip {
+            position: relative;
+        }
+
+        .btn-tooltip::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 30, 30, 0.95);
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 400;
+            white-space: pre-line;
+            text-align: left;
+            line-height: 1.5;
+            min-width: 220px;
+            max-width: 320px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .btn-tooltip::before {
+            content: '';
+            position: absolute;
+            bottom: calc(100% + 2px);
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: rgba(30, 30, 30, 0.95);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .btn-tooltip:hover::after,
+        .btn-tooltip:hover::before {
+            opacity: 1;
+            visibility: visible;
+        }
+
         .main-content {
             display: flex;
             flex: 1;
@@ -529,8 +580,8 @@
 
         .property-collapsible {
             border: 1px solid #e5e5e5;
-            border-radius: 8px;
-            margin-bottom: 12px;
+            border-radius: 6px;
+            margin-bottom: 6px;
             overflow: hidden;
         }
 
@@ -538,7 +589,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 16px;
+            padding: 8px 12px;
             background: white;
             cursor: pointer;
             transition: all 0.2s;
@@ -555,7 +606,7 @@
         }
 
         .property-collapse-content {
-            padding: 16px;
+            padding: 10px;
             background: #fafafa;
         }
 
@@ -609,7 +660,7 @@
                 <span>MCP Tool Definitions Editor</span>
             </h1>
             <div class="header-buttons">
-                <button class="btn btn-secondary" onclick="loadTools()">
+                <button class="btn btn-secondary btn-tooltip" onclick="loadTools()" data-tooltip="📂 Load: tool_definitions.py&#10;📂 Load: tool_internal_args.json&#10;&#10;Refresh tool list from server files">
                     <span class="material-icons">refresh</span> Reload
                 </button>
                 <button class="btn btn-secondary" onclick="showBackups()">
@@ -618,10 +669,10 @@
                 <button class="btn btn-secondary" onclick="validateTools()">
                     <span class="material-icons">check_circle</span> Validate
                 </button>
-                <button class="btn btn-primary" onclick="saveTools()">
+                <button class="btn btn-primary btn-tooltip" onclick="saveTools()" data-tooltip="💾 Save: tool_definitions.py&#10;💾 Save: tool_definition_templates.py&#10;💾 Save: tool_internal_args.json&#10;&#10;Save all changes to disk">
                     <span class="material-icons">save</span> Save Changes
                 </button>
-                <button class="btn btn-important" onclick="openGeneratorModal()">
+                <button class="btn btn-important btn-tooltip" onclick="openGeneratorModal()" data-tooltip="⚙️ Input: tool_definitions.py&#10;📄 Template: *_server_template.jinja2&#10;🚀 Output: server.py&#10;&#10;Generate MCP server from template">
                     <span class="material-icons">auto_fix_high</span> Generate Server
                 </button>
             </div>
@@ -724,7 +775,7 @@
                 </div>
                 <div class="form-group" id="nestedPropertySelectionDiv" style="display: none;">
                     <label>Select Properties to Add</label>
-                    <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 600px; overflow-y: auto;">
+                    <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 300px; overflow-y: auto;">
                         <div id="nestedPropertyCheckboxList">
                             <!-- Checkboxes will be populated here -->
                         </div>
@@ -771,12 +822,12 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>Select MCP Server</label>
+                    <label>Select Module</label>
                     <select id="generatorModule" class="form-control" onchange="handleGeneratorModuleChange()">
                         <option value="">Custom / Current Profile</option>
                     </select>
                     <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
-                        Select an MCP server to auto-fill paths based on the current profile.
+                        Detected modules share the same mcp folder layout. Choose one to auto-fill generator args.
                     </p>
                 </div>
                 <div class="form-group">
@@ -789,7 +840,7 @@
                 </div>
                 <div class="form-group">
                     <label>Output path (--output)</label>
-                    <input id="generatorOutputPath" class="form-control" placeholder="/path/to/server.py">
+                    <input id="generatorOutputPath" class="form-control" placeholder="/path/to/server_generated.py">
                 </div>
                 <div id="generatorResult" style="color: var(--text-secondary); font-size: 13px;"></div>
             </div>
@@ -812,7 +863,6 @@
         let profiles = [];
         let generatorModules = [];
         let generatorFallback = {};
-        let generatorActiveModule = '';
         let templateSources = [];  // Available template files (current, backups, other profiles)
         let originalProfile = '';  // The profile that tools were originally loaded from (for saving)
 
@@ -1045,14 +1095,12 @@
                 .then(data => {
                     generatorModules = data.modules || [];
                     generatorFallback = data.fallback || {};
-                    generatorActiveModule = data.active_module || data.active || '';
                     renderGeneratorOptions();
                 })
                 .catch(error => {
                     console.error('Error loading generator defaults:', error);
                     generatorModules = [];
                     generatorFallback = {};
-                    generatorActiveModule = '';
                 });
         }
 
@@ -1060,49 +1108,34 @@
             const select = document.getElementById('generatorModule');
             if (!select) return;
 
-            select.innerHTML = '';
-
-            // Add detected modules
+            select.innerHTML = '<option value="">Custom / Current Profile</option>';
             generatorModules.forEach(mod => {
                 const opt = document.createElement('option');
                 opt.value = mod.name;
-                const serverLabel = mod.server_name && mod.server_name !== mod.name
-                    ? `${mod.server_name} (${mod.name})`
-                    : mod.name;
-                opt.textContent = serverLabel;
+                opt.textContent = mod.name;
                 select.appendChild(opt);
             });
 
-            // Add custom option at the end
-            const customOpt = document.createElement('option');
-            customOpt.value = '';
-            customOpt.textContent = 'Custom';
-            select.appendChild(customOpt);
-
-            // Choose default value: API preferred -> profile match -> first module
-            const normalizedProfile = (currentProfile || '').replace(/^_/, '');
-            const profileMatch = generatorModules.find(mod => {
-                const server = mod.server_name || '';
-                const name = mod.name || '';
-                return (server && server === normalizedProfile)
-                    || name === normalizedProfile
-                    || name.replace(/^mcp_/, '') === normalizedProfile
-                    || name.includes(normalizedProfile);
-            });
-            let defaultValue = generatorActiveModule && generatorModules.some(mod => mod.name === generatorActiveModule)
-                ? generatorActiveModule
-                : (profileMatch ? profileMatch.name : (generatorModules[0] ? generatorModules[0].name : ''));
-
-            select.value = defaultValue;
-
-            // Ensure we always apply defaults with a valid module or fallback
-            if (!select.value && defaultValue) {
-                const fallbackModule = generatorModules[0] ? generatorModules[0].name : '';
-                select.value = fallbackModule;
-                defaultValue = select.value;
+            // Prefer module matching current profile, fallback to first module
+            let defaultValue = '';
+            if (currentProfile) {
+                // Try to find a module matching the active profile name
+                const matchingModule = generatorModules.find(mod =>
+                    mod.name.toLowerCase() === currentProfile.toLowerCase() ||
+                    mod.name.toLowerCase().includes(currentProfile.toLowerCase()) ||
+                    currentProfile.toLowerCase().includes(mod.name.toLowerCase())
+                );
+                if (matchingModule) {
+                    defaultValue = matchingModule.name;
+                }
+            }
+            // Fallback to first module if no profile match
+            if (!defaultValue && generatorModules.length > 0) {
+                defaultValue = generatorModules[0].name;
             }
 
-            applyGeneratorDefaults(select.value || '');
+            select.value = defaultValue;
+            applyGeneratorDefaults(defaultValue);
         }
 
         function applyGeneratorDefaults(moduleName) {
@@ -1457,10 +1490,10 @@
                             </div>
                             ${isInternal ? `
                             <div style="margin-top: 12px; padding: 10px; background: white; border-radius: 6px; border: 1px solid var(--border-color);">
-                                <label style="font-size: 12px; font-weight: 600; color: var(--warning-color);">Internal Value (JSON)</label>
+                                <label style="font-size: 12px; font-weight: 600; color: var(--warning-color);">Internal Default Values (JSON)</label>
                                 <textarea class="form-control" style="font-family: monospace; font-size: 12px; min-height: 80px; margin-top: 6px;"
-                                          onchange="updateInternalArgValue(${index}, '${propName}', this.value)"
-                                          placeholder='{"key": "value"}'>${JSON.stringify(toolInternalArgs[propName]?.value, null, 2) || 'null'}</textarea>
+                                          onchange="updateInternalArgDefaults(${index}, '${propName}', this.value)"
+                                          placeholder='{"key": "value"}'>${JSON.stringify(getInternalArgDefaults(toolInternalArgs[propName]), null, 2) || '{}'}</textarea>
                             </div>
                             ` : ''}
                         </div>
@@ -1481,12 +1514,21 @@
                             <textarea class="form-control"
                                       onchange="updatePropertyField(${index}, '${propName}', 'description', this.value)">${propDef.description || ''}</textarea>
                         </div>
-                        <div class="form-group">
-                            <label>Default</label>
+                        <div class="form-group" id="default-value-group-${propId}" style="${isRequired ? 'display:none' : ''}">
+                            <label>Default Value ${propDef.type === 'object' || propDef.type === 'array' ? '(JSON)' : ''}</label>
+                            ${propDef.type === 'object' || propDef.type === 'array' ? `
+                            <textarea class="form-control" style="font-family: monospace; font-size: 12px; min-height: 80px;"
+                                      placeholder='${propDef.type === 'object' ? '{"key": "value"}' : '["item1", "item2"]'}'
+                                      onchange="updatePropertyField(${index}, '${propName}', 'default', parseDefaultValue(this.value, '${propDef.type}'))">${propDef.default !== undefined ? (typeof propDef.default === 'string' ? propDef.default : JSON.stringify(propDef.default, null, 2)) : ''}</textarea>
+                            ` : `
                             <input class="form-control"
                                    value="${propDef.default !== undefined ? propDef.default : ''}"
                                    placeholder="Optional default value"
                                    onchange="updatePropertyField(${index}, '${propName}', 'default', parseDefaultValue(this.value, '${propDef.type}'))">
+                            `}
+                            <small class="text-muted" style="display: block; margin-top: 4px; font-size: 11px; color: var(--text-secondary);">
+                                LLM이 값을 전달하지 않을 때 사용할 기본값${propDef.type === 'object' || propDef.type === 'array' ? ' (JSON 형식)' : ''}
+                            </small>
                         </div>
                         ${propDef.enum ? `
                         <div class="form-group">
@@ -1711,10 +1753,18 @@
         // Internal Args Functions
         // ============================================================
 
-        function getInternalArgValue(toolName, propName) {
-            const toolInternalArgs = internalArgs[toolName] || {};
-            const propArg = toolInternalArgs[propName];
-            return propArg ? propArg.value : null;
+        function getInternalArgDefaults(propArg) {
+            // Extract default values from original_schema.properties
+            if (!propArg || !propArg.original_schema || !propArg.original_schema.properties) {
+                return {};
+            }
+            const defaults = {};
+            for (const [key, prop] of Object.entries(propArg.original_schema.properties)) {
+                if (prop.default !== undefined) {
+                    defaults[key] = prop.default;
+                }
+            }
+            return defaults;
         }
 
         function setPropertyDestination(index, propName, destination) {
@@ -1743,14 +1793,9 @@
 
                 // Store original schema info for potential restoration
                 const wasRequired = (tool.inputSchema.required || []).includes(propName);
-                // CRITICAL: Use explicit undefined check to preserve falsy defaults (false, 0, "")
-                const defaultValue = propDef.default !== undefined
-                    ? propDef.default
-                    : (propDef.type === 'object' ? {} : null);
                 internalArgs[toolName][propName] = {
                     type: propDef.baseModel || propDef.type,  // Use baseModel if available
                     description: propDef.description || '',
-                    value: defaultValue,
                     original_schema: JSON.parse(JSON.stringify(propDef)),  // Deep copy for restoration
                     was_required: wasRequired
                 };
@@ -1803,11 +1848,50 @@
                 showNotification(`Property "${propName}" restored to Signature`, 'info');
             }
 
-            // Re-render to update UI
+            // Re-render to update UI (preserve scroll position and collapse state)
+            const scrollContainer = document.querySelector('.editor-area');
+            const scrollTop = scrollContainer
+                ? scrollContainer.scrollTop
+                : (window.scrollY || document.documentElement.scrollTop);
+            const scrollLeft = scrollContainer
+                ? scrollContainer.scrollLeft
+                : (window.scrollX || document.documentElement.scrollLeft);
+
+            // Save collapsed property states before re-render (class-based, not inline style)
+            const collapsedProps = Array.from(document.querySelectorAll('.property-collapse-content'))
+                .filter(content => content.classList.contains('collapsed'))
+                .map(content => content.id);
+
             renderToolEditor(tool, index);
+
+            // Restore collapsed states
+            collapsedProps.forEach(id => {
+                const content = document.getElementById(id);
+                const iconId = id.replace('content-', 'icon-');
+                const icon = document.getElementById(iconId);
+                const headerId = id.replace('content-', 'header-');
+                const header = document.getElementById(headerId);
+
+                if (content) content.classList.add('collapsed');
+                if (icon) {
+                    icon.classList.add('collapsed');
+                    icon.textContent = '▶';
+                }
+                if (header) header.classList.remove('expanded');
+            });
+
+            // Restore scroll position after render (prefer the editor scroll container)
+            setTimeout(() => {
+                if (scrollContainer) {
+                    scrollContainer.scrollTop = scrollTop;
+                    scrollContainer.scrollLeft = scrollLeft;
+                } else {
+                    window.scrollTo(scrollLeft, scrollTop);
+                }
+            }, 10);
         }
 
-        function updateInternalArgValue(index, propName, jsonString) {
+        function updateInternalArgDefaults(index, propName, jsonString) {
             const tool = tools[index];
             const toolName = tool.name;
 
@@ -1817,9 +1901,19 @@
             }
 
             try {
-                const value = JSON.parse(jsonString);
-                internalArgs[toolName][propName].value = value;
-                showNotification(`Internal value updated for "${propName}"`, 'success');
+                const defaults = JSON.parse(jsonString);
+                // Update default values in original_schema.properties
+                const propArg = internalArgs[toolName][propName];
+                if (!propArg.original_schema.properties) {
+                    propArg.original_schema.properties = {};
+                }
+                for (const [key, value] of Object.entries(defaults)) {
+                    if (!propArg.original_schema.properties[key]) {
+                        propArg.original_schema.properties[key] = { type: typeof value };
+                    }
+                    propArg.original_schema.properties[key].default = value;
+                }
+                showNotification(`Internal defaults updated for "${propName}"`, 'success');
             } catch (e) {
                 showNotification(`Invalid JSON: ${e.message}`, 'error');
             }
@@ -1931,17 +2025,21 @@
                     if (!tool.inputSchema.required.includes(propName)) {
                         tool.inputSchema.required.push(propName);
                     }
+                    // Required property cannot have default value - remove it
+                    if (tool.inputSchema.properties[propName]) {
+                        delete tool.inputSchema.properties[propName].default;
+                    }
                 } else {
                     tool.inputSchema.required = tool.inputSchema.required.filter(r => r !== propName);
                 }
             }
 
-            // Re-render to update the JSON view
+            // Re-render to update the JSON view (this will show/hide default field)
             renderToolEditor(tool, index);
         }
 
         function parseDefaultValue(value, type) {
-            if (value === '') return undefined;
+            if (value === '' || value === undefined) return undefined;
             switch (type) {
                 case 'integer':
                     return parseInt(value, 10);
@@ -1949,9 +2047,30 @@
                     return parseFloat(value);
                 case 'boolean':
                     return value === 'true' || value === true;
+                case 'object':
+                case 'array':
+                    // Parse JSON for object and array types
+                    if (typeof value === 'string') {
+                        try {
+                            return JSON.parse(value);
+                        } catch (e) {
+                            console.error('Invalid JSON for default value:', e.message);
+                            return undefined;
+                        }
+                    }
+                    return value;
                 default:
                     return value;
             }
+        }
+
+        function formatDefaultValue(value, type) {
+            // Format default value for display in input field
+            if (value === undefined || value === null) return '';
+            if (type === 'object' || type === 'array') {
+                return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+            }
+            return String(value);
         }
 
         function addProperty(index) {
@@ -2014,7 +2133,7 @@
                                 </div>
                                 <div class="form-group" id="propertySelectionDiv" style="display: none;">
                                     <label>Select Properties to Add</label>
-                                    <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 600px; overflow-y: auto;">
+                                    <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 300px; overflow-y: auto;">
                                         <div id="propertyCheckboxList">
                                             <!-- Checkboxes will be populated here -->
                                         </div>
@@ -2520,44 +2639,10 @@
             return candidates[0];
         }
 
-        function removeNestedPropertyInline(index, propName, nestedPropName) {
-            if (confirm(`Remove nested property "${nestedPropName}" from "${propName}"?`)) {
-                const tool = tools[index];
-                const toolName = tool.name;
-
-                // Check if this is an internal property
-                const isInternal = internalArgs[toolName]?.[propName];
-
-                if (isInternal) {
-                    // Remove from internal args nested properties
-                    if (internalArgs[toolName][propName].original_schema?.properties) {
-                        delete internalArgs[toolName][propName].original_schema.properties[nestedPropName];
-                    }
-                } else {
-                    // Remove from regular inputSchema nested properties
-                    if (tool.inputSchema.properties[propName]?.properties) {
-                        delete tool.inputSchema.properties[propName].properties[nestedPropName];
-                    }
-                }
-
-                // Re-render the tool editor
-                renderToolEditor(tool, index);
-                showNotification(`Nested property "${nestedPropName}" removed from "${propName}"`, 'info');
-            }
-        }
-
         function removeProperty(index, propName) {
             if (confirm(`Remove property "${propName}"?`)) {
                 const tool = tools[index];
                 const toolName = tool.name;
-
-                // Save current collapsed state before re-rendering
-                const collapsedStates = {};
-                document.querySelectorAll('.property-collapse-content').forEach(el => {
-                    if (el.id && el.id.startsWith('content-')) {
-                        collapsedStates[el.id] = el.classList.contains('collapsed');
-                    }
-                });
 
                 // Remove from inputSchema.properties if present
                 delete tool.inputSchema.properties[propName];
@@ -2578,28 +2663,236 @@
                 }
 
                 renderToolEditor(tool, index);
+            }
+        }
 
-                // Restore collapsed states after re-rendering
-                setTimeout(() => {
-                    Object.keys(collapsedStates).forEach(id => {
-                        const element = document.getElementById(id);
-                        const iconId = id.replace('content-', 'icon-');
-                        const headerId = id.replace('content-', 'header-');
-                        const icon = document.getElementById(iconId);
-                        const header = document.getElementById(headerId);
+        // ============================================================
+        // Nested Property Functions
+        // ============================================================
 
-                        if (element && collapsedStates[id]) {
-                            element.classList.add('collapsed');
-                            if (icon) {
-                                icon.classList.add('collapsed');
-                                icon.textContent = '▶';
-                            }
-                            if (header) {
-                                header.classList.remove('expanded');
-                            }
-                        }
-                    });
-                }, 0);
+        function removeNestedPropertyInline(toolIndex, parentPropName, nestedPropName) {
+            if (confirm(`Remove nested property "${nestedPropName}" from "${parentPropName}"?`)) {
+                const tool = tools[toolIndex];
+                const parentProp = tool.inputSchema.properties[parentPropName];
+
+                if (parentProp && parentProp.properties) {
+                    delete parentProp.properties[nestedPropName];
+
+                    // Remove from required array if present
+                    if (parentProp.required) {
+                        parentProp.required = parentProp.required.filter(r => r !== nestedPropName);
+                    }
+
+                    showNotification(`Nested property "${nestedPropName}" removed`, 'info');
+                    renderToolEditor(tool, toolIndex);
+                }
+            }
+        }
+
+        function toggleNestedRequired(toolIndex, parentPropName, nestedPropName, isChecked) {
+            const tool = tools[toolIndex];
+            const parentProp = tool.inputSchema.properties[parentPropName];
+
+            if (parentProp) {
+                if (!parentProp.required) {
+                    parentProp.required = [];
+                }
+
+                if (isChecked) {
+                    if (!parentProp.required.includes(nestedPropName)) {
+                        parentProp.required.push(nestedPropName);
+                    }
+                } else {
+                    parentProp.required = parentProp.required.filter(r => r !== nestedPropName);
+                }
+
+                renderToolEditor(tool, toolIndex);
+            }
+        }
+
+        function updateNestedPropertyType(toolIndex, parentPropName, nestedPropName, newType) {
+            const tool = tools[toolIndex];
+            const parentProp = tool.inputSchema.properties[parentPropName];
+
+            if (parentProp && parentProp.properties && parentProp.properties[nestedPropName]) {
+                parentProp.properties[nestedPropName].type = newType;
+                // Clear type-specific properties when type changes
+                delete parentProp.properties[nestedPropName].items;
+                delete parentProp.properties[nestedPropName].enum;
+                delete parentProp.properties[nestedPropName].properties;
+            }
+        }
+
+        function updateNestedPropertyDescription(toolIndex, parentPropName, nestedPropName, description) {
+            const tool = tools[toolIndex];
+            const toolName = tool.name;
+
+            // Check if this is an internal property
+            const isInternal = !tool.inputSchema.properties[parentPropName] &&
+                               internalArgs[toolName]?.[parentPropName];
+
+            if (isInternal) {
+                // Update original_schema.properties in internalArgs
+                const internalArg = internalArgs[toolName][parentPropName];
+                if (internalArg.original_schema?.properties?.[nestedPropName]) {
+                    internalArg.original_schema.properties[nestedPropName].description = description;
+                }
+            } else {
+                // Normal signature property - update inputSchema
+                const parentProp = tool.inputSchema.properties[parentPropName];
+                if (parentProp && parentProp.properties && parentProp.properties[nestedPropName]) {
+                    parentProp.properties[nestedPropName].description = description;
+                }
+            }
+        }
+
+        function updateNestedPropertyDefault(toolIndex, parentPropName, nestedPropName, defaultValue) {
+            const tool = tools[toolIndex];
+            const toolName = tool.name;
+
+            // Check if this is an internal property
+            const isInternal = !tool.inputSchema.properties[parentPropName] &&
+                               internalArgs[toolName]?.[parentPropName];
+
+            if (isInternal) {
+                // Update original_schema.properties in internalArgs
+                const internalArg = internalArgs[toolName][parentPropName];
+                if (internalArg.original_schema?.properties?.[nestedPropName]) {
+                    if (defaultValue === undefined) {
+                        delete internalArg.original_schema.properties[nestedPropName].default;
+                    } else {
+                        internalArg.original_schema.properties[nestedPropName].default = defaultValue;
+                    }
+                }
+            } else {
+                // Normal signature property - update inputSchema
+                const parentProp = tool.inputSchema.properties[parentPropName];
+                if (parentProp && parentProp.properties && parentProp.properties[nestedPropName]) {
+                    if (defaultValue === undefined) {
+                        delete parentProp.properties[nestedPropName].default;
+                    } else {
+                        parentProp.properties[nestedPropName].default = defaultValue;
+                    }
+                }
+            }
+        }
+
+        function updateNestedPropertyFormat(toolIndex, parentPropName, nestedPropName, format) {
+            const tool = tools[toolIndex];
+            const toolName = tool.name;
+
+            // Check if this is an internal property
+            const isInternal = !tool.inputSchema.properties[parentPropName] &&
+                               internalArgs[toolName]?.[parentPropName];
+
+            if (isInternal) {
+                // Update original_schema.properties in internalArgs
+                const internalArg = internalArgs[toolName][parentPropName];
+                if (internalArg.original_schema?.properties?.[nestedPropName]) {
+                    if (format) {
+                        internalArg.original_schema.properties[nestedPropName].format = format;
+                    } else {
+                        delete internalArg.original_schema.properties[nestedPropName].format;
+                    }
+                }
+            } else {
+                // Normal signature property - update inputSchema
+                const parentProp = tool.inputSchema.properties[parentPropName];
+                if (parentProp && parentProp.properties && parentProp.properties[nestedPropName]) {
+                    if (format) {
+                        parentProp.properties[nestedPropName].format = format;
+                    } else {
+                        delete parentProp.properties[nestedPropName].format;
+                    }
+                }
+            }
+        }
+
+        function updateNestedPropertyEnum(toolIndex, parentPropName, nestedPropName, enumString) {
+            const tool = tools[toolIndex];
+            const toolName = tool.name;
+            const enumValues = enumString.split(',').map(v => v.trim()).filter(v => v);
+
+            // Check if this is an internal property
+            const isInternal = !tool.inputSchema.properties[parentPropName] &&
+                               internalArgs[toolName]?.[parentPropName];
+
+            if (isInternal) {
+                // Update original_schema.properties in internalArgs
+                const internalArg = internalArgs[toolName][parentPropName];
+                if (internalArg.original_schema?.properties?.[nestedPropName]) {
+                    if (enumValues.length > 0) {
+                        internalArg.original_schema.properties[nestedPropName].enum = enumValues;
+                    } else {
+                        delete internalArg.original_schema.properties[nestedPropName].enum;
+                    }
+                }
+            } else {
+                // Normal signature property - update inputSchema
+                const parentProp = tool.inputSchema.properties[parentPropName];
+                if (parentProp && parentProp.properties && parentProp.properties[nestedPropName]) {
+                    if (enumValues.length > 0) {
+                        parentProp.properties[nestedPropName].enum = enumValues;
+                    } else {
+                        delete parentProp.properties[nestedPropName].enum;
+                    }
+                }
+            }
+        }
+
+        function toggleNestedEnum(toolIndex, parentPropName, nestedPropName, hasEnum) {
+            const tool = tools[toolIndex];
+            const toolName = tool.name;
+
+            // Check if this is an internal property
+            const isInternal = !tool.inputSchema.properties[parentPropName] &&
+                               internalArgs[toolName]?.[parentPropName];
+
+            if (isInternal) {
+                // Update original_schema.properties in internalArgs
+                const internalArg = internalArgs[toolName][parentPropName];
+                if (internalArg.original_schema?.properties?.[nestedPropName]) {
+                    if (hasEnum) {
+                        internalArg.original_schema.properties[nestedPropName].enum = [];
+                    } else {
+                        delete internalArg.original_schema.properties[nestedPropName].enum;
+                    }
+                    renderToolEditor(tool, toolIndex);
+                }
+            } else {
+                // Normal signature property - update inputSchema
+                const parentProp = tool.inputSchema.properties[parentPropName];
+                if (parentProp && parentProp.properties && parentProp.properties[nestedPropName]) {
+                    if (hasEnum) {
+                        parentProp.properties[nestedPropName].enum = [];
+                    } else {
+                        delete parentProp.properties[nestedPropName].enum;
+                    }
+                    renderToolEditor(tool, toolIndex);
+                }
+            }
+        }
+
+        function updateNestedPropertyItems(toolIndex, parentPropName, nestedPropName, itemType) {
+            const tool = tools[toolIndex];
+            const toolName = tool.name;
+
+            // Check if this is an internal property
+            const isInternal = !tool.inputSchema.properties[parentPropName] &&
+                               internalArgs[toolName]?.[parentPropName];
+
+            if (isInternal) {
+                // Update original_schema.properties in internalArgs
+                const internalArg = internalArgs[toolName][parentPropName];
+                if (internalArg.original_schema?.properties?.[nestedPropName]) {
+                    internalArg.original_schema.properties[nestedPropName].items = { type: itemType };
+                }
+            } else {
+                // Normal signature property - update inputSchema
+                const parentProp = tool.inputSchema.properties[parentPropName];
+                if (parentProp && parentProp.properties && parentProp.properties[nestedPropName]) {
+                    parentProp.properties[nestedPropName].items = { type: itemType };
+                }
             }
         }
 

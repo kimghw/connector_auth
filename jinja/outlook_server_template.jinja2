@@ -357,34 +357,38 @@ async def handle_{{ tool.name }}(args: Dict[str, Any]) -> Dict[str, Any]:
     {%- if param_info.is_required %}
     {{ param_name }} = args["{{ param_name }}"]
     {%- elif param_info.has_default %}
-    {{ param_name }} = args.get("{{ param_name }}", {{ param_info.default }})
+    # Optional with default: use default if LLM didn't provide value
+    {{ param_name }}_raw = args.get("{{ param_name }}")
+    {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default_json }}
     {%- else %}
     {{ param_name }} = args.get("{{ param_name }}")
     {%- endif %}
-    {%- endfor %}
-    {%- for param_name, param_info in tool.object_params.items() %}
-    {{ param_name }} = args.get("{{ param_name }}", {})
     {%- endfor %}
 
     # Convert dicts to parameter objects where needed (Signature params from args)
     {%- for param_name, param_info in tool.object_params.items() %}
     {%- if param_name not in tool.internal_args %}
-    {%- if param_info.is_optional %}
-    {{ param_name }}_params = None
-    if {{ param_name }}:
-        {%- if param_info.is_dict %}
-        {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }})
+    {#- Required parameter - must be provided by LLM #}
+    {%- if not param_info.is_optional %}
+    {{ param_name }}_params = {{ param_info.class_name }}(**args["{{ param_name }}"])
+    {#- Optional parameter with default value (use is not None to accept empty objects/arrays) #}
+    {%- elif param_info.has_default %}
+    {{ param_name }}_raw = args.get("{{ param_name }}")
+    if {{ param_name }}_raw is not None:
+        # LLM provided a value (even empty {} or [] is valid)
+        {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_raw)
+    else:
+        # LLM didn't provide value - use default from web editor
+        {%- if param_info.default_json %}
+        {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_info.default_json }})
         {%- else %}
-        # Handle special case for {{ param_name }}
-        {{ param_name }}_params = {{ param_info.class_name }}({{ param_name }})
+        # Explicit null default or no default value
+        {{ param_name }}_params = None
         {%- endif %}
+    {#- Optional parameter without default #}
     {%- else %}
-    {%- if param_info.is_dict %}
-    {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}) if {{ param_name }} else {{ param_info.class_name }}()
-    {%- else %}
-    # Handle special case for {{ param_name }}
-    {{ param_name }}_params = {{ param_info.class_name }}({{ param_name }})
-    {%- endif %}
+    {{ param_name }}_raw = args.get("{{ param_name }}")
+    {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_raw) if {{ param_name }}_raw is not None else None
     {%- endif %}
     {%- endif %}
     {%- endfor %}
@@ -431,15 +435,22 @@ async def handle_{{ tool.name }}(args: Dict[str, Any]) -> Dict[str, Any]:
         service_instance = get_client_instance(context)
         {%- endif %}
 
+        {#- Extract parameters with proper default handling #}
+        {%- for param_name, param_info in tool.params.items() %}
+        {%- if param_info.is_required %}
+        {{ param_name }} = args["{{ param_name }}"]
+        {%- elif param_info.has_default %}
+        # Optional with default: use default if LLM didn't provide value
+        {{ param_name }}_raw = args.get("{{ param_name }}")
+        {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default_json }}
+        {%- else %}
+        {{ param_name }} = args.get("{{ param_name }}")
+        {%- endif %}
+        {%- endfor %}
+
         return await service_instance.{{ tool.mcp_service or tool.service_method }}(
             {%- for param_name, param_info in tool.params.items() %}
-            {%- if param_info.is_required %}
-            {{ param_name }}=args["{{ param_name }}"]{{ "," if not loop.last else "" }}
-            {%- elif param_info.has_default %}
-            {{ param_name }}=args.get("{{ param_name }}", {{ param_info.default }}){{ "," if not loop.last else "" }}
-            {%- else %}
-            {{ param_name }}=args.get("{{ param_name }}"){{ "," if not loop.last else "" }}
-            {%- endif %}
+            {{ param_name }}={{ param_name }}{{ "," if not loop.last else "" }}
             {%- endfor %}
         )
     except Exception as e:

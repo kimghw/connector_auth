@@ -12,6 +12,31 @@ from typing import Dict, Any, List, Optional
 from jinja2 import Environment, FileSystemLoader
 
 
+def to_python_literal(value: Any) -> str:
+    """
+    Convert a Python value to a string that is valid Python code.
+    Unlike json.dumps which produces true/false/null,
+    this produces True/False/None.
+    """
+    if value is None:
+        return 'None'
+    elif isinstance(value, bool):
+        return 'True' if value else 'False'
+    elif isinstance(value, str):
+        return repr(value)
+    elif isinstance(value, (int, float)):
+        return str(value)
+    elif isinstance(value, dict):
+        items = ', '.join(f'{to_python_literal(k)}: {to_python_literal(v)}' for k, v in value.items())
+        return '{' + items + '}'
+    elif isinstance(value, (list, tuple)):
+        items = ', '.join(to_python_literal(item) for item in value)
+        return '[' + items + ']'
+    else:
+        # Fallback to repr for other types
+        return repr(value)
+
+
 def copy_mcp_decorators(output_dir: str) -> Path:
     """Generate mcp_decorators.py file"""
     decorators_content = '''"""
@@ -93,13 +118,23 @@ def find_internal_args_file(tools_path: str) -> Optional[str]:
     Find tool_internal_args.json based on tools_path location.
     Searches in the same directory or common editor directories.
     """
-    tools_path = Path(tools_path)
+    tools_path = Path(tools_path).resolve()  # Convert to absolute path
+
+    # Extract server name from path (e.g., mcp_outlook -> outlook)
+    # Try to infer from parent directory name
+    parent_name = tools_path.parent.name  # e.g., "mcp_server"
+    grandparent_name = tools_path.parent.parent.name  # e.g., "mcp_outlook"
+
+    # Derive server name from grandparent (mcp_outlook -> outlook)
+    server_name = None
+    if grandparent_name.startswith("mcp_"):
+        server_name = grandparent_name[4:]  # "outlook"
 
     # Search patterns (in order of priority)
     search_paths = [
         # Same directory as tools file
         tools_path.parent / "tool_internal_args.json",
-        # mcp_editor/{server_name}/ pattern
+        # mcp_editor/{server_name}/ pattern (relative to tools file)
         tools_path.parent.parent / tools_path.parent.name / "tool_internal_args.json",
     ]
 
@@ -108,11 +143,18 @@ def find_internal_args_file(tools_path: str) -> Optional[str]:
         if candidate.exists():
             return str(candidate)
 
-    # Fallback: search in mcp_editor directories
+    # Fallback: search in mcp_editor directories at project root
+    # Find project root by looking for mcp_editor directory
     project_root = tools_path.parent
     while project_root.parent != project_root:
         mcp_editor_dir = project_root / "mcp_editor"
         if mcp_editor_dir.exists():
+            # First, try specific server name directory if we know it
+            if server_name:
+                specific_path = mcp_editor_dir / server_name / "tool_internal_args.json"
+                if specific_path.exists():
+                    return str(specific_path)
+
             # Look for tool_internal_args.json in subdirectories
             for subdir in mcp_editor_dir.iterdir():
                 if subdir.is_dir():
@@ -139,6 +181,42 @@ def load_internal_args(internal_args_path: Optional[str]) -> Dict[str, Any]:
     except Exception as e:
         print(f"Warning: Failed to load internal_args from {internal_args_path}: {e}")
         return {}
+
+
+def extract_defaults_from_schema(original_schema: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract default values from original_schema.properties.
+    Returns a dict with property names and their default values.
+    Only includes properties that have a 'default' key.
+    """
+    defaults = {}
+    properties = original_schema.get('properties', {})
+    for prop_name, prop_info in properties.items():
+        if 'default' in prop_info:
+            defaults[prop_name] = prop_info['default']
+    return defaults
+
+
+def enrich_internal_args_with_defaults(internal_args: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    For internal args with empty value {}, extract defaults from original_schema.properties
+    and use them as the effective value.
+    """
+    enriched = {}
+    for tool_name, tool_args in internal_args.items():
+        enriched[tool_name] = {}
+        for arg_name, arg_info in tool_args.items():
+            enriched_arg = dict(arg_info)  # Copy original
+
+            # If value is empty dict and original_schema has properties with defaults
+            if arg_info.get('value') == {} and 'original_schema' in arg_info:
+                defaults = extract_defaults_from_schema(arg_info['original_schema'])
+                if defaults:
+                    enriched_arg['value'] = defaults
+
+            enriched[tool_name][arg_name] = enriched_arg
+
+    return enriched
 
 
 def collect_all_param_types(tools: List[Dict[str, Any]], internal_args: Dict[str, Any]) -> set:
@@ -321,7 +399,10 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
             analyzed['mcp_service'] = service_info
             signature_params = {}
         else:
-            analyzed['service_method'] = service_info.get('name', tool['name'])
+            # mcp_service is a dict with 'name' key
+            service_method_name = service_info.get('name', tool['name'])
+            analyzed['service_method'] = service_method_name
+            analyzed['mcp_service'] = service_method_name  # Always set as string for template
             signature_params = params_from_service_info(service_info)
     else:
         signature_params = {}
@@ -335,6 +416,10 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
         param_type = param_schema.get('type', 'string')
 
         # Check if this is an object parameter that needs conversion
+        # Check for default value - use 'default' in param_schema to detect explicit null defaults
+        has_default = 'default' in param_schema
+        param_default = param_schema.get('default')
+
         if param_type == 'object':
             # This is an object that needs to be converted to a class
             base_model = param_schema.get('baseModel')
@@ -351,7 +436,11 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
                 analyzed['object_params'][param_name] = {
                     'class_name': base_model,
                     'is_optional': param_name not in required,
-                    'is_dict': True  # Most are dict-based
+                    'is_dict': True,  # Most are dict-based
+                    'has_default': has_default,
+                    'default': param_default,
+                    # Use to_python_literal for valid Python code (True/False/None instead of true/false/null)
+                    'default_json': to_python_literal(param_default) if has_default and param_default is not None else None
                 }
 
                 # Add to call_params with the converted name
@@ -363,19 +452,26 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
             # Arrays typically pass through directly
             analyzed['params'][param_name] = {
                 'is_required': param_name in required,
-                'has_default': False,
-                'default': None
+                'has_default': has_default,
+                'default': param_default,
+                # Use to_python_literal for valid Python code (True/False/None instead of true/false/null)
+                'default_json': to_python_literal(param_default) if has_default else None
             }
             analyzed['call_params'][param_name] = {
                 'value': param_name
             }
         else:
             # Regular parameters
+            # Priority: inputSchema.default > signature_params.default
             param_info = signature_params.get(param_name, {})
+            final_has_default = has_default or 'default' in param_info
+            final_default = param_default if has_default else param_info.get('default')
             analyzed['params'][param_name] = {
                 'is_required': param_name in required,
-                'has_default': 'default' in param_info,
-                'default': param_info.get('default')
+                'has_default': final_has_default,
+                'default': final_default,
+                # Use to_python_literal for valid Python code (True/False/None instead of true/false/null)
+                'default_json': to_python_literal(final_default) if final_has_default else None
             }
 
             # Add to call_params if not an object param
@@ -430,6 +526,14 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
             'top': {'value': 'args.get("top", 250)'},
             'orderby': {'value': 'orderby'},
         }
+    elif tool['name'] == 'mail_list':
+        # Ensure mail_list maps to the underlying query_filter service
+        analyzed['service_class'] = 'GraphMailQuery'
+        analyzed['service_object'] = 'graph_mail_query'
+        service_override = tool.get('mcp_service')
+        if isinstance(service_override, dict):
+            service_override = service_override.get('name')
+        analyzed['service_method'] = service_override or 'query_filter'
 
     return analyzed
 
@@ -524,10 +628,18 @@ def generate_server(template_path: str, output_path: str, tools: List[Dict[str, 
     # Load internal args
     if not internal_args_path and tools_path:
         internal_args_path = find_internal_args_file(tools_path)
-    internal_args = load_internal_args(internal_args_path)
+    internal_args_raw = load_internal_args(internal_args_path)
+
+    # Enrich internal args: extract defaults from original_schema.properties
+    internal_args = enrich_internal_args_with_defaults(internal_args_raw)
 
     if internal_args:
         print(f"Loaded internal args for {len(internal_args)} tools from: {internal_args_path}")
+        # Show enriched defaults
+        for tool_name, tool_args in internal_args.items():
+            for arg_name, arg_info in tool_args.items():
+                if arg_info.get('value') and arg_info['value'] != internal_args_raw.get(tool_name, {}).get(arg_name, {}).get('value'):
+                    print(f"  - {tool_name}.{arg_name}: extracted defaults from schema -> {arg_info['value']}")
 
     # Set up Jinja2 environment
     template_dir = os.path.dirname(template_path)

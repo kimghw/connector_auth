@@ -678,25 +678,9 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Build Microsoft Graph 
                                         'Optional[ExcludeParams] = None'},
         'name': 'query_url'},
     {   'description': 'New tool description',
-        'inputSchema': {   'properties': {   'client_filter': {   'description': 'ExcludeParams parameters',
-                                                                  'type': 'object'},
-                                             'exclude': {   'baseModel': 'ExcludeParams',
-                                                            'description': 'ExcludeParams parameters',
-                                                            'properties': {   'exclude_from_address': {   'description': '제외할 '
-                                                                                                                         '발신자 '
-                                                                                                                         '주소 '
-                                                                                                                         '(from '
-                                                                                                                         '필드)',
-                                                                                                          'type': 'string'}},
-                                                            'required': [],
-                                                            'type': 'object'},
-                                             'filter': {   'baseModel': 'FilterParams',
-                                                           'description': 'FilterParams parameters',
-                                                           'properties': {   'has_attachments': {   'description': '첨부파일 '
-                                                                                                                   '포함 '
-                                                                                                                   '여부',
-                                                                                                    'type': 'boolean'},
-                                                                             'received_date_from': {   'description': '메일 '
+        'inputSchema': {   'properties': {   'filter': {   'baseModel': 'FilterParams',
+                                                           'description': '사용자가 요청한 기간을 언제부터 언제까지  포맷에 맞게 파싱하여 제공합니다. ',
+                                                           'properties': {   'received_date_from': {   'description': '메일 '
                                                                                                                       '수신 '
                                                                                                                       '시작 '
                                                                                                                       '날짜 '
@@ -705,19 +689,6 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Build Microsoft Graph 
                                                                                                                       '>= '
                                                                                                                       '이 '
                                                                                                                       '값)',
-                                                                                                       'type': 'string'},
-                                                                             'received_date_time': {   'description': '메일 '
-                                                                                                                      '수신 '
-                                                                                                                      '날짜/시간 '
-                                                                                                                      '- '
-                                                                                                                      '이 '
-                                                                                                                      '시간 '
-                                                                                                                      '이후 '
-                                                                                                                      '메일만 '
-                                                                                                                      '조회 '
-                                                                                                                      '(ISO '
-                                                                                                                      '8601 '
-                                                                                                                      '형식)',
                                                                                                        'type': 'string'},
                                                                              'received_date_to': {   'description': '메일 '
                                                                                                                     '수신 '
@@ -729,27 +700,6 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Build Microsoft Graph 
                                                                                                                     '이 '
                                                                                                                     '값)',
                                                                                                      'type': 'string'}},
-                                                           'required': [],
-                                                           'type': 'object'},
-                                             'orderby': {'description': '', 'type': 'string'},
-                                             'select': {   'baseModel': 'SelectParams',
-                                                           'description': 'SelectParams parameters',
-                                                           'properties': {   'body_preview': {   'description': '메시지 '
-                                                                                                                '본문의 '
-                                                                                                                '처음 '
-                                                                                                                '255자 '
-                                                                                                                '(텍스트 '
-                                                                                                                '형식)',
-                                                                                                 'type': 'boolean'},
-                                                                             'has_attachments': {   'description': '첨부파일 '
-                                                                                                                   '포함 '
-                                                                                                                   '여부',
-                                                                                                    'type': 'boolean'},
-                                                                             'sender': {   'description': '메시지를 생성하는 데 '
-                                                                                                          '사용된 계정',
-                                                                                           'type': 'boolean'},
-                                                                             'subject': {   'description': '메시지 제목',
-                                                                                            'type': 'boolean'}},
                                                            'required': [],
                                                            'type': 'object'},
                                              'top': {'default': 100, 'description': '', 'type': 'integer'},

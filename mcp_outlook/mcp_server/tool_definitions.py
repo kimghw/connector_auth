@@ -726,37 +726,13 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
         "inputSchema": {
             "type": "object",
             "properties": {
-                "client_filter": {
-                    "type": "object",
-                    "description": "ExcludeParams parameters"
-                },
-                "exclude": {
-                    "type": "object",
-                    "description": "ExcludeParams parameters",
-                    "properties": {
-                        "exclude_from_address": {
-                            "type": "string",
-                            "description": "제외할 발신자 주소 (from 필드)"
-                        }
-                    },
-                    "required": [],
-                    "baseModel": "ExcludeParams"
-                },
                 "filter": {
                     "type": "object",
-                    "description": "FilterParams parameters",
+                    "description": "사용자가 요청한 기간을 언제부터 언제까지  포맷에 맞게 파싱하여 제공합니다. ",
                     "properties": {
-                        "has_attachments": {
-                            "type": "boolean",
-                            "description": "첨부파일 포함 여부"
-                        },
                         "received_date_from": {
                             "type": "string",
                             "description": "메일 수신 시작 날짜 (포함, receivedDateTime >= 이 값)"
-                        },
-                        "received_date_time": {
-                            "type": "string",
-                            "description": "메일 수신 날짜/시간 - 이 시간 이후 메일만 조회 (ISO 8601 형식)"
                         },
                         "received_date_to": {
                             "type": "string",
@@ -765,34 +741,6 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
                     },
                     "required": [],
                     "baseModel": "FilterParams"
-                },
-                "orderby": {
-                    "type": "string",
-                    "description": ""
-                },
-                "select": {
-                    "type": "object",
-                    "description": "SelectParams parameters",
-                    "properties": {
-                        "body_preview": {
-                            "type": "boolean",
-                            "description": "메시지 본문의 처음 255자 (텍스트 형식)"
-                        },
-                        "has_attachments": {
-                            "type": "boolean",
-                            "description": "첨부파일 포함 여부"
-                        },
-                        "sender": {
-                            "type": "boolean",
-                            "description": "메시지를 생성하는 데 사용된 계정"
-                        },
-                        "subject": {
-                            "type": "boolean",
-                            "description": "메시지 제목"
-                        }
-                    },
-                    "required": [],
-                    "baseModel": "SelectParams"
                 },
                 "top": {
                     "type": "integer",
