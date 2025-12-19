@@ -434,8 +434,8 @@ async def handle_tool_call(request: MCPRequest) -> JSONResponse:
 # Tool handler functions - routing to session-specific implementations
 {%- for tool in tools %}
 
-async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to {{ tool.handler.class or tool.service_class }}.{{ tool.handler.method or tool.service_method }} with session or legacy support"""
+async def handle_{{ tool.name }}(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Route to {{ tool.service_class }}.{{ tool.service_method }} with session or legacy support"""
     # Get session or legacy instances (first operation)
     user_email = args["user_email"]
     context = await get_user_session_or_legacy(user_email, args.get("access_token"))
@@ -501,13 +501,13 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
 
     try:
         # Use helper to get the correct instance
-        {%- if 'query' in (tool.handler.method or tool.mcp_service or tool.service_method or '').lower() %}
+        {%- if 'query' in (tool.mcp_service or tool.service_method or '').lower() %}
         service_instance = get_query_instance(context)
         {%- else %}
         service_instance = get_client_instance(context)
         {%- endif %}
 
-        return await service_instance.{{ tool.handler.method or tool.mcp_service or tool.service_method }}(
+        return await service_instance.{{ tool.mcp_service or tool.service_method }}(
             user_email=user_email,
             {%- for param_name, param_info in tool.call_params.items() if param_name != 'user_email' %}
             {{ param_name }}={{ param_info.value }}{{ "," if not loop.last else "" }}
@@ -519,7 +519,7 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
 
     try:
         # Use helper to get the correct instance
-        {%- if 'query' in (tool.handler.method or tool.mcp_service or tool.service_method or '').lower() %}
+        {%- if 'query' in (tool.mcp_service or tool.service_method or '').lower() %}
         service_instance = get_query_instance(context)
         {%- else %}
         service_instance = get_client_instance(context)
@@ -538,7 +538,7 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
         {%- endif %}
         {%- endfor %}
 
-        return await service_instance.{{ tool.handler.method or tool.mcp_service or tool.service_method }}(
+        return await service_instance.{{ tool.mcp_service or tool.service_method }}(
             {%- for param_name, param_info in tool.params.items() %}
             {{ param_name }}={{ param_name }}{{ "," if not loop.last else "" }}
             {%- endfor %}

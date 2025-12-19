@@ -369,74 +369,45 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
 
     # Determine service based on tool name
     tool_name = tool['name']
-    tool_name_lower = tool_name.lower()
 
-    # Determine handler info based on tool type
     # Attachment server tools
-    if 'file' in tool_name_lower or 'convert' in tool_name_lower or 'onedrive' in tool_name_lower or 'directory' in tool_name_lower:
-        handler_class = 'FileManager'
-        handler_instance = 'file_manager'
-        handler_module = 'file_manager'
-        handler_method = tool_name
-    elif 'metadata' in tool_name_lower:
-        handler_class = 'MetadataManager'
-        handler_instance = 'metadata_manager'
-        handler_module = 'metadata.manager'
-        handler_method = tool_name
+    if 'file' in tool_name or 'convert' in tool_name or 'onedrive' in tool_name or 'directory' in tool_name:
+        service_class = 'FileManager'
+        service_object = 'file_manager'
+        service_method = tool_name
+    elif 'metadata' in tool_name:
+        service_class = 'MetadataManager'
+        service_object = 'metadata_manager'
+        service_method = tool_name
     # Outlook server tools
     else:
-        # Only use GraphMailQuery (GraphMailClient removed based on AST analysis)
-        handler_class = 'GraphMailQuery'
-        handler_instance = 'graph_mail_query'
-        handler_module = 'graph_mail_query'
-        handler_method = tool_name
+        service_class = 'GraphMailQuery' if 'query' in tool_name or 'search' in tool_name else 'GraphMailClient'
+        service_object = 'graph_mail_query' if 'query' in tool_name or 'search' in tool_name else 'graph_mail_client'
+        service_method = tool_name
 
-    # Create improved structure
     analyzed = {
-        # MCP/Tool naming
-        'tool_name': tool_name,
-        'server_name': 'outlook',  # Will be determined from context
-
-        # Handler info (grouped in dictionary)
-        'handler': {
-            'method': handler_method,
-            'class': handler_class,
-            'instance': handler_instance,
-            'module': handler_module,
-        },
-
-        # Parameters (will be filled below)
+        'name': tool_name,
         'params': {},
         'object_params': {},
         'call_params': {},
-
-        # Legacy fields for compatibility (will be removed later)
-        'name': tool_name,
-        'service_class': handler_class,
-        'service_object': handler_instance,
-        'service_method': handler_method,
+        'service_class': service_class,
+        'service_object': service_object,
+        'service_method': service_method,
     }
 
     # Check if tool has mcp_service metadata
     if 'mcp_service' in tool:
         service_info = tool['mcp_service']
-        # If mcp_service is a string, use it directly as the handler method
+        # If mcp_service is a string, use it directly as the service method
         if isinstance(service_info, str):
-            analyzed['handler']['method'] = service_info
-            analyzed['service_method'] = service_info  # Legacy compatibility
+            analyzed['service_method'] = service_info
             analyzed['mcp_service'] = service_info
             signature_params = {}
         else:
-            # mcp_service is a dict with 'name' key - this is the actual Python method name
-            method_name = service_info.get('name', tool['name'])
-            analyzed['handler']['method'] = method_name
-            analyzed['service_method'] = method_name  # Legacy compatibility
-            analyzed['mcp_service'] = method_name  # Always set as string for template
-
-            # Extract server name if available
-            if 'server_name' in service_info:
-                analyzed['server_name'] = service_info['server_name']
-
+            # mcp_service is a dict with 'name' key
+            service_method_name = service_info.get('name', tool['name'])
+            analyzed['service_method'] = service_method_name
+            analyzed['mcp_service'] = service_method_name  # Always set as string for template
             signature_params = params_from_service_info(service_info)
     else:
         signature_params = {}
@@ -516,8 +487,7 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
 
     # Special handling for specific tools based on existing server.py patterns
     if tool['name'] == 'query_emails':
-        analyzed['handler']['method'] = 'query_filter'  # Actual method name in GraphMailQuery
-        analyzed['service_method'] = 'query_filter'  # Legacy compatibility
+        analyzed['service_method'] = 'query_filter'  # Actual method name in GraphMailQuery
         analyzed['object_params'] = {
             'filter': {'class_name': 'FilterParams', 'is_optional': True, 'is_dict': True},
             'exclude': {'class_name': 'ExcludeParams', 'is_optional': True, 'is_dict': True},
@@ -539,11 +509,9 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
     elif tool['name'] == 'mail_search':
         # Handle mail_search which maps to query_search
         if 'mcp_service' in tool:
-            analyzed['handler']['method'] = tool['mcp_service']['name']
-            analyzed['service_method'] = tool['mcp_service']['name']  # Legacy compatibility
+            analyzed['service_method'] = tool['mcp_service']['name']
         else:
-            analyzed['handler']['method'] = 'query_search'  # Default mapping for mail_search
-            analyzed['service_method'] = 'query_search'  # Legacy compatibility
+            analyzed['service_method'] = 'query_search'  # Default mapping for mail_search
 
         analyzed['object_params'] = {
             'client_filter': {'class_name': 'ExcludeParams', 'is_optional': True, 'is_dict': True},
@@ -565,21 +533,12 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
         }
     elif tool['name'] == 'mail_list':
         # Ensure mail_list maps to the underlying query_filter service
-        analyzed['handler']['class'] = 'GraphMailQuery'
-        analyzed['handler']['instance'] = 'graph_mail_query'
-        analyzed['handler']['module'] = 'graph_mail_query'
-
-        # Legacy compatibility
         analyzed['service_class'] = 'GraphMailQuery'
         analyzed['service_object'] = 'graph_mail_query'
-
         service_override = tool.get('mcp_service')
         if isinstance(service_override, dict):
             service_override = service_override.get('name')
-
-        method_name = service_override or 'query_filter'
-        analyzed['handler']['method'] = method_name
-        analyzed['service_method'] = method_name  # Legacy compatibility
+        analyzed['service_method'] = service_override or 'query_filter'
 
     return analyzed
 

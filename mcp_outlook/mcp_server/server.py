@@ -372,7 +372,7 @@ async def handle_tool_call(request: MCPRequest) -> JSONResponse:
 # Tool handler functions - routing to session-specific implementations
 
 async def handle_Outlook(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to GraphMailClient.query_filter with session or legacy support"""
+    """Route to GraphMailQuery.query_filter with session or legacy support"""
     # Get session or legacy instances (first operation)
     user_email = args["user_email"]
     context = await get_user_session_or_legacy(user_email, args.get("access_token"))
