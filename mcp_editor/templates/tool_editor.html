@@ -136,6 +136,24 @@
             background: var(--danger-hover);
         }
 
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #2eb34f;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #ff9500;
+        }
+
         .btn-important {
             background: linear-gradient(135deg, #34c759 0%, #30b350 100%);
             color: white;
@@ -150,6 +168,53 @@
             transform: translateY(-1px);
             box-shadow: 0 6px 16px rgba(52, 199, 89, 0.4);
             filter: brightness(1.05);
+        }
+
+        /* Google-style button classes */
+        .btn-google {
+            border-radius: 4px;
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            font-weight: 500;
+            letter-spacing: 0.25px;
+            box-shadow: none;
+            border: 1px solid transparent;
+            transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        
+        .btn-google-filled {
+            background-color: #1a73e8;
+            color: white;
+        }
+        .btn-google-filled:hover {
+            background-color: #1765cc;
+            box-shadow: 0 1px 2px rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+        }
+        .btn-google-filled:disabled {
+            background-color: #e8eaed;
+            color: #9aa0a6;
+            cursor: default;
+            box-shadow: none;
+        }
+
+        .btn-google-outlined {
+            background-color: white;
+            color: #3c4043;
+            border-color: #dadce0;
+        }
+        .btn-google-outlined:hover {
+            background-color: #f8f9fa;
+            color: #202124;
+            border-color: #dadce0;
+        }
+        .btn-google-outlined:disabled {
+            background-color: white;
+            color: #bdc1c6;
+            border-color: #e8eaed;
+            cursor: default;
         }
 
         /* Tooltip styles */
@@ -201,6 +266,151 @@
         .btn-tooltip:hover::before {
             opacity: 1;
             visibility: visible;
+        }
+
+        /* Enhanced tooltip system for all elements */
+        [data-tooltip] {
+            position: relative;
+        }
+
+        [data-tooltip]::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 30, 30, 0.95);
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 400;
+            white-space: pre-line;
+            text-align: left;
+            line-height: 1.5;
+            min-width: 220px;
+            max-width: 400px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            pointer-events: none;
+            z-index: 10000;
+        }
+
+        [data-tooltip]::before {
+            content: '';
+            position: absolute;
+            bottom: calc(100% + 2px);
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: rgba(30, 30, 30, 0.95);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            pointer-events: none;
+            z-index: 10000;
+        }
+
+        [data-tooltip]:hover::after,
+        [data-tooltip]:hover::before {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Tooltip position variants */
+        [data-tooltip-position="top"]::after {
+            bottom: calc(100% + 8px);
+            top: auto;
+        }
+
+        [data-tooltip-position="top"]::before {
+            bottom: calc(100% + 2px);
+            top: auto;
+            border-top-color: rgba(30, 30, 30, 0.95);
+            border-bottom-color: transparent;
+        }
+
+        [data-tooltip-position="bottom"]::after {
+            top: calc(100% + 8px);
+            bottom: auto;
+        }
+
+        [data-tooltip-position="bottom"]::before {
+            top: calc(100% + 2px);
+            bottom: auto;
+            border-bottom-color: rgba(30, 30, 30, 0.95);
+            border-top-color: transparent;
+        }
+
+        [data-tooltip-position="right"]::after {
+            left: calc(100% + 8px);
+            bottom: 50%;
+            transform: translateY(50%);
+        }
+
+        [data-tooltip-position="right"]::before {
+            left: calc(100% + 2px);
+            bottom: 50%;
+            transform: translateY(50%);
+            border-right-color: rgba(30, 30, 30, 0.95);
+            border-top-color: transparent;
+        }
+
+        [data-tooltip-position="left"]::after {
+            right: calc(100% + 8px);
+            left: auto;
+            bottom: 50%;
+            transform: translateY(50%);
+        }
+
+        [data-tooltip-position="left"]::before {
+            right: calc(100% + 2px);
+            left: auto;
+            bottom: 50%;
+            transform: translateY(50%);
+            border-left-color: rgba(30, 30, 30, 0.95);
+            border-top-color: transparent;
+        }
+
+        /* Index badge */
+        .index-badge {
+            display: inline-block;
+            background: var(--primary-color);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        .server-control-panel {
+            padding: 20px;
+            background: #ffffff;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 0;
+        }
+
+        .server-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding: 10px 14px;
+            background: #f5f5f7;
+            border-radius: 10px;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #ccc;
+            box-shadow: 0 0 0 2px rgba(255,255,255,1);
         }
 
         .main-content {
@@ -660,20 +870,30 @@
                 <span>MCP Tool Definitions Editor</span>
             </h1>
             <div class="header-buttons">
-                <button class="btn btn-secondary btn-tooltip" onclick="loadTools()" data-tooltip="📂 Load: tool_definitions.py&#10;📂 Load: tool_internal_args.json&#10;&#10;Refresh tool list from server files">
+                <button class="btn btn-secondary btn-tooltip" onclick="loadTools()"
+                        data-tooltip="📂 Load: tool_definitions.py&#10;📂 Load: tool_internal_args.json&#10;&#10;Refresh tool list from server files&#10;&#10;📍 Function: loadTools()&#10;📍 Index: BTN-001">
                     <span class="material-icons">refresh</span> Reload
+                    <span class="index-badge">1</span>
                 </button>
-                <button class="btn btn-secondary" onclick="showBackups()">
+                <button class="btn btn-secondary" onclick="showBackups()"
+                        data-tooltip="📁 View saved backups&#10;📅 Restore previous versions&#10;&#10;📍 Function: showBackups()&#10;📍 Index: BTN-002">
                     <span class="material-icons">inventory_2</span> Backups
+                    <span class="index-badge">2</span>
                 </button>
-                <button class="btn btn-secondary" onclick="validateTools()">
+                <button class="btn btn-secondary" onclick="validateTools()"
+                        data-tooltip="✅ Validate all tool definitions&#10;🔍 Check for errors&#10;&#10;📍 Function: validateTools()&#10;📍 Index: BTN-003">
                     <span class="material-icons">check_circle</span> Validate
+                    <span class="index-badge">3</span>
                 </button>
-                <button class="btn btn-primary btn-tooltip" onclick="saveTools()" data-tooltip="💾 Save: tool_definitions.py&#10;💾 Save: tool_definition_templates.py&#10;💾 Save: tool_internal_args.json&#10;&#10;Save all changes to disk">
+                <button class="btn btn-primary btn-tooltip" onclick="saveTools()"
+                        data-tooltip="💾 Save: tool_definitions.py&#10;💾 Save: tool_definition_templates.py&#10;💾 Save: tool_internal_args.json&#10;&#10;Save all changes to disk&#10;&#10;📍 Function: saveTools()&#10;📍 Index: BTN-004">
                     <span class="material-icons">save</span> Save Changes
+                    <span class="index-badge">4</span>
                 </button>
-                <button class="btn btn-important btn-tooltip" onclick="openGeneratorModal()" data-tooltip="⚙️ Input: tool_definitions.py&#10;📄 Template: *_server_template.jinja2&#10;🚀 Output: server.py&#10;&#10;Generate MCP server from template">
+                <button class="btn btn-important btn-tooltip" onclick="openGeneratorModal()"
+                        data-tooltip="⚙️ Input: tool_definitions.py&#10;📄 Template: *_server_template.jinja2&#10;🚀 Output: server.py&#10;&#10;Generate MCP server from template&#10;&#10;📍 Function: openGeneratorModal()&#10;📍 Index: BTN-005">
                     <span class="material-icons">auto_fix_high</span> Generate Server
+                    <span class="index-badge">5</span>
                 </button>
             </div>
         </div>
@@ -681,15 +901,20 @@
             <!-- Profile tabs will be rendered here -->
         </div>
         <div id="templateSelector" style="display: flex; gap: 12px; align-items: center; padding: 8px 20px; background: #fff9e6; border-bottom: 1px solid #e5e5e5;">
-            <label style="font-size: 13px; font-weight: 500; color: #666; white-space: nowrap;">
+            <label style="font-size: 13px; font-weight: 500; color: #666; white-space: nowrap;"
+                   data-tooltip="📋 Template Loader&#10;Import pre-defined tool templates&#10;&#10;📍 Component: Template Selector&#10;📍 Index: UI-006">
                 <span class="material-icons" style="font-size: 16px; vertical-align: middle;">description</span>
                 Load Template:
+                <span class="index-badge">6</span>
             </label>
-            <select id="templateSource" class="form-control" style="flex: 1; max-width: 400px; padding: 6px 12px; font-size: 13px;">
+            <select id="templateSource" class="form-control" style="flex: 1; max-width: 400px; padding: 6px 12px; font-size: 13px;"
+                    data-tooltip="📚 Available Templates&#10;Select from pre-configured tool definitions&#10;&#10;📍 Element: templateSource&#10;📍 Index: SEL-001">
                 <option value="">-- Current Template --</option>
             </select>
-            <button class="btn btn-secondary btn-sm" onclick="loadFromSelectedTemplate()" title="Load tools from selected template">
+            <button class="btn btn-secondary btn-sm" onclick="loadFromSelectedTemplate()"
+                    data-tooltip="⬇️ Load selected template&#10;Replace current tools with template&#10;&#10;📍 Function: loadFromSelectedTemplate()&#10;📍 Index: BTN-007">
                 <span class="material-icons" style="font-size: 14px;">file_download</span> Load
+                <span class="index-badge">7</span>
             </button>
             <span id="templateLoadStatus" style="font-size: 12px; color: #666;"></span>
             <span style="font-size: 11px; color: #999; margin-left: auto;">
@@ -699,9 +924,39 @@
 
         <div class="main-content">
             <div class="sidebar">
+                <!-- Server Control Panel -->
+                <div class="server-control-panel">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <div style="font-weight: 600; color: var(--text-primary); font-size: 15px; display: flex; align-items: center; gap: 8px;">
+                            <span class="material-icons" style="font-size: 20px; color: var(--primary-color);">dns</span>
+                            MCP Server
+                        </div>
+                        <span id="profile-indicator" style="font-size: 11px; color: var(--text-secondary); background: rgba(0,0,0,0.05); padding: 4px 10px; border-radius: 12px; font-weight: 500;"></span>
+                    </div>
+                    
+                    <div id="server-status" class="server-status">
+                        <span class="status-indicator" id="status-indicator"></span>
+                        <span id="status-text" style="font-size: 13px; font-weight: 600; color: var(--text-primary);">Checking...</span>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                        <button class="btn-google btn-google-filled" onclick="startServer()" title="Start MCP Server" id="btn-start" style="padding: 8px; height: 36px;">
+                            <span class="material-icons" style="font-size: 20px;">play_arrow</span>
+                        </button>
+                        <button class="btn-google btn-google-outlined" onclick="stopServer()" title="Stop MCP Server" id="btn-stop" style="padding: 8px; height: 36px;">
+                            <span class="material-icons" style="font-size: 20px;">stop</span>
+                        </button>
+                        <button class="btn-google btn-google-outlined" onclick="restartServer()" title="Restart MCP Server" id="btn-restart" style="padding: 8px; height: 36px;">
+                            <span class="material-icons" style="font-size: 20px;">refresh</span>
+                        </button>
+                    </div>
+                </div>
+
                 <div class="tool-list">
-                    <button class="add-button" onclick="addNewTool()">
+                    <button class="add-button" onclick="addNewTool()"
+                            data-tooltip="➕ Create new tool definition&#10;Add a new API tool to the list&#10;&#10;📍 Function: addNewTool()&#10;📍 Index: BTN-008">
                         <span class="material-icons">add</span> Add New Tool
+                        <span class="index-badge">8</span>
                     </button>
                     <div id="toolList" style="margin-top: 15px;">
                         <!-- Tool items will be loaded here -->
@@ -873,6 +1128,8 @@
             loadProfiles();
             console.log('[DEBUG] Calling loadGraphTypesProperties()...');
             loadGraphTypesProperties();
+            console.log('[DEBUG] Checking MCP server status...');
+            checkServerStatus();
             console.log('[DEBUG] window.onload completed');
         };
 
@@ -1224,6 +1481,7 @@
                         loadTemplateSources();  // Reload template sources for new profile
                         loadMcpServices();  // Reload MCP services for new profile
                         loadGraphTypesProperties();  // Reload types for new profile
+                        checkServerStatus();  // Check server status for new profile
                         // Reset template selector to default
                         const templateSelect = document.getElementById('templateSource');
                         if (templateSelect) templateSelect.value = '';
@@ -1383,8 +1641,10 @@
                     toolItem.classList.add('active');
                 }
                 toolItem.onclick = () => selectTool(index);
+                // Add tooltip and index to tool items
+                toolItem.setAttribute('data-tooltip', `🔧 Tool: ${tool.name}\n📝 ${tool.description}\n\n📍 Click to edit\n📍 Index: TOOL-${String(index + 1).padStart(3, '0')}`);
                 toolItem.innerHTML = `
-                    <h3>${tool.name}</h3>
+                    <h3>${tool.name} <span class="index-badge">${index + 1}</span></h3>
                     <p>${tool.description}</p>
                 `;
                 toolList.appendChild(toolItem);
@@ -1689,19 +1949,28 @@
             editorContent.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                     <h2 style="font-size: 20px; font-weight: 600;">Edit Tool: ${tool.name}</h2>
-                    <button class="btn btn-danger btn-sm" onclick="deleteTool(${index})">Delete Tool</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteTool(${index})"
+                            data-tooltip="🗑️ Delete this tool&#10;⚠️ This action cannot be undone&#10;&#10;📍 Function: deleteTool()&#10;📍 Index: BTN-DEL-${String(index + 1).padStart(3, '0')}">
+                        Delete Tool
+                    </button>
                 </div>
 
                 <div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px;">
                     <div class="form-group" style="flex: 1; min-width: 240px; margin-bottom: 0;">
-                        <label>Tool Name</label>
+                        <label data-tooltip="🏷️ Tool Identifier&#10;Must be unique across all tools&#10;&#10;📍 Field: name&#10;📍 Index: FIELD-001">
+                            Tool Name <span class="index-badge">F1</span>
+                        </label>
                         <input class="form-control" id="toolName" value="${tool.name}"
-                               onchange="updateToolField(${index}, 'name', this.value)">
+                               onchange="updateToolField(${index}, 'name', this.value)"
+                               data-tooltip="📝 Edit tool name&#10;Used to call this tool from the API&#10;&#10;📍 Function: updateToolField()&#10;📍 Index: INPUT-001">
                     </div>
                     <div class="form-group" style="flex: 1; min-width: 260px; margin-bottom: 0;">
-                        <label>MCP Service</label>
+                        <label data-tooltip="🔌 MCP Service Connection&#10;Links this tool to an MCP service&#10;&#10;📍 Field: mcp_service&#10;📍 Index: FIELD-002">
+                            MCP Service <span class="index-badge">F2</span>
+                        </label>
                         <select class="form-control" id="mcpService"
-                                onchange="updateMcpService(${index}, this.value)">
+                                onchange="updateMcpService(${index}, this.value)"
+                                data-tooltip="📡 Select MCP service&#10;Connects to external service provider&#10;&#10;📍 Function: updateMcpService()&#10;📍 Index: SELECT-002">
                             <option value="">-- Select MCP Service --</option>
                             ${window.mcpServices ? window.mcpServices.map(service => {
                                 const currentService = typeof tool.mcp_service === 'object' ? tool.mcp_service?.name : tool.mcp_service;
@@ -1712,9 +1981,12 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Description</label>
+                    <label data-tooltip="📄 Tool Description&#10;Explains what this tool does&#10;&#10;📍 Field: description&#10;📍 Index: FIELD-003">
+                        Description <span class="index-badge">F3</span>
+                    </label>
                     <textarea class="form-control" id="toolDescription"
-                              onchange="updateToolField(${index}, 'description', this.value)">${tool.description}</textarea>
+                              onchange="updateToolField(${index}, 'description', this.value)"
+                              data-tooltip="✍️ Edit description&#10;Help text for API users&#10;&#10;📍 Function: updateToolField()&#10;📍 Index: TEXTAREA-001">${tool.description}</textarea>
                 </div>
 
                 <div class="form-group">
@@ -3243,6 +3515,137 @@
             allIcons.forEach(icon => { icon.classList.add('collapsed'); icon.textContent = '▶'; });
             allHeaders.forEach(header => header.classList.remove('expanded'));
         }
+
+        // MCP Server Control Functions
+        async function checkServerStatus() {
+            try {
+                const profileQuery = profileParam();
+                const response = await fetch(`/api/server/status${profileQuery}`);
+                const data = await response.json();
+                updateServerStatus(data);
+            } catch (error) {
+                console.error('Failed to check server status:', error);
+                updateServerStatus({ running: false, error: error.message });
+            }
+        }
+
+        function updateServerStatus(status) {
+            const indicator = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
+            const startBtn = document.getElementById('btn-start');
+            const stopBtn = document.getElementById('btn-stop');
+            const restartBtn = document.getElementById('btn-restart');
+            const profileIndicator = document.getElementById('profile-indicator');
+
+            // Update profile indicator
+            if (profileIndicator) {
+                profileIndicator.textContent = currentProfile ? `(${currentProfile})` : '';
+            }
+
+            if (status.running) {
+                indicator.style.backgroundColor = '#1e8e3e';
+
+                // Display PID and process info
+                let statusMsg = 'Running';
+                if (status.pid) {
+                    statusMsg += ` (PID: ${status.pid})`;
+                } else if (status.processes && status.processes.length > 0) {
+                    // Show unmanaged process info if no managed PID
+                    const unmanaged = status.processes.filter(p => !p.managed);
+                    if (unmanaged.length > 0) {
+                        statusMsg += ` (${unmanaged.length} unmanaged process${unmanaged.length > 1 ? 'es' : ''})`;
+                    }
+                }
+                statusText.textContent = statusMsg;
+
+                if (startBtn) startBtn.disabled = true;
+                if (stopBtn) stopBtn.disabled = false;
+                if (restartBtn) restartBtn.disabled = false;
+            } else {
+                indicator.style.backgroundColor = '#d93025';
+                statusText.textContent = 'Stopped';
+                if (startBtn) startBtn.disabled = false;
+                if (stopBtn) stopBtn.disabled = true;
+                if (restartBtn) restartBtn.disabled = true;
+            }
+
+            if (status.error) {
+                statusText.textContent = `Error: ${status.error}`;
+                indicator.style.backgroundColor = '#f9ab00';
+            }
+        }
+
+        async function startServer() {
+            const startBtn = document.getElementById('btn-start');
+            if (startBtn) startBtn.disabled = true;
+
+            try {
+                const profileQuery = profileParam();
+                const response = await fetch(`/api/server/start${profileQuery}`, { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage(`MCP server started successfully for ${currentProfile || 'default'} profile`, 'success');
+                    setTimeout(checkServerStatus, 1000);
+                } else {
+                    showMessage(data.error || 'Failed to start server', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to start server:', error);
+                showMessage('Failed to start server', 'error');
+            } finally {
+                if (startBtn) startBtn.disabled = false;
+            }
+        }
+
+        async function stopServer() {
+            const stopBtn = document.getElementById('btn-stop');
+            if (stopBtn) stopBtn.disabled = true;
+
+            try {
+                const profileQuery = profileParam();
+                const response = await fetch(`/api/server/stop${profileQuery}`, { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage(`MCP server stopped successfully for ${currentProfile || 'default'} profile`, 'success');
+                    setTimeout(checkServerStatus, 1000);
+                } else {
+                    showMessage(data.error || 'Failed to stop server', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to stop server:', error);
+                showMessage('Failed to stop server', 'error');
+            } finally {
+                if (stopBtn) stopBtn.disabled = false;
+            }
+        }
+
+        async function restartServer() {
+            const restartBtn = document.getElementById('btn-restart');
+            if (restartBtn) restartBtn.disabled = true;
+
+            try {
+                const profileQuery = profileParam();
+                const response = await fetch(`/api/server/restart${profileQuery}`, { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage(`MCP server restarted successfully for ${currentProfile || 'default'} profile`, 'success');
+                    setTimeout(checkServerStatus, 2000);
+                } else {
+                    showMessage(data.error || 'Failed to restart server', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to restart server:', error);
+                showMessage('Failed to restart server', 'error');
+            } finally {
+                if (restartBtn) restartBtn.disabled = false;
+            }
+        }
+
+        // Auto-refresh server status every 10 seconds
+        setInterval(checkServerStatus, 10000);
     </script>
 </body>
 </html>
