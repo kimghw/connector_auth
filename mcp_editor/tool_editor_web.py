@@ -405,6 +405,25 @@ def remove_defaults(schema):
     return schema
 
 
+def clean_newlines_from_schema(schema):
+    """Recursively remove newline characters from all description fields in schema"""
+    if isinstance(schema, dict):
+        cleaned = {}
+        for key, value in schema.items():
+            if key == 'description' and isinstance(value, str):
+                # Remove newline and carriage return characters
+                cleaned_value = value.replace('\n', ' ').replace('\r', ' ')
+                # Remove multiple spaces that might result from the replacement
+                cleaned[key] = ' '.join(cleaned_value.split())
+            else:
+                cleaned[key] = clean_newlines_from_schema(value)
+        return cleaned
+    elif isinstance(schema, list):
+        return [clean_newlines_from_schema(item) for item in schema]
+    else:
+        return schema
+
+
 def prune_internal_properties(tools_data: list, internal_args: dict):
     """Remove inputSchema properties that are marked as internal args.
 
@@ -486,11 +505,17 @@ def save_tool_definitions(tools_data, paths: dict, force_rescan: bool = False, s
             if 'name' in tool:
                 cleaned_tool['name'] = tool['name']
             if 'description' in tool:
-                cleaned_tool['description'] = tool['description']
+                # Remove newline characters from description to prevent JSON parsing errors
+                cleaned_description = tool['description'].replace('\n', ' ').replace('\r', ' ')
+                # Also remove multiple spaces that might result from the replacement
+                cleaned_description = ' '.join(cleaned_description.split())
+                cleaned_tool['description'] = cleaned_description
             if 'inputSchema' in tool:
                 # Remove defaults for the public definitions and order schema
                 cleaned_input = copy.deepcopy(tool['inputSchema'])
                 cleaned_input = remove_defaults(cleaned_input)
+                # Recursively clean newlines from all descriptions in inputSchema
+                cleaned_input = clean_newlines_from_schema(cleaned_input)
                 cleaned_tool['inputSchema'] = order_schema_fields(cleaned_input)
             # Add any other fields except mcp_service and mcp_service_factors
             for k, v in tool.items():
@@ -1749,6 +1774,97 @@ def save_all_definitions():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# MCP Server Control API Endpoints
+@app.route('/api/server/status', methods=['GET'])
+def get_server_status():
+    """Check if MCP server is running"""
+    try:
+        from mcp_server_manager import MCPServerManager
+
+        profile = request.args.get("profile", "default")
+        manager = MCPServerManager(profile)
+        result = manager.status()
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'running': False, 'error': str(e)})
+
+
+@app.route('/api/server/start', methods=['POST'])
+def start_server():
+    """Start the MCP server"""
+    try:
+        from mcp_server_manager import MCPServerManager
+
+        profile = request.args.get("profile", "default")
+        manager = MCPServerManager(profile)
+        result = manager.start()
+
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/server/stop', methods=['POST'])
+def stop_server():
+    """Stop the MCP server"""
+    try:
+        from mcp_server_manager import MCPServerManager
+
+        profile = request.args.get("profile", "default")
+        force = request.json.get("force", False) if request.json else False
+        manager = MCPServerManager(profile)
+        result = manager.stop(force=force)
+
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/server/restart', methods=['POST'])
+def restart_server():
+    """Restart the MCP server"""
+    try:
+        from mcp_server_manager import MCPServerManager
+
+        profile = request.args.get("profile", "default")
+        manager = MCPServerManager(profile)
+        result = manager.restart()
+
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/server/logs', methods=['GET'])
+def get_server_logs():
+    """Get MCP server logs"""
+    try:
+        from mcp_server_manager import MCPServerManager
+
+        profile = request.args.get("profile", "default")
+        lines = int(request.args.get("lines", 50))
+        manager = MCPServerManager(profile)
+        logs = manager.logs(lines=lines)
+
+        return jsonify({
+            'success': True,
+            'logs': logs,
+            'profile': profile
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # Serve static files (CSS, JS)
