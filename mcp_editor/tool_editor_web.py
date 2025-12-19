@@ -1216,7 +1216,15 @@ def get_graph_types_properties():
 
         # Try to load from cached properties file for this profile
         profile_name = profile or "default"
-        properties_path = os.path.join(os.path.dirname(__file__), profile_name, 'types_properties.json')
+
+        # Try new naming convention in MCPMetaRegistry folder first
+        registry_path = os.path.join(os.path.dirname(__file__), 'MCPMetaRegistry', f'{server_name}_types_properties.json')
+
+        # Then try profile-specific path
+        if not os.path.exists(registry_path):
+            properties_path = os.path.join(os.path.dirname(__file__), profile_name, 'types_properties.json')
+        else:
+            properties_path = registry_path
 
         # Fallback to legacy path
         if not os.path.exists(properties_path):
