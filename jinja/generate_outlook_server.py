@@ -12,6 +12,11 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Set
 from jinja2 import Environment, FileSystemLoader
 
+# Import MCPMetaRegistry system
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from mcp_editor.mcp_meta_registry import MCPMetaRegistry
+from mcp_editor.mcp_meta_registry.collectors import CollectorContext
+
 
 def to_python_literal(value: Any) -> str:
     """
@@ -581,6 +586,9 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
         analyzed['handler']['method'] = method_name
         analyzed['service_method'] = method_name  # Legacy compatibility
 
+    # Derive getter name for the handler instance (used in template)
+    analyzed['handler']['getter'] = f"get_{analyzed['handler']['instance']}_instance"
+
     return analyzed
 
 
@@ -755,9 +763,91 @@ def extract_service_metadata(tools: List[Dict[str, Any]], server_dir: Optional[P
     return metadata
 
 
+def generate_server_with_registry(template_path: str, output_path: str,
+                                 tools_path: str, internal_args_path: str = None,
+                                 server_name: str = "outlook", use_registry: bool = True):
+    """
+    Generate server.py using MCPMetaRegistry system.
+
+    Args:
+        template_path: Path to Jinja2 template file
+        output_path: Path for generated server.py
+        tools_path: Path to tools definition file
+        internal_args_path: Explicit path to tool_internal_args.json (optional)
+        server_name: Server name for context (default: "outlook")
+        use_registry: Whether to use the new registry system (default: True)
+    """
+    if not use_registry:
+        # Fall back to old method
+        tools = load_tool_definitions(tools_path)
+        return generate_server(template_path, output_path, tools, tools_path, internal_args_path, server_name)
+
+    # Create collector context
+    tools_path = Path(tools_path)
+
+    # Determine scan directory
+    scan_dir = None
+    repo_root = Path(__file__).resolve().parents[1]
+    candidates = [
+        repo_root / f"mcp_{server_name}",
+        repo_root / f"mcp_{server_name}" / "mcp_server",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            scan_dir = candidate
+            break
+
+    # Determine types files
+    types_files = []
+    if scan_dir:
+        # Look for types files in the scan directory
+        for pattern in ["*_types.py", "types.py"]:
+            types_files.extend(scan_dir.glob(pattern))
+
+    # Create context
+    ctx = CollectorContext(
+        server_name=server_name,
+        tools_path=tools_path,
+        internal_args_path=Path(internal_args_path) if internal_args_path else None,
+        scan_dir=scan_dir,
+        types_files=types_files
+    )
+
+    # Initialize registry
+    registry = MCPMetaRegistry()
+
+    # Get Jinja context
+    context = registry.to_jinja_context(ctx)
+
+    # Set up Jinja2 environment
+    template_dir = os.path.dirname(template_path)
+    env = Environment(loader=FileSystemLoader(template_dir))
+    template = env.get_template(os.path.basename(template_path))
+
+    # Render template
+    rendered = template.render(**context)
+
+    # Write output
+    with open(output_path, 'w') as f:
+        f.write(rendered)
+
+    # Print summary
+    print(f"Generated {output_path} successfully!")
+    print(f"\nRegistry Summary:")
+    print(registry.get_summary(ctx))
+    print(f"\nProcessed {len(context['tools'])} tools:")
+    for tool in context['tools']:
+        internal_count = len(tool.get('internal_args', {}))
+        internal_info = f" (+ {internal_count} internal args)" if internal_count else ""
+        print(f"  - {tool['name']} -> {tool['service_method']}(){internal_info}")
+    print(f"\nServices detected:")
+    for service, info in context['services'].items():
+        print(f"  - {service} from {info['module']}")
+    print(f"\nParameter types: {', '.join(context['param_types'])}")
+
 def generate_server(template_path: str, output_path: str, tools: List[Dict[str, Any]] = None,
                     tools_path: str = None, internal_args_path: str = None, server_name: str = None):
-    """Generate server.py from template and tool definitions
+    """Generate server.py from template and tool definitions (legacy method)
 
     Args:
         template_path: Path to Jinja2 template file
@@ -834,6 +924,20 @@ def generate_server(template_path: str, output_path: str, tools: List[Dict[str, 
 
         analyzed_tools.append(analyzed)
 
+    # Collect unique handler instances for helper generation in template
+    handler_instances = []
+    seen_instances = set()
+    for tool in analyzed_tools:
+        instance_name = tool['handler'].get('instance') or tool.get('service_object')
+        class_name = tool['handler'].get('class') or tool.get('service_class')
+
+        if instance_name and instance_name not in seen_instances:
+            handler_instances.append({
+                'name': instance_name,
+                'class': class_name
+            })
+            seen_instances.add(instance_name)
+
     # Prepare context for template
     context = {
         'tools': analyzed_tools,
@@ -841,7 +945,8 @@ def generate_server(template_path: str, output_path: str, tools: List[Dict[str, 
         'param_types': sorted(service_metadata['param_types']),
         'modules': sorted(service_metadata['modules']),
         'internal_args': internal_args,  # Full internal args dict for reference
-        'server_name': server_name
+        'server_name': server_name,
+        'handler_instances': handler_instances
     }
 
     # Render template
@@ -956,6 +1061,17 @@ def main():
         default=True,
         help='Also generate mcp_decorators.py file (default: True)'
     )
+    parser.add_argument(
+        '--use-registry',
+        action='store_true',
+        default=False,
+        help='Use the new MCPMetaRegistry system for generation'
+    )
+    parser.add_argument(
+        '--server-name',
+        default='outlook',
+        help='Server name for context (default: outlook)'
+    )
 
     args = parser.parse_args()
 
@@ -1012,8 +1128,19 @@ def main():
         use_temp = True
         print(f"Using temporary file: {output_path}")
 
-    # Generate server (with tools_path for internal_args discovery)
-    generate_server(str(template_path), str(output_path), MCP_TOOLS, tools_path=args.tools)
+    # Generate server using the appropriate method
+    if args.use_registry:
+        # Use new registry system
+        generate_server_with_registry(
+            str(template_path),
+            str(output_path),
+            tools_path=args.tools,
+            server_name=args.server_name,
+            use_registry=True
+        )
+    else:
+        # Use legacy method (with tools_path for internal_args discovery)
+        generate_server(str(template_path), str(output_path), MCP_TOOLS, tools_path=args.tools)
 
     print(f"\n✅ Generated server successfully!")
     print(f"   Output: {output_path}")

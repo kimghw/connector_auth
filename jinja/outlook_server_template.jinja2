@@ -159,30 +159,13 @@ async def get_user_session_or_legacy(user_email: str, access_token: Optional[str
         return result
 
 
-def get_query_instance(context):
-    """Get query service instance from session or legacy context"""
-{%- if 'GraphMailQuery' in services %}
-    return context.graph_mail_query if USE_SESSION_MANAGER else context['graph_mail_query']
-{%- elif 'FileManager' in services %}
-    return context.file_manager if USE_SESSION_MANAGER else context['file_manager']
-{%- else %}
-    # Adapt this helper for your service
-    pass
-{%- endif %}
+# Helper functions to get service instances based on tools
+{%- for instance in handler_instances %}
+def get_{{ instance.name }}_instance(context):
+    """Get {{ instance.class or 'service' }} instance from session or legacy context"""
+    return context.{{ instance.name }} if USE_SESSION_MANAGER else context['{{ instance.name }}']
 
-
-
-
-{%- if 'FileManager' in services %}
-def get_file_manager_instance(context):
-    """Get FileManager instance from session or legacy context"""
-    return context.file_manager if USE_SESSION_MANAGER else context['file_manager']
-
-
-def get_metadata_manager_instance(context):
-    """Get MetadataManager instance from session or legacy context"""
-    return context.metadata_manager if USE_SESSION_MANAGER else context['metadata_manager']
-{%- endif %}
+{%- endfor %}
 
 
 async def handle_token_error(e: Exception, user_email: str):
@@ -233,12 +216,10 @@ INTERNAL_ARGS = load_internal_args()
 
 # Build INTERNAL_ARG_TYPES dynamically based on imported types
 INTERNAL_ARG_TYPES = {}
-{%- if 'GraphMailQuery' in services %}
 {%- for param_type in param_types %}
 if '{{ param_type }}' in globals():
     INTERNAL_ARG_TYPES['{{ param_type }}'] = {{ param_type }}
 {%- endfor %}
-{%- endif %}
 
 
 def build_internal_param(tool_name: str, arg_name: str, runtime_value: dict = None):
@@ -442,6 +423,7 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     # Get session or legacy instances (first operation)
     user_email = args["user_email"]
     context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+    {%- set instance_getter = tool.handler.getter or ("get_" ~ (tool.handler.instance or tool.service_object) ~ "_instance") %}
 
     {%- if tool.object_params %}
 
@@ -504,7 +486,7 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
 
     try:
         # Get the correct service instance
-        service_instance = get_query_instance(context)
+        service_instance = {{ instance_getter }}(context)
 
         return await service_instance.{{ tool.handler.method or tool.mcp_service or tool.service_method }}(
             user_email=user_email,
@@ -518,7 +500,7 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
 
     try:
         # Get the correct service instance
-        service_instance = get_query_instance(context)
+        service_instance = {{ instance_getter }}(context)
 
         {#- Extract parameters with proper default handling #}
         {%- for param_name, param_info in tool.params.items() %}
