@@ -231,11 +231,14 @@ def load_internal_args() -> dict:
 
 INTERNAL_ARGS = load_internal_args()
 
-INTERNAL_ARG_TYPES = {
-    "FilterParams": FilterParams,
-    "ExcludeParams": ExcludeParams,
-    "SelectParams": SelectParams,
-}
+# Build INTERNAL_ARG_TYPES dynamically based on imported types
+INTERNAL_ARG_TYPES = {}
+{%- if 'GraphMailQuery' in services %}
+{%- for param_type in param_types %}
+if '{{ param_type }}' in globals():
+    INTERNAL_ARG_TYPES['{{ param_type }}'] = {{ param_type }}
+{%- endfor %}
+{%- endif %}
 
 
 def build_internal_param(tool_name: str, arg_name: str, runtime_value: dict = None):
@@ -500,12 +503,8 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- endif %}
 
     try:
-        # Use helper to get the correct instance
-        {%- if 'query' in (tool.handler.method or tool.mcp_service or tool.service_method or '').lower() %}
+        # Get the correct service instance
         service_instance = get_query_instance(context)
-        {%- else %}
-        service_instance = get_client_instance(context)
-        {%- endif %}
 
         return await service_instance.{{ tool.handler.method or tool.mcp_service or tool.service_method }}(
             user_email=user_email,
@@ -518,12 +517,8 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- else %}
 
     try:
-        # Use helper to get the correct instance
-        {%- if 'query' in (tool.handler.method or tool.mcp_service or tool.service_method or '').lower() %}
+        # Get the correct service instance
         service_instance = get_query_instance(context)
-        {%- else %}
-        service_instance = get_client_instance(context)
-        {%- endif %}
 
         {#- Extract parameters with proper default handling #}
         {%- for param_name, param_info in tool.params.items() %}

@@ -85,3 +85,7 @@ mcp_editor/*/*.json
 *.txt
 *.pid
 .mcp_pids/
+
+# Backup directories
+jinja/backups_*/
+backups_*/

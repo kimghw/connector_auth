@@ -165,11 +165,14 @@ def load_internal_args() -> dict:
 
 INTERNAL_ARGS = load_internal_args()
 
-INTERNAL_ARG_TYPES = {
-    "FilterParams": FilterParams,
-    "ExcludeParams": ExcludeParams,
-    "SelectParams": SelectParams,
-}
+# Build INTERNAL_ARG_TYPES dynamically based on imported types
+INTERNAL_ARG_TYPES = {}
+if 'ExcludeParams' in globals():
+    INTERNAL_ARG_TYPES['ExcludeParams'] = ExcludeParams
+if 'FilterParams' in globals():
+    INTERNAL_ARG_TYPES['FilterParams'] = FilterParams
+if 'SelectParams' in globals():
+    INTERNAL_ARG_TYPES['SelectParams'] = SelectParams
 
 
 def build_internal_param(tool_name: str, arg_name: str, runtime_value: dict = None):
@@ -392,7 +395,7 @@ async def handle_Outlook(args: Dict[str, Any]) -> Dict[str, Any]:
     select_params = build_internal_param("Outlook", "select")
 
     try:
-        # Use helper to get the correct instance
+        # Get the correct service instance
         service_instance = get_query_instance(context)
 
         return await service_instance.query_filter(
@@ -427,7 +430,7 @@ async def handle_keyword_search(args: Dict[str, Any]) -> Dict[str, Any]:
     select_params = SelectParams(**select_raw) if select_raw is not None else None
 
     try:
-        # Use helper to get the correct instance
+        # Get the correct service instance
         service_instance = get_query_instance(context)
 
         return await service_instance.query_search(
@@ -458,7 +461,7 @@ async def handle_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     client_filter_params = FilterParams(**client_filter_raw) if client_filter_raw is not None else None
 
     try:
-        # Use helper to get the correct instance
+        # Get the correct service instance
         service_instance = get_query_instance(context)
 
         return await service_instance.query_url(
@@ -493,7 +496,7 @@ async def handle_mail_list(args: Dict[str, Any]) -> Dict[str, Any]:
     select_params = build_internal_param("mail_list", "select")
 
     try:
-        # Use helper to get the correct instance
+        # Get the correct service instance
         service_instance = get_query_instance(context)
 
         return await service_instance.query_filter(
