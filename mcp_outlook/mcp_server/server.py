@@ -40,14 +40,12 @@ except ImportError:
 # Import legacy components for fallback
 # Outlook services
 from graph_mail_query import GraphMailQuery
-from graph_mail_client import GraphMailClient
 
 app = FastAPI(title="Outlook MCP Server", version="1.0.0")
 
 # Global instances for legacy mode (when SessionManager not available)
 if not USE_SESSION_MANAGER:
     graph_mail_query = GraphMailQuery()
-    graph_mail_client = GraphMailClient()
 
 
 @app.on_event("startup")
@@ -70,18 +68,13 @@ async def shutdown_event():
         logger.info("Server shutdown in legacy mode")
 
 
-async def ensure_graph_mail_client_legacy(user_email: Optional[str] = None):
+async def ensure_services_initialized_legacy(user_email: Optional[str] = None):
     """
-    Legacy method: Ensure GraphMailClient is initialized before use
+    Legacy method: Ensure services are initialized before use
     Used when SessionManager is not available
     """
-    if user_email:
-        graph_mail_client.user_email = user_email
-
-    if not getattr(graph_mail_client, "_initialized", False):
-        initialized = await graph_mail_client.initialize(user_email=user_email)
-        if not initialized:
-            raise HTTPException(status_code=500, detail="Failed to initialize GraphMailClient")
+    # Implement initialization logic for your services here
+    pass
 
 
 async def get_user_session_or_legacy(user_email: str, access_token: Optional[str] = None):
@@ -113,10 +106,9 @@ async def get_user_session_or_legacy(user_email: str, access_token: Optional[str
             raise HTTPException(status_code=500, detail=str(e))
     else:
         # Legacy mode - return global instances wrapped in a dict
-        await ensure_graph_mail_client_legacy(user_email)
+        await ensure_services_initialized_legacy(user_email)
         result = {
             'graph_mail_query': graph_mail_query,
-            'graph_mail_client': graph_mail_client,
             'user_email': user_email
         }
         return result
@@ -125,11 +117,6 @@ async def get_user_session_or_legacy(user_email: str, access_token: Optional[str
 def get_query_instance(context):
     """Get query service instance from session or legacy context"""
     return context.graph_mail_query if USE_SESSION_MANAGER else context['graph_mail_query']
-
-
-def get_client_instance(context):
-    """Get client service instance from session or legacy context"""
-    return context.graph_mail_client if USE_SESSION_MANAGER else context['graph_mail_client']
 
 
 async def handle_token_error(e: Exception, user_email: str):
@@ -160,7 +147,7 @@ def extract_schema_defaults(arg_info: dict) -> dict:
 def load_internal_args() -> dict:
     """Load internal args from tool_internal_args.json"""
     possible_paths = [
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mcp_editor", "", "tool_internal_args.json"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mcp_editor", "outlook", "tool_internal_args.json"),
         os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tool_internal_args.json"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "tool_internal_args.json"),
     ]
@@ -386,9 +373,8 @@ async def handle_tool_call(request: MCPRequest) -> JSONResponse:
 
 async def handle_Outlook(args: Dict[str, Any]) -> Dict[str, Any]:
     """Route to GraphMailClient.query_filter with session or legacy support"""
+    # Get session or legacy instances (first operation)
     user_email = args["user_email"]
-
-    # Get session or legacy instances
     context = await get_user_session_or_legacy(user_email, args.get("access_token"))
 
     # Extract parameters from args
@@ -421,9 +407,8 @@ async def handle_Outlook(args: Dict[str, Any]) -> Dict[str, Any]:
 
 async def handle_keyword_search(args: Dict[str, Any]) -> Dict[str, Any]:
     """Route to GraphMailQuery.query_search with session or legacy support"""
+    # Get session or legacy instances (first operation)
     user_email = args["user_email"]
-
-    # Get session or legacy instances
     context = await get_user_session_or_legacy(user_email, args.get("access_token"))
 
     # Extract parameters from args
@@ -458,9 +443,8 @@ async def handle_keyword_search(args: Dict[str, Any]) -> Dict[str, Any]:
 
 async def handle_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     """Route to GraphMailQuery.query_url with session or legacy support"""
+    # Get session or legacy instances (first operation)
     user_email = args["user_email"]
-
-    # Get session or legacy instances
     context = await get_user_session_or_legacy(user_email, args.get("access_token"))
 
     # Extract parameters from args
@@ -488,9 +472,8 @@ async def handle_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
 
 async def handle_mail_list(args: Dict[str, Any]) -> Dict[str, Any]:
     """Route to GraphMailQuery.query_filter with session or legacy support"""
+    # Get session or legacy instances (first operation)
     user_email = args["user_email"]
-
-    # Get session or legacy instances
     context = await get_user_session_or_legacy(user_email, args.get("access_token"))
 
     # Extract parameters from args

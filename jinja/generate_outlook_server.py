@@ -5,10 +5,11 @@ Generate server.py from tool definitions using Jinja2 template
 import os
 import sys
 import re
+import ast
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set
 from jinja2 import Environment, FileSystemLoader
 
 
@@ -542,7 +543,104 @@ def analyze_tool_schema(tool: Dict[str, Any]) -> Dict[str, Any]:
     return analyzed
 
 
-def extract_service_metadata(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
+def analyze_decorated_methods(server_dir: Path) -> Dict[str, Any]:
+    """
+    Analyze Python files to find @mcp_tool decorated methods and extract service info
+
+    Returns:
+        Dict with 'services' containing class info and 'methods' with decorated methods
+    """
+    result = {
+        'services': {},  # class_name -> {'module': module_name, 'instance_name': instance_name}
+        'methods': {},   # method_name -> {'class': class_name, 'module': module_name}
+        'param_types': set()
+    }
+
+    # Common directories to check for service files
+    search_dirs = [
+        server_dir,
+        server_dir.parent,  # Check parent directory
+        server_dir / 'mcp_server'
+    ]
+
+    for search_dir in search_dirs:
+        if not search_dir.exists():
+            continue
+
+        # Find all Python files
+        py_files = list(search_dir.glob('*.py'))
+
+        for py_file in py_files:
+            # Skip __pycache__, tests, and generated files
+            if any(skip in str(py_file) for skip in ['__pycache__', 'test_', 'server.py', 'tool_definitions.py']):
+                continue
+
+            try:
+                with open(py_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+
+                # Parse the AST
+                tree = ast.parse(content)
+
+                # Find classes and their decorated methods
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.ClassDef):
+                        class_name = node.name
+                        module_name = py_file.stem  # Use filename as module name
+
+                        # Look for @mcp_tool decorated methods
+                        for item in node.body:
+                            if isinstance(item, ast.AsyncFunctionDef) or isinstance(item, ast.FunctionDef):
+                                # Check decorators
+                                for decorator in item.decorator_list:
+                                    decorator_name = None
+
+                                    # Handle different decorator patterns
+                                    if isinstance(decorator, ast.Name):
+                                        decorator_name = decorator.id
+                                    elif isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name):
+                                        decorator_name = decorator.func.id
+
+                                    if decorator_name in ['mcp_tool', 'mcp_service']:
+                                        # Found an MCP service/tool method
+                                        method_name = item.name
+
+                                        # Add service info if not already present
+                                        if class_name not in result['services']:
+                                            # Convert ClassName to instance_name
+                                            instance_name = class_name[0].lower() + class_name[1:] if class_name else 'service'
+                                            # Convert instance_name from camelCase to snake_case
+                                            instance_name = re.sub(r'(?<!^)(?=[A-Z])', '_', instance_name).lower()
+
+                                            result['services'][class_name] = {
+                                                'module': module_name,
+                                                'instance_name': instance_name
+                                            }
+
+                                        # Add method info
+                                        result['methods'][method_name] = {
+                                            'class': class_name,
+                                            'module': module_name
+                                        }
+
+                                        # Extract parameter types from method signature
+                                        if isinstance(item, (ast.AsyncFunctionDef, ast.FunctionDef)):
+                                            for arg in item.args.args:
+                                                if arg.annotation:
+                                                    # Extract type names from annotations
+                                                    if isinstance(arg.annotation, ast.Name):
+                                                        type_name = arg.annotation.id
+                                                        if type_name not in ['str', 'int', 'bool', 'float', 'list', 'dict', 'Any', 'Optional']:
+                                                            result['param_types'].add(type_name)
+
+            except Exception as e:
+                # Skip files that can't be parsed
+                continue
+
+    return result
+
+
+def extract_service_metadata(tools: List[Dict[str, Any]], server_dir: Optional[Path] = None) -> Dict[str, Any]:
     """Extract metadata about services and imports from tools"""
     metadata = {
         'services': {},
@@ -550,7 +648,7 @@ def extract_service_metadata(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
         'modules': set()
     }
 
-    # Analyze all tools to determine what services and types are needed
+    # First, try to extract from mcp_service annotations in tools
     for tool in tools:
         # Check for service information
         if 'mcp_service' in tool:
@@ -575,11 +673,20 @@ def extract_service_metadata(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
                 if base_model:
                     metadata['param_types'].add(base_model)
 
-    # Add default services based on tool names if none found
+    # If no services found from mcp_service, use AST analysis
+    if not metadata['services'] and server_dir:
+        ast_result = analyze_decorated_methods(server_dir)
+
+        if ast_result['services']:
+            metadata['services'] = ast_result['services']
+            metadata['modules'] = {info['module'] for info in ast_result['services'].values()}
+            metadata['param_types'].update(ast_result['param_types'])
+
+    # Only add default services if still no services found
     if not metadata['services']:
-        # Check if it's attachment or outlook server
-        has_attachment_tools = any('file' in tool['name'] or 'metadata' in tool['name']
-                                  or 'convert' in tool['name'] or 'onedrive' in tool['name']
+        # Check if it's attachment or file handler server
+        has_attachment_tools = any('file' in tool['name'].lower() or 'metadata' in tool['name'].lower()
+                                  or 'convert' in tool['name'].lower() or 'onedrive' in tool['name'].lower()
                                   for tool in tools)
 
         if has_attachment_tools:
@@ -587,28 +694,22 @@ def extract_service_metadata(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
                 'FileManager': {
                     'module': 'file_manager',
                     'instance_name': 'file_manager'
-                },
-                'MetadataManager': {
-                    'module': 'metadata.manager',
-                    'instance_name': 'metadata_manager'
                 }
             }
-            metadata['modules'] = {'file_manager', 'metadata.manager'}
+            metadata['modules'] = {'file_manager'}
         else:
+            # Only add GraphMailQuery as default for outlook server
             metadata['services'] = {
                 'GraphMailQuery': {
                     'module': 'graph_mail_query',
                     'instance_name': 'graph_mail_query'
-                },
-                'GraphMailClient': {
-                    'module': 'graph_mail_client',
-                    'instance_name': 'graph_mail_client'
                 }
             }
-            metadata['modules'] = {'graph_mail_query', 'graph_mail_client'}
+            metadata['modules'] = {'graph_mail_query'}
 
-    # Ensure we have the basic parameter types
-    metadata['param_types'].update(['FilterParams', 'ExcludeParams', 'SelectParams'])
+    # Add parameter types based on services being used
+    if 'GraphMailQuery' in metadata['services']:
+        metadata['param_types'].update(['FilterParams', 'ExcludeParams', 'SelectParams'])
 
     return metadata
 
@@ -650,8 +751,15 @@ def generate_server(template_path: str, output_path: str, tools: List[Dict[str, 
     env = Environment(loader=FileSystemLoader(template_dir))
     template = env.get_template(os.path.basename(template_path))
 
+    # Determine server directory for AST analysis
+    server_dir = None
+    if output_path:
+        server_dir = Path(output_path).parent
+    elif tools_path:
+        server_dir = Path(tools_path).parent
+
     # Extract service metadata
-    service_metadata = extract_service_metadata(tools)
+    service_metadata = extract_service_metadata(tools, server_dir)
 
     # Collect all param types (Signature + Internal)
     all_param_types = collect_all_param_types(tools, internal_args)

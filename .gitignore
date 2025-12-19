@@ -80,3 +80,8 @@ mcp_*/mcp_server/backups/
 # MCP Editor - server-specific files (auto-generated)
 mcp_editor/*/*.json
 !mcp_editor/editor_config.json
+
+# Text and PID files
+*.txt
+*.pid
+.mcp_pids/
