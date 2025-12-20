@@ -176,40 +176,39 @@ class MetaRegisterManager:
             # 서비스 데이터 처리 - 개선된 구조로 변환
             services = {}
             for func_name, service_data in services_by_file.items():
-                service_key = f"{server_name}.{func_name}"
-
-                # metadata 필드 재구성 (service_name 제거)
-                original_metadata = service_data.get("metadata", {})
-                metadata = {
-                    "server_name": server_name,
-                    "tool_name": original_metadata.get("tool_name", f"Handle_{func_name}"),
+                # handler 정보 구성
+                handler = {
                     "class_name": service_data.get("class"),
                     "module_path": f"{server_name}.{service_data.get('module', '')}",
-                    "description": original_metadata.get("description", ""),
+                    "instance": service_data.get("instance"),
+                    "method": service_data.get("method"),
+                    "is_async": service_data.get("is_async", False),
+                    "file": service_data.get("file"),
+                    "line": service_data.get("line")
                 }
 
-                # 추가 메타데이터 필드들 (선택적)
-                if "category" in original_metadata:
-                    metadata["category"] = original_metadata.get("category")
-                if "tags" in original_metadata:
-                    metadata["tags"] = original_metadata.get("tags")
-                if "priority" in original_metadata:
-                    metadata["priority"] = original_metadata.get("priority")
+                # 원본 메타데이터 가져오기
+                original_metadata = service_data.get("metadata", {})
 
-                # 파일 관련 정보
-                metadata["file"] = service_data.get("file")
-                metadata["line"] = service_data.get("line")
-                metadata["instance"] = service_data.get("instance")
-                metadata["method"] = service_data.get("method")
-                metadata["is_async"] = service_data.get("is_async", False)
-
-                # 깔끔한 구조로 재구성
-                services[service_key] = {
-                    "service_name": func_name,  # function_name 대신 service_name 사용
-                    "metadata": metadata,
+                # 서비스 구조 구성 - service_name 바로 아래에 주요 필드, metadata는 parameters 다음
+                service_entry = {
+                    "service_name": func_name,
+                    "handler": handler,
                     "signature": service_data.get("signature", ""),
-                    "parameters": service_data.get("parameters", [])
+                    "parameters": service_data.get("parameters", []),
+                    "metadata": {
+                        "description": original_metadata.get("description", ""),
+                        "category": original_metadata.get("category", ""),
+                        "tags": original_metadata.get("tags", []),
+                        "tool_names": original_metadata.get("tool_names", [f"Handle_{func_name}"])
+                    }
                 }
+
+                # metadata에 추가 필드가 있으면 포함
+                if "priority" in original_metadata:
+                    service_entry["metadata"]["priority"] = original_metadata["priority"]
+
+                services[func_name] = service_entry
 
             return services
         except Exception as e:
@@ -248,15 +247,29 @@ class MetaRegisterManager:
                 manifest["sources"].append("runtime_decorator")
                 for func_name, service_data in runtime_data.items():
                     # 런타임 데이터도 같은 구조로 변환
-                    metadata = service_data.get("metadata", {})
-                    metadata["source"] = "runtime_decorator"
+                    original_metadata = service_data.get("metadata", {})
 
-                    manifest["services"][f"runtime.{func_name}"] = {
-                        "service_name": func_name,
-                        "metadata": metadata,
-                        "signature": service_data.get("signature", ""),
-                        "parameters": service_data.get("parameters", [])
+                    # handler 정보 구성 (런타임은 일부 정보가 없을 수 있음)
+                    handler = {
+                        "source": "runtime_decorator"
                     }
+
+                    # 런타임 서비스 구조
+                    runtime_entry = {
+                        "service_name": func_name,
+                        "handler": handler,
+                        "signature": service_data.get("signature", ""),
+                        "parameters": service_data.get("parameters", []),
+                        "metadata": {
+                            "description": original_metadata.get("description", ""),
+                            "category": original_metadata.get("category", ""),
+                            "tags": original_metadata.get("tags", []),
+                            "tool_names": original_metadata.get("tool_names", [f"Handle_{func_name}"]),
+                            "source": "runtime_decorator"
+                        }
+                    }
+
+                    manifest["services"][f"runtime.{func_name}"] = runtime_entry
 
         # 정적 스캔 데이터 수집
         if include_static and base_dir:
@@ -321,8 +334,8 @@ class MetaRegisterManager:
 registry_manager = MetaRegisterManager()
 
 
-def main():
-    """CLI 엔트리포인트"""
+def extract_service_metadata():
+    """서비스 메타데이터를 추출하고 JSON으로 내보내는 메인 함수"""
     import argparse
 
     parser = argparse.ArgumentParser(description="MCP Service Registry Manager")
@@ -382,4 +395,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    extract_service_metadata()

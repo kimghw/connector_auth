@@ -227,34 +227,5 @@ def generate_inputschema_from_service(service_name: str) -> Dict[str, Any]:
 
 # Example usage
 if __name__ == "__main__":
-    # Example service function
-    @mcp_service(
-        tool_name="example_service",
-        server_name="outlook",
-        description="Example MCP service",
-        category="email_operations",
-        tags=["email", "query"],
-        priority=5
-    )
-    async def example_function(
-        user_email: str,
-        message_id: str,
-        include_attachments: Optional[bool] = False,
-        max_results: int = 10
-    ) -> Dict[str, Any]:
-        """Example function with various parameter types"""
-        return {"status": "success"}
-
-    # Get service info
-    info = get_mcp_service_info("example_service")
-    if info:
-        print("Service Info:")
-        print(f"  Name: {info['name']}")
-        print(f"  Parameters: {info['parameters']}")
-        print(f"  Required: {info['required_parameters']}")
-
-        # Generate inputSchema
-        schema = generate_inputschema_from_service("example_service")
-        print("\nGenerated InputSchema:")
-        import json
-        print(json.dumps(schema, indent=2))
+    # Example removed - use actual service functions instead
+    pass

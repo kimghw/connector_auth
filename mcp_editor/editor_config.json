@@ -1,17 +1,17 @@
 {
-  "file_handler": {
-    "template_definitions_path": "file_handler/tool_definition_templates.py",
+  "mcp_file_handler": {
+    "template_definitions_path": "mcp_file_handler/tool_definition_templates.py",
     "tool_definitions_path": "../mcp_file_handler/mcp_server/tool_definitions.py",
-    "backup_dir": "file_handler/backups",
+    "backup_dir": "mcp_file_handler/backups",
     "types_files": [
     ],
     "host": "0.0.0.0",
     "port": 8091
   },
-  "outlook": {
-    "template_definitions_path": "outlook/tool_definition_templates.py",
+  "mcp_outlook": {
+    "template_definitions_path": "mcp_outlook/tool_definition_templates.py",
     "tool_definitions_path": "../mcp_outlook/mcp_server/tool_definitions.py",
-    "backup_dir": "outlook/backups",
+    "backup_dir": "mcp_outlook/backups",
     "types_files": [
       "../mcp_outlook/outlook_types.py"
     ],

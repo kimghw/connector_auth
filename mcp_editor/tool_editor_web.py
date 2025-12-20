@@ -49,7 +49,7 @@ DEFAULT_PROFILE = {
 JINJA_DIR = os.path.join(ROOT_DIR, 'jinja')
 SERVER_TEMPLATES = {
     "outlook": os.path.join(JINJA_DIR, "outlook_server_template.jinja2"),
-    "file_handler": os.path.join(JINJA_DIR, "file_handler_server_template.jinja2"),
+    "mcp_file_handler": os.path.join(JINJA_DIR, "file_handler_server_template.jinja2"),
     "scaffold": os.path.join(JINJA_DIR, "mcp_server_scaffold_template.jinja2"),
 }
 DEFAULT_SERVER_TEMPLATE = SERVER_TEMPLATES["outlook"]
