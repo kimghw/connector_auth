@@ -28,8 +28,8 @@ from tool_editor_web_server_mappings import (
     get_server_name_from_path
 )
 
-# Import MCP service scanner (shared)
-from mcp_service_scanner import get_services_map
+# Import MCP service scanner from registry
+from mcp_service_registry.mcp_service_scanner import get_services_map
 
 app = Flask(__name__)
 CORS(app)
@@ -460,7 +460,32 @@ SERVICE_SCAN_CACHE: dict[tuple[str, str], dict] = {}
 
 
 def _load_services_for_server(server_name: str | None, scan_dir: str | None, force_rescan: bool = False):
-    """Load service metadata with simple in-process caching."""
+    """Load service metadata from registry JSON first, fallback to AST scanning."""
+    if not server_name:
+        return {}
+
+    # Convert server_name to registry format (mcp_outlook -> outlook, mcp_file_handler -> file_handler)
+    registry_name = server_name.replace('mcp_', '') if server_name and server_name.startswith('mcp_') else server_name
+
+    # Try to load from registry JSON first (faster and more reliable)
+    registry_path = os.path.join(BASE_DIR, 'mcp_service_registry', f'registry_{registry_name}.json')
+    if os.path.exists(registry_path) and not force_rescan:
+        try:
+            with open(registry_path, 'r', encoding='utf-8') as f:
+                registry_data = json.load(f)
+                services = {}
+                for service_name, service_info in registry_data.get('services', {}).items():
+                    services[service_name] = {
+                        'signature': service_info.get('signature', ''),
+                        'parameters': service_info.get('parameters', []),
+                        'metadata': service_info.get('metadata', {})
+                    }
+                print(f"Loaded {len(services)} services from registry_{registry_name}.json")
+                return services
+        except Exception as e:
+            print(f"Warning: Could not load registry_{registry_name}.json: {e}")
+
+    # Fallback to AST scanning if registry not found or force_rescan is True
     if not scan_dir:
         return {}
 
@@ -863,7 +888,7 @@ def restore_backup(filename):
 
 @app.route('/api/mcp-services', methods=['GET'])
 def get_mcp_services():
-    """Get available MCP services from server-specific mcp_services.json"""
+    """Get available MCP services from registry_{server_name}.json in mcp_service_registry"""
     try:
         # Get profile parameter to determine which server
         profiles = list_profile_names()
@@ -872,55 +897,95 @@ def get_mcp_services():
         # Determine server name from profile using mappings
         server_name = get_server_name_from_profile(profile)
 
-        # Try server-specific file first from server folder
+        # Convert server_name to registry format (mcp_outlook -> outlook, mcp_file_handler -> file_handler)
+        registry_name = server_name.replace('mcp_', '') if server_name and server_name.startswith('mcp_') else server_name
+
+        # Try multiple paths in order of preference
         mcp_services_path = None
-        if server_name:
-            # New path: mcp_editor/{server_name}/{server_name}_mcp_services.json
-            specific_path = os.path.join(os.path.dirname(__file__), server_name, f'{server_name}_mcp_services.json')
-            if os.path.exists(specific_path):
-                mcp_services_path = specific_path
-                print(f"Loading services from {server_name}/{server_name}_mcp_services.json")
-            else:
-                # Fallback to old location for backward compatibility
-                old_path = os.path.join(os.path.dirname(__file__), f'{server_name}_mcp_services.json')
-                if os.path.exists(old_path):
-                    mcp_services_path = old_path
-                    print(f"Loading services from {server_name}_mcp_services.json (legacy location)")
+        paths_to_try = []
 
-        # Fallback to generic file
-        if not mcp_services_path or not os.path.exists(mcp_services_path):
+        if registry_name:
+            # Priority 1: New registry format in mcp_service_registry
+            registry_path = os.path.join(os.path.dirname(__file__), 'mcp_service_registry', f'registry_{registry_name}.json')
+            paths_to_try.append(('registry', registry_path))
+
+            # Priority 2: Old format in server folder (mcp_editor/mcp_outlook/outlook_mcp_services.json)
+            old_server_path = os.path.join(os.path.dirname(__file__), server_name, f'{registry_name}_mcp_services.json')
+            paths_to_try.append(('server_folder', old_server_path))
+
+            # Priority 3: Legacy location (mcp_editor/outlook_mcp_services.json)
+            legacy_path = os.path.join(os.path.dirname(__file__), f'{registry_name}_mcp_services.json')
+            paths_to_try.append(('legacy', legacy_path))
+
+        # Try each path
+        for path_type, path in paths_to_try:
+            if os.path.exists(path):
+                mcp_services_path = path
+                print(f"Loading MCP services from {path_type}: {path}")
+                break
+
+        # Final fallback
+        if not mcp_services_path:
             mcp_services_path = os.path.join(os.path.dirname(__file__), 'mcp_services.json')
+            if os.path.exists(mcp_services_path):
+                print(f"Loading MCP services from fallback: {mcp_services_path}")
 
-        if os.path.exists(mcp_services_path):
+        if mcp_services_path and os.path.exists(mcp_services_path):
             with open(mcp_services_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                decorated = data.get("decorated_services", [])
 
-                # Build signature strings from parameter metadata
-                detailed = []
-                for service in data.get("services_with_signatures", []):
-                    params = service.get("parameters", [])
-                    param_strings = []
-                    for param in params:
-                        if param.get("name") == "self":
-                            continue
-                        part = param.get("name", "")
-                        if param.get("type"):
-                            part += f": {param['type']}"
-                        if param.get("default") is not None:
-                            part += f" = {param['default']}"
-                        param_strings.append(part)
+                # Handle new registry format
+                if 'services' in data and isinstance(data['services'], dict):
+                    # New registry format from mcp_service_registry
+                    decorated = []
+                    detailed = []
 
-                    detailed.append({
-                        "name": service.get("name"),
-                        "parameters": params,
-                        "signature": ", ".join(param_strings)
+                    for service_name, service_info in data['services'].items():
+                        # Add to decorated services (tool names)
+                        handler = service_info.get('handler', {})
+                        tool_name = service_info.get('metadata', {}).get('tool_name', handler.get('method', service_name))
+                        decorated.append(tool_name)
+
+                        # Build detailed info
+                        detailed.append({
+                            "name": service_name,
+                            "parameters": service_info.get("parameters", []),
+                            "signature": service_info.get("signature", "")
+                        })
+
+                    return jsonify({
+                        "services": decorated,
+                        "services_with_signatures": detailed
                     })
+                else:
+                    # Old format (backward compatibility)
+                    decorated = data.get("decorated_services", [])
 
-                return jsonify({
-                    "services": decorated,
-                    "services_with_signatures": detailed
-                })
+                    # Build signature strings from parameter metadata
+                    detailed = []
+                    for service in data.get("services_with_signatures", []):
+                        params = service.get("parameters", [])
+                        param_strings = []
+                        for param in params:
+                            if param.get("name") == "self":
+                                continue
+                            part = param.get("name", "")
+                            if param.get("type"):
+                                part += f": {param['type']}"
+                            if param.get("default") is not None:
+                                part += f" = {param['default']}"
+                            param_strings.append(part)
+
+                        detailed.append({
+                            "name": service.get("name"),
+                            "parameters": params,
+                            "signature": ", ".join(param_strings)
+                        })
+
+                    return jsonify({
+                        "services": decorated,
+                        "services_with_signatures": detailed
+                    })
         return jsonify({"services": [], "services_with_signatures": []})
     except Exception as e:
         return jsonify({"error": str(e), "services": [], "services_with_signatures": []}), 500
@@ -1217,8 +1282,8 @@ def get_graph_types_properties():
         # Try to load from cached properties file for this profile
         profile_name = profile or "default"
 
-        # Try new naming convention in MCPMetaRegistry folder first
-        registry_path = os.path.join(os.path.dirname(__file__), 'MCPMetaRegistry', f'{server_name}_types_properties.json')
+        # Try new naming convention in mcp_service_registry folder first
+        registry_path = os.path.join(os.path.dirname(__file__), 'mcp_service_registry', f'types_property_{server_name}.json')
 
         # Then try profile-specific path
         if not os.path.exists(registry_path):
@@ -1234,7 +1299,9 @@ def get_graph_types_properties():
             with open(properties_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 data["has_types"] = True
-                data["types_name"] = f"{server_name}_types"
+                # Remove 'mcp_' prefix from server_name for types file
+                types_file_name = server_name.replace('mcp_', '') if server_name and server_name.startswith('mcp_') else server_name
+                data["types_name"] = f"{types_file_name}_types"
                 return jsonify(data)
         else:
             # Try to generate using extract script
@@ -1247,15 +1314,19 @@ def get_graph_types_properties():
                     with open(properties_path, 'r', encoding='utf-8') as f:
                         data = json.load(f)
                         data["has_types"] = True
-                        data["types_name"] = f"{server_name}_types"
+                        # Remove 'mcp_' prefix from server_name for types file
+                        types_file_name = server_name.replace('mcp_', '') if server_name and server_name.startswith('mcp_') else server_name
+                        data["types_name"] = f"{types_file_name}_types"
                         return jsonify(data)
 
+        # Remove 'mcp_' prefix from server_name for types file
+        types_file_name = server_name.replace('mcp_', '') if server_name and server_name.startswith('mcp_') else server_name
         return jsonify({
             "classes": [],
             "properties_by_class": {},
             "all_properties": [],
             "has_types": bool(types_files),
-            "types_name": f"{server_name}_types" if types_files else None
+            "types_name": f"{types_file_name}_types" if types_files else None
         })
     except Exception as e:
         return jsonify({"error": str(e), "classes": [], "properties_by_class": {}, "all_properties": [], "has_types": False}), 500

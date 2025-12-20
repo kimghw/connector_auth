@@ -278,7 +278,7 @@ def main(server_name: Optional[str] = None, output_dir: Optional[str] = None):
         base_dir = os.path.dirname(__file__)
 
     # Generate filename with server name
-    filename = f"{server_name}_types_properties.json"
+    filename = f"types_property_{server_name}.json"
     output_path = os.path.join(base_dir, filename)
 
     # Save to JSON file

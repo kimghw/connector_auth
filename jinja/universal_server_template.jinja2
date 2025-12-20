@@ -1,0 +1,314 @@
+"""
+FastAPI MCP Server for {{ server_title | default(server_name | title) }}
+Routes MCP protocol requests to service functions
+Generated from universal template with registry data
+"""
+import json
+from typing import Dict, Any, List, Optional
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+import sys
+import os
+import logging
+
+# Add parent directories to path for module access
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+grandparent_dir = os.path.dirname(parent_dir)
+
+# Add paths for imports based on server type
+{%- if server_name == 'file_handler' %}
+file_handler_dir = os.path.join(grandparent_dir, "mcp_file_handler")
+sys.path.insert(0, file_handler_dir)  # For file_handler relative imports
+{%- endif %}
+sys.path.insert(0, grandparent_dir)  # For session module and package imports
+sys.path.insert(0, parent_dir)  # For direct module imports
+
+# Import parameter types if needed
+{%- if param_types %}
+{%- if server_name == 'outlook' %}
+from outlook_types import {{ param_types | join(', ') }}
+{%- endif %}
+{%- endif %}
+
+# Import tool definitions
+from tool_definitions import MCP_TOOLS
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Try to import SessionManager - optional feature
+try:
+    from session.session_manager import SessionManager
+    session_manager = SessionManager()
+    from session.session_manager import Session
+    USE_SESSION_MANAGER = True
+    logger.info("SessionManager imported successfully")
+except ImportError:
+    logger.warning("SessionManager not found, using legacy mode without session management")
+    session_manager = None
+    Session = None
+    USE_SESSION_MANAGER = False
+
+# Import service classes based on registry
+{%- for service_name, service_info in services.items() %}
+{%- if server_name == 'file_handler' %}
+# File handler services use direct imports
+from {{ service_info.module_path.split('.')[-1] }} import {{ service_info.class_name }}
+{%- else %}
+# Import from module path
+from {{ service_info.module_path.replace('.', '_').replace('mcp_', '').replace('outlook_', '') }} import {{ service_info.class_name }}
+{%- endif %}
+{%- endfor %}
+
+app = FastAPI(title="{{ server_title | default(server_name | title + ' MCP Server') }}", version="1.0.0")
+
+# Global instances for legacy mode (when SessionManager not available)
+if not USE_SESSION_MANAGER:
+{%- for service_name, service_info in services.items() %}
+    {{ service_info.instance }} = {{ service_info.class_name }}()
+{%- endfor %}
+{%- if server_name == 'file_handler' %}
+    # FileManager contains metadata_manager
+    metadata_manager = file_manager.metadata_manager
+{%- endif %}
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Start SessionManager on server startup (if available)"""
+    if USE_SESSION_MANAGER:
+        await session_manager.start()
+        logger.info("SessionManager started")
+    else:
+        logger.info("Server started in legacy mode without SessionManager")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Stop SessionManager on server shutdown (if available)"""
+    if USE_SESSION_MANAGER:
+        await session_manager.stop()
+        logger.info("SessionManager stopped")
+    else:
+        logger.info("Server shutdown in legacy mode")
+
+
+async def ensure_services_initialized_legacy(user_email: Optional[str] = None):
+    """
+    Legacy method: Ensure services are initialized before use
+    Used when SessionManager is not available
+    """
+{%- if server_name == 'file_handler' %}
+    global file_manager, metadata_manager
+    if 'file_manager' not in globals() or file_manager is None:
+        file_manager = FileManager()
+        metadata_manager = file_manager.metadata_manager
+{%- elif server_name == 'outlook' %}
+{%- for service_name, service_info in services.items() %}
+    global {{ service_info.instance }}
+    if '{{ service_info.instance }}' not in globals() or {{ service_info.instance }} is None:
+        {{ service_info.instance }} = {{ service_info.class_name }}()
+        if hasattr({{ service_info.instance }}, 'initialize'):
+            await {{ service_info.instance }}.initialize(user_email)
+{%- endfor %}
+{%- endif %}
+
+
+def get_service_instance(service_class: str, session: Optional[Any] = None):
+    """
+    Get service instance from session or global (legacy mode)
+
+    Args:
+        service_class: Class name of the service
+        session: Session object (if using SessionManager)
+
+    Returns:
+        Service instance
+    """
+    if USE_SESSION_MANAGER and session:
+        # Map class names to instance names
+        class_to_instance = {
+{%- for service_name, service_info in services.items() %}
+            "{{ service_info.class_name }}": "{{ service_info.instance }}",
+{%- endfor %}
+        }
+        instance_name = class_to_instance.get(service_class)
+        if instance_name:
+            return getattr(session, instance_name, None)
+    else:
+        # Legacy mode - use global instances
+{%- for service_name, service_info in services.items() %}
+        if service_class == "{{ service_info.class_name }}":
+            return {{ service_info.instance }}
+{%- endfor %}
+
+    return None
+
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "name": "{{ server_title | default(server_name | title + ' MCP Server') }}",
+        "version": "1.0.0",
+        "session_manager_enabled": USE_SESSION_MANAGER
+    }
+
+
+@app.post("/mcp/v1/tools/list")
+async def list_tools(request: Request):
+    """List available MCP tools"""
+    try:
+        # Get tools metadata
+        tools_list = []
+        for tool in MCP_TOOLS:
+            tools_list.append({
+                "name": tool["name"],
+                "description": tool.get("description", ""),
+                "inputSchema": tool.get("inputSchema", {})
+            })
+
+        return JSONResponse(content={
+            "result": {
+                "tools": tools_list
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error listing tools: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": {"message": str(e)}}
+        )
+
+
+@app.post("/mcp/v1/tools/call")
+async def call_tool(request: Request):
+    """Execute an MCP tool"""
+    try:
+        data = await request.json()
+        tool_name = data.get("params", {}).get("name")
+        arguments = data.get("params", {}).get("arguments", {})
+
+        logger.info(f"Tool call: {tool_name} with args: {arguments}")
+
+        # Map tool name to service implementation
+        tool_handlers = {
+{%- for tool_name, tool_info in tools.items() %}
+            "{{ tool_name }}": {
+                "service_class": "{{ tool_info.implementation.class_name }}",
+                "method": "{{ tool_info.implementation.method }}"
+            },
+{%- endfor %}
+        }
+
+        if tool_name not in tool_handlers:
+            return JSONResponse(
+                status_code=404,
+                content={"error": {"message": f"Unknown tool: {tool_name}"}}
+            )
+
+        handler_info = tool_handlers[tool_name]
+
+        # Get session or use legacy mode
+        session = None
+        user_email = arguments.get("user_email")
+
+        if USE_SESSION_MANAGER and user_email:
+            session = await session_manager.get_or_create_session(user_email)
+        else:
+            await ensure_services_initialized_legacy(user_email)
+
+        # Get service instance
+        service_instance = get_service_instance(handler_info["service_class"], session)
+
+        if not service_instance:
+            return JSONResponse(
+                status_code=500,
+                content={"error": {"message": f"Service not available: {handler_info['service_class']}"}}
+            )
+
+        # Get the method
+        method = getattr(service_instance, handler_info["method"], None)
+        if not method:
+            return JSONResponse(
+                status_code=500,
+                content={"error": {"message": f"Method not found: {handler_info['method']}"}}
+            )
+
+        # Process arguments based on tool configuration
+{%- if server_name == 'outlook' %}
+        # Handle parameter transformations for outlook tools
+        processed_args = {}
+
+        # Get tool configuration
+        tool_config = next((t for t in MCP_TOOLS if t["name"] == tool_name), None)
+
+        if tool_config:
+            schema_props = tool_config.get("inputSchema", {}).get("properties", {})
+
+            for param_name, param_value in arguments.items():
+                param_schema = schema_props.get(param_name, {})
+
+                # Transform object parameters to their expected types
+                if param_schema.get("type") == "object":
+                    base_model = param_schema.get("baseModel")
+                    if base_model == "FilterParams":
+                        processed_args["filter"] = FilterParams(**param_value) if param_value else None
+                    elif base_model == "ExcludeParams":
+                        if "exclude" in handler_info["method"] or "exclude" in param_name:
+                            processed_args["exclude"] = ExcludeParams(**param_value) if param_value else None
+                        else:
+                            processed_args["client_filter"] = ExcludeParams(**param_value) if param_value else None
+                    elif base_model == "SelectParams":
+                        processed_args["select"] = SelectParams(**param_value) if param_value else None
+                    else:
+                        processed_args[param_name] = param_value
+                else:
+                    processed_args[param_name] = param_value
+        else:
+            processed_args = arguments
+{%- else %}
+        # Direct argument passing for other servers
+        processed_args = arguments
+{%- endif %}
+
+        # Call the method
+        result = await method(**processed_args)
+
+        # Format response
+        if isinstance(result, dict):
+            response_content = result
+        elif isinstance(result, list):
+            response_content = {"items": result}
+        elif isinstance(result, str):
+            response_content = {"message": result}
+        elif result is None:
+            response_content = {"success": True}
+        else:
+            response_content = {"result": str(result)}
+
+        return JSONResponse(content={
+            "result": {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(response_content, ensure_ascii=False, indent=2)
+                    }
+                ]
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"error": {"message": str(e)}}
+        )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
