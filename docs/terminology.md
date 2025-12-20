@@ -8,7 +8,7 @@
     'tool_name': 'Outlook',           # MCP Tool 이름 (사용자가 호출)
     'server_name': 'outlook',         # MCP 서버 이름 (서버 식별자)
 
-    'handler': {                      # Python 핸들러 정보 (그룹화)
+    'implementation': {               # Python 구현 정보
         'method': 'query_filter',     # Python 메서드명
         'class': 'GraphMailQuery',    # 클래스명
         'instance': 'graph_mail_query',   # 인스턴스 변수명
