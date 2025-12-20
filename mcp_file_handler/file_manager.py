@@ -18,8 +18,7 @@ from .onedrive.processor import OneDriveProcessor
 from .config.settings import Settings
 
 # Import mcp_service decorator
-sys.path.insert(0, str(Path(__file__).parent.parent / 'mcp_editor'))
-from mcp_service_decorator import mcp_service
+from mcp_editor.MCPMetaRegistry.mcp_service_decorator import mcp_service
 
 logger = setup_logger('file_manager')
 

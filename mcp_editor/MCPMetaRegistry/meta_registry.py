@@ -173,13 +173,42 @@ class MetaRegisterManager:
             # 코드베이스 스캔
             services_by_file = scan_codebase_for_mcp_services(base_dir)
 
-            # 서비스 데이터 처리 (이미 플랫 구조)
+            # 서비스 데이터 처리 - 개선된 구조로 변환
             services = {}
             for func_name, service_data in services_by_file.items():
                 service_key = f"{server_name}.{func_name}"
+
+                # metadata 필드 재구성 (service_name 제거)
+                original_metadata = service_data.get("metadata", {})
+                metadata = {
+                    "server_name": server_name,
+                    "tool_name": original_metadata.get("tool_name", f"Handle_{func_name}"),
+                    "class_name": service_data.get("class"),
+                    "module_path": f"{server_name}.{service_data.get('module', '')}",
+                    "description": original_metadata.get("description", ""),
+                }
+
+                # 추가 메타데이터 필드들 (선택적)
+                if "category" in original_metadata:
+                    metadata["category"] = original_metadata.get("category")
+                if "tags" in original_metadata:
+                    metadata["tags"] = original_metadata.get("tags")
+                if "priority" in original_metadata:
+                    metadata["priority"] = original_metadata.get("priority")
+
+                # 파일 관련 정보
+                metadata["file"] = service_data.get("file")
+                metadata["line"] = service_data.get("line")
+                metadata["instance"] = service_data.get("instance")
+                metadata["method"] = service_data.get("method")
+                metadata["is_async"] = service_data.get("is_async", False)
+
+                # 깔끔한 구조로 재구성
                 services[service_key] = {
-                    **service_data,
-                    "server_name": server_name
+                    "service_name": func_name,  # function_name 대신 service_name 사용
+                    "metadata": metadata,
+                    "signature": service_data.get("signature", ""),
+                    "parameters": service_data.get("parameters", [])
                 }
 
             return services
@@ -217,10 +246,16 @@ class MetaRegisterManager:
             runtime_data = self.collect_from_decorator()
             if runtime_data:
                 manifest["sources"].append("runtime_decorator")
-                for service_name, service_data in runtime_data.items():
-                    manifest["services"][f"runtime.{service_name}"] = {
-                        **service_data,
-                        "source": "runtime_decorator"
+                for func_name, service_data in runtime_data.items():
+                    # 런타임 데이터도 같은 구조로 변환
+                    metadata = service_data.get("metadata", {})
+                    metadata["source"] = "runtime_decorator"
+
+                    manifest["services"][f"runtime.{func_name}"] = {
+                        "service_name": func_name,
+                        "metadata": metadata,
+                        "signature": service_data.get("signature", ""),
+                        "parameters": service_data.get("parameters", [])
                     }
 
         # 정적 스캔 데이터 수집
@@ -228,20 +263,20 @@ class MetaRegisterManager:
             static_data = self.collect_from_scanner(base_dir, server_name)
             if static_data:
                 manifest["sources"].append("static_scanner")
-                for service_name, service_data in static_data.items():
+                for service_key, service_data in static_data.items():
                     # 중복 체크 - static이 runtime보다 우선순위 낮음
-                    runtime_key = f"runtime.{service_name.split('.')[-1]}"
+                    func_name = service_data.get("service_name", service_key.split('.')[-1])
+                    runtime_key = f"runtime.{func_name}"
                     if runtime_key not in manifest["services"]:
-                        manifest["services"][service_name] = {
-                            **service_data,
-                            "source": "static_scanner"
-                        }
+                        # metadata에 source 추가
+                        service_data["metadata"]["source"] = "static_scanner"
+                        manifest["services"][service_key] = service_data
 
         # 통계 정보 추가
         manifest["statistics"] = {
             "total_services": len(manifest["services"]),
-            "runtime_services": sum(1 for s in manifest["services"].values() if s.get("source") == "runtime_decorator"),
-            "static_services": sum(1 for s in manifest["services"].values() if s.get("source") == "static_scanner")
+            "runtime_services": sum(1 for s in manifest["services"].values() if s.get("metadata", {}).get("source") == "runtime_decorator"),
+            "static_services": sum(1 for s in manifest["services"].values() if s.get("metadata", {}).get("source") == "static_scanner")
         }
 
         return manifest

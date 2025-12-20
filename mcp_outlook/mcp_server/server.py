@@ -114,8 +114,9 @@ async def get_user_session_or_legacy(user_email: str, access_token: Optional[str
         return result
 
 
-def get_query_instance(context):
-    """Get query service instance from session or legacy context"""
+# Helper functions to get service instances based on tools
+def get_graph_mail_query_instance(context):
+    """Get GraphMailQuery instance from session or legacy context"""
     return context.graph_mail_query if USE_SESSION_MANAGER else context['graph_mail_query']
 
 
@@ -396,7 +397,7 @@ async def handle_Outlook(args: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         # Get the correct service instance
-        service_instance = get_query_instance(context)
+        service_instance = get_graph_mail_query_instance(context)
 
         return await service_instance.query_filter(
             user_email=user_email,
@@ -431,7 +432,7 @@ async def handle_keyword_search(args: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         # Get the correct service instance
-        service_instance = get_query_instance(context)
+        service_instance = get_graph_mail_query_instance(context)
 
         return await service_instance.query_search(
             user_email=user_email,
@@ -462,7 +463,7 @@ async def handle_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         # Get the correct service instance
-        service_instance = get_query_instance(context)
+        service_instance = get_graph_mail_query_instance(context)
 
         return await service_instance.query_url(
             user_email=user_email,
@@ -497,7 +498,7 @@ async def handle_mail_list(args: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         # Get the correct service instance
-        service_instance = get_query_instance(context)
+        service_instance = get_graph_mail_query_instance(context)
 
         return await service_instance.query_filter(
             user_email=user_email,

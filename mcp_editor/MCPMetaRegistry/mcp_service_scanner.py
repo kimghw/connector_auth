@@ -148,46 +148,90 @@ def signature_from_parameters(params: List[Dict[str, Any]]) -> str:
     return ", ".join(parts)
 
 
+class MCPServiceExtractor(ast.NodeVisitor):
+    """Extract MCP services with class context."""
+
+    def __init__(self, file_path: str):
+        self.file_path = file_path
+        self.services: Dict[str, Dict[str, Any]] = {}
+        self.current_class = None
+
+    def visit_ClassDef(self, node):
+        """Track current class context."""
+        old_class = self.current_class
+        self.current_class = node.name
+        self.generic_visit(node)
+        self.current_class = old_class
+
+    def visit_FunctionDef(self, node):
+        """Process function definitions."""
+        self._process_function(node)
+        self.generic_visit(node)
+
+    def visit_AsyncFunctionDef(self, node):
+        """Process async function definitions."""
+        self._process_function(node)
+        self.generic_visit(node)
+
+    def _process_function(self, node):
+        """Extract MCP service info from function."""
+        for decorator in node.decorator_list:
+            is_mcp_service = False
+            metadata: Dict[str, Any] = {}
+
+            if isinstance(decorator, ast.Name) and decorator.id == "mcp_service":
+                is_mcp_service = True
+            elif isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name) and decorator.func.id == "mcp_service":
+                is_mcp_service = True
+                metadata = extract_decorator_metadata(decorator)
+
+            if not is_mcp_service:
+                continue
+
+            params = _extract_parameters(node)
+            signature = signature_from_parameters(params)
+
+            service_info = {
+                "function_name": node.name,
+                "metadata": metadata,
+                "signature": signature,
+                "parameters": params,
+                "is_async": isinstance(node, ast.AsyncFunctionDef),
+                "file": str(self.file_path),
+                "line": node.lineno,
+            }
+
+            # Add class info if function is a method
+            if self.current_class:
+                service_info["class"] = self.current_class
+                # Convert class name to snake_case for instance name
+                service_info["instance"] = self._to_snake_case(self.current_class)
+                service_info["module"] = Path(self.file_path).stem
+                service_info["method"] = node.name
+
+            self.services[node.name] = service_info
+            break
+
+    def _to_snake_case(self, name: str) -> str:
+        """Convert CamelCase to snake_case."""
+        import re
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
+
 def find_mcp_services_in_file(file_path: str) -> Dict[str, Dict[str, Any]]:
     """Find all @mcp_service decorated functions in a Python file."""
-    services: Dict[str, Dict[str, Any]] = {}
-
     try:
         content = Path(file_path).read_text(encoding="utf-8")
         tree = ast.parse(content)
 
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                for decorator in node.decorator_list:
-                    is_mcp_service = False
-                    metadata: Dict[str, Any] = {}
+        extractor = MCPServiceExtractor(file_path)
+        extractor.visit(tree)
 
-                    if isinstance(decorator, ast.Name) and decorator.id == "mcp_service":
-                        is_mcp_service = True
-                    elif isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name) and decorator.func.id == "mcp_service":  # noqa: E501
-                        is_mcp_service = True
-                        metadata = extract_decorator_metadata(decorator)
-
-                    if not is_mcp_service:
-                        continue
-
-                    params = _extract_parameters(node)
-                    signature = signature_from_parameters(params)
-
-                    services[node.name] = {
-                        "function_name": node.name,
-                        "metadata": metadata,
-                        "signature": signature,
-                        "parameters": params,
-                        "is_async": isinstance(node, ast.AsyncFunctionDef),
-                        "file": str(file_path),
-                        "line": node.lineno,
-                    }
-                    break
+        return extractor.services
     except Exception as exc:  # pragma: no cover - defensive logging
         print(f"Error parsing {file_path}: {exc}")
-
-    return services
+        return {}
 
 
 def scan_codebase_for_mcp_services(

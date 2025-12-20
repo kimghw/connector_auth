@@ -12,8 +12,7 @@ from datetime import datetime, timedelta
 import json
 
 # Import mcp_service decorator
-sys.path.insert(0, str(Path(__file__).parent.parent / 'mcp_editor'))
-from mcp_service_decorator import mcp_service
+from mcp_editor.MCPMetaRegistry.mcp_service_decorator import mcp_service
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

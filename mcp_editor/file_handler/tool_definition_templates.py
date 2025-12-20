@@ -8,6 +8,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     {
         "name": "convert_file_to_text",
         "description": "Convert a file to text format. Supports various file types including documents, spreadsheets, and PDFs.",
+        "mcp_service": {"name": "process"},
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -22,6 +23,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     {
         "name": "process_directory",
         "description": "Process all files in a directory recursively and convert them to text",
+        "mcp_service": {"name": "process_directory"},
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -36,6 +38,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     {
         "name": "save_file_metadata",
         "description": "Save metadata for a file including keywords and additional information",
+        "mcp_service": {"name": "save_metadata"},
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -61,6 +64,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     {
         "name": "search_metadata",
         "description": "Search for files based on metadata criteria",
+        "mcp_service": {"name": "search_metadata"},
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -71,6 +75,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     {
         "name": "convert_onedrive_to_text",
         "description": "Convert a file from OneDrive to text format",
+        "mcp_service": {"name": "process_onedrive"},
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -85,6 +90,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     {
         "name": "get_file_metadata",
         "description": "Retrieve metadata for a specific file",
+        "mcp_service": {"name": "get_metadata"},
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -99,6 +105,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     {
         "name": "delete_file_metadata",
         "description": "Delete metadata for a specific file",
+        "mcp_service": {"name": "delete_metadata"},
         "inputSchema": {
             "type": "object",
             "properties": {
