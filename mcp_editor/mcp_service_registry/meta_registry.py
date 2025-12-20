@@ -302,7 +302,7 @@ class MetaRegisterManager:
         서비스 매니페스트를 JSON 파일로 내보내기
 
         Args:
-            file_path: 저장할 파일 경로 (None이면 {server_name}_registry.json 자동 생성)
+            file_path: 저장할 파일 경로 (None이면 registry_{server_name}.json 자동 생성)
             base_dir: 스캔할 디렉토리
             server_name: 서버 이름
 
@@ -312,7 +312,7 @@ class MetaRegisterManager:
         try:
             # 파일 경로가 없으면 서버명 기반으로 자동 생성
             if file_path is None:
-                file_path = f"{server_name}_registry.json"
+                file_path = f"registry_{server_name}.json"
 
             manifest = self.generate_service_manifest(base_dir, server_name)
 
@@ -354,7 +354,7 @@ def extract_service_metadata():
         "--output",
         type=str,
         default=None,
-        help="Output file path (default: {server_name}_registry.json)"
+        help="Output file path (default: registry_{server_name}.json)"
     )
     parser.add_argument(
         "--runtime-only",
@@ -378,7 +378,7 @@ def extract_service_metadata():
         sys.exit(1)
 
     # 출력 파일명 결정
-    output_file = args.output if args.output else f"{args.server_name}_registry.json"
+    output_file = args.output if args.output else f"registry_{args.server_name}.json"
 
     # 서비스 매니페스트 생성 및 내보내기
     success = registry_manager.export_service_manifest(
