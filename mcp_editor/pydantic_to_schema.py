@@ -127,7 +127,7 @@ def _load_graph_type_modules(graph_type_paths: List[str] | None = None) -> List[
         config_path = _get_config_path()
 
         # Default path if config missing
-        graph_type_paths = ["../outlook_mcp/outlook_types.py"]
+        graph_type_paths = ["../mcp_outlook/outlook_types.py"]
         try:
             if os.path.exists(config_path):
                 with open(config_path, "r", encoding="utf-8") as f:

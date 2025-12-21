@@ -125,7 +125,7 @@ class GraphMailQuery:
         return base_url
     
     @mcp_service(
-        tool_name="Handle_query_filter",
+        tool_name="handle_query_filter",
         server_name="outlook",
         service_name="query_filter",
         category="outlook_mail",
@@ -141,48 +141,7 @@ class GraphMailQuery:
                           client_filter: Optional[ExcludeParams] = None,
                           top: int = 450,
                           orderby: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Query with AND filter conditions
 
-        Args:
-            user_email: User email for authentication
-            filter: FilterParams for inclusion criteria (AND conditions)
-            exclude: ExcludeParams for server-side exclusion (API filter)
-            select: SelectParams for field selection
-            client_filter: ExcludeParams for client-side filtering (post-fetch)
-            top: Maximum results (default 450)
-            orderby: Sort order
-
-        Returns:
-            Email query results
-
-        Example:
-            filter_params: FilterParams = {
-                'is_read': False,
-                'has_attachments': True,
-                'importance': 'high'
-            }
-            exclude_params: ExcludeParams = {
-                'exclude_from_address': 'spam@mail.com'
-            }
-            # SelectParams: 각 필드를 True로 지정
-            select_params = SelectParams(
-                id=True,
-                subject=True,
-                from_recipient=True,
-                received_date_time=True
-            )
-            client_filter_params: ExcludeParams = {
-                'exclude_subject_keywords': ['newsletter', 'unsubscribe']
-            }
-
-            await query_filter(
-                filter=filter_params,
-                exclude=exclude_params,
-                select=select_params,
-                client_filter=client_filter_params
-            )
-        """
         # Get access token for the user
         access_token = await self._get_access_token(user_email)
         if not access_token:
@@ -277,7 +236,7 @@ class GraphMailQuery:
         return filtered_emails
 
     @mcp_service(
-        tool_name="handlequery_url",
+        tool_name="handle_query_url",
         service_name="query_url",
         server_name="outlook",
         category="outlook_mail",
@@ -322,7 +281,6 @@ class GraphMailQuery:
         tags=["query", "url-builder", "internal"],
         priority=5,
         description="Build Microsoft Graph API query URL for email operations",
-        related_objects=["mcp_outlook.graph_mail_query.GraphMailQuery"]
     )
     async def query_search(self,
                            user_email: str,
