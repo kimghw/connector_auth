@@ -127,9 +127,9 @@ ROOT_DIR = os.path.dirname(BASE_DIR)
 CONFIG_PATH = os.path.join(BASE_DIR, 'editor_config.json')
 DEFAULT_PROFILE = {
     "template_definitions_path": "tool_definition_templates.py",
-    "tool_definitions_path": "../outlook_mcp/mcp_server/tool_definitions.py",
+    "tool_definitions_path": "../mcp_outlook/mcp_server/tool_definitions.py",
     "backup_dir": "backups",
-    "types_files": ["../outlook_mcp/outlook_types.py"],
+    "types_files": ["../mcp_outlook/outlook_types.py"],
     "host": "127.0.0.1",
     "port": 8091
 }
@@ -137,7 +137,7 @@ DEFAULT_PROFILE = {
 JINJA_DIR = os.path.join(ROOT_DIR, 'jinja')
 SERVER_TEMPLATES = {
     "outlook": os.path.join(JINJA_DIR, "outlook_server_template.jinja2"),
-    "mcp_file_handler": os.path.join(JINJA_DIR, "file_handler_server_template.jinja2"),
+    "file_handler": os.path.join(JINJA_DIR, "file_handler_server_template.jinja2"),
     "scaffold": os.path.join(JINJA_DIR, "mcp_server_scaffold_template.jinja2"),
 }
 DEFAULT_SERVER_TEMPLATE = SERVER_TEMPLATES["outlook"]
@@ -295,7 +295,7 @@ def resolve_paths(profile_conf: dict) -> dict:
         "tool_path": _resolve_path(profile_conf["tool_definitions_path"]),
         "internal_args_path": internal_args_path,
         "backup_dir": _resolve_path(profile_conf["backup_dir"]),
-        "types_files": profile_conf.get("types_files", profile_conf.get("graph_types_files", ["../outlook_mcp/outlook_types.py"])),
+        "types_files": profile_conf.get("types_files", profile_conf.get("graph_types_files", ["../mcp_outlook/outlook_types.py"])),
         "host": profile_conf.get("host", "127.0.0.1"),
         "port": profile_conf.get("port", 8091)
     }
@@ -557,7 +557,14 @@ def _load_services_for_server(server_name: str | None, scan_dir: str | None, for
 
     # Try to load from registry JSON first (faster and more reliable)
     registry_path = os.path.join(BASE_DIR, 'mcp_service_registry', f'registry_{registry_name}.json')
-    if os.path.exists(registry_path) and not force_rescan:
+
+    # Check if registry file exists, if not log error and raise exception
+    if not os.path.exists(registry_path):
+        error_msg = f"Registry file not found: {registry_path}"
+        print(f"ERROR: {error_msg}")
+        raise FileNotFoundError(error_msg)
+
+    if not force_rescan:
         try:
             with open(registry_path, 'r', encoding='utf-8') as f:
                 registry_data = json.load(f)
@@ -573,7 +580,7 @@ def _load_services_for_server(server_name: str | None, scan_dir: str | None, for
         except Exception as e:
             print(f"Warning: Could not load registry_{registry_name}.json: {e}")
 
-    # Fallback to AST scanning if registry not found or force_rescan is True
+    # Fallback to AST scanning if force_rescan is True
     if not scan_dir:
         return {}
 
@@ -695,7 +702,13 @@ def get_tool_names() -> List[str]:
             scan_dir = next((p for p in module_patterns if os.path.isdir(p)), None)
 
             if scan_dir:
-                services_by_name = _load_services_for_server(server_name, scan_dir, force_rescan=force_rescan)
+                try:
+                    services_by_name = _load_services_for_server(server_name, scan_dir, force_rescan=force_rescan)
+                except FileNotFoundError as e:
+                    # Log the error but continue without service signatures
+                    print(f"WARNING: {e}")
+                    print(f"Continuing without service signatures for {server_name}")
+                    services_by_name = {}
 
         # Build template tools
         template_tools = []
@@ -1012,11 +1025,19 @@ def get_mcp_services():
                 print(f"Loading MCP services from {path_type}: {path}")
                 break
 
-        # Final fallback
+        # If no registry found, log error
         if not mcp_services_path:
-            mcp_services_path = os.path.join(os.path.dirname(__file__), 'mcp_services.json')
-            if os.path.exists(mcp_services_path):
-                print(f"Loading MCP services from fallback: {mcp_services_path}")
+            # Check if expected registry file exists
+            expected_registry = os.path.join(os.path.dirname(__file__), 'mcp_service_registry', f'registry_{registry_name}.json')
+            error_msg = f"Registry file not found for server '{registry_name}': {expected_registry}"
+            print(f"ERROR: {error_msg}")
+
+            # Return empty services instead of trying fallback
+            return jsonify({
+                "services": [],
+                "services_with_signatures": [],
+                "error": error_msg
+            })
 
         if mcp_services_path and os.path.exists(mcp_services_path):
             with open(mcp_services_path, 'r', encoding='utf-8') as f:
