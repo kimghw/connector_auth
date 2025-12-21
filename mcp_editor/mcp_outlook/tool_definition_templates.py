@@ -6,7 +6,8 @@ from typing import List, Dict, Any
 
 MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Build Microsoft Graph API query URL for email operations',
         'inputSchema': {   'properties': {   'filter': {   'description': 'FilterParams for email filtering',
-                                                           'properties': {   'sent_date_from': {   'description': '메일 '
+                                                           'properties': {   'sent_date_from': {   'default': '12',
+                                                                                                   'description': '메일 '
                                                                                                                   '발신 '
                                                                                                                   '시작 '
                                                                                                                   '날짜 '
@@ -16,7 +17,8 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Build Microsoft Graph 
                                                                                                                   '이 '
                                                                                                                   '값)',
                                                                                                    'type': 'string'},
-                                                                             'sent_date_to': {   'description': '메일 발신 '
+                                                                             'sent_date_to': {   'default': '12',
+                                                                                                 'description': '메일 발신 '
                                                                                                                 '종료 날짜 '
                                                                                                                 '(포함, '
                                                                                                                 'sentDateTime '
@@ -24,7 +26,10 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Build Microsoft Graph 
                                                                                                                 '값)',
                                                                                                  'type': 'string'}},
                                                            'type': 'object'},
-                                             'top': {'default': 450, 'description': '반환할 최대 메일 수', 'type': 'integer'},
+                                             'top': {   '_source': 'mcp_service',
+                                                        'description': 'Parameter from MCP service (int)',
+                                                        'type': 'integer'},
+                                             'topp': {'description': '', 'type': 'string'},
                                              'user_email': {   'default': 'kimghw@krs.co.kr',
                                                                'description': 'User email for authentication',
                                                                'type': 'string'}},

@@ -1702,6 +1702,20 @@
                 // Original loop logic below uses propName and propDef
                 const isRequired = required.includes(propName);
                 // isInternal already set above
+
+                // Check if this property matches any MCP service parameter
+                let isMcpParam = propDef._source === 'mcp_service';
+                if (!isMcpParam && tool.mcp_service && window.mcpServiceDetails) {
+                    const serviceName = tool.mcp_service.name;
+                    const serviceDetail = window.mcpServiceDetails.find(svc => svc.name === serviceName);
+                    if (serviceDetail && serviceDetail.parameters) {
+                        // Check if this property name matches any MCP service parameter
+                        isMcpParam = serviceDetail.parameters.some(param =>
+                            param.name === propName && param.name !== 'self'
+                        );
+                    }
+                }
+
                 const propId = `prop-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}`;
                 propertiesHtml += `
                     <div class="property-collapsible" data-internal="${isInternal}">
@@ -1711,7 +1725,7 @@
                                 <span class="collapse-icon" id="icon-${propId}">▼</span>
                                 <strong style="font-size: 15px; color: #333;">${propName}</strong>
                                 <span style="margin-left: 12px; font-size: 12px; color: #666; background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${propDef.type}</span>
-                                ${isRequired ? '<span style="margin-left: 8px; font-size: 11px; color: var(--danger-color); font-weight: 600;">REQUIRED</span>' : ''}
+                                ${isMcpParam ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: #17a2b8; padding: 2px 6px; border-radius: 4px; font-weight: 600;">MCP</span>' : ''}
                                 ${isInternal ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--warning-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">INTERNAL</span>' : ''}
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px;" onclick="event.stopPropagation();">
@@ -1828,6 +1842,8 @@
                                                 <span class="nested-collapse-icon" id="nested-icon-${nestedPropId}" style="font-size: 10px; color: var(--text-secondary);">▶</span>
                                                 <strong style="color: var(--text-primary); font-size: 12px;">${nestedPropName}</strong>
                                                 <span style="font-size: 10px; color: #888; background: #eee; padding: 1px 6px; border-radius: 3px;">${nestedProp.type}</span>
+                                                ${nestedProp._source === 'mcp_service' ? '<span style="font-size: 9px; color: white; background: #17a2b8; padding: 1px 4px; border-radius: 3px; font-weight: 600;">MCP</span>' : ''}
+                                                ${nestedProp._source === 'types' ? '<span style="font-size: 9px; color: white; background: #6c757d; padding: 1px 4px; border-radius: 3px; font-weight: 600;">TYPES</span>' : ''}
                                                 ${nestedIsRequired ? '<span style="font-size: 9px; color: var(--danger-color); font-weight: 600;">REQ</span>' : ''}
                                             </div>
                                             <div style="display: flex; gap: 6px; align-items: center;" onclick="event.stopPropagation();">
@@ -2076,12 +2092,32 @@
 
                 // Store original schema info for potential restoration
                 const wasRequired = (tool.inputSchema.required || []).includes(propName);
-                internalArgs[toolName][propName] = {
+
+                // Create internal arg structure
+                const internalArg = {
                     type: propDef.baseModel || propDef.type,  // Use baseModel if available
                     description: propDef.description || '',
                     original_schema: JSON.parse(JSON.stringify(propDef)),  // Deep copy for restoration
                     was_required: wasRequired
                 };
+
+                // If it's an object type with properties, preserve them at top level
+                if (propDef.type === 'object' && propDef.properties) {
+                    internalArg.properties = propDef.properties;
+                }
+
+                // Preserve other important fields like enum, items, etc.
+                if (propDef.enum) {
+                    internalArg.enum = propDef.enum;
+                }
+                if (propDef.items) {
+                    internalArg.items = propDef.items;
+                }
+                if (propDef.oneOf) {
+                    internalArg.oneOf = propDef.oneOf;
+                }
+
+                internalArgs[toolName][propName] = internalArg;
 
                 // CRITICAL: Remove from inputSchema.properties (spec FR-03)
                 delete tool.inputSchema.properties[propName];
@@ -2363,6 +2399,16 @@
                 existingModal.parentElement.remove();
             }
 
+            // Get current tool's MCP service if exists
+            const tool = tools[index];
+            const currentMcpService = tool.mcp_service ? tool.mcp_service.name : null;
+            const hasMcpService = currentMcpService && window.mcpServiceDetails &&
+                                  window.mcpServiceDetails.find(svc => svc.name === currentMcpService);
+
+            // Get server name and implementation
+            const serverName = currentProfile ? currentProfile.replace('mcp_', '') : 'server';
+            const implementation = currentMcpService || 'implementation';
+
             // Create modal for property selection
             const hasTypes = window.hasTypesFile || false;
             const typesName = window.typesName || 'types';
@@ -2376,8 +2422,9 @@
                         <div class="modal-body">
                             <div class="form-group">
                                 <label>Property Source</label>
-                                <select id="propertySource" onchange="handlePropertySourceChange()" class="form-control">
+                                <select id="propertySource" onchange="handlePropertySourceChange(${index})" class="form-control">
                                     <option value="custom">Custom Property</option>
+                                    ${hasMcpService ? `<option value="mcp_service">From ${serverName} (${implementation})</option>` : ''}
                                     ${hasTypes ? `<option value="graph_types">From ${typesName}.py</option>` : ''}
                                 </select>
                             </div>
@@ -2401,6 +2448,23 @@
                                 <div class="form-group">
                                     <label>Description</label>
                                     <input type="text" id="customPropDescription" class="form-control" placeholder="Property description">
+                                </div>
+                            </div>
+
+                            <div id="mcpServicePropertyDiv" style="display: none;">
+                                <div class="form-group">
+                                    <label>Select MCP Service Parameters</label>
+                                    <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 300px; overflow-y: auto;">
+                                        <div id="mcpServiceCheckboxList">
+                                            <!-- MCP service parameters will be populated here -->
+                                        </div>
+                                    </div>
+                                    <div style="margin-top: 10px;">
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllMcpParams(true)">Select All</button>
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllMcpParams(false)">Deselect All</button>
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllMcpRequired(true)">All Required</button>
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllMcpRequired(false)">All Optional</button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -2444,13 +2508,90 @@
             document.body.appendChild(modalDiv);
 
             // Initialize the property source view to show custom property fields by default
-            handlePropertySourceChange();
+            handlePropertySourceChange(index);
         }
 
-        function handlePropertySourceChange() {
+        function handlePropertySourceChange(index) {
             const source = document.getElementById('propertySource').value;
             document.getElementById('customPropertyDiv').style.display = source === 'custom' ? 'block' : 'none';
+            document.getElementById('mcpServicePropertyDiv').style.display = source === 'mcp_service' ? 'block' : 'none';
             document.getElementById('graphTypesPropertyDiv').style.display = source === 'graph_types' ? 'block' : 'none';
+
+            // If MCP service is selected, populate the parameters
+            if (source === 'mcp_service' && index !== undefined) {
+                const tool = tools[index];
+                const serviceName = tool.mcp_service ? tool.mcp_service.name : null;
+
+                if (serviceName && window.mcpServiceDetails) {
+                    const serviceDetail = window.mcpServiceDetails.find(svc => svc.name === serviceName);
+                    if (serviceDetail && serviceDetail.parameters) {
+                        populateMcpServiceParameters(serviceDetail.parameters, tool);
+                    }
+                }
+            }
+        }
+
+        function populateMcpServiceParameters(parameters, tool) {
+            const checkboxList = document.getElementById('mcpServiceCheckboxList');
+
+            // Filter out 'self' and already existing properties
+            const existingProps = Object.keys(tool.inputSchema?.properties || {});
+            const availableParams = parameters.filter(param =>
+                param.name !== 'self' && !existingProps.includes(param.name)
+            );
+
+            if (availableParams.length === 0) {
+                checkboxList.innerHTML = '<div style="padding: 10px; text-align: center; color: #666;">All parameters are already added or no parameters available</div>';
+                return;
+            }
+
+            let checkboxHtml = '';
+            availableParams.forEach((param, idx) => {
+                const propId = `mcp_param_${idx}`;
+                const reqId = `mcp_req_${idx}`;
+                const hasDefault = param.default !== null && param.default !== undefined;
+                const isOptional = param.type && param.type.startsWith('Optional[');
+                const isRequired = !hasDefault && !isOptional;
+
+                // Map parameter type to JSON schema type
+                const schemaType = mapSignatureTypeToSchema(param.type);
+
+                checkboxHtml += `
+                    <div style="padding: 8px; border-bottom: 1px solid #eee; display: flex; align-items: center;">
+                        <input type="checkbox" id="${propId}"
+                               data-param-name="${param.name}"
+                               data-param-type="${schemaType.type || 'string'}"
+                               data-param-desc="${schemaType.description || ''}"
+                               data-param-original-type="${param.type || 'str'}"
+                               style="margin-right: 10px;">
+                        <div style="flex-grow: 1;">
+                            <label for="${propId}" style="margin: 0; cursor: pointer;">
+                                <strong>${param.name}</strong>
+                                <span style="color: #666; font-size: 12px;">(${param.type || 'str'})</span>
+                                ${param.default !== undefined ? `<span style="color: #28a745; font-size: 11px;"> [default: ${param.default}]</span>` : ''}
+                                ${schemaType.description ? `<br><span style="color: #888; font-size: 11px;">${schemaType.description}</span>` : ''}
+                            </label>
+                        </div>
+                        <div style="margin-left: 10px;">
+                            <label style="margin: 0; font-size: 12px;">
+                                <input type="checkbox" id="${reqId}" ${isRequired ? 'checked' : ''} style="margin-right: 5px;">Required
+                            </label>
+                        </div>
+                    </div>
+                `;
+            });
+
+            checkboxList.innerHTML = checkboxHtml;
+        }
+
+        function selectAllMcpParams(select) {
+            const checkboxes = document.querySelectorAll('#mcpServiceCheckboxList input[type="checkbox"][id^="mcp_param_"]');
+            checkboxes.forEach(cb => cb.checked = select);
+        }
+
+        function toggleAllMcpRequired(required) {
+            const checkboxes = document.querySelectorAll('#mcpServiceCheckboxList input[type="checkbox"][id^="mcp_req_"]');
+            checkboxes.forEach(cb => cb.checked = required);
         }
 
         function handleClassChange() {
@@ -2598,18 +2739,42 @@
 
             const {toolIndex, propName} = nestedGraphTarget;
             const tool = tools[toolIndex];
+            const toolName = tool.name;
+            const isInternal = !!internalArgs[toolName]?.[propName];
 
-            if (!tool.inputSchema.properties[propName]) {
-                tool.inputSchema.properties[propName] = {type: 'object', properties: {}, required: []};
-            }
+            let parentProp;
+            if (isInternal) {
+                const internalArg = internalArgs[toolName][propName];
+                if (!internalArg.original_schema) {
+                    internalArg.original_schema = {
+                        type: 'object',
+                        description: `${className} parameters`,
+                        properties: {},
+                        required: []
+                    };
+                }
+                parentProp = internalArg.original_schema;
+                parentProp.type = 'object';
+                parentProp.properties = parentProp.properties || {};
+                parentProp.required = parentProp.required || [];
+                parentProp.baseModel = parentProp.baseModel || className;
+                internalArg.type = className;
+                if (!parentProp.description) {
+                    parentProp.description = `${className} parameters`;
+                }
+            } else {
+                if (!tool.inputSchema.properties[propName]) {
+                    tool.inputSchema.properties[propName] = {type: 'object', properties: {}, required: []};
+                }
 
-            const parentProp = tool.inputSchema.properties[propName];
-            parentProp.type = 'object';
-            parentProp.properties = parentProp.properties || {};
-            parentProp.required = parentProp.required || [];
-            parentProp.baseModel = parentProp.baseModel || className;
-            if (!parentProp.description) {
-                parentProp.description = `${className} parameters`;
+                parentProp = tool.inputSchema.properties[propName];
+                parentProp.type = 'object';
+                parentProp.properties = parentProp.properties || {};
+                parentProp.required = parentProp.required || [];
+                parentProp.baseModel = parentProp.baseModel || className;
+                if (!parentProp.description) {
+                    parentProp.description = `${className} parameters`;
+                }
             }
 
             let addedCount = 0;
@@ -2669,6 +2834,51 @@
                 } else {
                     showNotification('Please enter a property name', 'error');
                 }
+            } else if (source === 'mcp_service') {
+                // Handle multiple properties from MCP service
+                const checkboxes = document.querySelectorAll('#mcpServiceCheckboxList input[type="checkbox"][id^="mcp_param_"]:checked');
+
+                if (checkboxes.length === 0) {
+                    showNotification('Please select at least one parameter', 'error');
+                    return;
+                }
+
+                if (!tools[index].inputSchema.properties) {
+                    tools[index].inputSchema.properties = {};
+                }
+
+                if (!tools[index].inputSchema.required) {
+                    tools[index].inputSchema.required = [];
+                }
+
+                let addedCount = 0;
+                checkboxes.forEach((checkbox) => {
+                    const paramName = checkbox.getAttribute('data-param-name');
+                    const paramType = checkbox.getAttribute('data-param-type');
+                    const paramDesc = checkbox.getAttribute('data-param-desc');
+                    const originalType = checkbox.getAttribute('data-param-original-type');
+
+                    const reqCheckbox = document.getElementById(checkbox.id.replace('mcp_param_', 'mcp_req_'));
+                    const isRequired = reqCheckbox && reqCheckbox.checked;
+
+                    // Check if property already exists
+                    if (!tools[index].inputSchema.properties[paramName]) {
+                        tools[index].inputSchema.properties[paramName] = {
+                            type: paramType,
+                            description: paramDesc || `Parameter from MCP service (${originalType})`,
+                            '_source': 'mcp_service'  // Add metadata to track source
+                        };
+
+                        if (isRequired && !tools[index].inputSchema.required.includes(paramName)) {
+                            tools[index].inputSchema.required.push(paramName);
+                        }
+                        addedCount++;
+                    }
+                });
+
+                closeModal('propertyModal');
+                renderToolEditor(tools[index], index);
+                showNotification(`${addedCount} parameter(s) added from MCP service`, 'success');
             } else {
                 // Handle multiple properties from graph_types
                 const className = document.getElementById('graphTypeClass').value;
@@ -2752,7 +2962,8 @@
 
                         targetProp.properties[propName] = {
                             type: mapToJsonSchemaType(propType),
-                            description: propDesc || ''
+                            description: propDesc || '',
+                            '_source': 'types'  // Mark as from types.py
                         };
 
                         if (isRequired && !targetProp.required.includes(propName)) {
@@ -3046,7 +3257,18 @@
 
         function toggleNestedRequired(toolIndex, parentPropName, nestedPropName, isChecked) {
             const tool = tools[toolIndex];
-            const parentProp = tool.inputSchema.properties[parentPropName];
+            const toolName = tool.name;
+            const isInternal = !!internalArgs[toolName]?.[parentPropName];
+
+            let parentProp = tool.inputSchema.properties[parentPropName];
+
+            if (isInternal) {
+                const internalArg = internalArgs[toolName][parentPropName];
+                if (!internalArg.original_schema) {
+                    internalArg.original_schema = {type: 'object', properties: {}, required: []};
+                }
+                parentProp = internalArg.original_schema;
+            }
 
             if (parentProp) {
                 if (!parentProp.required) {
@@ -3067,7 +3289,18 @@
 
         function updateNestedPropertyType(toolIndex, parentPropName, nestedPropName, newType) {
             const tool = tools[toolIndex];
-            const parentProp = tool.inputSchema.properties[parentPropName];
+            const toolName = tool.name;
+            const isInternal = !!internalArgs[toolName]?.[parentPropName];
+
+            let parentProp = tool.inputSchema.properties[parentPropName];
+
+            if (isInternal) {
+                const internalArg = internalArgs[toolName][parentPropName];
+                if (!internalArg.original_schema) {
+                    internalArg.original_schema = {type: 'object', properties: {}, required: []};
+                }
+                parentProp = internalArg.original_schema;
+            }
 
             if (parentProp && parentProp.properties && parentProp.properties[nestedPropName]) {
                 parentProp.properties[nestedPropName].type = newType;

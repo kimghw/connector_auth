@@ -494,10 +494,14 @@ def remove_defaults(schema):
 
 
 def clean_newlines_from_schema(schema):
-    """Recursively remove newline characters from all description fields in schema"""
+    """Recursively remove newline characters from all description fields in schema,
+    and also remove internal _source metadata fields"""
     if isinstance(schema, dict):
         cleaned = {}
         for key, value in schema.items():
+            # Skip internal metadata fields
+            if key == '_source':
+                continue
             if key == 'description' and isinstance(value, str):
                 # Remove newline and carriage return characters
                 cleaned_value = value.replace('\n', ' ').replace('\r', ' ')
