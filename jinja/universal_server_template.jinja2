@@ -57,60 +57,10 @@ from {{ service_info.module_path.replace('.', '_').replace('mcp_', '').replace('
 {%- endif %}
 {%- endfor %}
 
-# Import session management
-from session.session_manager import (
-    session_manager,
-    USE_SESSION_MANAGER,
-    ensure_services_initialized_legacy,
-    get_user_session_or_legacy,
-)
-
-
-# ============================================================
-# Error Handling
-# ============================================================
-async def handle_token_error(e: Exception, user_email: str):
-    """Handle token-related errors.
-
-    If the error indicates an expired/invalid token and SessionManager is available,
-    invalidate the session and raise 401. Otherwise, re-raise the original error.
-    """
-    if USE_SESSION_MANAGER and ("401" in str(e) or "unauthorized" in str(e).lower()):
-        await session_manager.invalidate_session(user_email)
-        raise HTTPException(status_code=401, detail="Access token expired")
-    raise e
-
-
-# ============================================================
-# Service Instance Mapping
-# ============================================================
-# Map class names to instance names for service lookup
-SERVICE_INSTANCE_MAP = {
+# Create service instances
 {%- for key, service_info in unique_services.items() %}
-    "{{ service_info.class_name }}": "{{ service_info.instance }}",
+{{ service_info.instance }} = {{ service_info.class_name }}()
 {%- endfor %}
-}
-
-
-def get_service_instance(class_name: str, context):
-    """Get service instance by class name from session or legacy context.
-
-    Args:
-        class_name: Service class name (e.g., "GraphMailQuery")
-        context: Session object or legacy dict with service instances
-
-    Returns:
-        Service instance or None
-    """
-    instance_name = SERVICE_INSTANCE_MAP.get(class_name)
-    if not instance_name:
-        logger.warning(f"Unknown service class: {class_name}")
-        return None
-
-    if USE_SESSION_MANAGER:
-        return getattr(context, instance_name, None)
-    else:
-        return context.get(instance_name)
 
 
 # ============================================================
@@ -198,22 +148,14 @@ app = FastAPI(title="{{ server_title | default(server_name | title + ' MCP Serve
 
 @app.on_event("startup")
 async def startup_event():
-    """Start SessionManager on server startup (if available)"""
-    if USE_SESSION_MANAGER:
-        await session_manager.start()
-        logger.info("SessionManager started")
-    else:
-        logger.info("Server started in legacy mode without SessionManager")
+    """Initialize services on server startup"""
+    logger.info("{{ server_title | default(server_name | title + ' MCP Server') }} started")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Stop SessionManager on server shutdown (if available)"""
-    if USE_SESSION_MANAGER:
-        await session_manager.stop()
-        logger.info("SessionManager stopped")
-    else:
-        logger.info("Server shutdown in legacy mode")
+    """Cleanup on server shutdown"""
+    logger.info("{{ server_title | default(server_name | title + ' MCP Server') }} stopped")
 
 
 @app.get("/")
@@ -221,8 +163,7 @@ async def root():
     """Root endpoint"""
     return {
         "name": "{{ server_title | default(server_name | title + ' MCP Server') }}",
-        "version": "1.0.0",
-        "session_manager_enabled": USE_SESSION_MANAGER
+        "version": "1.0.0"
     }
 
 
@@ -280,22 +221,18 @@ async def call_tool(request: Request):
 
         implementation_info = tool_implementations[tool_name]
 
-        # Get session or use legacy mode
-        session = None
-        user_email = arguments.get("user_email")
-
-        if USE_SESSION_MANAGER and user_email:
-            session = await session_manager.get_or_create_session(user_email)
-        else:
-            await ensure_services_initialized_legacy(user_email)
-
-        # Get service instance
-        service_instance = get_service_instance(implementation_info["service_class"], session)
+        # Get service instance by class name
+        service_class = implementation_info["service_class"]
+        service_instance = {
+{%- for key, service_info in unique_services.items() %}
+            "{{ service_info.class_name }}": {{ service_info.instance }},
+{%- endfor %}
+        }.get(service_class)
 
         if not service_instance:
             return JSONResponse(
                 status_code=500,
-                content={"error": {"message": f"Service not available: {implementation_info['service_class']}"}}
+                content={"error": {"message": f"Service not available: {service_class}"}}
             )
 
         # Get the method
@@ -376,23 +313,18 @@ async def call_tool(request: Request):
             content={"error": {"message": str(e)}}
         )
 
-# Tool functions - routing to session-specific implementations
+# Tool handler functions
 {%- for tool in tools %}
 
 async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to {{ tool.implementation.class_name or tool.service_class }}.{{ tool.implementation.method or tool.service_method }} with session or legacy support"""
-    # Get session or legacy instances (first operation)
-    user_email = args["user_email"]
-    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
-
+    """Handle {{ tool.name }} tool call"""
     {%- if tool.object_params %}
 
     # Extract parameters from args
-    {%- for param_name, param_info in tool.params.items() if param_name != 'user_email' %}
+    {%- for param_name, param_info in tool.params.items() %}
     {%- if param_info.is_required %}
     {{ param_name }} = args["{{ param_name }}"]
     {%- elif param_info.has_default %}
-    # Optional with default: use default if LLM didn't provide value
     {{ param_name }}_raw = args.get("{{ param_name }}")
     {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default_json }}
     {%- else %}
@@ -400,27 +332,21 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- endif %}
     {%- endfor %}
 
-    # Convert dicts to parameter objects where needed (Signature params from args)
+    # Convert dicts to parameter objects where needed
     {%- for param_name, param_info in tool.object_params.items() %}
     {%- if param_name not in tool.internal_args %}
-    {#- Required parameter - must be provided by LLM #}
     {%- if not param_info.is_optional %}
     {{ param_name }}_params = {{ param_info.class_name }}(**args["{{ param_name }}"])
-    {#- Optional parameter with default value (use is not None to accept empty objects/arrays) #}
     {%- elif param_info.has_default %}
     {{ param_name }}_raw = args.get("{{ param_name }}")
     if {{ param_name }}_raw is not None:
-        # LLM provided a value (even empty {} or [] is valid)
         {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_raw)
     else:
-        # LLM didn't provide value - use default from web editor
         {%- if param_info.default_json %}
         {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_info.default_json }})
         {%- else %}
-        # Explicit null default or no default value
         {{ param_name }}_params = None
         {%- endif %}
-    {#- Optional parameter without default #}
     {%- else %}
     {{ param_name }}_raw = args.get("{{ param_name }}")
     {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_raw) if {{ param_name }}_raw is not None else None
@@ -429,59 +355,42 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- endfor %}
     {%- if tool.internal_args %}
 
-    # Internal Args (pre-configured defaults, not exposed to MCP signature)
+    # Internal Args (pre-configured defaults)
     {%- for arg_name, arg_info in tool.internal_args.items() %}
     {%- if arg_info.value is defined and arg_info.value is not none and arg_info.value != {} %}
-    # {{ arg_name }}: pre-configured default value
     {{ arg_name }}_params = {{ arg_info.type }}(**{{ arg_info.value | pprint }})
     {%- elif arg_info.value is defined and arg_info.value == {} %}
-    # {{ arg_name }}: empty object - use default constructor
     {{ arg_name }}_params = {{ arg_info.type }}()
     {%- else %}
-    # {{ arg_name }}: no value configured - extract defaults from original_schema
     {{ arg_name }}_params = build_internal_param("{{ tool.name }}", "{{ arg_name }}")
     {%- endif %}
     {%- endfor %}
     {%- endif %}
 
-    try:
-        # Get the correct service instance
-        service_instance = get_service_instance("{{ tool.implementation.class_name }}", context)
-
-        return await service_instance.{{ tool.implementation.method or tool.mcp_service or tool.service_method }}(
-            user_email=user_email,
-            {%- for param_name, param_info in tool.call_params.items() if param_name != 'user_email' %}
-            {{ param_name }}={{ param_info.value }}{{ "," if not loop.last else "" }}
-            {%- endfor %}
-        )
-    except Exception as e:
-        await handle_token_error(e, user_email)
+    return await {{ tool.implementation.instance }}.{{ tool.implementation.method or tool.mcp_service or tool.service_method }}(
+        {%- for param_name, param_info in tool.call_params.items() %}
+        {{ param_name }}={{ param_info.value }}{{ "," if not loop.last else "" }}
+        {%- endfor %}
+    )
     {%- else %}
 
-    try:
-        # Get the correct service instance
-        service_instance = get_service_instance("{{ tool.implementation.class_name }}", context)
+    # Extract parameters from args
+    {%- for param_name, param_info in tool.params.items() %}
+    {%- if param_info.is_required %}
+    {{ param_name }} = args["{{ param_name }}"]
+    {%- elif param_info.has_default %}
+    {{ param_name }}_raw = args.get("{{ param_name }}")
+    {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default_json }}
+    {%- else %}
+    {{ param_name }} = args.get("{{ param_name }}")
+    {%- endif %}
+    {%- endfor %}
 
-        {#- Extract parameters with proper default handling #}
+    return await {{ tool.implementation.instance }}.{{ tool.implementation.method or tool.mcp_service or tool.service_method }}(
         {%- for param_name, param_info in tool.params.items() %}
-        {%- if param_info.is_required %}
-        {{ param_name }} = args["{{ param_name }}"]
-        {%- elif param_info.has_default %}
-        # Optional with default: use default if LLM didn't provide value
-        {{ param_name }}_raw = args.get("{{ param_name }}")
-        {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default_json }}
-        {%- else %}
-        {{ param_name }} = args.get("{{ param_name }}")
-        {%- endif %}
+        {{ param_name }}={{ param_name }}{{ "," if not loop.last else "" }}
         {%- endfor %}
-
-        return await service_instance.{{ tool.implementation.method or tool.mcp_service or tool.service_method }}(
-            {%- for param_name, param_info in tool.params.items() %}
-            {{ param_name }}={{ param_name }}{{ "," if not loop.last else "" }}
-            {%- endfor %}
-        )
-    except Exception as e:
-        await handle_token_error(e, user_email)
+    )
     {%- endif %}
 {%- endfor %}
 
