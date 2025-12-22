@@ -57,8 +57,8 @@ from {{ service_info.module_path.replace('.', '_').replace('mcp_', '').replace('
 {%- endif %}
 {%- endfor %}
 
-# Import helper functions from server_init
-from server_init import (
+# Import session management
+from session.session_manager import (
     session_manager,
     USE_SESSION_MANAGER,
     ensure_services_initialized_legacy,

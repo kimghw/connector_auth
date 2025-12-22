@@ -344,3 +344,45 @@ session_manager = SessionManager(
     session_timeout_minutes=30,  # 30 minutes timeout
     cleanup_interval_minutes=5    # Cleanup every 5 minutes
 )
+
+# Flag indicating SessionManager is available
+USE_SESSION_MANAGER = True
+
+# Legacy mode support (global instances for when SessionManager is not used)
+_legacy_instances: Dict[str, Any] = {}
+
+
+async def ensure_services_initialized_legacy(user_email: Optional[str] = None):
+    """
+    Legacy method: Ensure services are initialized before use.
+    Used when SessionManager is not available or for backward compatibility.
+    """
+    global _legacy_instances
+
+    if 'graph_mail_query' not in _legacy_instances:
+        _legacy_instances['graph_mail_query'] = GraphMailQuery()
+        logger.info("Legacy GraphMailQuery instance created")
+
+    if 'graph_mail_client' not in _legacy_instances and user_email:
+        client = GraphMailClient(user_email=user_email)
+        await client.initialize(user_email)
+        _legacy_instances['graph_mail_client'] = client
+        logger.info(f"Legacy GraphMailClient instance created for {user_email}")
+
+
+async def get_user_session_or_legacy(user_email: str, access_token: Optional[str] = None):
+    """
+    Get user session from SessionManager or return legacy instances.
+
+    Args:
+        user_email: User's email address
+        access_token: Optional access token for authentication
+
+    Returns:
+        Session object if USE_SESSION_MANAGER, else dict with legacy instances
+    """
+    if USE_SESSION_MANAGER:
+        return await session_manager.get_or_create_session(user_email, access_token)
+    else:
+        await ensure_services_initialized_legacy(user_email)
+        return _legacy_instances
