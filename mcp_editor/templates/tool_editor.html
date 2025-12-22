@@ -1703,18 +1703,14 @@
                 const isRequired = required.includes(propName);
                 // isInternal already set above
 
-                // Check if this property matches any MCP service parameter
-                let isMcpParam = propDef._source === 'mcp_service';
-                if (!isMcpParam && tool.mcp_service && window.mcpServiceDetails) {
-                    const serviceName = tool.mcp_service.name;
-                    const serviceDetail = window.mcpServiceDetails.find(svc => svc.name === serviceName);
-                    if (serviceDetail && serviceDetail.parameters) {
-                        // Check if this property name matches any MCP service parameter
-                        isMcpParam = serviceDetail.parameters.some(param =>
-                            param.name === propName && param.name !== 'self'
-                        );
-                    }
-                }
+                // Check if this property matches an MCP service parameter and type
+                const mcpParam = getMcpServiceParameter(tool, propName);
+                const mcpTypeCheck = mcpParam ? checkMcpParamTypeMatch(propDef, mcpParam) : null;
+                const isMcpParam = !!mcpTypeCheck && mcpTypeCheck.isMatch;
+                const isMcpTypeMismatch = !!mcpTypeCheck && !mcpTypeCheck.isMatch;
+                const mcpTypeMismatchLabel = isMcpTypeMismatch
+                    ? `<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--warning-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;" title="MCP param type mismatch: expected ${mcpTypeCheck.expectedLabel}, actual ${mcpTypeCheck.actualLabel}">MCP TYPE</span>`
+                    : '';
 
                 const propId = `prop-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}`;
                 propertiesHtml += `
@@ -1726,6 +1722,7 @@
                                 <strong style="font-size: 15px; color: #333;">${propName}</strong>
                                 <span style="margin-left: 12px; font-size: 12px; color: #666; background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${propDef.type}</span>
                                 ${isMcpParam ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: #17a2b8; padding: 2px 6px; border-radius: 4px; font-weight: 600;">MCP</span>' : ''}
+                                ${mcpTypeMismatchLabel}
                                 ${isInternal ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--warning-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">INTERNAL</span>' : ''}
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px;" onclick="event.stopPropagation();">
@@ -3060,6 +3057,68 @@
                     ? `${innerType} parameters`
                     : '',
                 optional
+            };
+        }
+
+        function getMcpServiceParameter(tool, propName) {
+            if (!tool || !propName) {
+                return null;
+            }
+
+            const serviceName = typeof tool.mcp_service === 'object' ? tool.mcp_service?.name : tool.mcp_service;
+            if (!serviceName) {
+                return null;
+            }
+
+            let serviceDetail = null;
+            if (Array.isArray(window.mcpServiceDetails)) {
+                serviceDetail = window.mcpServiceDetails.find(svc => svc.name === serviceName);
+            }
+
+            if (!serviceDetail && tool.mcp_service && tool.mcp_service.parameters) {
+                serviceDetail = { name: serviceName, parameters: tool.mcp_service.parameters };
+            }
+
+            if (!serviceDetail || !Array.isArray(serviceDetail.parameters)) {
+                return null;
+            }
+
+            return serviceDetail.parameters.find(param => param.name === propName && param.name !== 'self') || null;
+        }
+
+        function formatSchemaType(schema) {
+            if (!schema || !schema.type) {
+                return 'unknown';
+            }
+
+            if (schema.type === 'array') {
+                const itemType = schema.items && schema.items.type ? schema.items.type : 'unknown';
+                return `array<${itemType}>`;
+            }
+
+            return schema.type;
+        }
+
+        function checkMcpParamTypeMatch(propDef, param) {
+            if (!propDef || !param) {
+                return { isMatch: false, expectedLabel: 'unknown', actualLabel: 'unknown' };
+            }
+
+            const expectedSchema = mapSignatureTypeToSchema(param.type);
+            const expectedType = expectedSchema.type;
+            const actualType = propDef.type;
+
+            let isMatch = expectedType === actualType;
+            if (isMatch && expectedType === 'array') {
+                const expectedItemType = expectedSchema.items && expectedSchema.items.type;
+                const actualItemType = propDef.items && propDef.items.type;
+                isMatch = !!expectedItemType && !!actualItemType && expectedItemType === actualItemType;
+            }
+
+            return {
+                isMatch,
+                expectedLabel: formatSchemaType(expectedSchema),
+                actualLabel: formatSchemaType(propDef)
             };
         }
 
