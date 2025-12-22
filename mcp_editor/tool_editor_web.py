@@ -118,6 +118,7 @@ from tool_editor_web_server_mappings import (
 
 # Import MCP service scanner from registry
 from mcp_service_registry.mcp_service_scanner import get_services_map
+from mcp_service_registry.meta_registry import MetaRegisterManager
 
 app = Flask(__name__)
 CORS(app)
@@ -1055,7 +1056,8 @@ def get_mcp_services():
 
                     for service_name, service_info in data['services'].items():
                         # Add to decorated services (tool names)
-                        handler = service_info.get('handler', {})
+                        # Support both 'handler' (old) and 'implementation' (new) formats
+                        handler = service_info.get('implementation', service_info.get('handler', {}))
                         tool_name = service_info.get('metadata', {}).get('tool_name', handler.get('method', service_name))
                         decorated.append(tool_name)
 
@@ -2065,8 +2067,53 @@ def send_static(path):
     return send_from_directory(os.path.join(BASE_DIR, 'static'), path)
 
 
+def scan_all_registries():
+    """Scan all profiles and update their registry files on startup."""
+    try:
+        config = _load_config_file()
+        registry_manager = MetaRegisterManager()
+
+        for profile_name, profile_config in config.items():
+            source_dir = profile_config.get('source_dir')
+            if not source_dir:
+                print(f"  Skipping {profile_name}: no source_dir configured")
+                continue
+
+            # Resolve source_dir relative to BASE_DIR
+            source_path = os.path.normpath(os.path.join(BASE_DIR, source_dir))
+            if not os.path.exists(source_path):
+                print(f"  Skipping {profile_name}: source_dir not found: {source_path}")
+                continue
+
+            # Extract server name (mcp_outlook -> outlook)
+            server_name = profile_name.replace('mcp_', '') if profile_name.startswith('mcp_') else profile_name
+
+            # Output path for registry
+            registry_path = os.path.join(BASE_DIR, 'mcp_service_registry', f'registry_{server_name}.json')
+
+            print(f"  Scanning {profile_name} from {source_path}...")
+            success = registry_manager.export_service_manifest(
+                file_path=registry_path,
+                base_dir=source_path,
+                server_name=server_name
+            )
+
+            if success:
+                print(f"    -> Updated {registry_path}")
+            else:
+                print(f"    -> Failed to update registry for {profile_name}")
+
+    except Exception as e:
+        print(f"Error scanning registries: {e}")
+
+
 if __name__ == '__main__':
     print("Starting MCP Tool Editor Web Interface...")
+
+    # Scan all registries on startup
+    print("Scanning MCP service registries...")
+    scan_all_registries()
+
     profile_name = os.environ.get("MCP_EDITOR_MODULE")
     profile_conf = get_profile_config(profile_name)
     paths = resolve_paths(profile_conf)

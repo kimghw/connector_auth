@@ -1,5 +1,6 @@
 {
   "mcp_file_handler": {
+    "source_dir": "../mcp_file_handler",
     "template_definitions_path": "mcp_file_handler/tool_definition_templates.py",
     "tool_definitions_path": "../mcp_file_handler/mcp_server/tool_definitions.py",
     "backup_dir": "mcp_file_handler/backups",
@@ -8,6 +9,7 @@
     "port": 8091
   },
   "mcp_outlook": {
+    "source_dir": "../mcp_outlook",
     "template_definitions_path": "mcp_outlook/tool_definition_templates.py",
     "tool_definitions_path": "../mcp_outlook/mcp_server/tool_definitions.py",
     "backup_dir": "mcp_outlook/backups",
