@@ -206,6 +206,88 @@
             transform: translateX(-50%) translateY(0);
         }
 
+        .btn-debug-active {
+            background: #111827;
+            color: #ffffff;
+        }
+
+        .btn-debug-active:hover {
+            background: #0f172a;
+        }
+
+        .debug-index-toggle {
+            position: relative;
+        }
+
+        .debug-dup-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            min-width: 16px;
+            height: 16px;
+            padding: 0 4px;
+            border-radius: 999px;
+            background: #ef4444;
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: 700;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .debug-dup-badge.visible {
+            display: inline-flex;
+        }
+
+        /* Debug index overlay */
+        #debug-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 9999;
+            display: none;
+        }
+
+        body.debug-indexes #debug-overlay {
+            display: block;
+        }
+
+        .debug-id-label {
+            position: fixed;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            color: #fff;
+            background: #1d4ed8;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        .debug-id-label.field {
+            background: #0f766e;
+        }
+
+        #debug-tooltip {
+            position: fixed;
+            max-width: 280px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            line-height: 1.4;
+            color: #fff;
+            background: rgba(20, 20, 23, 0.95);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+            white-space: pre-line;
+            pointer-events: none;
+            z-index: 10000;
+            display: none;
+        }
+
         .main-content {
             display: flex;
             flex: 1;
@@ -663,22 +745,26 @@
                 <span>MCP Tool Definitions Editor</span>
             </h1>
             <div class="header-buttons">
-                <button class="btn btn-secondary btn-tooltip" onclick="loadTools()" data-tooltip="📂 Load: tool_definitions.py&#10;📂 Load: tool_internal_args.json&#10;&#10;Refresh tool list from server files">
+                <button class="btn btn-secondary btn-tooltip" data-debug-id="BTN_RELOAD" onclick="loadTools()" data-tooltip="📂 Load: tool_definitions.py&#10;📂 Load: tool_internal_args.json&#10;&#10;Refresh tool list from server files">
                     <span class="material-icons">refresh</span> Reload
                 </button>
-                <button class="btn btn-secondary" onclick="showBackups()">
+                <button class="btn btn-secondary btn-tooltip debug-index-toggle" data-debug-id="BTN_IDS" id="debugIndexToggle" onclick="toggleDebugIndexes()" data-tooltip="Show IDs on buttons/fields and hover to see inline handlers" aria-pressed="false">
+                    <span class="material-icons">push_pin</span> IDs
+                    <span class="debug-dup-badge" id="debugDuplicateBadge" aria-hidden="true"></span>
+                </button>
+                <button class="btn btn-secondary" data-debug-id="BTN_BACKUPS" onclick="showBackups()">
                     <span class="material-icons">inventory_2</span> Backups
                 </button>
-                <button class="btn btn-secondary" onclick="validateTools()">
+                <button class="btn btn-secondary" data-debug-id="BTN_VALIDATE" onclick="validateTools()">
                     <span class="material-icons">check_circle</span> Validate
                 </button>
-                <button class="btn btn-primary btn-tooltip" onclick="saveTools()" data-tooltip="💾 Save: tool_definitions.py&#10;💾 Save: tool_definition_templates.py&#10;💾 Save: tool_internal_args.json&#10;&#10;Save all changes to disk">
+                <button class="btn btn-primary btn-tooltip" data-debug-id="BTN_SAVE" onclick="saveTools()" data-tooltip="💾 Save: tool_definitions.py&#10;💾 Save: tool_definition_templates.py&#10;💾 Save: tool_internal_args.json&#10;&#10;Save all changes to disk">
                     <span class="material-icons">save</span> Save Changes
                 </button>
-                <button class="btn btn-important btn-tooltip" onclick="openGeneratorModal()" data-tooltip="⚙️ Input: tool_definitions.py&#10;📄 Template: *_server_template.jinja2&#10;🚀 Output: server.py&#10;&#10;Generate MCP server from template">
+                <button class="btn btn-important btn-tooltip" data-debug-id="BTN_GENERATE" onclick="openGeneratorModal()" data-tooltip="⚙️ Input: tool_definitions.py&#10;📄 Template: *_server_template.jinja2&#10;🚀 Output: server.py&#10;&#10;Generate MCP server from template">
                     <span class="material-icons">auto_fix_high</span> Generate Server
                 </button>
-                <button class="btn btn-success btn-tooltip" onclick="openCreateProjectModal()" data-tooltip="🚀 Create new MCP server project&#10;📁 Complete folder structure&#10;📝 Ready-to-use templates&#10;&#10;Create a new MCP service from scratch">
+                <button class="btn btn-success btn-tooltip" data-debug-id="BTN_NEW_PROJECT" onclick="openCreateProjectModal()" data-tooltip="🚀 Create new MCP server project&#10;📁 Complete folder structure&#10;📝 Ready-to-use templates&#10;&#10;Create a new MCP service from scratch">
                     <span class="material-icons">add_circle</span> New Project
                 </button>
             </div>
@@ -691,10 +777,10 @@
                 <span class="material-icons" style="font-size: 16px; vertical-align: middle;">description</span>
                 Load Template:
             </label>
-            <select id="templateSource" class="form-control" style="flex: 1; max-width: 400px; padding: 6px 12px; font-size: 13px;">
+            <select id="templateSource" class="form-control" data-debug-id="FIELD_TEMPLATE_SOURCE" style="flex: 1; max-width: 400px; padding: 6px 12px; font-size: 13px;">
                 <option value="">-- Current Template --</option>
             </select>
-            <button class="btn btn-secondary btn-sm" onclick="loadFromSelectedTemplate()" title="Load tools from selected template">
+            <button class="btn btn-secondary btn-sm" data-debug-id="BTN_TEMPLATE_LOAD" onclick="loadFromSelectedTemplate()" title="Load tools from selected template">
                 <span class="material-icons" style="font-size: 14px;">file_download</span> Load
             </button>
             <span id="templateLoadStatus" style="font-size: 12px; color: #666;"></span>
@@ -706,7 +792,7 @@
         <div class="main-content">
             <div class="sidebar">
                 <div class="tool-list">
-                    <button class="add-button" onclick="addNewTool()">
+                    <button class="add-button" data-debug-id="BTN_ADD_TOOL" onclick="addNewTool()">
                         <span class="material-icons">add</span> Add New Tool
                     </button>
                     <div id="toolList" style="margin-top: 15px;">
@@ -730,7 +816,7 @@
         <div class="modal-content" style="max-width: 800px;">
             <div class="modal-header">
                 <h2 id="nestedModalTitle">Edit Nested Properties</h2>
-                <button class="btn btn-icon" onclick="closeModal('nestedPropertiesModal')">✕</button>
+                <button class="btn btn-icon" data-debug-id="BTN_NESTED_CLOSE" onclick="closeModal('nestedPropertiesModal')">✕</button>
             </div>
             <div class="modal-body">
                 <div id="nestedPropertiesEditor">
@@ -738,8 +824,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-primary" onclick="saveNestedProperties()">Save Properties</button>
-                <button class="btn btn-secondary" onclick="closeModal('nestedPropertiesModal')">Cancel</button>
+                <button class="btn btn-primary" data-debug-id="BTN_NESTED_SAVE" onclick="saveNestedProperties()">Save Properties</button>
+                <button class="btn btn-secondary" data-debug-id="BTN_NESTED_CANCEL" onclick="closeModal('nestedPropertiesModal')">Cancel</button>
             </div>
         </div>
     </div>
@@ -749,7 +835,7 @@
         <div class="modal-content" style="max-width: 900px;">
             <div class="modal-header">
                 <h2>Select BaseModel to Import</h2>
-                <button class="btn btn-icon" onclick="closeModal('baseModelModal')">✕</button>
+                <button class="btn btn-icon" data-debug-id="BTN_BASEMODEL_CLOSE" onclick="closeModal('baseModelModal')">✕</button>
             </div>
             <div class="modal-body">
                 <div id="baseModelList" style="max-height: 500px; overflow-y: auto;">
@@ -757,7 +843,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('baseModelModal')">Cancel</button>
+                <button class="btn btn-secondary" data-debug-id="BTN_BASEMODEL_CANCEL" onclick="closeModal('baseModelModal')">Cancel</button>
             </div>
         </div>
     </div>
@@ -767,12 +853,12 @@
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
                 <h2>Add Nested Properties</h2>
-                <button class="btn btn-icon" onclick="closeModal('nestedGraphTypesModal')">✕</button>
+                <button class="btn btn-icon" data-debug-id="BTN_NESTED_TYPES_CLOSE" onclick="closeModal('nestedGraphTypesModal')">✕</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
                     <label>Select Type (from outlook_types.py)</label>
-                    <select id="nestedGraphTypeClass" onchange="handleNestedGraphClassChange()" class="form-control">
+                    <select id="nestedGraphTypeClass" data-debug-id="FIELD_NESTED_GRAPH_TYPE" onchange="handleNestedGraphClassChange()" class="form-control">
                         <option value="">-- Select Type --</option>
                         <option value="FilterParams">FilterParams (Filter criteria)</option>
                         <option value="ExcludeParams">ExcludeParams (Exclusion criteria)</option>
@@ -787,16 +873,16 @@
                         </div>
                     </div>
                     <div style="margin-top: 10px;">
-                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllNestedProperties(true)">Select All</button>
-                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllNestedProperties(false)">Deselect All</button>
-                        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllNestedRequired(true)">All Required</button>
-                        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllNestedRequired(false)">All Optional</button>
+                        <button type="button" class="btn btn-sm btn-secondary" data-debug-id="BTN_NESTED_SELECT_ALL" onclick="selectAllNestedProperties(true)">Select All</button>
+                        <button type="button" class="btn btn-sm btn-secondary" data-debug-id="BTN_NESTED_DESELECT_ALL" onclick="selectAllNestedProperties(false)">Deselect All</button>
+                        <button type="button" class="btn btn-sm btn-secondary" data-debug-id="BTN_NESTED_ALL_REQUIRED" onclick="toggleAllNestedRequired(true)">All Required</button>
+                        <button type="button" class="btn btn-sm btn-secondary" data-debug-id="BTN_NESTED_ALL_OPTIONAL" onclick="toggleAllNestedRequired(false)">All Optional</button>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-primary" onclick="confirmAddNestedGraphProperties()">Add Selected</button>
-                <button class="btn btn-secondary" onclick="closeModal('nestedGraphTypesModal')">Cancel</button>
+                <button class="btn btn-primary" data-debug-id="BTN_NESTED_TYPES_ADD" onclick="confirmAddNestedGraphProperties()">Add Selected</button>
+                <button class="btn btn-secondary" data-debug-id="BTN_NESTED_TYPES_CANCEL" onclick="closeModal('nestedGraphTypesModal')">Cancel</button>
             </div>
         </div>
     </div>
@@ -806,7 +892,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Backup Management</h2>
-                <button class="btn btn-icon" onclick="closeModal('backupModal')">✕</button>
+                <button class="btn btn-icon" data-debug-id="BTN_BACKUP_CLOSE_X" onclick="closeModal('backupModal')">✕</button>
             </div>
             <div class="modal-body">
                 <div id="backupList" class="backup-list">
@@ -814,7 +900,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('backupModal')">Close</button>
+                <button class="btn btn-secondary" data-debug-id="BTN_BACKUP_CLOSE" onclick="closeModal('backupModal')">Close</button>
             </div>
         </div>
     </div>
@@ -824,42 +910,42 @@
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
                 <h2>Create New MCP Project</h2>
-                <button class="btn btn-icon" onclick="closeModal('createProjectModal')">✕</button>
+                <button class="btn btn-icon" data-debug-id="BTN_PROJECT_CLOSE" onclick="closeModal('createProjectModal')">✕</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
                     <label>Service Name <span style="color: red;">*</span></label>
-                    <input id="projectServiceName" class="form-control" placeholder="e.g., calendar, weather, database" required>
+                    <input id="projectServiceName" class="form-control" data-debug-id="FIELD_PROJECT_NAME" placeholder="e.g., calendar, weather, database" required>
                     <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
                         Only letters, numbers, and underscores allowed. Will create mcp_{service_name} folder.
                     </p>
                 </div>
                 <div class="form-group">
                     <label>Description</label>
-                    <input id="projectDescription" class="form-control" placeholder="Brief description of the service">
+                    <input id="projectDescription" class="form-control" data-debug-id="FIELD_PROJECT_DESC" placeholder="Brief description of the service">
                 </div>
                 <div class="form-group">
                     <label>Port</label>
-                    <input id="projectPort" type="number" class="form-control" value="8080" min="1024" max="65535">
+                    <input id="projectPort" type="number" class="form-control" data-debug-id="FIELD_PROJECT_PORT" value="8080" min="1024" max="65535">
                     <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
                         Server port number (1024-65535)
                     </p>
                 </div>
                 <div class="form-group">
                     <label>Author</label>
-                    <input id="projectAuthor" class="form-control" placeholder="Your name (optional)">
+                    <input id="projectAuthor" class="form-control" data-debug-id="FIELD_PROJECT_AUTHOR" placeholder="Your name (optional)">
                 </div>
                 <div class="form-group">
                     <label>
-                        <input id="projectIncludeTypes" type="checkbox" checked>
+                        <input id="projectIncludeTypes" type="checkbox" data-debug-id="FIELD_PROJECT_INCLUDE_TYPES" checked>
                         Include type definitions file (*_types.py)
                     </label>
                 </div>
                 <div id="createProjectResult" style="margin-top: 15px; padding: 12px; border-radius: 6px; display: none;"></div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('createProjectModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="createNewProject()">Create Project</button>
+                <button class="btn btn-secondary" data-debug-id="BTN_PROJECT_CANCEL" onclick="closeModal('createProjectModal')">Cancel</button>
+                <button class="btn btn-primary" data-debug-id="BTN_PROJECT_CREATE" onclick="createNewProject()">Create Project</button>
             </div>
         </div>
     </div>
@@ -869,12 +955,12 @@
         <div class="modal-content" style="max-width: 760px;">
             <div class="modal-header">
                 <h2>Generate MCP Server</h2>
-                <button class="btn btn-icon" onclick="closeModal('generatorModal')">✕</button>
+                <button class="btn btn-icon" data-debug-id="BTN_GENERATOR_CLOSE" onclick="closeModal('generatorModal')">✕</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
                     <label>Select Module</label>
-                    <select id="generatorModule" class="form-control" onchange="handleGeneratorModuleChange()">
+                    <select id="generatorModule" class="form-control" data-debug-id="FIELD_GENERATOR_MODULE" onchange="handleGeneratorModuleChange()">
                         <option value="">Custom / Current Profile</option>
                     </select>
                     <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
@@ -884,8 +970,8 @@
                 <div class="form-group">
                     <label>Tools path (--tools)</label>
                     <div style="display: flex; gap: 8px;">
-                        <input id="generatorToolsPath" class="form-control" placeholder="/path/to/tool_definition_templates.py" style="flex: 1;">
-                        <button class="btn btn-secondary" onclick="selectFilePath('generatorToolsPath', '.py')" style="padding: 8px 12px;">
+                        <input id="generatorToolsPath" class="form-control" data-debug-id="FIELD_GENERATOR_TOOLS_PATH" placeholder="/path/to/tool_definition_templates.py" style="flex: 1;">
+                        <button class="btn btn-secondary" data-debug-id="BTN_GENERATOR_TOOLS_PICK" onclick="selectFilePath('generatorToolsPath', '.py')" style="padding: 8px 12px;">
                             <span class="material-icons" style="font-size: 18px;">folder_open</span>
                         </button>
                     </div>
@@ -893,8 +979,8 @@
                 <div class="form-group">
                     <label>Template path (--template)</label>
                     <div style="display: flex; gap: 8px;">
-                        <input id="generatorTemplatePath" class="form-control" value="/home/kimghw/Connector_auth/jinja/universal_server_template.jinja2" placeholder="/path/to/server_template.jinja2" style="flex: 1;">
-                        <button class="btn btn-secondary" onclick="selectFilePath('generatorTemplatePath', '.jinja2')" style="padding: 8px 12px;">
+                        <input id="generatorTemplatePath" class="form-control" data-debug-id="FIELD_GENERATOR_TEMPLATE_PATH" value="/home/kimghw/Connector_auth/jinja/universal_server_template.jinja2" placeholder="/path/to/server_template.jinja2" style="flex: 1;">
+                        <button class="btn btn-secondary" data-debug-id="BTN_GENERATOR_TEMPLATE_PICK" onclick="selectFilePath('generatorTemplatePath', '.jinja2')" style="padding: 8px 12px;">
                             <span class="material-icons" style="font-size: 18px;">folder_open</span>
                         </button>
                     </div>
@@ -902,8 +988,8 @@
                 <div class="form-group">
                     <label>Output path (--output)</label>
                     <div style="display: flex; gap: 8px;">
-                        <input id="generatorOutputPath" class="form-control" placeholder="/path/to/server_generated.py" style="flex: 1;">
-                        <button class="btn btn-secondary" onclick="selectFilePath('generatorOutputPath', '.py')" style="padding: 8px 12px;">
+                        <input id="generatorOutputPath" class="form-control" data-debug-id="FIELD_GENERATOR_OUTPUT_PATH" placeholder="/path/to/server_generated.py" style="flex: 1;">
+                        <button class="btn btn-secondary" data-debug-id="BTN_GENERATOR_OUTPUT_PICK" onclick="selectFilePath('generatorOutputPath', '.py')" style="padding: 8px 12px;">
                             <span class="material-icons" style="font-size: 18px;">folder_open</span>
                         </button>
                     </div>
@@ -911,10 +997,10 @@
                 <div id="generatorResult" style="color: var(--text-secondary); font-size: 13px;"></div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-important" onclick="runServerGeneration()">
+                <button class="btn btn-important" data-debug-id="BTN_GENERATOR_RUN" onclick="runServerGeneration()">
                     <span class="material-icons">auto_fix_high</span> Generate
                 </button>
-                <button class="btn btn-secondary" onclick="closeModal('generatorModal')">Close</button>
+                <button class="btn btn-secondary" data-debug-id="BTN_GENERATOR_CLOSE_FOOTER" onclick="closeModal('generatorModal')">Close</button>
             </div>
         </div>
     </div>
@@ -931,6 +1017,9 @@
         let generatorFallback = {};
         let templateSources = [];  // Available template files (current, backups, other profiles)
         let originalProfile = '';  // The profile that tools were originally loaded from (for saving)
+        let debugIndexEnabled = false;
+        let debugIndexObserver = null;
+        let debugIndexRefreshPending = false;
 
         // Load tools on page load
         window.onload = function() {
@@ -939,6 +1028,7 @@
             loadProfiles();
             console.log('[DEBUG] Calling loadGraphTypesProperties()...');
             loadGraphTypesProperties();
+            initDebugIndexing();
             console.log('[DEBUG] window.onload completed');
         };
 
@@ -1892,7 +1982,7 @@
                         <div class="form-group" id="default-value-group-${propId}">
                             <label style="font-size: 11px;">Default Value ${propDef.type === 'array' || propDef.type === 'object' ? '(JSON)' : ''}</label>
                             ${propDef.type === 'array' || propDef.type === 'object' ? `
-                            <textarea class="form-control" style="font-family: monospace; font-size: 12px; min-height: 30px; padding: 6px 8px;"
+                            <textarea class="form-control" style="font-family: monospace; font-size: 12px; min-height: 120px; padding: 6px 8px;"
                                       placeholder='${propDef.type === 'array' ? '["item1", "item2"]' : '{"key": "value"}'}'
                                       onchange="updatePropertyField(${index}, '${propName}', 'default', parseDefaultValue(this.value, '${propDef.type}'))">${propDef.default !== undefined ? (typeof propDef.default === 'string' ? propDef.default : JSON.stringify(propDef.default, null, 2)) : ''}</textarea>
                             ` : `
@@ -2081,18 +2171,18 @@
             editorContent.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                     <h2 style="font-size: 20px; font-weight: 600;">Edit Tool: ${tool.name}</h2>
-                    <button class="btn btn-danger btn-sm" onclick="deleteTool(${index})">Delete Tool</button>
+                    <button class="btn btn-danger btn-sm" data-debug-id="BTN_TOOL_DELETE" onclick="deleteTool(${index})">Delete Tool</button>
                 </div>
 
                 <div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px;">
                     <div class="form-group" style="flex: 1; min-width: 240px; margin-bottom: 0;">
                         <label>Tool Name</label>
-                        <input class="form-control" id="toolName" value="${tool.name}"
+                        <input class="form-control" id="toolName" data-debug-id="FIELD_TOOL_NAME" value="${tool.name}"
                                onchange="updateToolField(${index}, 'name', this.value)">
                     </div>
                     <div class="form-group" style="flex: 1; min-width: 260px; margin-bottom: 0;">
                         <label>MCP Service</label>
-                        <select class="form-control" id="mcpService"
+                        <select class="form-control" id="mcpService" data-debug-id="FIELD_TOOL_SERVICE"
                                 onchange="updateMcpService(${index}, this.value)">
                             <option value="">-- Select MCP Service --</option>
                             ${window.mcpServices ? window.mcpServices.map(service => {
@@ -2105,7 +2195,8 @@
 
                 <div class="form-group">
                     <label>Description</label>
-                    <textarea class="form-control" id="toolDescription"
+                    <textarea class="form-control" id="toolDescription" data-debug-id="FIELD_TOOL_DESCRIPTION"
+                              style="height: 60px; padding: 6px 8px; resize: vertical;"
                               onchange="updateToolField(${index}, 'description', this.value)">${tool.description}</textarea>
                 </div>
 
@@ -2113,17 +2204,17 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <label style="margin: 0;">Input Schema Properties</label>
                         <div>
-                            <button class="btn btn-sm btn-secondary" onclick="expandAllProperties()" style="margin-right: 8px;">
+                            <button class="btn btn-sm btn-secondary" data-debug-id="BTN_PROP_EXPAND_ALL" onclick="expandAllProperties()" style="margin-right: 8px;">
                                 ▼ Expand All
                             </button>
-                            <button class="btn btn-sm btn-secondary" onclick="collapseAllProperties()">
+                            <button class="btn btn-sm btn-secondary" data-debug-id="BTN_PROP_COLLAPSE_ALL" onclick="collapseAllProperties()">
                                 ▶ Collapse All
                             </button>
                         </div>
                     </div>
                     <div class="properties-container">
                         ${propertiesHtml}
-                        <button class="add-button" onclick="addProperty(${index})">
+                        <button class="add-button" data-debug-id="BTN_PROP_ADD" onclick="addProperty(${index})">
                             <span class="material-icons">add</span> Add Property
                         </button>
                     </div>
@@ -3634,6 +3725,368 @@
             allProperties.forEach(prop => prop.classList.add('collapsed'));
             allIcons.forEach(icon => { icon.classList.add('collapsed'); icon.textContent = '▶'; });
             allHeaders.forEach(header => header.classList.remove('expanded'));
+        }
+
+        function initDebugIndexing() {
+            ensureDebugOverlay();
+            const saved = localStorage.getItem('mcp_debug_indexes') === '1';
+            setDebugIndexState(saved);
+
+            document.addEventListener('scroll', queueDebugIndexRefresh, true);
+            window.addEventListener('resize', queueDebugIndexRefresh);
+            document.addEventListener('mousemove', updateDebugTooltip);
+        }
+
+        function toggleDebugIndexes() {
+            setDebugIndexState(!debugIndexEnabled);
+        }
+
+        function setDebugIndexState(enabled) {
+            debugIndexEnabled = enabled;
+            document.body.classList.toggle('debug-indexes', enabled);
+            localStorage.setItem('mcp_debug_indexes', enabled ? '1' : '0');
+
+            const toggle = document.getElementById('debugIndexToggle');
+            if (toggle) {
+                toggle.classList.toggle('btn-debug-active', enabled);
+                toggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+            }
+
+            if (enabled) {
+                queueDebugIndexRefresh();
+            } else {
+                const overlay = document.getElementById('debug-overlay');
+                if (overlay) {
+                    overlay.innerHTML = '';
+                }
+                hideDebugTooltip();
+                updateDebugDuplicateBadge(0);
+            }
+        }
+
+        function ensureDebugOverlay() {
+            let overlay = document.getElementById('debug-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'debug-overlay';
+                document.body.appendChild(overlay);
+            }
+
+            let tooltip = document.getElementById('debug-tooltip');
+            if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.id = 'debug-tooltip';
+                document.body.appendChild(tooltip);
+            }
+
+            if (!debugIndexObserver) {
+                debugIndexObserver = new MutationObserver(() => {
+                    queueDebugIndexRefresh();
+                });
+                debugIndexObserver.observe(document.body, { childList: true, subtree: true });
+            }
+
+            return overlay;
+        }
+
+        function queueDebugIndexRefresh() {
+            if (!debugIndexEnabled || debugIndexRefreshPending) {
+                return;
+            }
+
+            debugIndexRefreshPending = true;
+            requestAnimationFrame(() => {
+                debugIndexRefreshPending = false;
+                refreshDebugIndexes();
+            });
+        }
+
+        function refreshDebugIndexes() {
+            if (!debugIndexEnabled) {
+                return;
+            }
+
+            const overlay = ensureDebugOverlay();
+            overlay.innerHTML = '';
+
+            const targets = getDebugTargets();
+            const usedIds = new Set();
+            const idCounts = new Map();
+            const buttonCounter = { value: 1 };
+            const fieldCounter = { value: 1 };
+
+            targets.buttons.forEach(target => {
+                const explicitId = getExplicitDebugId(target);
+                const isAuto = !explicitId;
+                const labelText = explicitId || getNextAutoDebugId('', usedIds, buttonCounter);
+                registerDebugId(labelText, usedIds, idCounts, target);
+                addDebugLabel(overlay, target, labelText, 'button', isAuto);
+            });
+
+            targets.fields.forEach(target => {
+                const explicitId = getExplicitDebugId(target);
+                const isAuto = !explicitId;
+                const labelText = explicitId || getNextAutoDebugId('f', usedIds, fieldCounter);
+                registerDebugId(labelText, usedIds, idCounts, target);
+                addDebugLabel(overlay, target, labelText, 'field', isAuto);
+            });
+
+            const duplicateCount = Array.from(idCounts.values()).filter(count => count > 1).length;
+            updateDebugDuplicateBadge(duplicateCount);
+        }
+
+        function getDebugTargets() {
+            const buttons = Array.from(document.querySelectorAll('button')).filter(isValidDebugTarget);
+            const fields = Array.from(document.querySelectorAll('input, textarea, select'))
+                .filter(isTextLikeInput)
+                .filter(isValidDebugTarget);
+            const manualTargets = Array.from(document.querySelectorAll('[data-debug-id]')).filter(isValidDebugTarget);
+            const buttonSet = new Set(buttons);
+            const fieldSet = new Set(fields);
+
+            manualTargets.forEach(target => {
+                if (buttonSet.has(target) || fieldSet.has(target)) {
+                    return;
+                }
+
+                const tag = target.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+                    fields.push(target);
+                    fieldSet.add(target);
+                } else {
+                    buttons.push(target);
+                    buttonSet.add(target);
+                }
+            });
+
+            return { buttons, fields };
+        }
+
+        function getExplicitDebugId(target) {
+            const manualId = target.getAttribute('data-debug-id');
+            if (manualId && manualId.trim() && target.getAttribute('data-debug-auto') !== '1') {
+                return manualId.trim();
+            }
+
+            const legacyId = target.getAttribute('data-fixed-debug-id');
+            if (legacyId && legacyId.trim()) {
+                return legacyId.trim();
+            }
+
+            return null;
+        }
+
+        function registerDebugId(labelText, usedIds, idCounts, target) {
+            if (usedIds.has(labelText)) {
+                console.warn(`[DebugIndex] Duplicate data-debug-id "${labelText}"`, target);
+            }
+            usedIds.add(labelText);
+            idCounts.set(labelText, (idCounts.get(labelText) || 0) + 1);
+        }
+
+        function updateDebugDuplicateBadge(duplicateCount) {
+            const badge = document.getElementById('debugDuplicateBadge');
+            if (!badge) {
+                return;
+            }
+
+            if (duplicateCount > 0) {
+                badge.textContent = String(duplicateCount);
+                badge.classList.add('visible');
+                badge.setAttribute('aria-label', `Duplicate debug IDs: ${duplicateCount}`);
+            } else {
+                badge.textContent = '';
+                badge.classList.remove('visible');
+                badge.removeAttribute('aria-label');
+            }
+        }
+
+        function getNextAutoDebugId(prefix, usedIds, counterRef) {
+            let candidate = '';
+            do {
+                candidate = `${prefix}${counterRef.value}`;
+                counterRef.value += 1;
+            } while (usedIds.has(candidate));
+            return candidate;
+        }
+
+        function isTextLikeInput(el) {
+            if (!el || !el.tagName) {
+                return false;
+            }
+
+            if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
+                return true;
+            }
+
+            if (el.tagName !== 'INPUT') {
+                return false;
+            }
+
+            const type = (el.getAttribute('type') || 'text').toLowerCase();
+            return !['checkbox', 'radio', 'button', 'submit', 'reset', 'hidden', 'image', 'file', 'range', 'color'].includes(type);
+        }
+
+        function isValidDebugTarget(el) {
+            if (!el || !(el instanceof Element)) {
+                return false;
+            }
+
+            if (el.closest('#debug-overlay') || el.closest('#debug-tooltip')) {
+                return false;
+            }
+
+            if (el.hasAttribute('data-debug-skip') || el.closest('[data-debug-skip="true"]')) {
+                return false;
+            }
+
+            return true;
+        }
+
+        function addDebugLabel(overlay, target, labelText, kind, isAuto) {
+            if (!target || !labelText) {
+                return;
+            }
+
+            if (isAuto) {
+                target.setAttribute('data-debug-auto', '1');
+                target.setAttribute('data-debug-auto-id', labelText);
+                target.removeAttribute('data-debug-id');
+            } else {
+                target.removeAttribute('data-debug-auto');
+                target.removeAttribute('data-debug-auto-id');
+                target.setAttribute('data-debug-id', labelText);
+            }
+
+            const actions = getDebugActions(target);
+            if (actions.length > 0) {
+                target.setAttribute('data-debug-actions', actions.join('\n'));
+            } else {
+                target.removeAttribute('data-debug-actions');
+            }
+
+            const rect = target.getBoundingClientRect();
+            if (!isRectVisible(rect)) {
+                return;
+            }
+
+            const label = document.createElement('div');
+            label.className = `debug-id-label ${kind}`;
+            label.textContent = labelText;
+            overlay.appendChild(label);
+            positionDebugLabel(label, rect);
+        }
+
+        function getDebugActions(target) {
+            const attributes = [
+                'onclick',
+                'onchange',
+                'oninput',
+                'onkeyup',
+                'onkeydown',
+                'onfocus',
+                'onblur',
+                'onmouseenter',
+                'onmouseleave',
+                'onmouseover',
+                'onmouseout'
+            ];
+
+            const actions = [];
+            attributes.forEach(attr => {
+                const value = target.getAttribute(attr);
+                if (value) {
+                    actions.push(`${attr}: ${value.trim().replace(/\s+/g, ' ')}`);
+                }
+            });
+
+            return actions;
+        }
+
+        function isRectVisible(rect) {
+            if (!rect) {
+                return false;
+            }
+
+            if (rect.width < 1 && rect.height < 1) {
+                return false;
+            }
+
+            return !(rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth);
+        }
+
+        function positionDebugLabel(label, rect) {
+            const offset = 4;
+            let left = rect.left + offset;
+            let top = rect.top + offset;
+
+            label.style.left = `${left}px`;
+            label.style.top = `${top}px`;
+
+            const labelRect = label.getBoundingClientRect();
+            if (labelRect.right > window.innerWidth - 4) {
+                left = window.innerWidth - labelRect.width - 4;
+            }
+            if (labelRect.bottom > window.innerHeight - 4) {
+                top = window.innerHeight - labelRect.height - 4;
+            }
+
+            label.style.left = `${Math.max(4, left)}px`;
+            label.style.top = `${Math.max(4, top)}px`;
+        }
+
+        function updateDebugTooltip(event) {
+            if (!debugIndexEnabled) {
+                hideDebugTooltip();
+                return;
+            }
+
+            const target = event.target instanceof Element
+                ? event.target.closest('[data-debug-id], [data-debug-auto-id]')
+                : null;
+            if (!target) {
+                hideDebugTooltip();
+                return;
+            }
+
+            const actions = target.getAttribute('data-debug-actions');
+            if (!actions) {
+                hideDebugTooltip();
+                return;
+            }
+
+            const tooltip = document.getElementById('debug-tooltip');
+            if (!tooltip) {
+                return;
+            }
+
+            tooltip.textContent = actions;
+            tooltip.style.display = 'block';
+
+            let left = event.clientX + 12;
+            let top = event.clientY + 12;
+
+            tooltip.style.left = `${left}px`;
+            tooltip.style.top = `${top}px`;
+
+            const rect = tooltip.getBoundingClientRect();
+            if (rect.right > window.innerWidth - 8) {
+                left = window.innerWidth - rect.width - 8;
+            }
+            if (rect.bottom > window.innerHeight - 8) {
+                top = window.innerHeight - rect.height - 8;
+            }
+
+            tooltip.style.left = `${Math.max(8, left)}px`;
+            tooltip.style.top = `${Math.max(8, top)}px`;
+        }
+
+        function hideDebugTooltip() {
+            const tooltip = document.getElementById('debug-tooltip');
+            if (tooltip) {
+                tooltip.style.display = 'none';
+                tooltip.textContent = '';
+            }
         }
     </script>
 </body>
