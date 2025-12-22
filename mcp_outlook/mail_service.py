@@ -17,6 +17,16 @@ from mail_processing_options import (
 )
 from outlook_types import FilterParams, ExcludeParams, SelectParams
 
+# mcp_service decorator is only needed for registry scanning, not runtime
+try:
+    from mcp_editor.mcp_service_registry.mcp_service_decorator import mcp_service
+except ImportError:
+    # Define a no-op decorator for runtime when mcp_editor is not available
+    def mcp_service(**kwargs):
+        def decorator(func):
+            return func
+        return decorator
+
 
 class MailService:
     """

@@ -18,5 +18,13 @@
     ],
     "host": "0.0.0.0",
     "port": 8091
+  },
+  "test": {
+    "template_definitions_path": "test/tool_definition_templates.py",
+    "tool_definitions_path": "../mcp_test/mcp_server/tool_definitions.py",
+    "backup_dir": "test/backups",
+    "types_files": [],
+    "host": "0.0.0.0",
+    "port": 8092
   }
 }

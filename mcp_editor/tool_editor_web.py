@@ -1695,6 +1695,52 @@ def check_server_exists():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/browse-files', methods=['POST'])
+def browse_files():
+    """Browse files in a directory for file selection"""
+    try:
+        data = request.json or {}
+        path = data.get('path', ROOT_DIR)
+        extension = data.get('extension', '')
+
+        # Security: Ensure we're only browsing within the project root
+        abs_path = os.path.abspath(path)
+        abs_root = os.path.abspath(ROOT_DIR)
+
+        if not abs_path.startswith(abs_root):
+            return jsonify({"error": "Access denied: path outside project"}), 403
+
+        if not os.path.exists(abs_path):
+            # If path doesn't exist, use parent directory
+            abs_path = os.path.dirname(abs_path)
+
+        result = {
+            "current_path": abs_path,
+            "parent_path": os.path.dirname(abs_path) if abs_path != abs_root else None,
+            "dirs": [],
+            "files": []
+        }
+
+        # List directory contents
+        try:
+            for item in sorted(os.listdir(abs_path)):
+                item_path = os.path.join(abs_path, item)
+                if os.path.isdir(item_path):
+                    # Skip hidden directories and __pycache__
+                    if not item.startswith('.') and item != '__pycache__':
+                        result["dirs"].append(item)
+                elif os.path.isfile(item_path):
+                    # Filter by extension if specified
+                    if not extension or item.endswith(extension):
+                        result["files"].append(item)
+        except PermissionError:
+            return jsonify({"error": "Permission denied"}), 403
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ============================================================
 # Internal Args API Endpoints
 # ============================================================

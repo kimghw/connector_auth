@@ -1,7 +1,7 @@
 """
-FastAPI MCP Server for Outlook Graph Mail
-Routes MCP protocol requests to existing Graph Mail functions
-Now with SessionManager for safe multi-user support
+FastAPI MCP Server for Outlook MCP Server
+Routes MCP protocol requests to service functions
+Generated from universal template with registry data
 """
 import json
 from typing import Dict, Any, List, Optional
@@ -11,144 +11,41 @@ from pydantic import BaseModel
 import sys
 import os
 import logging
+import aiohttp
 
 # Add parent directories to path for module access
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
 grandparent_dir = os.path.dirname(parent_dir)
-sys.path.insert(0, grandparent_dir)  # For session module and package imports (mcp_file_handler, mcp_outlook)
-sys.path.insert(0, parent_dir)  # For direct module imports from parent directory
+
+# Add paths for imports based on server type
+sys.path.insert(0, grandparent_dir)  # For session module and package imports
+sys.path.insert(0, parent_dir)  # For direct module imports
+
+# Import parameter types if needed
 from outlook_types import ExcludeParams, FilterParams, SelectParams
+
+# Import tool definitions
 from tool_definitions import MCP_TOOLS
 
-# Configure logging first
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Try to import SessionManager - optional feature
-try:
-    from session.session_manager import SessionManager
-    session_manager = SessionManager()
-    from session.session_manager import Session
-    USE_SESSION_MANAGER = True
-    logger.info("SessionManager imported successfully")
-except ImportError:
-    logger.warning("SessionManager not found, using legacy mode without session management")
-    session_manager = None
-    Session = None
-    USE_SESSION_MANAGER = False
+# Import service classes (unique)
+from mail_service import MailService
 
-# Import legacy components for fallback
-# Outlook services
-from graph_mail_query import GraphMailQuery
-
-app = FastAPI(title="Outlook MCP Server", version="1.0.0")
-
-# Global instances for legacy mode (when SessionManager not available)
-if not USE_SESSION_MANAGER:
-    graph_mail_query = GraphMailQuery()
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Start SessionManager on server startup (if available)"""
-    if USE_SESSION_MANAGER:
-        await session_manager.start()
-        logger.info("SessionManager started")
-    else:
-        logger.info("Server started in legacy mode without SessionManager")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Stop SessionManager on server shutdown (if available)"""
-    if USE_SESSION_MANAGER:
-        await session_manager.stop()
-        logger.info("SessionManager stopped")
-    else:
-        logger.info("Server shutdown in legacy mode")
-
-
-async def ensure_services_initialized_legacy(user_email: Optional[str] = None):
-    """
-    Legacy method: Ensure services are initialized before use
-    Used when SessionManager is not available
-    """
-    # Implement initialization logic for your services here
-    pass
-
-
-async def get_user_session_or_legacy(user_email: str, access_token: Optional[str] = None):
-    """
-    Get session if SessionManager available, otherwise return legacy instances
-
-    Args:
-        user_email: User's email address
-        access_token: Optional access token for authentication
-
-    Returns:
-        Session object or dict with legacy instances
-
-    Raises:
-        HTTPException: If initialization fails
-    """
-    if USE_SESSION_MANAGER:
-        # Use SessionManager
-        try:
-            session = await session_manager.get_or_create_session(user_email, access_token)
-            if not session.initialized:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to initialize session for user: {user_email}"
-                )
-            return session
-        except Exception as e:
-            logger.error(f"Error getting session for {user_email}: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e))
-    else:
-        # Legacy mode - return global instances wrapped in a dict
-        await ensure_services_initialized_legacy(user_email)
-        result = {
-            'graph_mail_query': graph_mail_query,
-            'user_email': user_email
-        }
-        return result
-
-
-# Helper functions to get service instances based on tools
-def get_graph_mail_query_instance(context):
-    """Get GraphMailQuery instance from session or legacy context"""
-    return context.graph_mail_query if USE_SESSION_MANAGER else context['graph_mail_query']
-
-
-async def handle_token_error(e: Exception, user_email: str):
-    """Handle token-related errors"""
-    if USE_SESSION_MANAGER and ("401" in str(e) or "unauthorized" in str(e).lower()):
-        await session_manager.invalidate_session(user_email)
-        raise HTTPException(status_code=401, detail="Access token expired")
-    raise e
+# Create service instances
+mail_service = MailService()
 
 
 # ============================================================
 # Internal Args Support
 # ============================================================
-def extract_schema_defaults(arg_info: dict) -> dict:
-    """Extract default values from original_schema.properties.
-
-    These are the static defaults from UI/Pydantic/saved settings.
-    """
-    original_schema = arg_info.get("original_schema", {})
-    properties = original_schema.get("properties", {})
-    defaults = {}
-    for prop_name, prop_def in properties.items():
-        if "default" in prop_def:
-            defaults[prop_name] = prop_def["default"]
-    return defaults
-
-
 def load_internal_args() -> dict:
     """Load internal args from tool_internal_args.json"""
     possible_paths = [
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mcp_editor", "outlook", "tool_internal_args.json"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mcp_editor", "mcp_outlook", "tool_internal_args.json"),
         os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tool_internal_args.json"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "tool_internal_args.json"),
     ]
@@ -176,20 +73,24 @@ if 'SelectParams' in globals():
     INTERNAL_ARG_TYPES['SelectParams'] = SelectParams
 
 
+def extract_schema_defaults(arg_info: dict) -> dict:
+    """Extract default values from original_schema.properties."""
+    original_schema = arg_info.get("original_schema", {})
+    properties = original_schema.get("properties", {})
+    defaults = {}
+    for prop_name, prop_def in properties.items():
+        if "default" in prop_def:
+            defaults[prop_name] = prop_def["default"]
+    return defaults
+
+
 def build_internal_param(tool_name: str, arg_name: str, runtime_value: dict = None):
     """Instantiate internal parameter object for a tool.
 
     Value resolution priority:
-    1. runtime_value (value): Dynamic value passed from function arguments at runtime
-    2. default: Static value from original_schema.properties (UI/Pydantic/saved settings)
-
-    Args:
-        tool_name: Name of the tool
-        arg_name: Name of the internal argument
-        runtime_value: Optional runtime value passed from function call (value field)
-
-    Returns:
-        Instantiated parameter object or None
+    1. runtime_value: Dynamic value passed from function arguments at runtime
+    2. stored value: Value from tool_internal_args.json
+    3. defaults: Static value from original_schema.properties
     """
     arg_info = INTERNAL_ARGS.get(tool_name, {}).get(arg_name)
     if not arg_info:
@@ -200,28 +101,17 @@ def build_internal_param(tool_name: str, arg_name: str, runtime_value: dict = No
         logger.warning(f"Unknown internal arg type for {tool_name}.{arg_name}: {arg_info.get('type')}")
         return None
 
-    # Get default values from original_schema.properties (static defaults)
     defaults = extract_schema_defaults(arg_info)
-
-    # Get stored value field (may be set by previous runtime or config)
     stored_value = arg_info.get("value")
 
-    # Priority: runtime_value > stored value > defaults
     if runtime_value is not None and runtime_value != {}:
-        # Runtime value provided - merge with defaults (runtime takes precedence)
         final_value = {**defaults, **runtime_value}
-        logger.debug(f"Using runtime value for {tool_name}.{arg_name}: {runtime_value}")
     elif stored_value is not None and stored_value != {}:
-        # Stored value exists - merge with defaults (stored takes precedence)
         final_value = {**defaults, **stored_value}
-        logger.debug(f"Using stored value for {tool_name}.{arg_name}: {stored_value}")
     else:
-        # No value provided - use defaults only
         final_value = defaults
-        logger.debug(f"Using defaults for {tool_name}.{arg_name}: {defaults}")
 
     if not final_value:
-        # No values at all, use empty constructor
         return param_cls()
 
     try:
@@ -231,285 +121,309 @@ def build_internal_param(tool_name: str, arg_name: str, runtime_value: dict = No
         return None
 
 
-def get_internal_arg_defaults(tool_name: str, arg_name: str) -> dict:
-    """Get default values for an internal arg (from original_schema.properties).
-
-    Use this to get the static defaults without instantiating the parameter.
-    """
-    arg_info = INTERNAL_ARGS.get(tool_name, {}).get(arg_name)
-    if not arg_info:
-        return {}
-    return extract_schema_defaults(arg_info)
+app = FastAPI(title="Outlook MCP Server", version="1.0.0")
 
 
-class MCPRequest(BaseModel):
-    jsonrpc: str = "2.0"
-    id: Optional[Any] = None
-    method: str
-    params: Optional[Dict[str, Any]] = {}
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on server startup"""
+    logger.info("Outlook MCP Server started")
 
 
-class MCPToolCall(BaseModel):
-    name: str
-    arguments: Dict[str, Any]
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on server shutdown"""
+    logger.info("Outlook MCP Server stopped")
 
 
-class MCPResponse(BaseModel):
-    jsonrpc: str = "2.0"
-    id: Optional[Any] = None
-    result: Optional[Any] = None
-    error: Optional[Dict[str, Any]] = None
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "name": "Outlook MCP Server",
+        "version": "1.0.0"
+    }
 
 
-@app.get("/sessions")
-async def get_sessions_info():
-    """Get information about active sessions"""
-    if USE_SESSION_MANAGER:
-        return session_manager.get_session_info()
-    else:
-        return {
-            "message": "SessionManager not available - running in legacy mode",
-            "mode": "legacy",
-            "info": "All requests share global instances"
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "server": "outlook"}
+
+
+@app.post("/mcp/v1/initialize")
+async def initialize(request: Request):
+    """Initialize MCP session"""
+    body = await request.json()
+    return {
+        "protocolVersion": "1.0",
+        "serverInfo": {
+            "name": "outlook-mcp-server",
+            "version": "1.0.0"
+        },
+        "capabilities": {
+            "tools": {}
         }
+    }
 
 
-@app.post("/")
-async def handle_mcp_request(request: Request):
-    """Main MCP protocol handler"""
+@app.post("/mcp/v1/tools/list")
+async def list_tools(request: Request):
+    """List available MCP tools"""
     try:
-        body = await request.json()
-        mcp_request = MCPRequest(**body)
+        # Get tools metadata
+        tools_list = []
+        for tool in MCP_TOOLS:
+            tools_list.append({
+                "name": tool["name"],
+                "description": tool.get("description", ""),
+                "inputSchema": tool.get("inputSchema", {})
+            })
 
-        # Route based on MCP method
-        if mcp_request.method == "initialize":
-            return handle_initialize(mcp_request)
-        elif mcp_request.method == "tools/list":
-            return handle_list_tools(mcp_request)
-        elif mcp_request.method == "tools/call":
-            return await handle_tool_call(mcp_request)
-        else:
-            return create_error_response(
-                mcp_request.id,
-                -32601,
-                f"Method not found: {mcp_request.method}"
-            )
+        return JSONResponse(content={
+            "result": {
+                "tools": tools_list
+            }
+        })
     except Exception as e:
-        return create_error_response(
-            body.get("id") if "body" in locals() else None,
-            -32603,
-            f"Internal error: {str(e)}"
+        logger.error(f"Error listing tools: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": {"message": str(e)}}
         )
 
 
-def handle_initialize(request: MCPRequest) -> JSONResponse:
-    """Handle MCP initialize request"""
-    return JSONResponse(content={
-        "jsonrpc": "2.0",
-        "id": request.id,
-        "result": {
-            "protocolVersion": "2025-06-18",
-            "capabilities": {
-                "tools": {}
-            },
-            "serverInfo": {
-                "name": "outlook-mcp-server",
-                "version": "1.0.0"
-            }
-        }
-    })
-
-
-def handle_list_tools(request: MCPRequest) -> JSONResponse:
-    """Handle MCP tools/list request"""
-    return JSONResponse(content={
-        "jsonrpc": "2.0",
-        "id": request.id,
-        "result": {
-            "tools": MCP_TOOLS
-        }
-    })
-
-
-async def handle_tool_call(request: MCPRequest) -> JSONResponse:
-    """Handle MCP tools/call request - routes to appropriate function"""
+@app.post("/mcp/v1/tools/call")
+async def call_tool(request: Request):
+    """Execute an MCP tool"""
     try:
-        tool_name = request.params.get("name")
-        arguments = request.params.get("arguments", {})
+        data = await request.json()
+        tool_name = data.get("params", {}).get("name")
+        arguments = data.get("params", {}).get("arguments", {})
 
-        # Route to appropriate handler
-        if tool_name == "Outlook":
-            result = await handle_Outlook(arguments)
-        elif tool_name == "keyword_search":
-            result = await handle_keyword_search(arguments)
-        elif tool_name == "query_url":
-            result = await handle_query_url(arguments)
-        elif tool_name == "mail_list":
-            result = await handle_mail_list(arguments)
-        else:
-            return create_error_response(
-                request.id,
-                -32602,
-                f"Unknown tool: {tool_name}"
+        logger.info(f"Tool call: {tool_name} with args: {arguments}")
+
+        # Map tool name to service implementation
+        tool_implementations = {
+            "handler_mail_fetch_filter": {
+                "service_class": "MailService",
+                "method": "query_mail_list"
+            },
+            "handler_mail_fetch_search": {
+                "service_class": "MailService",
+                "method": "query_mail_list"
+            },
+            "handler_mail_process_with_download": {
+                "service_class": "MailService",
+                "method": "query_mail_list"
+            },
+        }
+
+        if tool_name not in tool_implementations:
+            return JSONResponse(
+                status_code=404,
+                content={"error": {"message": f"Unknown tool: {tool_name}"}}
             )
 
+        implementation_info = tool_implementations[tool_name]
+
+        # Get service instance by class name
+        service_class = implementation_info["service_class"]
+        service_instance = {
+            "MailService": mail_service,
+        }.get(service_class)
+
+        if not service_instance:
+            return JSONResponse(
+                status_code=500,
+                content={"error": {"message": f"Service not available: {service_class}"}}
+            )
+
+        # Get the method
+        method = getattr(service_instance, implementation_info["method"], None)
+        if not method:
+            return JSONResponse(
+                status_code=500,
+                content={"error": {"message": f"Method not found: {implementation_info['method']}"}}
+            )
+
+        # Process arguments based on tool configuration
+        # Handle parameter transformations for outlook tools
+        processed_args = {}
+
+        # Get tool configuration
+        tool_config = next((t for t in MCP_TOOLS if t["name"] == tool_name), None)
+
+        if tool_config:
+            schema_props = tool_config.get("inputSchema", {}).get("properties", {})
+
+            for param_name, param_value in arguments.items():
+                param_schema = schema_props.get(param_name, {})
+
+                # Transform object parameters to their expected types
+                if param_schema.get("type") == "object":
+                    base_model = param_schema.get("baseModel")
+                    if base_model == "FilterParams":
+                        processed_args["filter"] = FilterParams(**param_value) if param_value else None
+                    elif base_model == "ExcludeParams":
+                        if "exclude" in implementation_info["method"] or "exclude" in param_name:
+                            processed_args["exclude"] = ExcludeParams(**param_value) if param_value else None
+                        else:
+                            processed_args["client_filter"] = ExcludeParams(**param_value) if param_value else None
+                    elif base_model == "SelectParams":
+                        processed_args["select"] = SelectParams(**param_value) if param_value else None
+                    else:
+                        processed_args[param_name] = param_value
+                else:
+                    processed_args[param_name] = param_value
+        else:
+            processed_args = arguments
+
+        # Call the method
+        result = await method(**processed_args)
+
+        # Format response
+        if isinstance(result, dict):
+            response_content = result
+        elif isinstance(result, list):
+            response_content = {"items": result}
+        elif isinstance(result, str):
+            response_content = {"message": result}
+        elif result is None:
+            response_content = {"success": True}
+        else:
+            response_content = {"result": str(result)}
+
         return JSONResponse(content={
-            "jsonrpc": "2.0",
-            "id": request.id,
             "result": {
                 "content": [
                     {
                         "type": "text",
-                        "text": json.dumps(result, indent=2)
+                        "text": json.dumps(response_content, ensure_ascii=False, indent=2)
                     }
                 ]
             }
         })
+
+    except aiohttp.ClientResponseError as e:
+        # HTTP-level errors from external API calls
+        logger.error(f"API error executing tool {tool_name}: {e.status} {e.message}", exc_info=True)
+        if e.status == 401:
+            return JSONResponse(
+                status_code=401,
+                content={"error": {"code": "AUTH_EXPIRED", "message": "Access token expired or invalid. Re-authentication required."}}
+            )
+        elif e.status == 403:
+            return JSONResponse(
+                status_code=403,
+                content={"error": {"code": "PERMISSION_DENIED", "message": "Insufficient permissions for this operation."}}
+            )
+        elif e.status == 404:
+            return JSONResponse(
+                status_code=404,
+                content={"error": {"code": "NOT_FOUND", "message": f"Resource not found: {e.message}"}}
+            )
+        elif e.status == 429:
+            return JSONResponse(
+                status_code=429,
+                content={"error": {"code": "RATE_LIMITED", "message": "API rate limit exceeded. Please retry later."}}
+            )
+        else:
+            return JSONResponse(
+                status_code=e.status,
+                content={"error": {"code": "API_ERROR", "message": str(e)}}
+            )
+    except HTTPException as e:
+        # FastAPI HTTP exceptions (pass through)
+        logger.error(f"HTTP error executing tool {tool_name}: {e.status_code} {e.detail}", exc_info=True)
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"error": {"code": "HTTP_ERROR", "message": e.detail}}
+        )
     except Exception as e:
-        return create_error_response(
-            request.id,
-            -32603,
-            f"Tool execution error: {str(e)}"
+        # Check for auth-related keywords in generic exceptions
+        error_str = str(e).lower()
+        if "401" in error_str or "unauthorized" in error_str or "token expired" in error_str:
+            logger.error(f"Auth error executing tool {tool_name}: {e}", exc_info=True)
+            return JSONResponse(
+                status_code=401,
+                content={"error": {"code": "AUTH_EXPIRED", "message": "Authentication failed. Re-authentication required."}}
+            )
+        elif "403" in error_str or "forbidden" in error_str or "permission" in error_str:
+            logger.error(f"Permission error executing tool {tool_name}: {e}", exc_info=True)
+            return JSONResponse(
+                status_code=403,
+                content={"error": {"code": "PERMISSION_DENIED", "message": "Permission denied."}}
+            )
+
+        # General internal error
+        logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"error": {"code": "INTERNAL_ERROR", "message": str(e)}}
         )
 
+# Tool handler functions
 
-# Tool handler functions - routing to session-specific implementations
-
-async def handle_Outlook(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to GraphMailQuery.query_filter with session or legacy support"""
-    # Get session or legacy instances (first operation)
-    user_email = args["user_email"]
-    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+async def handle_handler_mail_fetch_filter(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle handler_mail_fetch_filter tool call"""
 
     # Extract parameters from args
-    # Optional with default: use default if LLM didn't provide value
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 450
+    exclude_params = args.get("exclude_params")
+    filter_params = args.get("filter_params")
 
-    # Convert dicts to parameter objects where needed (Signature params from args)
-    filter_params = FilterParams(**args["filter"])
+    # Convert dicts to parameter objects where needed
+    exclude_params_raw = args.get("exclude_params")
+    exclude_params_params = ExcludeParams(**exclude_params_raw) if exclude_params_raw is not None else None
+    filter_params_raw = args.get("filter_params")
+    filter_params_params = FilterParams(**filter_params_raw) if filter_params_raw is not None else None
 
-    # Internal Args (pre-configured defaults, not exposed to MCP signature)
-    # exclude: no value configured - extract defaults from original_schema
-    exclude_params = build_internal_param("Outlook", "exclude")
-    # select: no value configured - extract defaults from original_schema
-    select_params = build_internal_param("Outlook", "select")
+    # Internal Args (pre-configured defaults)
+    select_params_params = build_internal_param("handler_mail_fetch_filter", "select_params")
+    top_params = build_internal_param("handler_mail_fetch_filter", "top")
 
-    try:
-        # Get the correct service instance
-        service_instance = get_graph_mail_query_instance(context)
+    return await mail_service.query_mail_list(
+        exclude_params=exclude_params_params,
+        filter_params=filter_params_params
+    )
 
-        return await service_instance.query_filter(
-            user_email=user_email,
-            filter=filter_params,
-            top=top,
-            exclude=exclude_params,
-            select=select_params
-        )
-    except Exception as e:
-        await handle_token_error(e, user_email)
-
-async def handle_keyword_search(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to GraphMailQuery.query_search with session or legacy support"""
-    # Get session or legacy instances (first operation)
-    user_email = args["user_email"]
-    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+async def handle_handler_mail_fetch_search(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle handler_mail_fetch_search tool call"""
 
     # Extract parameters from args
-    # Optional with default: use default if LLM didn't provide value
-    orderby_raw = args.get("orderby")
-    orderby = orderby_raw if orderby_raw is not None else None
-    search = args["search"]
-    # Optional with default: use default if LLM didn't provide value
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 250
+    search_term = args["search_term"]
+    select_params = args.get("select_params")
+    top = args.get("top")
 
-    # Convert dicts to parameter objects where needed (Signature params from args)
-    client_filter_raw = args.get("client_filter")
-    client_filter_params = FilterParams(**client_filter_raw) if client_filter_raw is not None else None
-    select_raw = args.get("select")
-    select_params = SelectParams(**select_raw) if select_raw is not None else None
+    # Convert dicts to parameter objects where needed
+    select_params_raw = args.get("select_params")
+    select_params_params = SelectParams(**select_params_raw) if select_params_raw is not None else None
 
-    try:
-        # Get the correct service instance
-        service_instance = get_graph_mail_query_instance(context)
+    return await mail_service.query_mail_list(
+        search_term=search_term,
+        select_params=select_params_params,
+        top=top
+    )
 
-        return await service_instance.query_search(
-            user_email=user_email,
-            client_filter=client_filter_params,
-            orderby=orderby,
-            search=search,
-            select=select_params,
-            top=top
-        )
-    except Exception as e:
-        await handle_token_error(e, user_email)
-
-async def handle_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to GraphMailQuery.query_url with session or legacy support"""
-    # Get session or legacy instances (first operation)
-    user_email = args["user_email"]
-    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
+async def handle_handler_mail_process_with_download(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle handler_mail_process_with_download tool call"""
 
     # Extract parameters from args
-    # Optional with default: use default if LLM didn't provide value
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 450
-    url = args["url"]
+    filter_params = args.get("filter_params")
+    save_directory = args.get("save_directory")
+    search_term = args.get("search_term")
+    top = args.get("top")
 
-    # Convert dicts to parameter objects where needed (Signature params from args)
-    client_filter_raw = args.get("client_filter")
-    client_filter_params = FilterParams(**client_filter_raw) if client_filter_raw is not None else None
+    # Convert dicts to parameter objects where needed
+    filter_params_raw = args.get("filter_params")
+    filter_params_params = FilterParams(**filter_params_raw) if filter_params_raw is not None else None
 
-    try:
-        # Get the correct service instance
-        service_instance = get_graph_mail_query_instance(context)
-
-        return await service_instance.query_url(
-            user_email=user_email,
-            client_filter=client_filter_params,
-            top=top,
-            url=url
-        )
-    except Exception as e:
-        await handle_token_error(e, user_email)
-
-async def handle_mail_list(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Route to GraphMailQuery.query_filter with session or legacy support"""
-    # Get session or legacy instances (first operation)
-    user_email = args["user_email"]
-    context = await get_user_session_or_legacy(user_email, args.get("access_token"))
-
-    # Extract parameters from args
-    # Optional with default: use default if LLM didn't provide value
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 100
-
-    # Convert dicts to parameter objects where needed (Signature params from args)
-    filter_params = FilterParams(**args["filter"])
-
-    # Internal Args (pre-configured defaults, not exposed to MCP signature)
-    # client_filter: no value configured - extract defaults from original_schema
-    client_filter_params = build_internal_param("mail_list", "client_filter")
-    # exclude: no value configured - extract defaults from original_schema
-    exclude_params = build_internal_param("mail_list", "exclude")
-    # select: no value configured - extract defaults from original_schema
-    select_params = build_internal_param("mail_list", "select")
-
-    try:
-        # Get the correct service instance
-        service_instance = get_graph_mail_query_instance(context)
-
-        return await service_instance.query_filter(
-            user_email=user_email,
-            filter=filter_params,
-            top=top,
-            client_filter=client_filter_params,
-            exclude=exclude_params,
-            select=select_params
-        )
-    except Exception as e:
-        await handle_token_error(e, user_email)
+    return await mail_service.query_mail_list(
+        filter_params=filter_params_params,
+        save_directory=save_directory,
+        search_term=search_term,
+        top=top
+    )
 
 
 def create_error_response(id: Any, code: int, message: str) -> JSONResponse:
@@ -523,7 +437,6 @@ def create_error_response(id: Any, code: int, message: str) -> JSONResponse:
         }
     })
 
-
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=3000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

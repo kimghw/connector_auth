@@ -168,6 +168,28 @@ async def root():
     }
 
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "server": "{{ server_name }}"}
+
+
+@app.post("/mcp/v1/initialize")
+async def initialize(request: Request):
+    """Initialize MCP session"""
+    body = await request.json()
+    return {
+        "protocolVersion": "1.0",
+        "serverInfo": {
+            "name": "{{ server_name }}-mcp-server",
+            "version": "1.0.0"
+        },
+        "capabilities": {
+            "tools": {}
+        }
+    }
+
+
 @app.post("/mcp/v1/tools/list")
 async def list_tools(request: Request):
     """List available MCP tools"""

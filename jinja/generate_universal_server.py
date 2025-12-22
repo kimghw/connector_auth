@@ -390,3 +390,53 @@ def find_tools_file(server_name: str) -> Optional[str]:
     return None
 
 
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generate MCP server from universal template")
+    parser.add_argument("server_name", help="Server name (e.g., 'outlook', 'file_handler')")
+    parser.add_argument("--registry", help="Path to registry JSON file (auto-detected if not specified)")
+    parser.add_argument("--tools", help="Path to tool definitions file (auto-detected if not specified)")
+    parser.add_argument("--template", help="Path to Jinja2 template",
+                       default=str(SCRIPT_DIR / "universal_server_template.jinja2"))
+    parser.add_argument("--output", help="Output path for generated server.py")
+
+    args = parser.parse_args()
+
+    # Find registry file
+    registry_path = args.registry or find_registry_file(args.server_name)
+    if not registry_path:
+        print(f"❌ Could not find registry file for server '{args.server_name}'")
+        print(f"   Searched in: mcp_editor/mcp_service_registry/registry_{args.server_name}.json")
+        sys.exit(1)
+
+    # Find tools file
+    tools_path = args.tools or find_tools_file(args.server_name)
+    if not tools_path:
+        print(f"❌ Could not find tool definitions file for server '{args.server_name}'")
+        print(f"   Searched in: mcp_editor/mcp_{args.server_name}/tool_definition_templates.py")
+        sys.exit(1)
+
+    # Determine output path
+    if args.output:
+        output_path = args.output
+    else:
+        # Default: mcp_{server}/mcp_server/server.py
+        output_path = str(PROJECT_ROOT / f"mcp_{args.server_name}" / "mcp_server" / "server.py")
+
+    # Generate server
+    try:
+        generate_server(
+            server_name=args.server_name,
+            registry_path=registry_path,
+            tools_path=tools_path,
+            template_path=args.template,
+            output_path=output_path
+        )
+    except Exception as e:
+        print(f"❌ Error generating server: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+

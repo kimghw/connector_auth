@@ -835,15 +835,30 @@
                 </div>
                 <div class="form-group">
                     <label>Tools path (--tools)</label>
-                    <input id="generatorToolsPath" class="form-control" placeholder="/path/to/tool_definition_templates.py">
+                    <div style="display: flex; gap: 8px;">
+                        <input id="generatorToolsPath" class="form-control" placeholder="/path/to/tool_definition_templates.py" style="flex: 1;">
+                        <button class="btn btn-secondary" onclick="selectFilePath('generatorToolsPath', '.py')" style="padding: 8px 12px;">
+                            <span class="material-icons" style="font-size: 18px;">folder_open</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Template path (--template)</label>
-                    <input id="generatorTemplatePath" class="form-control" placeholder="/path/to/server_template.jinja2">
+                    <div style="display: flex; gap: 8px;">
+                        <input id="generatorTemplatePath" class="form-control" value="/home/kimghw/Connector_auth/jinja/universal_server_template.jinja2" placeholder="/path/to/server_template.jinja2" style="flex: 1;">
+                        <button class="btn btn-secondary" onclick="selectFilePath('generatorTemplatePath', '.jinja2')" style="padding: 8px 12px;">
+                            <span class="material-icons" style="font-size: 18px;">folder_open</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Output path (--output)</label>
-                    <input id="generatorOutputPath" class="form-control" placeholder="/path/to/server_generated.py">
+                    <div style="display: flex; gap: 8px;">
+                        <input id="generatorOutputPath" class="form-control" placeholder="/path/to/server_generated.py" style="flex: 1;">
+                        <button class="btn btn-secondary" onclick="selectFilePath('generatorOutputPath', '.py')" style="padding: 8px 12px;">
+                            <span class="material-icons" style="font-size: 18px;">folder_open</span>
+                        </button>
+                    </div>
                 </div>
                 <div id="generatorResult" style="color: var(--text-secondary); font-size: 13px;"></div>
             </div>
@@ -1148,7 +1163,8 @@
             const outputInput = document.getElementById('generatorOutputPath');
 
             if (toolsInput) toolsInput.value = defaults.tools_path || '';
-            if (templateInput) templateInput.value = defaults.template_path || '';
+            // Always use the universal template as default
+            if (templateInput) templateInput.value = defaults.template_path || '/home/kimghw/Connector_auth/jinja/universal_server_template.jinja2';
             if (outputInput) outputInput.value = defaults.output_path || '';
         }
 
@@ -1156,6 +1172,212 @@
             const select = document.getElementById('generatorModule');
             const moduleName = select ? select.value : '';
             applyGeneratorDefaults(moduleName);
+        }
+
+        // File selector function
+        function selectFilePath(inputId, extension) {
+            showFileBrowser(inputId, extension);
+        }
+
+        function showFileBrowser(inputId, extension) {
+            // Remove existing modal if any
+            const existing = document.getElementById('fileBrowserModal');
+            if (existing) existing.remove();
+
+            const modal = document.createElement('div');
+            modal.id = 'fileBrowserModal';
+            modal.className = 'modal show';
+
+            // Get initial path from the input field or use default
+            const currentValue = document.getElementById(inputId)?.value || '';
+            const initialPath = currentValue ?
+                (currentValue.includes('/') ? currentValue.substring(0, currentValue.lastIndexOf('/')) : '/home/kimghw/Connector_auth') :
+                getDefaultPath(inputId, '', extension).substring(0, getDefaultPath(inputId, '', extension).lastIndexOf('/'));
+
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 700px;">
+                    <div class="modal-header">
+                        <h3>Select File</h3>
+                        <button class="btn btn-icon" onclick="closeFileBrowser()">✕</button>
+                    </div>
+                    <div class="modal-body">
+                        <div style="margin-bottom: 12px;">
+                            <input type="text" id="fileBrowserPath" class="form-control"
+                                   placeholder="/home/kimghw/Connector_auth/..."
+                                   value="${initialPath}"
+                                   onkeypress="if(event.key==='Enter') browsePath('${inputId}', '${extension}')">
+                            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                <button class="btn btn-secondary" onclick="browsePath('${inputId}', '${extension}')">
+                                    <span class="material-icons" style="font-size: 16px;">refresh</span> Browse
+                                </button>
+                                <button class="btn btn-secondary" id="parentDirBtn" onclick="browseParent('${inputId}', '${extension}')" style="display:none;">
+                                    <span class="material-icons" style="font-size: 16px;">arrow_upward</span> Parent
+                                </button>
+                            </div>
+                        </div>
+                        <div id="fileBrowserContent" style="border: 1px solid var(--border-color);
+                                                            border-radius: 4px; padding: 8px;
+                                                            max-height: 400px; overflow-y: auto;
+                                                            background: var(--bg-primary);">
+                            <div style="text-align: center; color: var(--text-secondary); padding: 20px;">
+                                Click "Browse" to load directory contents
+                            </div>
+                        </div>
+                        <div style="margin-top: 12px;">
+                            <input type="text" id="selectedFilePath" class="form-control"
+                                   placeholder="Selected file path will appear here" readonly>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary" onclick="applySelectedFile('${inputId}')" id="applyFileBtn" disabled>Apply</button>
+                        <button class="btn btn-secondary" onclick="closeFileBrowser()">Cancel</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // Auto-browse initial path
+            browsePath(inputId, extension);
+        }
+
+        async function browsePath(inputId, extension) {
+            const pathInput = document.getElementById('fileBrowserPath');
+            const contentDiv = document.getElementById('fileBrowserContent');
+            const parentBtn = document.getElementById('parentDirBtn');
+
+            if (!pathInput || !contentDiv) return;
+
+            const path = pathInput.value || '/home/kimghw/Connector_auth';
+
+            contentDiv.innerHTML = '<div style="text-align: center; padding: 20px;">Loading...</div>';
+
+            try {
+                const response = await fetch('/api/browse-files', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path, extension })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    contentDiv.innerHTML = `<div style="color: red; padding: 20px;">${data.error}</div>`;
+                    return;
+                }
+
+                // Update path input with actual path
+                pathInput.value = data.current_path;
+
+                // Show/hide parent button
+                if (parentBtn) {
+                    parentBtn.style.display = data.parent_path ? 'inline-flex' : 'none';
+                    parentBtn.setAttribute('data-parent-path', data.parent_path || '');
+                }
+
+                // Build content HTML
+                let html = '';
+
+                // Add directories
+                if (data.dirs && data.dirs.length > 0) {
+                    html += '<div style="margin-bottom: 12px;"><strong>Directories:</strong></div>';
+                    data.dirs.forEach(dir => {
+                        html += `
+                            <div style="padding: 4px 8px; cursor: pointer; display: flex; align-items: center; gap: 8px;"
+                                 onmouseover="this.style.background='var(--hover-bg)'"
+                                 onmouseout="this.style.background='transparent'"
+                                 onclick="navigateToDir('${data.current_path}/${dir}', '${inputId}', '${extension}')">
+                                <span class="material-icons" style="font-size: 16px; color: #ffc107;">folder</span>
+                                <span>${dir}/</span>
+                            </div>
+                        `;
+                    });
+                }
+
+                // Add files
+                if (data.files && data.files.length > 0) {
+                    if (html) html += '<hr style="margin: 12px 0; border-color: var(--border-color);">';
+                    html += '<div style="margin-bottom: 12px;"><strong>Files:</strong></div>';
+                    data.files.forEach(file => {
+                        const filePath = `${data.current_path}/${file}`;
+                        html += `
+                            <div style="padding: 4px 8px; cursor: pointer; display: flex; align-items: center; gap: 8px;"
+                                 onmouseover="this.style.background='var(--hover-bg)'"
+                                 onmouseout="this.style.background='transparent'"
+                                 onclick="selectFile('${filePath}', '${inputId}')">
+                                <span class="material-icons" style="font-size: 16px; color: #2196f3;">insert_drive_file</span>
+                                <span>${file}</span>
+                            </div>
+                        `;
+                    });
+                } else if (!data.dirs || data.dirs.length === 0) {
+                    html = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">No files or directories found</div>';
+                }
+
+                contentDiv.innerHTML = html;
+
+            } catch (error) {
+                console.error('Error browsing files:', error);
+                contentDiv.innerHTML = '<div style="color: red; padding: 20px;">Error loading directory</div>';
+            }
+        }
+
+        function navigateToDir(path, inputId, extension) {
+            document.getElementById('fileBrowserPath').value = path;
+            browsePath(inputId, extension);
+        }
+
+        function browseParent(inputId, extension) {
+            const parentBtn = document.getElementById('parentDirBtn');
+            const parentPath = parentBtn?.getAttribute('data-parent-path');
+            if (parentPath) {
+                document.getElementById('fileBrowserPath').value = parentPath;
+                browsePath(inputId, extension);
+            }
+        }
+
+        function selectFile(filePath, inputId) {
+            const selectedInput = document.getElementById('selectedFilePath');
+            const applyBtn = document.getElementById('applyFileBtn');
+
+            if (selectedInput) {
+                selectedInput.value = filePath;
+            }
+            if (applyBtn) {
+                applyBtn.disabled = false;
+            }
+        }
+
+        function applySelectedFile(inputId) {
+            const selectedPath = document.getElementById('selectedFilePath')?.value;
+            if (selectedPath) {
+                document.getElementById(inputId).value = selectedPath;
+            }
+            closeFileBrowser();
+        }
+
+        function closeFileBrowser() {
+            const modal = document.getElementById('fileBrowserModal');
+            if (modal) modal.remove();
+        }
+
+        function getDefaultPath(inputId, fileName, extension) {
+            // Provide smart defaults based on the input field
+            const basePath = '/home/kimghw/Connector_auth';
+
+            if (inputId === 'generatorToolsPath') {
+                // Default for tool definitions
+                const serverName = currentProfile || 'outlook';
+                return `${basePath}/mcp_editor/mcp_${serverName}/tool_definition_templates.py`;
+            } else if (inputId === 'generatorTemplatePath') {
+                // Default for template - always use universal template
+                return `${basePath}/jinja/universal_server_template.jinja2`;
+            } else if (inputId === 'generatorOutputPath') {
+                // Default for output
+                const serverName = currentProfile || 'outlook';
+                return `${basePath}/mcp_${serverName}/mcp_server/server.py`;
+            }
+
+            return `${basePath}/${fileName}`;
         }
 
         function openGeneratorModal() {

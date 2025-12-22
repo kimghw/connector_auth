@@ -17,378 +17,19 @@ import json
 MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
 [
     {
-        "name": "Outlook",
-        "description": "Build Microsoft Graph API query URL for email operations",
+        "name": "handler_mail_fetch_filter",
+        "description": "필터 방식 메일 조회 기능",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "filter": {
+                "exclude_params": {
                     "type": "object",
-                    "description": "FilterParams for email filtering",
-                    "properties": {
-                        "sent_date_from": {
-                            "type": "string",
-                            "description": "메일 발신 시작 날짜 (포함, sentDateTime >= 이 값)"
-                        },
-                        "sent_date_to": {
-                            "type": "string",
-                            "description": "메일 발신 종료 날짜 (포함, sentDateTime <= 이 값)"
-                        }
-                    }
+                    "description": "제외 조건",
+                    "baseModel": "ExcludeParams"
                 },
-                "top": {
-                    "type": "integer",
-                    "description": "Parameter from MCP service (int)"
-                },
-                "topp": {
-                    "type": "string",
-                    "description": ""
-                },
-                "user_email": {
-                    "type": "string",
-                    "description": "User email for authentication"
-                }
-            },
-            "required": [
-                "user_email",
-                "filter"
-            ]
-        }
-    },
-    {
-        "name": "keyword_search",
-        "description": "Build Microsoft Graph API query URL for email operations",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "client_filter": {
+                "filter_params": {
                     "type": "object",
-                    "description": "ExcludeParams for client-side filtering",
-                    "properties": {
-                        "exclude_attachment_status": {
-                            "type": "boolean",
-                            "description": "제외할 첨부파일 상태"
-                        },
-                        "exclude_body_keywords": {
-                            "type": "array",
-                            "description": "본문에서 제외할 키워드 목록",
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "exclude_categories": {
-                            "type": "array",
-                            "description": "제외할 카테고리 목록",
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "exclude_classification": {
-                            "type": "string",
-                            "description": "제외할 받은 편지함 분류",
-                            "enum": [
-                                "focused",
-                                "other"
-                            ]
-                        },
-                        "exclude_conversation_id": {
-                            "type": "string",
-                            "description": "제외할 대화 스레드 ID"
-                        },
-                        "exclude_delivery_receipt": {
-                            "type": "boolean",
-                            "description": "제외할 배달 확인 상태"
-                        },
-                        "exclude_draft_status": {
-                            "type": "boolean",
-                            "description": "제외할 임시 저장 상태"
-                        },
-                        "exclude_flag_status": {
-                            "type": "string",
-                            "description": "제외할 플래그 상태",
-                            "enum": [
-                                "notFlagged",
-                                "complete",
-                                "flagged"
-                            ]
-                        },
-                        "exclude_from_address": {
-                            "description": "제외할 발신자 주소 (from 필드)",
-                            "oneOf": [
-                                {
-                                    "type": "string"
-                                },
-                                {
-                                    "items": {
-                                        "type": "string"
-                                    },
-                                    "type": "array"
-                                }
-                            ]
-                        },
-                        "exclude_id": {
-                            "type": "string",
-                            "description": "제외할 메일 ID"
-                        },
-                        "exclude_importance": {
-                            "type": "string",
-                            "description": "제외할 중요도",
-                            "enum": [
-                                "low",
-                                "normal",
-                                "high"
-                            ]
-                        },
-                        "exclude_parent_folder_id": {
-                            "type": "string",
-                            "description": "제외할 폴더 ID"
-                        },
-                        "exclude_preview_keywords": {
-                            "type": "array",
-                            "description": "미리보기에서 제외할 키워드 목록",
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "exclude_read_receipt": {
-                            "type": "boolean",
-                            "description": "제외할 읽음 확인 상태"
-                        },
-                        "exclude_read_status": {
-                            "type": "boolean",
-                            "description": "제외할 읽음 상태"
-                        },
-                        "exclude_sender_address": {
-                            "description": "제외할 실제 발신자 주소 (sender 필드)",
-                            "oneOf": [
-                                {
-                                    "type": "string"
-                                },
-                                {
-                                    "items": {
-                                        "type": "string"
-                                    },
-                                    "type": "array"
-                                }
-                            ]
-                        },
-                        "exclude_sensitivity": {
-                            "type": "string",
-                            "description": "제외할 민감도",
-                            "enum": [
-                                "normal",
-                                "personal",
-                                "private",
-                                "confidential"
-                            ]
-                        },
-                        "exclude_subject_keywords": {
-                            "type": "array",
-                            "description": "제목에서 제외할 키워드 목록",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "orderby": {
-                    "type": "string",
-                    "description": "정렬 기준"
-                },
-                "search": {
-                    "type": "string",
-                    "description": "검색어 ($search 파라미터)"
-                },
-                "select": {
-                    "type": "object",
-                    "description": "SelectParams for selecting fields",
-                    "properties": {
-                        "fields": {
-                            "type": "array",
-                            "description": "조회할 필드 목록 (미지정 시 모든 필드 반환)",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "top": {
-                    "type": "integer",
-                    "description": "반환할 최대 메일 수"
-                },
-                "user_email": {
-                    "type": "string"
-                }
-            },
-            "required": [
-                "user_email",
-                "search"
-            ]
-        }
-    },
-    {
-        "name": "query_url",
-        "description": "Build Microsoft Graph API query URL for email operations",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "client_filter": {
-                    "type": "object",
-                    "description": "ExcludeParams for client-side filtering",
-                    "properties": {
-                        "exclude_attachment_status": {
-                            "type": "boolean",
-                            "description": "제외할 첨부파일 상태"
-                        },
-                        "exclude_body_keywords": {
-                            "type": "array",
-                            "description": "본문에서 제외할 키워드 목록",
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "exclude_categories": {
-                            "type": "array",
-                            "description": "제외할 카테고리 목록",
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "exclude_classification": {
-                            "type": "string",
-                            "description": "제외할 받은 편지함 분류",
-                            "enum": [
-                                "focused",
-                                "other"
-                            ]
-                        },
-                        "exclude_conversation_id": {
-                            "type": "string",
-                            "description": "제외할 대화 스레드 ID"
-                        },
-                        "exclude_delivery_receipt": {
-                            "type": "boolean",
-                            "description": "제외할 배달 확인 상태"
-                        },
-                        "exclude_draft_status": {
-                            "type": "boolean",
-                            "description": "제외할 임시 저장 상태"
-                        },
-                        "exclude_flag_status": {
-                            "type": "string",
-                            "description": "제외할 플래그 상태",
-                            "enum": [
-                                "notFlagged",
-                                "complete",
-                                "flagged"
-                            ]
-                        },
-                        "exclude_from_address": {
-                            "description": "제외할 발신자 주소 (from 필드)",
-                            "oneOf": [
-                                {
-                                    "type": "string"
-                                },
-                                {
-                                    "items": {
-                                        "type": "string"
-                                    },
-                                    "type": "array"
-                                }
-                            ]
-                        },
-                        "exclude_id": {
-                            "type": "string",
-                            "description": "제외할 메일 ID"
-                        },
-                        "exclude_importance": {
-                            "type": "string",
-                            "description": "제외할 중요도",
-                            "enum": [
-                                "low",
-                                "normal",
-                                "high"
-                            ]
-                        },
-                        "exclude_parent_folder_id": {
-                            "type": "string",
-                            "description": "제외할 폴더 ID"
-                        },
-                        "exclude_preview_keywords": {
-                            "type": "array",
-                            "description": "미리보기에서 제외할 키워드 목록",
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "exclude_read_receipt": {
-                            "type": "boolean",
-                            "description": "제외할 읽음 확인 상태"
-                        },
-                        "exclude_read_status": {
-                            "type": "boolean",
-                            "description": "제외할 읽음 상태"
-                        },
-                        "exclude_sender_address": {
-                            "description": "제외할 실제 발신자 주소 (sender 필드)",
-                            "oneOf": [
-                                {
-                                    "type": "string"
-                                },
-                                {
-                                    "items": {
-                                        "type": "string"
-                                    },
-                                    "type": "array"
-                                }
-                            ]
-                        },
-                        "exclude_sensitivity": {
-                            "type": "string",
-                            "description": "제외할 민감도",
-                            "enum": [
-                                "normal",
-                                "personal",
-                                "private",
-                                "confidential"
-                            ]
-                        },
-                        "exclude_subject_keywords": {
-                            "type": "array",
-                            "description": "제목에서 제외할 키워드 목록",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "top": {
-                    "type": "integer",
-                    "description": "반환할 최대 메일 수"
-                },
-                "url": {
-                    "type": "string",
-                    "description": "직접 지정한 Graph API URL"
-                },
-                "user_email": {
-                    "type": "string"
-                }
-            },
-            "required": [
-                "user_email",
-                "url"
-            ]
-        }
-    },
-    {
-        "name": "mail_list",
-        "description": "New tool description",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "filter": {
-                    "type": "object",
-                    "description": "사용자가 요청한 기간을 언제부터 언제까지 포맷에 맞게 파싱하여 제공합니다.",
+                    "description": "메일 필터링 조건",
                     "properties": {
                         "received_date_from": {
                             "type": "string",
@@ -397,24 +38,91 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
                         "received_date_to": {
                             "type": "string",
                             "description": "메일 수신 종료 날짜 (포함, receivedDateTime <= 이 값)"
+                        },
+                        "sent_date_from": {
+                            "type": "string",
+                            "description": "메일 발신 시작 날짜 (포함, sentDateTime >= 이 값)"
+                        },
+                        "sent_date_to": {
+                            "type": "string",
+                            "description": "메일 발신 종료 날짜 (포함, sentDateTime <= 이 값)"
                         }
                     },
-                    "required": [],
                     "baseModel": "FilterParams"
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "handler_mail_fetch_search",
+        "description": "검색 방식 메일 조회 기능",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "search_term": {
+                    "type": "string",
+                    "description": "검색어 ($search 파라미터)"
+                },
+                "select_params": {
+                    "type": "object",
+                    "description": "조회할 필드 선택",
+                    "properties": {
+                        "fields": {
+                            "type": "array",
+                            "description": "조회할 필드 목록",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "baseModel": "SelectParams"
                 },
                 "top": {
                     "type": "integer",
-                    "description": ""
-                },
-                "user_email": {
-                    "type": "string",
-                    "description": ""
+                    "description": "반환할 최대 메일 수"
                 }
             },
             "required": [
-                "user_email",
-                "filter"
+                "search_term"
             ]
+        }
+    },
+    {
+        "name": "handler_mail_process_with_download",
+        "description": "첨부파일 다운로드 포함 메일 처리 기능",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "filter_params": {
+                    "type": "object",
+                    "description": "메일 필터링 조건",
+                    "properties": {
+                        "received_date_from": {
+                            "type": "string",
+                            "description": "메일 수신 시작 날짜"
+                        },
+                        "received_date_to": {
+                            "type": "string",
+                            "description": "메일 수신 종료 날짜"
+                        }
+                    },
+                    "baseModel": "FilterParams"
+                },
+                "save_directory": {
+                    "type": "string",
+                    "description": "첨부파일 저장 디렉토리 경로"
+                },
+                "search_term": {
+                    "type": "string",
+                    "description": "검색어 (지정시 검색 모드로 전환)"
+                },
+                "top": {
+                    "type": "integer",
+                    "description": "반환할 최대 메일 수"
+                }
+            },
+            "required": []
         }
     }
 ]
