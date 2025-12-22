@@ -16,7 +16,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 def _resolve_path(path: str) -> str:
     if os.path.isabs(path):
         return path
-    return os.path.normpath(os.path.join(BASE_DIR, path))
+    # Resolve relative to mcp_editor directory, not mcp_service_registry
+    editor_dir = os.path.dirname(BASE_DIR)
+    return os.path.normpath(os.path.join(editor_dir, path))
 
 
 def _get_config_path() -> str:
@@ -30,7 +32,7 @@ def _get_config_path() -> str:
         if os.path.exists(candidate):
             return candidate
 
-    return os.path.join(BASE_DIR, "editor_config.json")
+    return os.path.join(os.path.dirname(BASE_DIR), "editor_config.json")
 
 
 def load_graph_type_paths() -> List[str]:
@@ -197,7 +199,7 @@ def extract_class_properties(file_path: str) -> Dict[str, List[Dict[str, Any]]]:
                     is_base_model = True
                     break
 
-            if is_base_model and node.name in ['FilterParams', 'ExcludeParams', 'SelectParams']:
+            if is_base_model:
                 class_properties = []
 
                 # Extract field definitions

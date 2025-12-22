@@ -1764,6 +1764,40 @@
                 return propName in toolInternalArgs;
             };
 
+            // Check if property is MCP service parameter
+            const isPropertyMcpParam = (propName) => {
+                if (!tool.mcp_service) {
+                    return false;
+                }
+
+                const serviceName = typeof tool.mcp_service === 'object'
+                    ? tool.mcp_service?.name
+                    : tool.mcp_service;
+                if (!serviceName) {
+                    return false;
+                }
+
+                const serviceDetail = window.mcpServiceDetails
+                    ? window.mcpServiceDetails.find(svc => svc.name === serviceName)
+                    : null;
+                const parameters = (serviceDetail && Array.isArray(serviceDetail.parameters))
+                    ? serviceDetail.parameters
+                    : (typeof tool.mcp_service === 'object' ? tool.mcp_service.parameters : null);
+                if (!Array.isArray(parameters)) {
+                    return false;
+                }
+
+                return parameters.some(param => {
+                    if (!param) {
+                        return false;
+                    }
+                    if (typeof param === 'string') {
+                        return param === propName;
+                    }
+                    return param.name === propName;
+                });
+            };
+
             // CRITICAL: Merge properties from inputSchema AND internalArgs
             // This ensures internal-only properties remain visible and editable
             const toolInternalArgs = getToolInternalArgs();
@@ -1794,6 +1828,7 @@
                 // Original loop logic below uses propName and propDef
                 const isRequired = required.includes(propName);
                 // isInternal already set above
+                const isMcpParam = isPropertyMcpParam(propName);
                 const propId = `prop-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}`;
                 propertiesHtml += `
                     <div class="property-collapsible" data-internal="${isInternal}">
@@ -1805,6 +1840,7 @@
                                 <span style="margin-left: 12px; font-size: 12px; color: #666; background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${propDef.type}</span>
                                 ${isRequired ? '<span style="margin-left: 8px; font-size: 11px; color: var(--danger-color); font-weight: 600;">REQUIRED</span>' : ''}
                                 ${isInternal ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--warning-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">INTERNAL</span>' : ''}
+                                ${isMcpParam ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--primary-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">MCP</span>' : ''}
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px;" onclick="event.stopPropagation();">
                                 ${propDef.type === 'object' ? `

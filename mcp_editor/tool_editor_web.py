@@ -1500,7 +1500,7 @@ def get_graph_types_properties():
         else:
             # Try to generate using extract script
             import subprocess
-            extract_script = os.path.join(os.path.dirname(__file__), 'extract_graph_types.py')
+            extract_script = os.path.join(os.path.dirname(__file__), 'mcp_service_registry', 'extract_types.py')
             if os.path.exists(extract_script):
                 # Pass types files as arguments
                 subprocess.run([sys.executable, extract_script] + types_files, check=True)
