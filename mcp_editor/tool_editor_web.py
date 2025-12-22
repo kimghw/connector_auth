@@ -1265,44 +1265,39 @@ def create_profile():
         backup_dir = data.get("backup_dir", f"{profile_name}/backups")
         port = data.get("port", 8091)
 
-        # Create profile config
-        new_profile = {
-            "template_definitions_path": template_path,
-            "tool_definitions_path": f"{mcp_server_path}/tool_definitions.py",
-            "backup_dir": backup_dir,
-            "types_files": [],
-            "host": "0.0.0.0",
-            "port": port
-        }
-
-        # Create directory structure in mcp_editor
-        editor_profile_dir = os.path.join(BASE_DIR, profile_name)
-        os.makedirs(editor_profile_dir, exist_ok=True)
-        os.makedirs(os.path.join(editor_profile_dir, "backups"), exist_ok=True)
-
-        # Create empty tool_definition_templates.py
-        template_file_path = os.path.join(BASE_DIR, template_path)
-        if not os.path.exists(template_file_path):
-            with open(template_file_path, 'w', encoding='utf-8') as f:
-                f.write('''"""
-MCP Tool Definition Templates - AUTO-GENERATED
-Signatures extracted from source code using AST parsing
-"""
-from typing import List, Dict, Any
-
-MCP_TOOLS: List[Dict[str, Any]] = []
-''')
-
         # Create MCP server directory structure if requested
         if data.get("create_mcp_structure", False):
-            mcp_dir = _resolve_path(mcp_server_path)
-            os.makedirs(mcp_dir, exist_ok=True)
+            # Use create_mcp_project.py to create full scaffolding
+            try:
+                import sys
+                import subprocess
 
-            # Create empty tool_definitions.py
-            tool_def_path = os.path.join(mcp_dir, "tool_definitions.py")
-            if not os.path.exists(tool_def_path):
-                with open(tool_def_path, 'w', encoding='utf-8') as f:
-                    f.write('''"""
+                # Path to create_mcp_project.py
+                create_script_path = os.path.join(os.path.dirname(BASE_DIR), "jinja", "create_mcp_project.py")
+
+                if os.path.exists(create_script_path):
+                    # Run create_mcp_project.py
+                    result = subprocess.run(
+                        [sys.executable, create_script_path, profile_name,
+                         "--port", str(port),
+                         "--description", f"MCP service for {profile_name}",
+                         "--author", "MCP Web Editor"],
+                        capture_output=True,
+                        text=True,
+                        cwd=os.path.dirname(BASE_DIR)
+                    )
+
+                    if result.returncode != 0:
+                        print(f"Warning: create_mcp_project.py failed: {result.stderr}")
+                        # Fall back to simple structure creation
+                        mcp_dir = _resolve_path(mcp_server_path)
+                        os.makedirs(mcp_dir, exist_ok=True)
+
+                        # Create minimal tool_definitions.py
+                        tool_def_path = os.path.join(mcp_dir, "tool_definitions.py")
+                        if not os.path.exists(tool_def_path):
+                            with open(tool_def_path, 'w', encoding='utf-8') as f:
+                                f.write('''"""
 MCP Tool Definitions - AUTO-GENERATED FILE
 """
 from typing import List, Dict, Any
@@ -1319,6 +1314,90 @@ def get_tool_by_name(tool_name: str) -> Dict[str, Any] | None:
 
 def get_tool_names() -> List[str]:
     return [tool["name"] for tool in MCP_TOOLS]
+''')
+                else:
+                    print(f"create_mcp_project.py not found at {create_script_path}, using simple structure")
+                    # Fall back to simple structure creation
+                    mcp_dir = _resolve_path(mcp_server_path)
+                    os.makedirs(mcp_dir, exist_ok=True)
+
+                    # Create minimal tool_definitions.py
+                    tool_def_path = os.path.join(mcp_dir, "tool_definitions.py")
+                    if not os.path.exists(tool_def_path):
+                        with open(tool_def_path, 'w', encoding='utf-8') as f:
+                            f.write('''"""
+MCP Tool Definitions - AUTO-GENERATED FILE
+"""
+from typing import List, Dict, Any
+
+MCP_TOOLS: List[Dict[str, Any]] = []
+
+
+def get_tool_by_name(tool_name: str) -> Dict[str, Any] | None:
+    for tool in MCP_TOOLS:
+        if tool["name"] == tool_name:
+            return tool
+    return None
+
+
+def get_tool_names() -> List[str]:
+    return [tool["name"] for tool in MCP_TOOLS]
+''')
+            except Exception as e:
+                print(f"Error running create_mcp_project.py: {str(e)}")
+                # Fall back to simple structure creation
+                mcp_dir = _resolve_path(mcp_server_path)
+                os.makedirs(mcp_dir, exist_ok=True)
+
+                # Create minimal tool_definitions.py
+                tool_def_path = os.path.join(mcp_dir, "tool_definitions.py")
+                if not os.path.exists(tool_def_path):
+                    with open(tool_def_path, 'w', encoding='utf-8') as f:
+                        f.write('''"""
+MCP Tool Definitions - AUTO-GENERATED FILE
+"""
+from typing import List, Dict, Any
+
+MCP_TOOLS: List[Dict[str, Any]] = []
+
+
+def get_tool_by_name(tool_name: str) -> Dict[str, Any] | None:
+    for tool in MCP_TOOLS:
+        if tool["name"] == tool_name:
+            return tool
+    return None
+
+
+def get_tool_names() -> List[str]:
+    return [tool["name"] for tool in MCP_TOOLS]
+''')
+
+        # Create profile config
+        new_profile = {
+            "template_definitions_path": template_path,
+            "tool_definitions_path": f"{mcp_server_path}/tool_definitions.py",
+            "backup_dir": backup_dir,
+            "types_files": [],
+            "host": "0.0.0.0",
+            "port": port
+        }
+
+        # Create directory structure in mcp_editor (for templates and backups)
+        editor_profile_dir = os.path.join(BASE_DIR, profile_name)
+        os.makedirs(editor_profile_dir, exist_ok=True)
+        os.makedirs(os.path.join(editor_profile_dir, "backups"), exist_ok=True)
+
+        # Create empty tool_definition_templates.py if not exists
+        template_file_path = os.path.join(BASE_DIR, template_path)
+        if not os.path.exists(template_file_path):
+            with open(template_file_path, 'w', encoding='utf-8') as f:
+                f.write('''"""
+MCP Tool Definition Templates - AUTO-GENERATED
+Signatures extracted from source code using AST parsing
+"""
+from typing import List, Dict, Any
+
+MCP_TOOLS: List[Dict[str, Any]] = []
 ''')
 
         # Update editor_config.json
@@ -1508,6 +1587,61 @@ def apply_basemodel_to_property(tool_index):
             return jsonify(result), 500
 
         return jsonify({"success": True, "tool": updated_tool})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/create-mcp-project', methods=['POST'])
+def create_new_mcp_project():
+    """Create a new MCP server project using create_mcp_project.py"""
+    try:
+        data = request.json or {}
+        service_name = data.get("service_name", "").lower()
+        description = data.get("description", "")
+        port = data.get("port", 8080)
+        author = data.get("author", "")
+        include_types = data.get("include_types", True)
+
+        if not service_name:
+            return jsonify({"error": "service_name is required"}), 400
+
+        # Validate service name
+        if not service_name.replace("_", "").isalnum():
+            return jsonify({"error": "Service name should only contain letters, numbers, and underscores"}), 400
+
+        # Check if project already exists
+        project_dir = os.path.join(ROOT_DIR, f"mcp_{service_name}")
+        if os.path.exists(project_dir):
+            return jsonify({"error": f"Project mcp_{service_name} already exists"}), 400
+
+        # Import and use create_mcp_project module
+        sys.path.insert(0, os.path.join(ROOT_DIR, "jinja"))
+        from create_mcp_project import MCPProjectCreator
+
+        creator = MCPProjectCreator(base_dir=ROOT_DIR)
+        result = creator.create_project(
+            service_name=service_name,
+            description=description,
+            port=port,
+            author=author,
+            include_types=include_types
+        )
+
+        if result.get("errors"):
+            return jsonify({"error": f"Project creation failed: {', '.join(result['errors'])}"}), 500
+
+        # Reload profiles after creating new project
+        global profiles
+        profiles = load_profiles()
+
+        return jsonify({
+            "success": True,
+            "service_name": service_name,
+            "project_dir": f"mcp_{service_name}",
+            "created_files": len(result.get("created_files", [])),
+            "message": f"Successfully created MCP project: {service_name}"
+        })
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
