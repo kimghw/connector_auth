@@ -39,41 +39,161 @@ from tool_definitions import MCP_TOOLS
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Try to import SessionManager - optional feature
-try:
-    from session.session_manager import SessionManager
-    session_manager = SessionManager()
-    from session.session_manager import Session
-    USE_SESSION_MANAGER = True
-    logger.info("SessionManager imported successfully")
-except ImportError:
-    logger.warning("SessionManager not found, using legacy mode without session management")
-    session_manager = None
-    Session = None
-    USE_SESSION_MANAGER = False
-
-# Import service classes based on registry
+{#- Build unique services dict to avoid duplicate imports #}
+{%- set unique_services = {} %}
 {%- for service_name, service_info in services.items() %}
+{%- set key = service_info.class_name ~ '|' ~ service_info.module_path %}
+{%- if key not in unique_services %}
+{%- set _ = unique_services.update({key: service_info}) %}
+{%- endif %}
+{%- endfor %}
+
+# Import service classes (unique)
+{%- for key, service_info in unique_services.items() %}
 {%- if server_name == 'file_handler' %}
-# File handler services use direct imports
 from {{ service_info.module_path.split('.')[-1] }} import {{ service_info.class_name }}
 {%- else %}
-# Import from module path
 from {{ service_info.module_path.replace('.', '_').replace('mcp_', '').replace('outlook_', '') }} import {{ service_info.class_name }}
 {%- endif %}
 {%- endfor %}
 
-app = FastAPI(title="{{ server_title | default(server_name | title + ' MCP Server') }}", version="1.0.0")
+# Import helper functions from server_init
+from server_init import (
+    session_manager,
+    USE_SESSION_MANAGER,
+    ensure_services_initialized_legacy,
+    get_user_session_or_legacy,
+)
 
-# Global instances for legacy mode (when SessionManager not available)
-if not USE_SESSION_MANAGER:
-{%- for service_name, service_info in services.items() %}
-    {{ service_info.instance }} = {{ service_info.class_name }}()
+
+# ============================================================
+# Error Handling
+# ============================================================
+async def handle_token_error(e: Exception, user_email: str):
+    """Handle token-related errors.
+
+    If the error indicates an expired/invalid token and SessionManager is available,
+    invalidate the session and raise 401. Otherwise, re-raise the original error.
+    """
+    if USE_SESSION_MANAGER and ("401" in str(e) or "unauthorized" in str(e).lower()):
+        await session_manager.invalidate_session(user_email)
+        raise HTTPException(status_code=401, detail="Access token expired")
+    raise e
+
+
+# ============================================================
+# Service Instance Mapping
+# ============================================================
+# Map class names to instance names for service lookup
+SERVICE_INSTANCE_MAP = {
+{%- for key, service_info in unique_services.items() %}
+    "{{ service_info.class_name }}": "{{ service_info.instance }}",
 {%- endfor %}
-{%- if server_name == 'file_handler' %}
-    # FileManager contains metadata_manager
-    metadata_manager = file_manager.metadata_manager
-{%- endif %}
+}
+
+
+def get_service_instance(class_name: str, context):
+    """Get service instance by class name from session or legacy context.
+
+    Args:
+        class_name: Service class name (e.g., "GraphMailQuery")
+        context: Session object or legacy dict with service instances
+
+    Returns:
+        Service instance or None
+    """
+    instance_name = SERVICE_INSTANCE_MAP.get(class_name)
+    if not instance_name:
+        logger.warning(f"Unknown service class: {class_name}")
+        return None
+
+    if USE_SESSION_MANAGER:
+        return getattr(context, instance_name, None)
+    else:
+        return context.get(instance_name)
+
+
+# ============================================================
+# Internal Args Support
+# ============================================================
+def load_internal_args() -> dict:
+    """Load internal args from tool_internal_args.json"""
+    possible_paths = [
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mcp_editor", "mcp_{{ server_name }}", "tool_internal_args.json"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tool_internal_args.json"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "tool_internal_args.json"),
+    ]
+    for path in possible_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    raw_args = json.load(f)
+                logger.info(f"Loaded internal args from {path}")
+                return raw_args
+            except Exception as exc:
+                logger.warning(f"Failed to load internal args from {path}: {exc}")
+    return {}
+
+
+INTERNAL_ARGS = load_internal_args()
+
+# Build INTERNAL_ARG_TYPES dynamically based on imported types
+INTERNAL_ARG_TYPES = {}
+{%- for param_type in param_types %}
+if '{{ param_type }}' in globals():
+    INTERNAL_ARG_TYPES['{{ param_type }}'] = {{ param_type }}
+{%- endfor %}
+
+
+def extract_schema_defaults(arg_info: dict) -> dict:
+    """Extract default values from original_schema.properties."""
+    original_schema = arg_info.get("original_schema", {})
+    properties = original_schema.get("properties", {})
+    defaults = {}
+    for prop_name, prop_def in properties.items():
+        if "default" in prop_def:
+            defaults[prop_name] = prop_def["default"]
+    return defaults
+
+
+def build_internal_param(tool_name: str, arg_name: str, runtime_value: dict = None):
+    """Instantiate internal parameter object for a tool.
+
+    Value resolution priority:
+    1. runtime_value: Dynamic value passed from function arguments at runtime
+    2. stored value: Value from tool_internal_args.json
+    3. defaults: Static value from original_schema.properties
+    """
+    arg_info = INTERNAL_ARGS.get(tool_name, {}).get(arg_name)
+    if not arg_info:
+        return None
+
+    param_cls = INTERNAL_ARG_TYPES.get(arg_info.get("type"))
+    if not param_cls:
+        logger.warning(f"Unknown internal arg type for {tool_name}.{arg_name}: {arg_info.get('type')}")
+        return None
+
+    defaults = extract_schema_defaults(arg_info)
+    stored_value = arg_info.get("value")
+
+    if runtime_value is not None and runtime_value != {}:
+        final_value = {**defaults, **runtime_value}
+    elif stored_value is not None and stored_value != {}:
+        final_value = {**defaults, **stored_value}
+    else:
+        final_value = defaults
+
+    if not final_value:
+        return param_cls()
+
+    try:
+        return param_cls(**final_value)
+    except Exception as exc:
+        logger.warning(f"Failed to build internal arg {tool_name}.{arg_name}: {exc}")
+        return None
+
+
+app = FastAPI(title="{{ server_title | default(server_name | title + ' MCP Server') }}", version="1.0.0")
 
 
 @app.on_event("startup")
@@ -94,58 +214,6 @@ async def shutdown_event():
         logger.info("SessionManager stopped")
     else:
         logger.info("Server shutdown in legacy mode")
-
-
-async def ensure_services_initialized_legacy(user_email: Optional[str] = None):
-    """
-    Legacy method: Ensure services are initialized before use
-    Used when SessionManager is not available
-    """
-{%- if server_name == 'file_handler' %}
-    global file_manager, metadata_manager
-    if 'file_manager' not in globals() or file_manager is None:
-        file_manager = FileManager()
-        metadata_manager = file_manager.metadata_manager
-{%- elif server_name == 'outlook' %}
-{%- for service_name, service_info in services.items() %}
-    global {{ service_info.instance }}
-    if '{{ service_info.instance }}' not in globals() or {{ service_info.instance }} is None:
-        {{ service_info.instance }} = {{ service_info.class_name }}()
-        if hasattr({{ service_info.instance }}, 'initialize'):
-            await {{ service_info.instance }}.initialize(user_email)
-{%- endfor %}
-{%- endif %}
-
-
-def get_service_instance(service_class: str, session: Optional[Any] = None):
-    """
-    Get service instance from session or global (legacy mode)
-
-    Args:
-        service_class: Class name of the service
-        session: Session object (if using SessionManager)
-
-    Returns:
-        Service instance
-    """
-    if USE_SESSION_MANAGER and session:
-        # Map class names to instance names
-        class_to_instance = {
-{%- for service_name, service_info in services.items() %}
-            "{{ service_info.class_name }}": "{{ service_info.instance }}",
-{%- endfor %}
-        }
-        instance_name = class_to_instance.get(service_class)
-        if instance_name:
-            return getattr(session, instance_name, None)
-    else:
-        # Legacy mode - use global instances
-{%- for service_name, service_info in services.items() %}
-        if service_class == "{{ service_info.class_name }}":
-            return {{ service_info.instance }}
-{%- endfor %}
-
-    return None
 
 
 @app.get("/")
@@ -196,10 +264,10 @@ async def call_tool(request: Request):
 
         # Map tool name to service implementation
         tool_implementations = {
-{%- for tool_name, tool_info in tools.items() %}
-            "{{ tool_name }}": {
-                "service_class": "{{ tool_info.implementation.class_name }}",
-                "method": "{{ tool_info.implementation.method }}"
+{%- for tool in tools %}
+            "{{ tool.name }}": {
+                "service_class": "{{ tool.implementation.class_name }}",
+                "method": "{{ tool.implementation.method }}"
             },
 {%- endfor %}
         }
@@ -316,7 +384,6 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     # Get session or legacy instances (first operation)
     user_email = args["user_email"]
     context = await get_user_session_or_legacy(user_email, args.get("access_token"))
-    {%- set instance_getter = tool.implementation.getter or ("get_" ~ (tool.implementation.instance or tool.service_object) ~ "_instance") %}
 
     {%- if tool.object_params %}
 
@@ -379,7 +446,7 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
 
     try:
         # Get the correct service instance
-        service_instance = {{ instance_getter }}(context)
+        service_instance = get_service_instance("{{ tool.implementation.class_name }}", context)
 
         return await service_instance.{{ tool.implementation.method or tool.mcp_service or tool.service_method }}(
             user_email=user_email,
@@ -393,7 +460,7 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
 
     try:
         # Get the correct service instance
-        service_instance = {{ instance_getter }}(context)
+        service_instance = get_service_instance("{{ tool.implementation.class_name }}", context)
 
         {#- Extract parameters with proper default handling #}
         {%- for param_name, param_info in tool.params.items() %}

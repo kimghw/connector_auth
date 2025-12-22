@@ -29,11 +29,12 @@ def find_internal_args_file(tools_path: str, server_name: str) -> Optional[str]:
 
     # Search patterns in order of priority
     search_paths = [
-        # Same directory as tools file
+        # Same directory as tools file (most reliable)
         tools_path.parent / "tool_internal_args.json",
-        # mcp_editor/{server_name}/ pattern
-        PROJECT_ROOT / "mcp_editor" / server_name / "tool_internal_args.json",
+        # Pattern: mcp_editor/mcp_{server}/tool_internal_args.json (current convention per docs)
         PROJECT_ROOT / "mcp_editor" / f"mcp_{server_name}" / "tool_internal_args.json",
+        # Legacy pattern
+        PROJECT_ROOT / "mcp_editor" / server_name / "tool_internal_args.json",
     ]
 
     for candidate in search_paths:
@@ -162,7 +163,7 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
     # Extract parameter types
     param_types = extract_param_types(registry)
 
-    # Process tools with internal args
+    # Process tools with internal args and implementation info
     processed_tools = []
     for tool in tools:
         tool_name = tool.get('name', '')
@@ -171,6 +172,101 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         # Add internal_args to the tool
         tool_with_internal = dict(tool)
         tool_with_internal['internal_args'] = tool_internal_args
+
+        # Find implementation info from registry
+        # Check mcp_service for the service name mapping
+        mcp_service = tool.get('mcp_service', {})
+        if isinstance(mcp_service, str):
+            service_name = mcp_service
+        else:
+            service_name = mcp_service.get('name', tool_name)
+
+        # Get implementation from services
+        if service_name in services:
+            tool_with_internal['implementation'] = services[service_name]
+        elif tool_name in tools_map:
+            tool_with_internal['implementation'] = tools_map[tool_name]['implementation']
+        else:
+            # Fallback: try to find by iterating services
+            for svc_name, svc_info in services.items():
+                tool_with_internal['implementation'] = svc_info
+                break
+
+        # Build params from mcp_service.parameters or inputSchema.properties
+        params = {}
+        object_params = {}
+        call_params = {}
+
+        # Get parameters from mcp_service if available
+        if isinstance(mcp_service, dict):
+            for param in mcp_service.get('parameters', []):
+                param_name = param.get('name', '')
+                param_type = param.get('type', 'str')
+                is_required = param.get('is_required', False)
+                has_default = param.get('has_default', False)
+                default = param.get('default')
+
+                params[param_name] = {
+                    'type': param_type,
+                    'is_required': is_required,
+                    'has_default': has_default,
+                    'default': default,
+                    'default_json': json.dumps(default) if default is not None else 'None'
+                }
+
+                # Check if it's an object type (Params class)
+                if 'Params' in param_type or param_type == 'object':
+                    # Extract class name from type (e.g., Optional[FilterParams] -> FilterParams)
+                    class_name = param_type.replace('Optional[', '').replace(']', '')
+                    object_params[param_name] = {
+                        'class_name': class_name,
+                        'is_optional': 'Optional' in param_type or has_default,
+                        'has_default': has_default,
+                        'default_json': json.dumps(default) if default is not None else None
+                    }
+
+                # Build call_params (how to pass to service method)
+                if param_name in tool_internal_args:
+                    call_params[param_name] = {'value': f'{param_name}_params'}
+                elif param_name in object_params:
+                    call_params[param_name] = {'value': f'{param_name}_params'}
+                else:
+                    call_params[param_name] = {'value': param_name}
+
+        # Fallback: extract from inputSchema if no mcp_service parameters
+        if not params:
+            input_schema = tool.get('inputSchema', {})
+            properties = input_schema.get('properties', {})
+            required = input_schema.get('required', [])
+
+            for prop_name, prop_def in properties.items():
+                prop_type = prop_def.get('type', 'string')
+                is_required = prop_name in required
+                default = prop_def.get('default')
+
+                params[prop_name] = {
+                    'type': prop_type,
+                    'is_required': is_required,
+                    'has_default': default is not None,
+                    'default': default,
+                    'default_json': json.dumps(default) if default is not None else 'None'
+                }
+
+                if prop_type == 'object':
+                    base_model = prop_def.get('baseModel', '')
+                    object_params[prop_name] = {
+                        'class_name': base_model or 'dict',
+                        'is_optional': not is_required,
+                        'has_default': default is not None,
+                        'default_json': json.dumps(default) if default is not None else None
+                    }
+
+                call_params[prop_name] = {'value': f'{prop_name}_params' if prop_name in object_params else prop_name}
+
+        tool_with_internal['params'] = params
+        tool_with_internal['object_params'] = object_params
+        tool_with_internal['call_params'] = call_params
+
         processed_tools.append(tool_with_internal)
 
     # Prepare context
@@ -178,9 +274,10 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         'server_name': server_name,
         'server_title': f"{server_name.replace('_', ' ').title()} MCP Server",
         'services': services,
-        'tools': tools_map,
+        'tools': processed_tools,  # List of tools with implementation info for template iteration
+        'tools_map': tools_map,    # Dict for quick lookup by name
         'param_types': param_types,
-        'MCP_TOOLS': processed_tools,  # Tool definitions with internal args
+        'MCP_TOOLS': processed_tools,  # Tool definitions with internal args (same as tools)
         'internal_args': internal_args  # Full internal args for reference
     }
 
@@ -254,16 +351,19 @@ def generate_server(
         print(f"  - {service_info['class_name']} ({service_info['module_path']})")
 
     print(f"\n🛠️ Tool mappings:")
-    for tool_name, tool_info in context['tools'].items():
-        impl = tool_info['implementation']
-        print(f"  - {tool_name} -> {impl['class_name']}.{impl['method']}()")
+    for tool in context['tools']:
+        impl = tool.get('implementation', {})
+        print(f"  - {tool.get('name', 'unknown')} -> {impl.get('class_name', '?')}.{impl.get('method', '?')}()")
 
 
 def find_registry_file(server_name: str) -> Optional[str]:
     """Find registry file for a given server"""
     candidates = [
+        # Pattern: registry_{server}.json (current convention per docs)
+        PROJECT_ROOT / "mcp_editor" / "mcp_service_registry" / f"registry_{server_name}.json",
+        # Legacy patterns
         PROJECT_ROOT / "mcp_editor" / "mcp_service_registry" / f"{server_name}_registry.json",
-        PROJECT_ROOT / "mcp_editor" / server_name / f"{server_name}_registry.json",
+        PROJECT_ROOT / "mcp_editor" / f"mcp_{server_name}" / f"registry_{server_name}.json",
         PROJECT_ROOT / f"mcp_{server_name}" / f"{server_name}_registry.json",
     ]
 
@@ -277,6 +377,9 @@ def find_registry_file(server_name: str) -> Optional[str]:
 def find_tools_file(server_name: str) -> Optional[str]:
     """Find tool definitions file for a given server"""
     candidates = [
+        # Pattern: mcp_editor/mcp_{server}/tool_definition_templates.py (current convention per docs)
+        PROJECT_ROOT / "mcp_editor" / f"mcp_{server_name}" / "tool_definition_templates.py",
+        # Legacy patterns
         PROJECT_ROOT / "mcp_editor" / server_name / "tool_definition_templates.py",
         PROJECT_ROOT / "mcp_editor" / "tool_definition_templates.py",
         PROJECT_ROOT / f"mcp_{server_name}" / "tool_definitions.py",
