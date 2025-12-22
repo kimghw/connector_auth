@@ -142,7 +142,7 @@ SERVER_TEMPLATES = {
     "scaffold": os.path.join(JINJA_DIR, "mcp_server_scaffold_template.jinja2"),
 }
 DEFAULT_SERVER_TEMPLATE = SERVER_TEMPLATES["outlook"]
-GENERATOR_SCRIPT_PATH = os.path.join(JINJA_DIR, 'generate_server.py')
+GENERATOR_SCRIPT_PATH = os.path.join(JINJA_DIR, 'generate_universal_server.py')
 EDITOR_CONFIG_TEMPLATE = os.path.join(JINJA_DIR, 'editor_config_template.jinja2')
 EDITOR_CONFIG_GENERATOR = os.path.join(JINJA_DIR, 'generate_editor_config.py')
 
@@ -1570,17 +1570,23 @@ def generate_server_from_web():
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         generator_module = load_generator_module()
+
+        # Find registry file for the server
+        registry_path = generator_module.find_registry_file(server_name)
+        if not registry_path:
+            return jsonify({"error": f"Registry file not found for server: {server_name}"}), 400
+
+        # Generate server using universal generator
+        generator_module.generate_server(
+            template_path=template_path,
+            output_path=output_path,
+            registry_path=registry_path,
+            tools_path=tools_path,
+            server_name=server_name
+        )
+
+        # Count tools for response
         loaded_tools = generator_module.load_tool_definitions(tools_path)
-        try:
-            # Pass tools_path so generator can find internal_args
-            generator_module.generate_server(template_path, output_path, loaded_tools,
-                                            tools_path=tools_path, server_name=server_name)
-        except TypeError:
-            # Backwards compatibility with older generator signature
-            try:
-                generator_module.generate_server(template_path, output_path, loaded_tools, server_name=server_name)
-            except TypeError:
-                generator_module.generate_server(template_path, output_path, loaded_tools)
 
         return jsonify({
             "success": True,
@@ -1588,6 +1594,7 @@ def generate_server_from_web():
             "tools_path": tools_path,
             "template_path": template_path,
             "output_path": output_path,
+            "registry_path": registry_path,
             "tool_count": len(loaded_tools)
         })
     except Exception as e:

@@ -3,13 +3,11 @@
 Universal MCP server generator using registry data
 Generates server.py from registry JSON files and universal template
 """
-import argparse
 import json
 import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from datetime import datetime
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -392,97 +390,3 @@ def find_tools_file(server_name: str) -> Optional[str]:
     return None
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description='Generate MCP server from registry data and universal template'
-    )
-
-    parser.add_argument(
-        'server_name',
-        help='Server name (outlook, file_handler, etc.)'
-    )
-
-    parser.add_argument(
-        '--registry', '-r',
-        help='Path to service registry JSON (auto-detected if not provided)'
-    )
-
-    parser.add_argument(
-        '--tools', '-t',
-        help='Path to tool definitions file (auto-detected if not provided)'
-    )
-
-    parser.add_argument(
-        '--template', '-p',
-        help='Path to Jinja2 template (default: universal_server_template.jinja2)'
-    )
-
-    parser.add_argument(
-        '--output', '-o',
-        required=True,
-        help='Output path for generated server.py'
-    )
-
-    parser.add_argument(
-        '--backup', '-b',
-        action='store_true',
-        help='Create backup if output file exists'
-    )
-
-    args = parser.parse_args()
-
-    # Find registry file
-    registry_path = args.registry
-    if not registry_path:
-        registry_path = find_registry_file(args.server_name)
-        if not registry_path:
-            print(f"❌ Could not find registry file for server: {args.server_name}")
-            print(f"   Please specify with --registry option")
-            sys.exit(1)
-
-    # Find tools file
-    tools_path = args.tools
-    if not tools_path:
-        tools_path = find_tools_file(args.server_name)
-        if not tools_path:
-            print(f"❌ Could not find tool definitions for server: {args.server_name}")
-            print(f"   Please specify with --tools option")
-            sys.exit(1)
-
-    # Get template path
-    template_path = args.template
-    if not template_path:
-        template_path = str(SCRIPT_DIR / "universal_server_template.jinja2")
-
-    # Check if template exists
-    if not Path(template_path).exists():
-        print(f"❌ Template file not found: {template_path}")
-        sys.exit(1)
-
-    # Create backup if requested
-    output_path = Path(args.output)
-    if args.backup and output_path.exists():
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = output_path.parent / f"{output_path.stem}_backup_{timestamp}{output_path.suffix}"
-        import shutil
-        shutil.copy2(output_path, backup_path)
-        print(f"📦 Created backup: {backup_path}")
-
-    # Generate server
-    try:
-        generate_server(
-            template_path=template_path,
-            output_path=str(output_path),
-            registry_path=registry_path,
-            tools_path=tools_path,
-            server_name=args.server_name
-        )
-    except Exception as e:
-        print(f"❌ Error generating server: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()

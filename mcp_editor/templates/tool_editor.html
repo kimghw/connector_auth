@@ -136,24 +136,6 @@
             background: var(--danger-hover);
         }
 
-        .btn-success {
-            background: var(--success-color);
-            color: white;
-        }
-
-        .btn-success:hover {
-            background: #2eb34f;
-        }
-
-        .btn-warning {
-            background: var(--warning-color);
-            color: white;
-        }
-
-        .btn-warning:hover {
-            background: #ff9500;
-        }
-
         .btn-important {
             background: linear-gradient(135deg, #34c759 0%, #30b350 100%);
             color: white;
@@ -170,53 +152,6 @@
             filter: brightness(1.05);
         }
 
-        /* Google-style button classes */
-        .btn-google {
-            border-radius: 4px;
-            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-            font-weight: 500;
-            letter-spacing: 0.25px;
-            box-shadow: none;
-            border: 1px solid transparent;
-            transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
-        
-        .btn-google-filled {
-            background-color: #1a73e8;
-            color: white;
-        }
-        .btn-google-filled:hover {
-            background-color: #1765cc;
-            box-shadow: 0 1px 2px rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
-        }
-        .btn-google-filled:disabled {
-            background-color: #e8eaed;
-            color: #9aa0a6;
-            cursor: default;
-            box-shadow: none;
-        }
-
-        .btn-google-outlined {
-            background-color: white;
-            color: #3c4043;
-            border-color: #dadce0;
-        }
-        .btn-google-outlined:hover {
-            background-color: #f8f9fa;
-            color: #202124;
-            border-color: #dadce0;
-        }
-        .btn-google-outlined:disabled {
-            background-color: white;
-            color: #bdc1c6;
-            border-color: #e8eaed;
-            cursor: default;
-        }
-
         /* Tooltip styles */
         .btn-tooltip {
             position: relative;
@@ -225,24 +160,26 @@
         .btn-tooltip::after {
             content: attr(data-tooltip);
             position: absolute;
-            bottom: calc(100% + 8px);
+            bottom: calc(100% + 10px);
             left: 50%;
-            transform: translateX(-50%);
-            background: rgba(30, 30, 30, 0.95);
+            transform: translateX(-50%) translateY(4px);
+            background: rgba(20, 20, 23, 0.95);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
             color: #fff;
-            padding: 10px 14px;
-            border-radius: 8px;
+            padding: 8px 12px;
+            border-radius: 6px;
             font-size: 12px;
-            font-weight: 400;
+            font-weight: 500;
             white-space: pre-line;
-            text-align: left;
-            line-height: 1.5;
-            min-width: 220px;
-            max-width: 320px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+            text-align: center;
+            line-height: 1.4;
+            min-width: max-content;
+            max-width: 280px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255,255,255,0.1);
             opacity: 0;
             visibility: hidden;
-            transition: opacity 0.2s ease, visibility 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
             pointer-events: none;
             z-index: 1000;
         }
@@ -250,14 +187,14 @@
         .btn-tooltip::before {
             content: '';
             position: absolute;
-            bottom: calc(100% + 2px);
+            bottom: calc(100% + 4px);
             left: 50%;
-            transform: translateX(-50%);
+            transform: translateX(-50%) translateY(4px);
             border: 6px solid transparent;
-            border-top-color: rgba(30, 30, 30, 0.95);
+            border-top-color: rgba(20, 20, 23, 0.95);
             opacity: 0;
             visibility: hidden;
-            transition: opacity 0.2s ease, visibility 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
             pointer-events: none;
             z-index: 1000;
         }
@@ -266,151 +203,7 @@
         .btn-tooltip:hover::before {
             opacity: 1;
             visibility: visible;
-        }
-
-        /* Enhanced tooltip system for all elements */
-        [data-tooltip] {
-            position: relative;
-        }
-
-        [data-tooltip]::after {
-            content: attr(data-tooltip);
-            position: absolute;
-            bottom: calc(100% + 8px);
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(30, 30, 30, 0.95);
-            color: #fff;
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 12px;
-            font-weight: 400;
-            white-space: pre-line;
-            text-align: left;
-            line-height: 1.5;
-            min-width: 220px;
-            max-width: 400px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.2s ease, visibility 0.2s ease;
-            pointer-events: none;
-            z-index: 10000;
-        }
-
-        [data-tooltip]::before {
-            content: '';
-            position: absolute;
-            bottom: calc(100% + 2px);
-            left: 50%;
-            transform: translateX(-50%);
-            border: 6px solid transparent;
-            border-top-color: rgba(30, 30, 30, 0.95);
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.2s ease, visibility 0.2s ease;
-            pointer-events: none;
-            z-index: 10000;
-        }
-
-        [data-tooltip]:hover::after,
-        [data-tooltip]:hover::before {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        /* Tooltip position variants */
-        [data-tooltip-position="top"]::after {
-            bottom: calc(100% + 8px);
-            top: auto;
-        }
-
-        [data-tooltip-position="top"]::before {
-            bottom: calc(100% + 2px);
-            top: auto;
-            border-top-color: rgba(30, 30, 30, 0.95);
-            border-bottom-color: transparent;
-        }
-
-        [data-tooltip-position="bottom"]::after {
-            top: calc(100% + 8px);
-            bottom: auto;
-        }
-
-        [data-tooltip-position="bottom"]::before {
-            top: calc(100% + 2px);
-            bottom: auto;
-            border-bottom-color: rgba(30, 30, 30, 0.95);
-            border-top-color: transparent;
-        }
-
-        [data-tooltip-position="right"]::after {
-            left: calc(100% + 8px);
-            bottom: 50%;
-            transform: translateY(50%);
-        }
-
-        [data-tooltip-position="right"]::before {
-            left: calc(100% + 2px);
-            bottom: 50%;
-            transform: translateY(50%);
-            border-right-color: rgba(30, 30, 30, 0.95);
-            border-top-color: transparent;
-        }
-
-        [data-tooltip-position="left"]::after {
-            right: calc(100% + 8px);
-            left: auto;
-            bottom: 50%;
-            transform: translateY(50%);
-        }
-
-        [data-tooltip-position="left"]::before {
-            right: calc(100% + 2px);
-            left: auto;
-            bottom: 50%;
-            transform: translateY(50%);
-            border-left-color: rgba(30, 30, 30, 0.95);
-            border-top-color: transparent;
-        }
-
-        /* Index badge */
-        .index-badge {
-            display: inline-block;
-            background: var(--primary-color);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-            margin-left: 8px;
-            vertical-align: middle;
-        }
-
-        .server-control-panel {
-            padding: 20px;
-            background: #ffffff;
-            border-bottom: 1px solid var(--border-color);
-            margin-bottom: 0;
-        }
-
-        .server-status {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 16px;
-            padding: 10px 14px;
-            background: #f5f5f7;
-            border-radius: 10px;
-            border: 1px solid rgba(0,0,0,0.05);
-        }
-
-        .status-indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background-color: #ccc;
-            box-shadow: 0 0 0 2px rgba(255,255,255,1);
+            transform: translateX(-50%) translateY(0);
         }
 
         .main-content {
@@ -870,30 +663,20 @@
                 <span>MCP Tool Definitions Editor</span>
             </h1>
             <div class="header-buttons">
-                <button class="btn btn-secondary btn-tooltip" onclick="loadTools()"
-                        data-tooltip="📂 Load: tool_definitions.py&#10;📂 Load: tool_internal_args.json&#10;&#10;Refresh tool list from server files&#10;&#10;📍 Function: loadTools()&#10;📍 Index: BTN-001">
+                <button class="btn btn-secondary btn-tooltip" onclick="loadTools()" data-tooltip="📂 Load: tool_definitions.py&#10;📂 Load: tool_internal_args.json&#10;&#10;Refresh tool list from server files">
                     <span class="material-icons">refresh</span> Reload
-                    <span class="index-badge">1</span>
                 </button>
-                <button class="btn btn-secondary" onclick="showBackups()"
-                        data-tooltip="📁 View saved backups&#10;📅 Restore previous versions&#10;&#10;📍 Function: showBackups()&#10;📍 Index: BTN-002">
+                <button class="btn btn-secondary" onclick="showBackups()">
                     <span class="material-icons">inventory_2</span> Backups
-                    <span class="index-badge">2</span>
                 </button>
-                <button class="btn btn-secondary" onclick="validateTools()"
-                        data-tooltip="✅ Validate all tool definitions&#10;🔍 Check for errors&#10;&#10;📍 Function: validateTools()&#10;📍 Index: BTN-003">
+                <button class="btn btn-secondary" onclick="validateTools()">
                     <span class="material-icons">check_circle</span> Validate
-                    <span class="index-badge">3</span>
                 </button>
-                <button class="btn btn-primary btn-tooltip" onclick="saveTools()"
-                        data-tooltip="💾 Save: tool_definitions.py&#10;💾 Save: tool_definition_templates.py&#10;💾 Save: tool_internal_args.json&#10;&#10;Save all changes to disk&#10;&#10;📍 Function: saveTools()&#10;📍 Index: BTN-004">
+                <button class="btn btn-primary btn-tooltip" onclick="saveTools()" data-tooltip="💾 Save: tool_definitions.py&#10;💾 Save: tool_definition_templates.py&#10;💾 Save: tool_internal_args.json&#10;&#10;Save all changes to disk">
                     <span class="material-icons">save</span> Save Changes
-                    <span class="index-badge">4</span>
                 </button>
-                <button class="btn btn-important btn-tooltip" onclick="openGeneratorModal()"
-                        data-tooltip="⚙️ Input: tool_definitions.py&#10;📄 Template: *_server_template.jinja2&#10;🚀 Output: server.py&#10;&#10;Generate MCP server from template&#10;&#10;📍 Function: openGeneratorModal()&#10;📍 Index: BTN-005">
+                <button class="btn btn-important btn-tooltip" onclick="openGeneratorModal()" data-tooltip="⚙️ Input: tool_definitions.py&#10;📄 Template: *_server_template.jinja2&#10;🚀 Output: server.py&#10;&#10;Generate MCP server from template">
                     <span class="material-icons">auto_fix_high</span> Generate Server
-                    <span class="index-badge">5</span>
                 </button>
             </div>
         </div>
@@ -901,20 +684,15 @@
             <!-- Profile tabs will be rendered here -->
         </div>
         <div id="templateSelector" style="display: flex; gap: 12px; align-items: center; padding: 8px 20px; background: #fff9e6; border-bottom: 1px solid #e5e5e5;">
-            <label style="font-size: 13px; font-weight: 500; color: #666; white-space: nowrap;"
-                   data-tooltip="📋 Template Loader&#10;Import pre-defined tool templates&#10;&#10;📍 Component: Template Selector&#10;📍 Index: UI-006">
+            <label style="font-size: 13px; font-weight: 500; color: #666; white-space: nowrap;">
                 <span class="material-icons" style="font-size: 16px; vertical-align: middle;">description</span>
                 Load Template:
-                <span class="index-badge">6</span>
             </label>
-            <select id="templateSource" class="form-control" style="flex: 1; max-width: 400px; padding: 6px 12px; font-size: 13px;"
-                    data-tooltip="📚 Available Templates&#10;Select from pre-configured tool definitions&#10;&#10;📍 Element: templateSource&#10;📍 Index: SEL-001">
+            <select id="templateSource" class="form-control" style="flex: 1; max-width: 400px; padding: 6px 12px; font-size: 13px;">
                 <option value="">-- Current Template --</option>
             </select>
-            <button class="btn btn-secondary btn-sm" onclick="loadFromSelectedTemplate()"
-                    data-tooltip="⬇️ Load selected template&#10;Replace current tools with template&#10;&#10;📍 Function: loadFromSelectedTemplate()&#10;📍 Index: BTN-007">
+            <button class="btn btn-secondary btn-sm" onclick="loadFromSelectedTemplate()" title="Load tools from selected template">
                 <span class="material-icons" style="font-size: 14px;">file_download</span> Load
-                <span class="index-badge">7</span>
             </button>
             <span id="templateLoadStatus" style="font-size: 12px; color: #666;"></span>
             <span style="font-size: 11px; color: #999; margin-left: auto;">
@@ -924,39 +702,9 @@
 
         <div class="main-content">
             <div class="sidebar">
-                <!-- Server Control Panel -->
-                <div class="server-control-panel">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <div style="font-weight: 600; color: var(--text-primary); font-size: 15px; display: flex; align-items: center; gap: 8px;">
-                            <span class="material-icons" style="font-size: 20px; color: var(--primary-color);">dns</span>
-                            MCP Server
-                        </div>
-                        <span id="profile-indicator" style="font-size: 11px; color: var(--text-secondary); background: rgba(0,0,0,0.05); padding: 4px 10px; border-radius: 12px; font-weight: 500;"></span>
-                    </div>
-                    
-                    <div id="server-status" class="server-status">
-                        <span class="status-indicator" id="status-indicator"></span>
-                        <span id="status-text" style="font-size: 13px; font-weight: 600; color: var(--text-primary);">Checking...</span>
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
-                        <button class="btn-google btn-google-filled" onclick="startServer()" title="Start MCP Server" id="btn-start" style="padding: 8px; height: 36px;">
-                            <span class="material-icons" style="font-size: 20px;">play_arrow</span>
-                        </button>
-                        <button class="btn-google btn-google-outlined" onclick="stopServer()" title="Stop MCP Server" id="btn-stop" style="padding: 8px; height: 36px;">
-                            <span class="material-icons" style="font-size: 20px;">stop</span>
-                        </button>
-                        <button class="btn-google btn-google-outlined" onclick="restartServer()" title="Restart MCP Server" id="btn-restart" style="padding: 8px; height: 36px;">
-                            <span class="material-icons" style="font-size: 20px;">refresh</span>
-                        </button>
-                    </div>
-                </div>
-
                 <div class="tool-list">
-                    <button class="add-button" onclick="addNewTool()"
-                            data-tooltip="➕ Create new tool definition&#10;Add a new API tool to the list&#10;&#10;📍 Function: addNewTool()&#10;📍 Index: BTN-008">
+                    <button class="add-button" onclick="addNewTool()">
                         <span class="material-icons">add</span> Add New Tool
-                        <span class="index-badge">8</span>
                     </button>
                     <div id="toolList" style="margin-top: 15px;">
                         <!-- Tool items will be loaded here -->
@@ -1128,8 +876,6 @@
             loadProfiles();
             console.log('[DEBUG] Calling loadGraphTypesProperties()...');
             loadGraphTypesProperties();
-            console.log('[DEBUG] Checking MCP server status...');
-            checkServerStatus();
             console.log('[DEBUG] window.onload completed');
         };
 
@@ -1481,7 +1227,6 @@
                         loadTemplateSources();  // Reload template sources for new profile
                         loadMcpServices();  // Reload MCP services for new profile
                         loadGraphTypesProperties();  // Reload types for new profile
-                        checkServerStatus();  // Check server status for new profile
                         // Reset template selector to default
                         const templateSelect = document.getElementById('templateSource');
                         if (templateSelect) templateSelect.value = '';
@@ -1641,10 +1386,8 @@
                     toolItem.classList.add('active');
                 }
                 toolItem.onclick = () => selectTool(index);
-                // Add tooltip and index to tool items
-                toolItem.setAttribute('data-tooltip', `🔧 Tool: ${tool.name}\n📝 ${tool.description}\n\n📍 Click to edit\n📍 Index: TOOL-${String(index + 1).padStart(3, '0')}`);
                 toolItem.innerHTML = `
-                    <h3>${tool.name} <span class="index-badge">${index + 1}</span></h3>
+                    <h3>${tool.name}</h3>
                     <p>${tool.description}</p>
                 `;
                 toolList.appendChild(toolItem);
@@ -1702,16 +1445,6 @@
                 // Original loop logic below uses propName and propDef
                 const isRequired = required.includes(propName);
                 // isInternal already set above
-
-                // Check if this property matches an MCP service parameter and type
-                const mcpParam = getMcpServiceParameter(tool, propName);
-                const mcpTypeCheck = mcpParam ? checkMcpParamTypeMatch(propDef, mcpParam) : null;
-                const isMcpParam = !!mcpTypeCheck && mcpTypeCheck.isMatch;
-                const isMcpTypeMismatch = !!mcpTypeCheck && !mcpTypeCheck.isMatch;
-                const mcpTypeMismatchLabel = isMcpTypeMismatch
-                    ? `<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--warning-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;" title="MCP param type mismatch: expected ${mcpTypeCheck.expectedLabel}, actual ${mcpTypeCheck.actualLabel}">MCP TYPE</span>`
-                    : '';
-
                 const propId = `prop-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}`;
                 propertiesHtml += `
                     <div class="property-collapsible" data-internal="${isInternal}">
@@ -1721,8 +1454,7 @@
                                 <span class="collapse-icon" id="icon-${propId}">▼</span>
                                 <strong style="font-size: 15px; color: #333;">${propName}</strong>
                                 <span style="margin-left: 12px; font-size: 12px; color: #666; background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${propDef.type}</span>
-                                ${isMcpParam ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: #17a2b8; padding: 2px 6px; border-radius: 4px; font-weight: 600;">MCP</span>' : ''}
-                                ${mcpTypeMismatchLabel}
+                                ${isRequired ? '<span style="margin-left: 8px; font-size: 11px; color: var(--danger-color); font-weight: 600;">REQUIRED</span>' : ''}
                                 ${isInternal ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--warning-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">INTERNAL</span>' : ''}
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px;" onclick="event.stopPropagation();">
@@ -1775,11 +1507,11 @@
                         <div class="form-group" id="default-value-group-${propId}">
                             <label style="font-size: 11px;">Default Value ${propDef.type === 'array' || propDef.type === 'object' ? '(JSON)' : ''}</label>
                             ${propDef.type === 'array' || propDef.type === 'object' ? `
-                            <textarea class="form-control" style="font-family: monospace; font-size: 12px; min-height: 60px;"
+                            <textarea class="form-control" style="font-family: monospace; font-size: 12px; min-height: 30px; padding: 6px 8px;"
                                       placeholder='${propDef.type === 'array' ? '["item1", "item2"]' : '{"key": "value"}'}'
                                       onchange="updatePropertyField(${index}, '${propName}', 'default', parseDefaultValue(this.value, '${propDef.type}'))">${propDef.default !== undefined ? (typeof propDef.default === 'string' ? propDef.default : JSON.stringify(propDef.default, null, 2)) : ''}</textarea>
                             ` : `
-                            <input class="form-control" style="font-size: 12px;"
+                            <input class="form-control" style="font-size: 12px; padding: 6px 8px; height: 30px;"
                                    value="${propDef.default !== undefined ? propDef.default : ''}"
                                    placeholder="Optional default value"
                                    onchange="updatePropertyField(${index}, '${propName}', 'default', parseDefaultValue(this.value, '${propDef.type}'))">
@@ -1816,7 +1548,9 @@
                                                style="margin-right: 3px; transform: scale(0.9);">
                                         All
                                     </label>
-                                    <button class="btn btn-icon btn-sm" style="padding: 2px 4px; color: var(--danger-color);"
+                                    <button class="btn btn-icon btn-sm" style="padding: 4px; color: var(--danger-color); background: rgba(255, 59, 48, 0.1); border-radius: 4px; transition: all 0.2s;"
+                                            onmouseover="this.style.background='rgba(255, 59, 48, 0.2)'"
+                                            onmouseout="this.style.background='rgba(255, 59, 48, 0.1)'"
                                             onclick="removeSelectedNestedProperties(${index}, '${propName}')"
                                             title="Delete selected properties">
                                         <span class="material-icons" style="font-size: 16px;">delete</span>
@@ -1839,8 +1573,6 @@
                                                 <span class="nested-collapse-icon" id="nested-icon-${nestedPropId}" style="font-size: 10px; color: var(--text-secondary);">▶</span>
                                                 <strong style="color: var(--text-primary); font-size: 12px;">${nestedPropName}</strong>
                                                 <span style="font-size: 10px; color: #888; background: #eee; padding: 1px 6px; border-radius: 3px;">${nestedProp.type}</span>
-                                                ${nestedProp._source === 'mcp_service' ? '<span style="font-size: 9px; color: white; background: #17a2b8; padding: 1px 4px; border-radius: 3px; font-weight: 600;">MCP</span>' : ''}
-                                                ${nestedProp._source === 'types' ? '<span style="font-size: 9px; color: white; background: #6c757d; padding: 1px 4px; border-radius: 3px; font-weight: 600;">TYPES</span>' : ''}
                                                 ${nestedIsRequired ? '<span style="font-size: 9px; color: var(--danger-color); font-weight: 600;">REQ</span>' : ''}
                                             </div>
                                             <div style="display: flex; gap: 6px; align-items: center;" onclick="event.stopPropagation();">
@@ -1859,8 +1591,10 @@
                                                            style="margin-right: 2px; transform: scale(0.8);">
                                                     <span style="color: ${nestedIsRequired ? 'var(--danger-color)' : 'var(--text-secondary)'}; font-size: 10px;">Req</span>
                                                 </label>
-                                                <button class="btn btn-icon btn-sm" style="padding: 2px 4px; font-size: 14px;"
-                                                        onclick="removeNestedPropertyInline(${index}, '${propName}', '${nestedPropName}')"><span class="material-icons" style="font-size: 14px;">close</span></button>
+                                                <button class="btn btn-icon btn-sm" style="padding: 4px; color: var(--text-secondary); border-radius: 4px; transition: all 0.2s;"
+                                                        onmouseover="this.style.background='rgba(0,0,0,0.05)'; this.style.color='var(--danger-color)'"
+                                                        onmouseout="this.style.background='transparent'; this.style.color='var(--text-secondary)'"
+                                                        onclick="removeNestedPropertyInline(${index}, '${propName}', '${nestedPropName}')"><span class="material-icons" style="font-size: 16px;">delete_outline</span></button>
                                             </div>
                                         </div>
                                         <div class="nested-prop-content collapsed" id="nested-content-${nestedPropId}" style="padding: 10px; display: none;">
@@ -1962,28 +1696,19 @@
             editorContent.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                     <h2 style="font-size: 20px; font-weight: 600;">Edit Tool: ${tool.name}</h2>
-                    <button class="btn btn-danger btn-sm" onclick="deleteTool(${index})"
-                            data-tooltip="🗑️ Delete this tool&#10;⚠️ This action cannot be undone&#10;&#10;📍 Function: deleteTool()&#10;📍 Index: BTN-DEL-${String(index + 1).padStart(3, '0')}">
-                        Delete Tool
-                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteTool(${index})">Delete Tool</button>
                 </div>
 
                 <div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px;">
                     <div class="form-group" style="flex: 1; min-width: 240px; margin-bottom: 0;">
-                        <label data-tooltip="🏷️ Tool Identifier&#10;Must be unique across all tools&#10;&#10;📍 Field: name&#10;📍 Index: FIELD-001">
-                            Tool Name <span class="index-badge">F1</span>
-                        </label>
+                        <label>Tool Name</label>
                         <input class="form-control" id="toolName" value="${tool.name}"
-                               onchange="updateToolField(${index}, 'name', this.value)"
-                               data-tooltip="📝 Edit tool name&#10;Used to call this tool from the API&#10;&#10;📍 Function: updateToolField()&#10;📍 Index: INPUT-001">
+                               onchange="updateToolField(${index}, 'name', this.value)">
                     </div>
                     <div class="form-group" style="flex: 1; min-width: 260px; margin-bottom: 0;">
-                        <label data-tooltip="🔌 MCP Service Connection&#10;Links this tool to an MCP service&#10;&#10;📍 Field: mcp_service&#10;📍 Index: FIELD-002">
-                            MCP Service <span class="index-badge">F2</span>
-                        </label>
+                        <label>MCP Service</label>
                         <select class="form-control" id="mcpService"
-                                onchange="updateMcpService(${index}, this.value)"
-                                data-tooltip="📡 Select MCP service&#10;Connects to external service provider&#10;&#10;📍 Function: updateMcpService()&#10;📍 Index: SELECT-002">
+                                onchange="updateMcpService(${index}, this.value)">
                             <option value="">-- Select MCP Service --</option>
                             ${window.mcpServices ? window.mcpServices.map(service => {
                                 const currentService = typeof tool.mcp_service === 'object' ? tool.mcp_service?.name : tool.mcp_service;
@@ -1994,12 +1719,9 @@
                 </div>
 
                 <div class="form-group">
-                    <label data-tooltip="📄 Tool Description&#10;Explains what this tool does&#10;&#10;📍 Field: description&#10;📍 Index: FIELD-003">
-                        Description <span class="index-badge">F3</span>
-                    </label>
+                    <label>Description</label>
                     <textarea class="form-control" id="toolDescription"
-                              onchange="updateToolField(${index}, 'description', this.value)"
-                              data-tooltip="✍️ Edit description&#10;Help text for API users&#10;&#10;📍 Function: updateToolField()&#10;📍 Index: TEXTAREA-001">${tool.description}</textarea>
+                              onchange="updateToolField(${index}, 'description', this.value)">${tool.description}</textarea>
                 </div>
 
                 <div class="form-group">
@@ -2089,32 +1811,12 @@
 
                 // Store original schema info for potential restoration
                 const wasRequired = (tool.inputSchema.required || []).includes(propName);
-
-                // Create internal arg structure
-                const internalArg = {
+                internalArgs[toolName][propName] = {
                     type: propDef.baseModel || propDef.type,  // Use baseModel if available
                     description: propDef.description || '',
                     original_schema: JSON.parse(JSON.stringify(propDef)),  // Deep copy for restoration
                     was_required: wasRequired
                 };
-
-                // If it's an object type with properties, preserve them at top level
-                if (propDef.type === 'object' && propDef.properties) {
-                    internalArg.properties = propDef.properties;
-                }
-
-                // Preserve other important fields like enum, items, etc.
-                if (propDef.enum) {
-                    internalArg.enum = propDef.enum;
-                }
-                if (propDef.items) {
-                    internalArg.items = propDef.items;
-                }
-                if (propDef.oneOf) {
-                    internalArg.oneOf = propDef.oneOf;
-                }
-
-                internalArgs[toolName][propName] = internalArg;
 
                 // CRITICAL: Remove from inputSchema.properties (spec FR-03)
                 delete tool.inputSchema.properties[propName];
@@ -2396,16 +2098,6 @@
                 existingModal.parentElement.remove();
             }
 
-            // Get current tool's MCP service if exists
-            const tool = tools[index];
-            const currentMcpService = tool.mcp_service ? tool.mcp_service.name : null;
-            const hasMcpService = currentMcpService && window.mcpServiceDetails &&
-                                  window.mcpServiceDetails.find(svc => svc.name === currentMcpService);
-
-            // Get server name and implementation
-            const serverName = currentProfile ? currentProfile.replace('mcp_', '') : 'server';
-            const implementation = currentMcpService || 'implementation';
-
             // Create modal for property selection
             const hasTypes = window.hasTypesFile || false;
             const typesName = window.typesName || 'types';
@@ -2419,9 +2111,8 @@
                         <div class="modal-body">
                             <div class="form-group">
                                 <label>Property Source</label>
-                                <select id="propertySource" onchange="handlePropertySourceChange(${index})" class="form-control">
+                                <select id="propertySource" onchange="handlePropertySourceChange()" class="form-control">
                                     <option value="custom">Custom Property</option>
-                                    ${hasMcpService ? `<option value="mcp_service">From ${serverName} (${implementation})</option>` : ''}
                                     ${hasTypes ? `<option value="graph_types">From ${typesName}.py</option>` : ''}
                                 </select>
                             </div>
@@ -2445,23 +2136,6 @@
                                 <div class="form-group">
                                     <label>Description</label>
                                     <input type="text" id="customPropDescription" class="form-control" placeholder="Property description">
-                                </div>
-                            </div>
-
-                            <div id="mcpServicePropertyDiv" style="display: none;">
-                                <div class="form-group">
-                                    <label>Select MCP Service Parameters</label>
-                                    <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 300px; overflow-y: auto;">
-                                        <div id="mcpServiceCheckboxList">
-                                            <!-- MCP service parameters will be populated here -->
-                                        </div>
-                                    </div>
-                                    <div style="margin-top: 10px;">
-                                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllMcpParams(true)">Select All</button>
-                                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllMcpParams(false)">Deselect All</button>
-                                        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllMcpRequired(true)">All Required</button>
-                                        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllMcpRequired(false)">All Optional</button>
-                                    </div>
                                 </div>
                             </div>
 
@@ -2505,90 +2179,13 @@
             document.body.appendChild(modalDiv);
 
             // Initialize the property source view to show custom property fields by default
-            handlePropertySourceChange(index);
+            handlePropertySourceChange();
         }
 
-        function handlePropertySourceChange(index) {
+        function handlePropertySourceChange() {
             const source = document.getElementById('propertySource').value;
             document.getElementById('customPropertyDiv').style.display = source === 'custom' ? 'block' : 'none';
-            document.getElementById('mcpServicePropertyDiv').style.display = source === 'mcp_service' ? 'block' : 'none';
             document.getElementById('graphTypesPropertyDiv').style.display = source === 'graph_types' ? 'block' : 'none';
-
-            // If MCP service is selected, populate the parameters
-            if (source === 'mcp_service' && index !== undefined) {
-                const tool = tools[index];
-                const serviceName = tool.mcp_service ? tool.mcp_service.name : null;
-
-                if (serviceName && window.mcpServiceDetails) {
-                    const serviceDetail = window.mcpServiceDetails.find(svc => svc.name === serviceName);
-                    if (serviceDetail && serviceDetail.parameters) {
-                        populateMcpServiceParameters(serviceDetail.parameters, tool);
-                    }
-                }
-            }
-        }
-
-        function populateMcpServiceParameters(parameters, tool) {
-            const checkboxList = document.getElementById('mcpServiceCheckboxList');
-
-            // Filter out 'self' and already existing properties
-            const existingProps = Object.keys(tool.inputSchema?.properties || {});
-            const availableParams = parameters.filter(param =>
-                param.name !== 'self' && !existingProps.includes(param.name)
-            );
-
-            if (availableParams.length === 0) {
-                checkboxList.innerHTML = '<div style="padding: 10px; text-align: center; color: #666;">All parameters are already added or no parameters available</div>';
-                return;
-            }
-
-            let checkboxHtml = '';
-            availableParams.forEach((param, idx) => {
-                const propId = `mcp_param_${idx}`;
-                const reqId = `mcp_req_${idx}`;
-                const hasDefault = param.default !== null && param.default !== undefined;
-                const isOptional = param.type && param.type.startsWith('Optional[');
-                const isRequired = !hasDefault && !isOptional;
-
-                // Map parameter type to JSON schema type
-                const schemaType = mapSignatureTypeToSchema(param.type);
-
-                checkboxHtml += `
-                    <div style="padding: 8px; border-bottom: 1px solid #eee; display: flex; align-items: center;">
-                        <input type="checkbox" id="${propId}"
-                               data-param-name="${param.name}"
-                               data-param-type="${schemaType.type || 'string'}"
-                               data-param-desc="${schemaType.description || ''}"
-                               data-param-original-type="${param.type || 'str'}"
-                               style="margin-right: 10px;">
-                        <div style="flex-grow: 1;">
-                            <label for="${propId}" style="margin: 0; cursor: pointer;">
-                                <strong>${param.name}</strong>
-                                <span style="color: #666; font-size: 12px;">(${param.type || 'str'})</span>
-                                ${param.default !== undefined ? `<span style="color: #28a745; font-size: 11px;"> [default: ${param.default}]</span>` : ''}
-                                ${schemaType.description ? `<br><span style="color: #888; font-size: 11px;">${schemaType.description}</span>` : ''}
-                            </label>
-                        </div>
-                        <div style="margin-left: 10px;">
-                            <label style="margin: 0; font-size: 12px;">
-                                <input type="checkbox" id="${reqId}" ${isRequired ? 'checked' : ''} style="margin-right: 5px;">Required
-                            </label>
-                        </div>
-                    </div>
-                `;
-            });
-
-            checkboxList.innerHTML = checkboxHtml;
-        }
-
-        function selectAllMcpParams(select) {
-            const checkboxes = document.querySelectorAll('#mcpServiceCheckboxList input[type="checkbox"][id^="mcp_param_"]');
-            checkboxes.forEach(cb => cb.checked = select);
-        }
-
-        function toggleAllMcpRequired(required) {
-            const checkboxes = document.querySelectorAll('#mcpServiceCheckboxList input[type="checkbox"][id^="mcp_req_"]');
-            checkboxes.forEach(cb => cb.checked = required);
         }
 
         function handleClassChange() {
@@ -2736,42 +2333,18 @@
 
             const {toolIndex, propName} = nestedGraphTarget;
             const tool = tools[toolIndex];
-            const toolName = tool.name;
-            const isInternal = !!internalArgs[toolName]?.[propName];
 
-            let parentProp;
-            if (isInternal) {
-                const internalArg = internalArgs[toolName][propName];
-                if (!internalArg.original_schema) {
-                    internalArg.original_schema = {
-                        type: 'object',
-                        description: `${className} parameters`,
-                        properties: {},
-                        required: []
-                    };
-                }
-                parentProp = internalArg.original_schema;
-                parentProp.type = 'object';
-                parentProp.properties = parentProp.properties || {};
-                parentProp.required = parentProp.required || [];
-                parentProp.baseModel = parentProp.baseModel || className;
-                internalArg.type = className;
-                if (!parentProp.description) {
-                    parentProp.description = `${className} parameters`;
-                }
-            } else {
-                if (!tool.inputSchema.properties[propName]) {
-                    tool.inputSchema.properties[propName] = {type: 'object', properties: {}, required: []};
-                }
+            if (!tool.inputSchema.properties[propName]) {
+                tool.inputSchema.properties[propName] = {type: 'object', properties: {}, required: []};
+            }
 
-                parentProp = tool.inputSchema.properties[propName];
-                parentProp.type = 'object';
-                parentProp.properties = parentProp.properties || {};
-                parentProp.required = parentProp.required || [];
-                parentProp.baseModel = parentProp.baseModel || className;
-                if (!parentProp.description) {
-                    parentProp.description = `${className} parameters`;
-                }
+            const parentProp = tool.inputSchema.properties[propName];
+            parentProp.type = 'object';
+            parentProp.properties = parentProp.properties || {};
+            parentProp.required = parentProp.required || [];
+            parentProp.baseModel = parentProp.baseModel || className;
+            if (!parentProp.description) {
+                parentProp.description = `${className} parameters`;
             }
 
             let addedCount = 0;
@@ -2831,51 +2404,6 @@
                 } else {
                     showNotification('Please enter a property name', 'error');
                 }
-            } else if (source === 'mcp_service') {
-                // Handle multiple properties from MCP service
-                const checkboxes = document.querySelectorAll('#mcpServiceCheckboxList input[type="checkbox"][id^="mcp_param_"]:checked');
-
-                if (checkboxes.length === 0) {
-                    showNotification('Please select at least one parameter', 'error');
-                    return;
-                }
-
-                if (!tools[index].inputSchema.properties) {
-                    tools[index].inputSchema.properties = {};
-                }
-
-                if (!tools[index].inputSchema.required) {
-                    tools[index].inputSchema.required = [];
-                }
-
-                let addedCount = 0;
-                checkboxes.forEach((checkbox) => {
-                    const paramName = checkbox.getAttribute('data-param-name');
-                    const paramType = checkbox.getAttribute('data-param-type');
-                    const paramDesc = checkbox.getAttribute('data-param-desc');
-                    const originalType = checkbox.getAttribute('data-param-original-type');
-
-                    const reqCheckbox = document.getElementById(checkbox.id.replace('mcp_param_', 'mcp_req_'));
-                    const isRequired = reqCheckbox && reqCheckbox.checked;
-
-                    // Check if property already exists
-                    if (!tools[index].inputSchema.properties[paramName]) {
-                        tools[index].inputSchema.properties[paramName] = {
-                            type: paramType,
-                            description: paramDesc || `Parameter from MCP service (${originalType})`,
-                            '_source': 'mcp_service'  // Add metadata to track source
-                        };
-
-                        if (isRequired && !tools[index].inputSchema.required.includes(paramName)) {
-                            tools[index].inputSchema.required.push(paramName);
-                        }
-                        addedCount++;
-                    }
-                });
-
-                closeModal('propertyModal');
-                renderToolEditor(tools[index], index);
-                showNotification(`${addedCount} parameter(s) added from MCP service`, 'success');
             } else {
                 // Handle multiple properties from graph_types
                 const className = document.getElementById('graphTypeClass').value;
@@ -2959,8 +2487,7 @@
 
                         targetProp.properties[propName] = {
                             type: mapToJsonSchemaType(propType),
-                            description: propDesc || '',
-                            '_source': 'types'  // Mark as from types.py
+                            description: propDesc || ''
                         };
 
                         if (isRequired && !targetProp.required.includes(propName)) {
@@ -3057,68 +2584,6 @@
                     ? `${innerType} parameters`
                     : '',
                 optional
-            };
-        }
-
-        function getMcpServiceParameter(tool, propName) {
-            if (!tool || !propName) {
-                return null;
-            }
-
-            const serviceName = typeof tool.mcp_service === 'object' ? tool.mcp_service?.name : tool.mcp_service;
-            if (!serviceName) {
-                return null;
-            }
-
-            let serviceDetail = null;
-            if (Array.isArray(window.mcpServiceDetails)) {
-                serviceDetail = window.mcpServiceDetails.find(svc => svc.name === serviceName);
-            }
-
-            if (!serviceDetail && tool.mcp_service && tool.mcp_service.parameters) {
-                serviceDetail = { name: serviceName, parameters: tool.mcp_service.parameters };
-            }
-
-            if (!serviceDetail || !Array.isArray(serviceDetail.parameters)) {
-                return null;
-            }
-
-            return serviceDetail.parameters.find(param => param.name === propName && param.name !== 'self') || null;
-        }
-
-        function formatSchemaType(schema) {
-            if (!schema || !schema.type) {
-                return 'unknown';
-            }
-
-            if (schema.type === 'array') {
-                const itemType = schema.items && schema.items.type ? schema.items.type : 'unknown';
-                return `array<${itemType}>`;
-            }
-
-            return schema.type;
-        }
-
-        function checkMcpParamTypeMatch(propDef, param) {
-            if (!propDef || !param) {
-                return { isMatch: false, expectedLabel: 'unknown', actualLabel: 'unknown' };
-            }
-
-            const expectedSchema = mapSignatureTypeToSchema(param.type);
-            const expectedType = expectedSchema.type;
-            const actualType = propDef.type;
-
-            let isMatch = expectedType === actualType;
-            if (isMatch && expectedType === 'array') {
-                const expectedItemType = expectedSchema.items && expectedSchema.items.type;
-                const actualItemType = propDef.items && propDef.items.type;
-                isMatch = !!expectedItemType && !!actualItemType && expectedItemType === actualItemType;
-            }
-
-            return {
-                isMatch,
-                expectedLabel: formatSchemaType(expectedSchema),
-                actualLabel: formatSchemaType(propDef)
             };
         }
 
@@ -3316,18 +2781,7 @@
 
         function toggleNestedRequired(toolIndex, parentPropName, nestedPropName, isChecked) {
             const tool = tools[toolIndex];
-            const toolName = tool.name;
-            const isInternal = !!internalArgs[toolName]?.[parentPropName];
-
-            let parentProp = tool.inputSchema.properties[parentPropName];
-
-            if (isInternal) {
-                const internalArg = internalArgs[toolName][parentPropName];
-                if (!internalArg.original_schema) {
-                    internalArg.original_schema = {type: 'object', properties: {}, required: []};
-                }
-                parentProp = internalArg.original_schema;
-            }
+            const parentProp = tool.inputSchema.properties[parentPropName];
 
             if (parentProp) {
                 if (!parentProp.required) {
@@ -3348,18 +2802,7 @@
 
         function updateNestedPropertyType(toolIndex, parentPropName, nestedPropName, newType) {
             const tool = tools[toolIndex];
-            const toolName = tool.name;
-            const isInternal = !!internalArgs[toolName]?.[parentPropName];
-
-            let parentProp = tool.inputSchema.properties[parentPropName];
-
-            if (isInternal) {
-                const internalArg = internalArgs[toolName][parentPropName];
-                if (!internalArg.original_schema) {
-                    internalArg.original_schema = {type: 'object', properties: {}, required: []};
-                }
-                parentProp = internalArg.original_schema;
-            }
+            const parentProp = tool.inputSchema.properties[parentPropName];
 
             if (parentProp && parentProp.properties && parentProp.properties[nestedPropName]) {
                 parentProp.properties[nestedPropName].type = newType;
@@ -3807,137 +3250,6 @@
             allIcons.forEach(icon => { icon.classList.add('collapsed'); icon.textContent = '▶'; });
             allHeaders.forEach(header => header.classList.remove('expanded'));
         }
-
-        // MCP Server Control Functions
-        async function checkServerStatus() {
-            try {
-                const profileQuery = profileParam();
-                const response = await fetch(`/api/server/status${profileQuery}`);
-                const data = await response.json();
-                updateServerStatus(data);
-            } catch (error) {
-                console.error('Failed to check server status:', error);
-                updateServerStatus({ running: false, error: error.message });
-            }
-        }
-
-        function updateServerStatus(status) {
-            const indicator = document.getElementById('status-indicator');
-            const statusText = document.getElementById('status-text');
-            const startBtn = document.getElementById('btn-start');
-            const stopBtn = document.getElementById('btn-stop');
-            const restartBtn = document.getElementById('btn-restart');
-            const profileIndicator = document.getElementById('profile-indicator');
-
-            // Update profile indicator
-            if (profileIndicator) {
-                profileIndicator.textContent = currentProfile ? `(${currentProfile})` : '';
-            }
-
-            if (status.running) {
-                indicator.style.backgroundColor = '#1e8e3e';
-
-                // Display PID and process info
-                let statusMsg = 'Running';
-                if (status.pid) {
-                    statusMsg += ` (PID: ${status.pid})`;
-                } else if (status.processes && status.processes.length > 0) {
-                    // Show unmanaged process info if no managed PID
-                    const unmanaged = status.processes.filter(p => !p.managed);
-                    if (unmanaged.length > 0) {
-                        statusMsg += ` (${unmanaged.length} unmanaged process${unmanaged.length > 1 ? 'es' : ''})`;
-                    }
-                }
-                statusText.textContent = statusMsg;
-
-                if (startBtn) startBtn.disabled = true;
-                if (stopBtn) stopBtn.disabled = false;
-                if (restartBtn) restartBtn.disabled = false;
-            } else {
-                indicator.style.backgroundColor = '#d93025';
-                statusText.textContent = 'Stopped';
-                if (startBtn) startBtn.disabled = false;
-                if (stopBtn) stopBtn.disabled = true;
-                if (restartBtn) restartBtn.disabled = true;
-            }
-
-            if (status.error) {
-                statusText.textContent = `Error: ${status.error}`;
-                indicator.style.backgroundColor = '#f9ab00';
-            }
-        }
-
-        async function startServer() {
-            const startBtn = document.getElementById('btn-start');
-            if (startBtn) startBtn.disabled = true;
-
-            try {
-                const profileQuery = profileParam();
-                const response = await fetch(`/api/server/start${profileQuery}`, { method: 'POST' });
-                const data = await response.json();
-
-                if (data.success) {
-                    showMessage(`MCP server started successfully for ${currentProfile || 'default'} profile`, 'success');
-                    setTimeout(checkServerStatus, 1000);
-                } else {
-                    showMessage(data.error || 'Failed to start server', 'error');
-                }
-            } catch (error) {
-                console.error('Failed to start server:', error);
-                showMessage('Failed to start server', 'error');
-            } finally {
-                if (startBtn) startBtn.disabled = false;
-            }
-        }
-
-        async function stopServer() {
-            const stopBtn = document.getElementById('btn-stop');
-            if (stopBtn) stopBtn.disabled = true;
-
-            try {
-                const profileQuery = profileParam();
-                const response = await fetch(`/api/server/stop${profileQuery}`, { method: 'POST' });
-                const data = await response.json();
-
-                if (data.success) {
-                    showMessage(`MCP server stopped successfully for ${currentProfile || 'default'} profile`, 'success');
-                    setTimeout(checkServerStatus, 1000);
-                } else {
-                    showMessage(data.error || 'Failed to stop server', 'error');
-                }
-            } catch (error) {
-                console.error('Failed to stop server:', error);
-                showMessage('Failed to stop server', 'error');
-            } finally {
-                if (stopBtn) stopBtn.disabled = false;
-            }
-        }
-
-        async function restartServer() {
-            const restartBtn = document.getElementById('btn-restart');
-            if (restartBtn) restartBtn.disabled = true;
-
-            try {
-                const profileQuery = profileParam();
-                const response = await fetch(`/api/server/restart${profileQuery}`, { method: 'POST' });
-                const data = await response.json();
-
-                if (data.success) {
-                    showMessage(`MCP server restarted successfully for ${currentProfile || 'default'} profile`, 'success');
-                    setTimeout(checkServerStatus, 2000);
-                } else {
-                    showMessage(data.error || 'Failed to restart server', 'error');
-                }
-            } catch (error) {
-                console.error('Failed to restart server:', error);
-                showMessage('Failed to restart server', 'error');
-            } finally {
-                if (restartBtn) restartBtn.disabled = false;
-            }
-        }
-
-        // Auto-refresh server status every 10 seconds
-        setInterval(checkServerStatus, 10000);
     </script>
 </body>
 </html>
