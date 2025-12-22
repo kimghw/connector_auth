@@ -229,15 +229,10 @@ def generate_server(
 
 def find_registry_file(server_name: str) -> Optional[str]:
     """Find registry file for a given server"""
-    candidates = [
-        PROJECT_ROOT / "mcp_editor" / "mcp_service_registry" / f"registry_{server_name}.json",
-        PROJECT_ROOT / "mcp_editor" / server_name / f"registry_{server_name}.json",
-        PROJECT_ROOT / f"mcp_{server_name}" / f"registry_{server_name}.json",
-    ]
+    registry_path = PROJECT_ROOT / "mcp_editor" / "mcp_service_registry" / f"registry_{server_name}.json"
 
-    for candidate in candidates:
-        if candidate.exists():
-            return str(candidate)
+    if registry_path.exists():
+        return str(registry_path)
 
     return None
 
