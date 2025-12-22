@@ -678,6 +678,9 @@
                 <button class="btn btn-important btn-tooltip" onclick="openGeneratorModal()" data-tooltip="⚙️ Input: tool_definitions.py&#10;📄 Template: *_server_template.jinja2&#10;🚀 Output: server.py&#10;&#10;Generate MCP server from template">
                     <span class="material-icons">auto_fix_high</span> Generate Server
                 </button>
+                <button class="btn btn-success btn-tooltip" onclick="openCreateProjectModal()" data-tooltip="🚀 Create new MCP server project&#10;📁 Complete folder structure&#10;📝 Ready-to-use templates&#10;&#10;Create a new MCP service from scratch">
+                    <span class="material-icons">add_circle</span> New Project
+                </button>
             </div>
         </div>
         <div id="profileTabs" style="display: flex; justify-content: flex-start; gap: 8px; padding: 10px 20px; background: #f7f7f7; border-bottom: 1px solid #e5e5e5;">
@@ -812,6 +815,51 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('backupModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create New MCP Project Modal -->
+    <div id="createProjectModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Create New MCP Project</h2>
+                <button class="btn btn-icon" onclick="closeModal('createProjectModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Service Name <span style="color: red;">*</span></label>
+                    <input id="projectServiceName" class="form-control" placeholder="e.g., calendar, weather, database" required>
+                    <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        Only letters, numbers, and underscores allowed. Will create mcp_{service_name} folder.
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input id="projectDescription" class="form-control" placeholder="Brief description of the service">
+                </div>
+                <div class="form-group">
+                    <label>Port</label>
+                    <input id="projectPort" type="number" class="form-control" value="8080" min="1024" max="65535">
+                    <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        Server port number (1024-65535)
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label>Author</label>
+                    <input id="projectAuthor" class="form-control" placeholder="Your name (optional)">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input id="projectIncludeTypes" type="checkbox" checked>
+                        Include type definitions file (*_types.py)
+                    </label>
+                </div>
+                <div id="createProjectResult" style="margin-top: 15px; padding: 12px; border-radius: 6px; display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('createProjectModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="createNewProject()">Create Project</button>
             </div>
         </div>
     </div>
@@ -1378,6 +1426,85 @@
             }
 
             return `${basePath}/${fileName}`;
+        }
+
+        function openCreateProjectModal() {
+            // Clear form
+            document.getElementById('projectServiceName').value = '';
+            document.getElementById('projectDescription').value = '';
+            document.getElementById('projectPort').value = '8080';
+            document.getElementById('projectAuthor').value = '';
+            document.getElementById('projectIncludeTypes').checked = true;
+
+            // Hide result
+            const resultEl = document.getElementById('createProjectResult');
+            resultEl.style.display = 'none';
+            resultEl.textContent = '';
+
+            document.getElementById('createProjectModal').classList.add('show');
+        }
+
+        function createNewProject() {
+            const serviceName = document.getElementById('projectServiceName').value.trim();
+            const description = document.getElementById('projectDescription').value.trim();
+            const port = parseInt(document.getElementById('projectPort').value) || 8080;
+            const author = document.getElementById('projectAuthor').value.trim();
+            const includeTypes = document.getElementById('projectIncludeTypes').checked;
+
+            if (!serviceName) {
+                alert('Service name is required');
+                return;
+            }
+
+            // Validate service name
+            if (!/^[a-zA-Z0-9_]+$/.test(serviceName)) {
+                alert('Service name can only contain letters, numbers, and underscores');
+                return;
+            }
+
+            const resultEl = document.getElementById('createProjectResult');
+            resultEl.style.display = 'block';
+            resultEl.style.backgroundColor = '#e3f2fd';
+            resultEl.textContent = 'Creating project...';
+
+            fetch('/api/create-mcp-project', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    service_name: serviceName,
+                    description: description,
+                    port: port,
+                    author: author,
+                    include_types: includeTypes
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resultEl.style.backgroundColor = '#e8f5e9';
+                    resultEl.innerHTML = `
+                        <strong>✅ Success!</strong><br>
+                        Created project: ${data.project_dir}<br>
+                        Files created: ${data.created_files}<br><br>
+                        <strong>Next steps:</strong><br>
+                        1. Reload this page to see the new profile<br>
+                        2. Select "${data.service_name}" from the profile tabs<br>
+                        3. Start adding tools via the web editor
+                    `;
+
+                    // Reload profiles after 3 seconds
+                    setTimeout(() => {
+                        location.reload();
+                    }, 3000);
+                } else {
+                    resultEl.style.backgroundColor = '#ffebee';
+                    resultEl.textContent = '❌ Error: ' + (data.error || 'Unknown error occurred');
+                }
+            })
+            .catch(error => {
+                resultEl.style.backgroundColor = '#ffebee';
+                resultEl.textContent = '❌ Error: ' + error.message;
+            });
         }
 
         function openGeneratorModal() {
