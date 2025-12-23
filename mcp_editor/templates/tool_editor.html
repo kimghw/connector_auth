@@ -2144,6 +2144,13 @@
             };
 
             // Check if property is MCP service parameter
+            const normalizeMcpPropName = (propName) => {
+                if (propName && propName.endsWith('_internal')) {
+                    return propName.slice(0, -'_internal'.length);
+                }
+                return propName;
+            };
+
             const isPropertyMcpParam = (propName) => {
                 if (!tool.mcp_service) {
                     return false;
@@ -2166,14 +2173,15 @@
                     return false;
                 }
 
+                const normalizedName = normalizeMcpPropName(propName);
                 return parameters.some(param => {
                     if (!param) {
                         return false;
                     }
                     if (typeof param === 'string') {
-                        return param === propName;
+                        return param === normalizedName;
                     }
-                    return param.name === propName;
+                    return param.name === normalizedName;
                 });
             };
 
@@ -2219,7 +2227,7 @@
                                 <span style="margin-left: 12px; font-size: 12px; color: #666; background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${propDef.type}</span>
                                 ${isRequired ? '<span style="margin-left: 8px; font-size: 11px; color: var(--danger-color); font-weight: 600;">REQUIRED</span>' : ''}
                                 ${isInternal ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--warning-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">INTERNAL</span>' : ''}
-                                ${isMcpParam ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--primary-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">MCP</span>' : ''}
+                                ${isMcpParam ? `<span style="margin-left: 8px; font-size: 10px; color: white; background: ${isInternal ? 'var(--warning-color)' : 'var(--primary-color)'}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">MCP</span>` : ''}
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px;" onclick="event.stopPropagation();">
                                 ${propDef.type === 'object' ? `
@@ -2911,6 +2919,14 @@
                                         <option value="">-- Select Type --</option>
                                     </select>
                                 </div>
+                                <div class="form-group">
+                                    <label>Target Property Name (optional)</label>
+                                    <input type="text" id="graphTypePropName" class="form-control"
+                                           placeholder="Leave empty to use default mapping">
+                                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                                        Use the _internal suffix to create an internal-only object.
+                                    </div>
+                                </div>
                                 <div class="form-group" id="propertySelectionDiv" style="display: none;">
                                     <label>Select Properties to Add</label>
                                     <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 300px; overflow-y: auto;">
@@ -2987,11 +3003,17 @@
             const className = document.getElementById('graphTypeClass').value;
             const selectionDiv = document.getElementById('propertySelectionDiv');
             const checkboxList = document.getElementById('propertyCheckboxList');
+            const propNameInput = document.getElementById('graphTypePropName');
 
             console.log('[DEBUG] handleClassChange called. className:', className);
             console.log('[DEBUG] window.graphTypesProperties:', window.graphTypesProperties);
 
             if (className && window.graphTypesProperties) {
+                if (propNameInput) {
+                    const tool = tools[currentToolIndex];
+                    const defaultName = tool ? getTargetPropertyForGraphType(className, tool) : null;
+                    propNameInput.placeholder = defaultName ? `Default: ${defaultName}` : 'Enter property name';
+                }
                 const properties = window.graphTypesProperties.properties_by_class[className] || [];
                 console.log('[DEBUG] Found properties for', className, ':', properties.length, 'properties');
 
@@ -3024,6 +3046,9 @@
                 checkboxList.innerHTML = checkboxHtml || '<div style="padding: 10px; text-align: center; color: #666;">No properties available</div>';
                 selectionDiv.style.display = 'block';
             } else {
+                if (propNameInput) {
+                    propNameInput.placeholder = 'Leave empty to use default mapping';
+                }
                 console.log('[DEBUG] Hiding property selection. className:', className, 'graphTypesProperties:', !!window.graphTypesProperties);
                 selectionDiv.style.display = 'none';
             }
@@ -3227,7 +3252,13 @@
                 }
 
                 let addedCount = 0;
-                const targetPropName = getTargetPropertyForGraphType(className, tools[index]);
+                const overridePropName = document.getElementById('graphTypePropName')?.value.trim();
+                const targetPropName = overridePropName || getTargetPropertyForGraphType(className, tools[index]);
+
+                if (!targetPropName && overridePropName) {
+                    showNotification('Please enter a property name', 'error');
+                    return;
+                }
 
                 if (targetPropName) {
                     const toolName = tools[index].name;

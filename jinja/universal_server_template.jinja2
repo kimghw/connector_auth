@@ -144,6 +144,26 @@ def build_internal_param(tool_name: str, arg_name: str, runtime_value: dict = No
         return None
 
 
+def model_to_dict(model):
+    if model is None:
+        return {}
+    if isinstance(model, dict):
+        return model
+    if hasattr(model, "model_dump"):
+        return model.model_dump(exclude_none=True)
+    if hasattr(model, "dict"):
+        return model.dict(exclude_none=True)
+    return {}
+
+
+def merge_param_data(internal_data: dict, runtime_data):
+    if not runtime_data:
+        return internal_data or None
+    if internal_data:
+        return {**internal_data, **runtime_data}
+    return runtime_data
+
+
 app = FastAPI(title="{{ server_title | default(server_name | title + ' MCP Server') }}", version="1.0.0")
 
 
@@ -406,15 +426,37 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- endif %}
     {%- endfor %}
 
+    {%- if tool.internal_overrides %}
+    # Internal overrides for object params
+    {%- for base_name, override in tool.internal_overrides.items() %}
+    {%- set arg_name = override.name %}
+    {%- set arg_info = override.info %}
+    {%- if arg_info.value is defined and arg_info.value is not none %}
+    {{ arg_name }}_data = model_to_dict({{ arg_info.value | pprint }})
+    {%- else %}
+    {{ arg_name }}_params = build_internal_param("{{ tool.name }}", "{{ arg_name }}")
+    {{ arg_name }}_data = model_to_dict({{ arg_name }}_params)
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+
     # Convert dicts to parameter objects where needed
     {%- for param_name, param_info in tool.object_params.items() %}
     {%- if param_name not in tool.internal_args %}
+    {%- if param_name in tool.internal_overrides %}
+    {{ param_name }}_internal_data = {{ tool.internal_overrides[param_name].name }}_data
+    {%- else %}
+    {{ param_name }}_internal_data = {}
+    {%- endif %}
     {%- if not param_info.is_optional %}
-    {{ param_name }}_params = {{ param_info.class_name }}(**args["{{ param_name }}"])
+    {{ param_name }}_raw = args["{{ param_name }}"]
+    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}_raw) or {}
+    {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_data)
     {%- elif param_info.has_default %}
     {{ param_name }}_raw = args.get("{{ param_name }}")
-    if {{ param_name }}_raw is not None:
-        {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_raw)
+    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}_raw)
+    if {{ param_name }}_data is not None:
+        {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_data)
     else:
         {%- if param_info.default_json %}
         {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_info.default_json }})
@@ -423,7 +465,8 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
         {%- endif %}
     {%- else %}
     {{ param_name }}_raw = args.get("{{ param_name }}")
-    {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_raw) if {{ param_name }}_raw is not None else None
+    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}_raw)
+    {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_data) if {{ param_name }}_data is not None else None
     {%- endif %}
     {%- endif %}
     {%- endfor %}
@@ -431,12 +474,14 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
 
     # Internal Args (pre-configured defaults)
     {%- for arg_name, arg_info in tool.internal_args.items() %}
+    {%- if not arg_name.endswith("_internal") %}
     {%- if arg_info.value is defined and arg_info.value is not none and arg_info.value != {} %}
     {{ arg_name }}_params = {{ arg_info.type }}(**{{ arg_info.value | pprint }})
     {%- elif arg_info.value is defined and arg_info.value == {} %}
     {{ arg_name }}_params = {{ arg_info.type }}()
     {%- else %}
     {{ arg_name }}_params = build_internal_param("{{ tool.name }}", "{{ arg_name }}")
+    {%- endif %}
     {%- endif %}
     {%- endfor %}
     {%- endif %}

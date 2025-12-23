@@ -264,6 +264,17 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         tool_with_internal['params'] = params
         tool_with_internal['object_params'] = object_params
         tool_with_internal['call_params'] = call_params
+        internal_overrides = {}
+        for arg_name, arg_info in tool_internal_args.items():
+            if not arg_name.endswith("_internal"):
+                continue
+            base_name = arg_name[: -len("_internal")]
+            if base_name in object_params:
+                internal_overrides[base_name] = {
+                    "name": arg_name,
+                    "info": arg_info
+                }
+        tool_with_internal['internal_overrides'] = internal_overrides
 
         processed_tools.append(tool_with_internal)
 
@@ -438,5 +449,4 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         sys.exit(1)
-
 
