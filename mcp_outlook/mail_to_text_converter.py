@@ -27,17 +27,19 @@ from mcp_file_handler.attachment_converter import AttachmentAPI, UnifiedAttachme
 class MailTextProcessor:
     """메일과 첨부파일의 텍스트를 처리하는 프로세서"""
 
-    def __init__(self, access_token: str, temp_dir: Optional[str] = None):
+    def __init__(self, user_email: str, access_token: Optional[str] = None, temp_dir: Optional[str] = None):
         """
         초기화
 
         Args:
-            access_token: Graph API 액세스 토큰
+            user_email: User email for authentication
+            access_token: Graph API 액세스 토큰 (선택사항, 없으면 AuthManager에서 가져옴)
             temp_dir: 임시 파일 저장 디렉토리 (None이면 시스템 임시 폴더)
         """
+        self.user_email = user_email
         self.access_token = access_token
-        self.mail_query = GraphMailQuery(access_token=access_token)
-        self.attachment_handler = AttachmentHandler(access_token)
+        self.mail_query = GraphMailQuery()
+        self.attachment_handler = None  # Will be initialized with token
         self.attachment_converter = AttachmentAPI()
 
         # 임시 디렉토리 설정
@@ -53,7 +55,17 @@ class MailTextProcessor:
 
     async def initialize(self):
         """비동기 초기화"""
-        return await self.mail_query.initialize()
+        await self.mail_query.initialize()
+
+        # Get access token if not provided
+        if not self.access_token:
+            self.access_token = await self.mail_query._get_access_token(self.user_email)
+            if not self.access_token:
+                raise Exception(f"Failed to get access token for {self.user_email}")
+
+        # Initialize attachment handler with token
+        self.attachment_handler = AttachmentHandler(self.access_token)
+        return True
 
     def _get_temp_dir(self, mail_id: str) -> Path:
         """메일별 임시 디렉토리 생성"""

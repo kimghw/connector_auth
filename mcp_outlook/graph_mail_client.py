@@ -35,22 +35,14 @@ class GraphMailClient:
     메일 쿼리부터 결과 처리, 첨부파일 관리까지 통합 관리
     """
 
-    def __init__(self, user_email: Optional[str] = None, access_token: Optional[str] = None):
+    def __init__(self):
         """
         초기화
-
-        Args:
-            user_email: 사용자 이메일
-            access_token: 액세스 토큰 (선택사항)
         """
-        self.user_email = user_email
-        self.access_token = access_token
         self.mail_query: Optional[GraphMailQuery] = None
-        self.mail_processor: Optional[MailProcessorHandler] = None
-        self.attachment_handler: Optional[AttachmentHandler] = None
         self._initialized = False
 
-    async def initialize(self, user_email: Optional[str] = None) -> bool:
+    async def initialize(self) -> bool:
         """
         컴포넌트 초기화
 
@@ -61,39 +53,12 @@ class GraphMailClient:
             return True
 
         try:
-            if user_email:
-                self.user_email = user_email
-
             # GraphMailQuery 초기화
-            self.mail_query = GraphMailQuery(
-                user_email=self.user_email,
-                access_token=self.access_token
-            )
+            self.mail_query = GraphMailQuery()
 
-            if not await self.mail_query.initialize(self.user_email):
+            if not await self.mail_query.initialize():
                 print("❌ Failed to initialize GraphMailQuery")
                 return False
-
-            # 액세스 토큰 가져오기
-            if not self.access_token:
-                self.access_token = self.mail_query.access_token
-
-            if not self.access_token and self.user_email:
-                # 마지막으로 토큰을 직접 시도해 본다
-                self.access_token = await self.mail_query._get_access_token(self.user_email)
-
-            if not self.access_token:
-                print("❌ Access token is missing; cannot initialize MailProcessorHandler")
-                return False
-
-            # MailProcessorHandler 초기화
-            self.mail_processor = MailProcessorHandler(self.access_token)
-            if not await self.mail_processor.initialize():
-                print("❌ Failed to initialize MailProcessorHandler")
-                return False
-
-            # AttachmentHandler 초기화
-            self.attachment_handler = AttachmentHandler(self.access_token)
 
             self._initialized = True
             return True
@@ -108,6 +73,7 @@ class GraphMailClient:
             raise Exception("GraphMailClient not initialized. Call initialize() first.")
 
     async def build_and_fetch(self,
+                             user_email: str,
                              query_method: QueryMethod = QueryMethod.FILTER,
                              # Filter 방식 파라미터
                              filter_params: Optional[FilterParams] = None,
@@ -125,6 +91,7 @@ class GraphMailClient:
         쿼리를 빌드하고 메일을 가져오기
 
         Args:
+            user_email: User email for authentication
             query_method: 쿼리 방법 (FILTER, SEARCH, URL)
             filter_params: 필터 파라미터 (FILTER 방식)
             exclude_params: 제외 파라미터 (FILTER 방식)
@@ -151,7 +118,7 @@ class GraphMailClient:
                     }
 
                 result = await self.mail_query.query_filter(
-                    user_email=self.user_email,
+                    user_email=user_email,
                     filter=filter_params or {},
                     exclude=exclude_params,
                     select=select_params,
@@ -169,7 +136,7 @@ class GraphMailClient:
                     }
 
                 result = await self.mail_query.query_search(
-                    user_email=self.user_email,
+                    user_email=user_email,
                     search=search_term,
                     client_filter=client_filter,
                     select=select_params,
@@ -186,7 +153,7 @@ class GraphMailClient:
                     }
 
                 result = await self.mail_query.query_url(
-                    user_email=self.user_email,
+                    user_email=user_email,
                     url=url,
                     top=top,
                     client_filter=client_filter
@@ -212,6 +179,7 @@ class GraphMailClient:
             }
 
     async def fetch_and_process(self,
+                               user_email: str,
                                # 쿼리 파라미터
                                query_method: QueryMethod = QueryMethod.FILTER,
                                filter_params: Optional[FilterParams] = None,
@@ -234,6 +202,7 @@ class GraphMailClient:
         메일을 가져오고 처리하는 통합 메서드
 
         Args:
+            user_email: User email for authentication
             쿼리 관련 파라미터는 build_and_fetch와 동일
             processing_mode: 처리 모드
             mail_storage: 메일 저장 방식
@@ -250,6 +219,7 @@ class GraphMailClient:
         # 1. 메일 가져오기
         print(f"\n📧 Fetching emails using {query_method.value} method...")
         result = await self.build_and_fetch(
+            user_email=user_email,
             query_method=query_method,
             filter_params=filter_params,
             exclude_params=exclude_params,
@@ -305,6 +275,17 @@ class GraphMailClient:
         # 5. 추가 처리가 필요한 경우
         print(f"\n🔧 Processing emails with mode: {processing_mode.value}")
 
+        # Get access token for processing
+        access_token = await self.mail_query._get_access_token(user_email)
+        if not access_token:
+            return {
+                "status": "error",
+                "error": f"Failed to get access token for {user_email}",
+                "value": emails,
+                "processing_mode": processing_mode.value,
+                "query_method": query_method.value
+            }
+
         # ProcessingOptions 생성
         processing_options = ProcessingOptions(
             mail_storage=mail_storage,
@@ -313,9 +294,27 @@ class GraphMailClient:
             save_directory=save_directory
         )
 
+        # Create MailProcessorHandler for this request
+        mail_processor = MailProcessorHandler(access_token)
+        try:
+            await mail_processor.initialize()
+        except Exception as e:
+            # Clean up on initialization failure
+            try:
+                await mail_processor.close()
+            except:
+                pass
+            return {
+                "status": "error",
+                "error": f"Failed to initialize MailProcessorHandler: {str(e)}",
+                "value": emails,
+                "processing_mode": processing_mode.value,
+                "query_method": query_method.value
+            }
+
         # 처리 실행
         try:
-            processed_result = await self.mail_processor.process_mail(
+            processed_result = await mail_processor.process_mail(
                 mail_data=result,
                 options=processing_options
             )
@@ -348,8 +347,12 @@ class GraphMailClient:
                 "processing_mode": processing_mode.value,
                 "query_method": query_method.value
             }
+        finally:
+            # Clean up processor
+            await mail_processor.close()
 
     async def quick_search(self,
+                          user_email: str,
                           keyword: str,
                           max_results: int = 50,
                           process_attachments: bool = False) -> Dict[str, Any]:
@@ -357,6 +360,7 @@ class GraphMailClient:
         빠른 검색 헬퍼 메서드
 
         Args:
+            user_email: User email for authentication
             keyword: 검색어
             max_results: 최대 결과 수
             process_attachments: 첨부파일 처리 여부
@@ -368,6 +372,7 @@ class GraphMailClient:
         attachment_handling = AttachmentOption.DOWNLOAD_ONLY if process_attachments else AttachmentOption.SKIP
 
         return await self.fetch_and_process(
+            user_email=user_email,
             query_method=QueryMethod.SEARCH,
             search_term=keyword,
             top=max_results,
@@ -376,6 +381,7 @@ class GraphMailClient:
         )
 
     async def get_attachments_from_sender(self,
+                                         user_email: str,
                                          sender_email: str,
                                          days_back: int = 30,
                                          download: bool = True,
@@ -384,6 +390,7 @@ class GraphMailClient:
         특정 발신자의 첨부파일 가져오기
 
         Args:
+            user_email: User email for authentication
             sender_email: 발신자 이메일
             days_back: 며칠 전까지
             download: 다운로드 여부
@@ -411,6 +418,7 @@ class GraphMailClient:
             attachment_handling = AttachmentOption.SKIP
 
         return await self.fetch_and_process(
+            user_email=user_email,
             query_method=QueryMethod.FILTER,
             filter_params=filter_params,
             top=100,
@@ -476,5 +484,3 @@ class GraphMailClient:
         """리소스 정리"""
         if self.mail_query:
             await self.mail_query.close()
-        if self.mail_processor:
-            await self.mail_processor.close()

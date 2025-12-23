@@ -40,17 +40,14 @@ class MailService:
         self._client: Optional[GraphMailClient] = None
         self._initialized = False
 
-    async def initialize(self, user_email: Optional[str] = None, access_token: Optional[str] = None) -> bool:
+    async def initialize(self) -> bool:
         """서비스 초기화"""
         if self._initialized:
             return True
 
-        self._client = GraphMailClient(
-            user_email=user_email,
-            access_token=access_token
-        )
+        self._client = GraphMailClient()
 
-        if await self._client.initialize(user_email):
+        if await self._client.initialize():
             self._initialized = True
             return True
         return False
@@ -71,6 +68,7 @@ class MailService:
     )
     async def query_mail_list(
         self,
+        user_email: str,
         query_method: QueryMethod = QueryMethod.FILTER,
         filter_params: Optional[FilterParams] = None,
         exclude_params: Optional[ExcludeParams] = None,
@@ -89,6 +87,7 @@ class MailService:
             order_by = "receivedDateTime desc"
 
         return await self._client.build_and_fetch(
+            user_email=user_email,
             query_method=query_method,
             filter_params=filter_params,
             exclude_params=exclude_params,
@@ -111,6 +110,7 @@ class MailService:
     )
     async def fetch_and_process(
         self,
+        user_email: str,
         query_method: QueryMethod = QueryMethod.FILTER,
         filter_params: Optional[FilterParams] = None,
         exclude_params: Optional[ExcludeParams] = None,
@@ -135,6 +135,7 @@ class MailService:
             order_by = "receivedDateTime desc"
 
         return await self._client.fetch_and_process(
+            user_email=user_email,
             query_method=query_method,
             filter_params=filter_params,
             exclude_params=exclude_params,
@@ -162,6 +163,7 @@ class MailService:
     )
     async def fetch_filter(
         self,
+        user_email: str,
         filter_params: Optional[FilterParams] = None,
         exclude_params: Optional[ExcludeParams] = None,
         select_params: Optional[SelectParams] = None,
@@ -170,6 +172,7 @@ class MailService:
         """필터 방식 메일 조회 - query_method 고정"""
         self._ensure_initialized()
         return await self._client.build_and_fetch(
+            user_email=user_email,
             query_method=QueryMethod.FILTER,
             filter_params=filter_params,
             exclude_params=exclude_params,
@@ -187,6 +190,7 @@ class MailService:
     )
     async def fetch_search(
         self,
+        user_email: str,
         search_term: str,
         select_params: Optional[SelectParams] = None,
         top: int = 50
@@ -194,6 +198,7 @@ class MailService:
         """검색 방식 메일 조회 - query_method 고정"""
         self._ensure_initialized()
         return await self._client.build_and_fetch(
+            user_email=user_email,
             query_method=QueryMethod.SEARCH,
             search_term=search_term,
             select_params=select_params,
@@ -211,12 +216,14 @@ class MailService:
     )
     async def fetch_url(
         self,
+        user_email: str,
         url: str,
         top: int = 50
     ) -> Dict[str, Any]:
         """URL 방식 메일 조회 - query_method 고정"""
         self._ensure_initialized()
         return await self._client.build_and_fetch(
+            user_email=user_email,
             query_method=QueryMethod.URL,
             url=url,
             top=top
@@ -230,9 +237,10 @@ class MailService:
         tags=["query", "process", "download"],            # 권장: 태그
         priority=5,                                       # 선택: 우선순위 (1-10)
         description="첨부파일 다운로드 포함 메일 처리 기능"     # 필수: 기능 설명
-    )    
+    )
     async def process_with_download(
         self,
+        user_email: str,
         filter_params: Optional[FilterParams] = None,
         search_term: Optional[str] = None,
         top: int = 50,
@@ -242,6 +250,7 @@ class MailService:
         query_method = QueryMethod.SEARCH if search_term else QueryMethod.FILTER
 
         return await self.fetch_and_process(
+            user_email=user_email,
             query_method=query_method,
             filter_params=filter_params,
             search_term=search_term,
@@ -262,6 +271,7 @@ class MailService:
     )
     async def process_with_convert(
         self,
+        user_email: str,
         filter_params: Optional[FilterParams] = None,
         search_term: Optional[str] = None,
         top: int = 50,
@@ -271,6 +281,7 @@ class MailService:
         query_method = QueryMethod.SEARCH if search_term else QueryMethod.FILTER
 
         return await self.fetch_and_process(
+            user_email=user_email,
             query_method=query_method,
             filter_params=filter_params,
             search_term=search_term,
@@ -296,11 +307,7 @@ class MailService:
 _mail_service_instance: Optional[MailService] = None
 
 
-async def get_mail_service(
-    user_email: Optional[str] = None,
-    access_token: Optional[str] = None,
-    force_new: bool = False
-) -> MailService:
+async def get_mail_service(force_new: bool = False) -> MailService:
     """MailService 싱글톤 인스턴스 반환"""
     global _mail_service_instance
 
@@ -310,6 +317,6 @@ async def get_mail_service(
 
     if _mail_service_instance is None:
         _mail_service_instance = MailService()
-        await _mail_service_instance.initialize(user_email, access_token)
+        await _mail_service_instance.initialize()
 
     return _mail_service_instance

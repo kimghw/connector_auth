@@ -34,7 +34,7 @@ class Session:
 
         # Create user-specific instances
         self.graph_mail_query = GraphMailQuery()
-        self.graph_mail_client = GraphMailClient(user_email=user_email)
+        self.graph_mail_client = GraphMailClient()
 
         # Session state
         self.is_active = True
@@ -71,10 +71,9 @@ class Session:
             # Store the access token if we got one
             if access_token:
                 self.access_token = access_token
-                self.graph_mail_client.access_token = access_token
 
             # Initialize GraphMailClient
-            success = await self.graph_mail_client.initialize(self.user_email)
+            success = await self.graph_mail_client.initialize()
             if success:
                 self.initialized = True
                 logger.info(f"Session initialized for user: {self.user_email}")
@@ -364,8 +363,8 @@ async def ensure_services_initialized_legacy(user_email: Optional[str] = None):
         logger.info("Legacy GraphMailQuery instance created")
 
     if 'graph_mail_client' not in _legacy_instances and user_email:
-        client = GraphMailClient(user_email=user_email)
-        await client.initialize(user_email)
+        client = GraphMailClient()
+        await client.initialize()
         _legacy_instances['graph_mail_client'] = client
         logger.info(f"Legacy GraphMailClient instance created for {user_email}")
 

@@ -42,10 +42,8 @@ async def initialize_services(context: Dict[str, Any]) -> None:
             if 'graph_mail_client' in services:
                 client_service = services['graph_mail_client']
                 if hasattr(client_service, 'initialize'):
-                    # Default user for legacy mode
-                    default_user = os.environ.get('DEFAULT_USER_EMAIL', 'default@example.com')
-                    await client_service.initialize(default_user)
-                    logger.info(f"GraphMailClient initialized for {default_user}")
+                    await client_service.initialize()
+                    logger.info("GraphMailClient initialized")
 
         # Load Azure configuration
         try:
@@ -81,7 +79,7 @@ async def initialize_session(session: Any, user_email: str) -> None:
         await session.graph_mail_query.initialize()
 
     if hasattr(session, 'graph_mail_client'):
-        await session.graph_mail_client.initialize(user_email)
+        await session.graph_mail_client.initialize()
 
 
 async def cleanup_services(context: Dict[str, Any]) -> None:

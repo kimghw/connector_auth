@@ -53,7 +53,7 @@ async def query_recent_emails_excluding_blocked(
     print("-" * 80)
 
     # Graph Mail Query 초기화
-    query = GraphMailQuery(user_email=user_email)
+    query = GraphMailQuery()
 
     try:
         # 초기화
@@ -61,7 +61,7 @@ async def query_recent_emails_excluding_blocked(
             print("❌ 초기화 실패")
             return {"status": "error", "message": "Failed to initialize"}
 
-        print(f"✅ 인증 완료: {query.user_email}")
+        print(f"✅ 인증 완료: {user_email}")
 
         # 필터 파라미터 생성 (포함 조건)
         filter_params: FilterParams = create_filter_params(

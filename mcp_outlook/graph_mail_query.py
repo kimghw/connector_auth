@@ -26,38 +26,17 @@ class GraphMailQuery:
     Handles authentication, filter building, and mail retrieval
     """
 
-    def __init__(self, user_email: Optional[str] = None, access_token: Optional[str] = None):
+    def __init__(self):
         """
         Initialize Graph Mail Query
-
-        Args:
-            user_email: Optional default user email
-            access_token: Optional pre-fetched access token
         """
         self.auth_manager = AuthManager()
-        self.user_email = user_email
-        self.access_token = access_token
 
-    async def initialize(self, user_email: Optional[str] = None) -> bool:
+    async def initialize(self) -> bool:
         """
         Lightweight initializer to align with callers that expect async setup
         """
-        if user_email:
-            self.user_email = user_email
-
-        # If we already have a token, nothing to do
-        if self.access_token:
-            return True
-
-        # Try to fetch a token when user_email is available
-        if self.user_email:
-            token = await self._get_access_token(self.user_email)
-            if token:
-                self.access_token = token
-                return True
-            return False
-
-        # No user context; treat as initialized (caller will provide user later)
+        # No initialization needed - tokens are fetched per-request
         return True
 
     async def _get_access_token(self, user_email: str) -> Optional[str]:
@@ -71,9 +50,6 @@ class GraphMailQuery:
         Returns:
             Access token or None if failed
         """
-        if self.access_token:
-            return self.access_token
-
         try:
             # AuthManager handles all token caching and refresh logic
             access_token = await self.auth_manager.validate_and_refresh_token(user_email)
@@ -540,6 +516,7 @@ class GraphMailQuery:
 
     async def process_with_options(
         self,
+        user_email: str,
         mail_data: Dict[str, Any],
         mail_storage: str = "memory",
         attachment_handling: str = "skip",
@@ -550,6 +527,7 @@ class GraphMailQuery:
         메일 데이터를 받아서 처리 옵션에 따라 처리
 
         Args:
+            user_email: User email for authentication
             mail_data: 쿼리 결과 (fetch_parallel_with_url의 반환값)
             mail_storage: 메일 저장 방식 ("memory", "text", "json", "database")
             attachment_handling: 첨부파일 처리 ("skip", "download", "convert", "convert_delete")
@@ -582,8 +560,13 @@ class GraphMailQuery:
             "structured": OutputFormat.STRUCTURED
         }
 
+        # Get access token for the user
+        access_token = await self._get_access_token(user_email)
+        if not access_token:
+            raise Exception(f"Failed to get access token for {user_email}")
+
         # MailProcessorHandler 생성 및 처리
-        handler = MailProcessorHandler(self.access_token)
+        handler = MailProcessorHandler(access_token)
         await handler.initialize()
 
         options = ProcessingOptions(
