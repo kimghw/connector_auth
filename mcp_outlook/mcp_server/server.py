@@ -555,7 +555,6 @@ async def handle_mail_list(args: Dict[str, Any]) -> Dict[str, Any]:
     # Add signature parameters
     call_args["filter_params"] = filter_params_params
     call_args["user_email"] = user_email
-    call_args["filter"] = filter_params
     # Process internal args with targetParam mappings
 
     # Build internal arg: filter
