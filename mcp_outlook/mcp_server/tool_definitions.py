@@ -124,6 +124,39 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
             },
             "required": []
         }
+    },
+    {
+        "name": "mail_list",
+        "description": "특정 기간 동안 메일조회하고 body를 제외하고 대략적인 내용만 추출할 수 있는 데이터만 수신하여 테이블로 정리하는 도구 입니다.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "filter_params": {
+                    "type": "object",
+                    "description": "FilterParams parameters",
+                    "properties": {
+                        "received_date_from": {
+                            "type": "string",
+                            "description": "메일 수신 시작 날짜 (포함, receivedDateTime >= 이 값)"
+                        },
+                        "received_date_to": {
+                            "type": "string",
+                            "description": "메일 수신 종료 날짜 (포함, receivedDateTime <= 이 값)"
+                        }
+                    },
+                    "required": [
+                        "received_date_from",
+                        "received_date_to"
+                    ],
+                    "baseModel": "FilterParams"
+                },
+                "user_email": {
+                    "type": "string",
+                    "description": ""
+                }
+            },
+            "required": []
+        }
     }
 ]
 """)

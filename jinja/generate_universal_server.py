@@ -261,6 +261,11 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
 
                 call_params[prop_name] = {'value': f'{prop_name}_params' if prop_name in object_params else prop_name}
 
+        # Add internal args to call_params (not in params, so not exposed to LLM)
+        for arg_name, arg_info in tool_internal_args.items():
+            if arg_name not in call_params and not arg_name.endswith("_internal"):
+                call_params[arg_name] = {'value': f'{arg_name}_params'}
+
         tool_with_internal['params'] = params
         tool_with_internal['object_params'] = object_params
         tool_with_internal['call_params'] = call_params

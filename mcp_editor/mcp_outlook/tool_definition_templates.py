@@ -55,6 +55,11 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                            'type': 'object'},
         'mcp_service': {   'name': 'fetch_filter',
                            'parameters': [   {   'default': None,
+                                                 'has_default': False,
+                                                 'is_required': True,
+                                                 'name': 'user_email',
+                                                 'type': 'str'},
+                                             {   'default': None,
                                                  'has_default': True,
                                                  'is_required': False,
                                                  'name': 'filter_params',
@@ -74,9 +79,9 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                                                  'is_required': False,
                                                  'name': 'top',
                                                  'type': 'int'}],
-                           'signature': 'filter_params: Optional[FilterParams] = None, exclude_params: '
-                                        'Optional[ExcludeParams] = None, select_params: Optional[SelectParams] = None, '
-                                        'top: int = 50'},
+                           'signature': 'user_email: str, filter_params: Optional[FilterParams] = None, '
+                                        'exclude_params: Optional[ExcludeParams] = None, select_params: '
+                                        'Optional[SelectParams] = None, top: int = 50'},
         'name': 'mail_fetch_filter'},
     {   'description': '검색 방식 메일 조회 기능',
         'inputSchema': {   'properties': {   'search_term': {'description': '검색어 ($search 파라미터)', 'type': 'string'},
@@ -95,6 +100,11 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                            'parameters': [   {   'default': None,
                                                  'has_default': False,
                                                  'is_required': True,
+                                                 'name': 'user_email',
+                                                 'type': 'str'},
+                                             {   'default': None,
+                                                 'has_default': False,
+                                                 'is_required': True,
                                                  'name': 'search_term',
                                                  'type': 'str'},
                                              {   'default': None,
@@ -107,8 +117,8 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                                                  'is_required': False,
                                                  'name': 'top',
                                                  'type': 'int'}],
-                           'signature': 'search_term: str, select_params: Optional[SelectParams] = None, top: int = '
-                                        '50'},
+                           'signature': 'user_email: str, search_term: str, select_params: Optional[SelectParams] = '
+                                        'None, top: int = 50'},
         'name': 'mail_fetch_search'},
     {   'description': '첨부파일 다운로드 포함 메일 처리 기능',
         'inputSchema': {   'properties': {   'filter_params': {   'baseModel': 'FilterParams',
@@ -131,6 +141,11 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                            'type': 'object'},
         'mcp_service': {   'name': 'process_with_download',
                            'parameters': [   {   'default': None,
+                                                 'has_default': False,
+                                                 'is_required': True,
+                                                 'name': 'user_email',
+                                                 'type': 'str'},
+                                             {   'default': None,
                                                  'has_default': True,
                                                  'is_required': False,
                                                  'name': 'filter_params',
@@ -150,6 +165,37 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                                                  'is_required': False,
                                                  'name': 'save_directory',
                                                  'type': 'Optional[str]'}],
-                           'signature': 'filter_params: Optional[FilterParams] = None, search_term: Optional[str] = '
-                                        'None, top: int = 50, save_directory: Optional[str] = None'},
-        'name': 'mail_process_with_download'}]
+                           'signature': 'user_email: str, filter_params: Optional[FilterParams] = None, search_term: '
+                                        'Optional[str] = None, top: int = 50, save_directory: Optional[str] = None'},
+        'name': 'mail_process_with_download'},
+    {   'description': '특정 기간 동안 메일조회하고 body를 제외하고 대략적인 내용만 추출할 수 있는 데이터만 수신하여 테이블로 정리하는 도구 입니다. ',
+        'inputSchema': {   'properties': {   'filter_params': {   'baseModel': 'FilterParams',
+                                                                  'description': 'FilterParams parameters',
+                                                                  'properties': {   'received_date_from': {   'description': '메일 '
+                                                                                                                             '수신 '
+                                                                                                                             '시작 '
+                                                                                                                             '날짜 '
+                                                                                                                             '(포함, '
+                                                                                                                             'receivedDateTime '
+                                                                                                                             '>= '
+                                                                                                                             '이 '
+                                                                                                                             '값)',
+                                                                                                              'type': 'string'},
+                                                                                    'received_date_to': {   'description': '메일 '
+                                                                                                                           '수신 '
+                                                                                                                           '종료 '
+                                                                                                                           '날짜 '
+                                                                                                                           '(포함, '
+                                                                                                                           'receivedDateTime '
+                                                                                                                           '<= '
+                                                                                                                           '이 '
+                                                                                                                           '값)',
+                                                                                                            'type': 'string'}},
+                                                                  'required': [   'received_date_from',
+                                                                                  'received_date_to'],
+                                                                  'type': 'object'},
+                                             'user_email': {'description': '', 'type': 'string'}},
+                           'required': [],
+                           'type': 'object'},
+        'mcp_service': 'query_mail_list',
+        'name': 'mail_list'}]

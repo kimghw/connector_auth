@@ -3077,7 +3077,12 @@
 
             populateGraphTypeOptions(classSelect);
 
-            const parentProp = tools[toolIndex].inputSchema.properties[propName];
+            const tool = tools[toolIndex];
+            const toolName = tool.name;
+            let parentProp = tool.inputSchema?.properties?.[propName];
+            if (!parentProp && internalArgs[toolName]?.[propName]) {
+                parentProp = internalArgs[toolName][propName].original_schema;
+            }
             if (parentProp && parentProp.baseModel) {
                 classSelect.value = parentProp.baseModel;
                 handleNestedGraphClassChange();
@@ -3158,18 +3163,41 @@
 
             const {toolIndex, propName} = nestedGraphTarget;
             const tool = tools[toolIndex];
+            const toolName = tool.name;
+            const internalArg = internalArgs[toolName]?.[propName];
+            const useInternal = !!internalArg;
+            let parentProp;
 
-            if (!tool.inputSchema.properties[propName]) {
-                tool.inputSchema.properties[propName] = {type: 'object', properties: {}, required: []};
+            if (useInternal) {
+                if (!internalArg.original_schema) {
+                    internalArg.original_schema = {type: 'object', properties: {}, required: []};
+                }
+                parentProp = internalArg.original_schema;
+                internalArg.type = className;
+                if (!internalArg.description && parentProp.description) {
+                    internalArg.description = parentProp.description;
+                }
+            } else {
+                if (!tool.inputSchema) {
+                    tool.inputSchema = {type: 'object', properties: {}, required: []};
+                }
+                if (!tool.inputSchema.properties) {
+                    tool.inputSchema.properties = {};
+                }
+                if (!tool.inputSchema.properties[propName]) {
+                    tool.inputSchema.properties[propName] = {type: 'object', properties: {}, required: []};
+                }
+                parentProp = tool.inputSchema.properties[propName];
             }
-
-            const parentProp = tool.inputSchema.properties[propName];
             parentProp.type = 'object';
             parentProp.properties = parentProp.properties || {};
             parentProp.required = parentProp.required || [];
             parentProp.baseModel = parentProp.baseModel || className;
             if (!parentProp.description) {
                 parentProp.description = `${className} parameters`;
+            }
+            if (useInternal && !internalArg.description) {
+                internalArg.description = parentProp.description;
             }
 
             let addedCount = 0;
@@ -3477,9 +3505,12 @@
                 return null;
             }
 
+            const internalProps = internalArgs[tool.name] || {};
+            const schemaProps = tool.inputSchema?.properties || {};
+
             // Prefer an existing property match
             for (const candidate of candidates) {
-                if (tool.inputSchema.properties[candidate]) {
+                if (schemaProps[candidate] || internalProps[candidate]) {
                     return candidate;
                 }
             }
@@ -3612,7 +3643,17 @@
 
         function toggleNestedRequired(toolIndex, parentPropName, nestedPropName, isChecked) {
             const tool = tools[toolIndex];
-            const parentProp = tool.inputSchema.properties[parentPropName];
+            const toolName = tool.name;
+            const internalArg = internalArgs[toolName]?.[parentPropName];
+            const isInternal = !tool.inputSchema.properties[parentPropName] && internalArg;
+            let parentProp = tool.inputSchema.properties[parentPropName];
+
+            if (isInternal) {
+                if (!internalArg.original_schema) {
+                    internalArg.original_schema = {type: 'object', properties: {}, required: []};
+                }
+                parentProp = internalArg.original_schema;
+            }
 
             if (parentProp) {
                 if (!parentProp.required) {
@@ -3633,7 +3674,17 @@
 
         function updateNestedPropertyType(toolIndex, parentPropName, nestedPropName, newType) {
             const tool = tools[toolIndex];
-            const parentProp = tool.inputSchema.properties[parentPropName];
+            const toolName = tool.name;
+            const internalArg = internalArgs[toolName]?.[parentPropName];
+            const isInternal = !tool.inputSchema.properties[parentPropName] && internalArg;
+            let parentProp = tool.inputSchema.properties[parentPropName];
+
+            if (isInternal) {
+                if (!internalArg.original_schema) {
+                    internalArg.original_schema = {type: 'object', properties: {}, required: []};
+                }
+                parentProp = internalArg.original_schema;
+            }
 
             if (parentProp && parentProp.properties && parentProp.properties[nestedPropName]) {
                 parentProp.properties[nestedPropName].type = newType;
@@ -3678,12 +3729,20 @@
             if (isInternal) {
                 // Update original_schema.properties in internalArgs
                 const internalArg = internalArgs[toolName][parentPropName];
-                if (internalArg.original_schema?.properties?.[nestedPropName]) {
-                    if (defaultValue === undefined) {
-                        delete internalArg.original_schema.properties[nestedPropName].default;
-                    } else {
-                        internalArg.original_schema.properties[nestedPropName].default = defaultValue;
-                    }
+                // Ensure original_schema and properties structure exists
+                if (!internalArg.original_schema) {
+                    internalArg.original_schema = { type: 'object', properties: {} };
+                }
+                if (!internalArg.original_schema.properties) {
+                    internalArg.original_schema.properties = {};
+                }
+                if (!internalArg.original_schema.properties[nestedPropName]) {
+                    internalArg.original_schema.properties[nestedPropName] = { type: 'string' };
+                }
+                if (defaultValue === undefined) {
+                    delete internalArg.original_schema.properties[nestedPropName].default;
+                } else {
+                    internalArg.original_schema.properties[nestedPropName].default = defaultValue;
                 }
             } else {
                 // Normal signature property - update inputSchema
