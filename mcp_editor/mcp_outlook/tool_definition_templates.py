@@ -77,7 +77,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                            'signature': 'filter_params: Optional[FilterParams] = None, exclude_params: '
                                         'Optional[ExcludeParams] = None, select_params: Optional[SelectParams] = None, '
                                         'top: int = 50'},
-        'name': 'handler_mail_fetch_filter'},
+        'name': 'mail_fetch_filter'},
     {   'description': '검색 방식 메일 조회 기능',
         'inputSchema': {   'properties': {   'search_term': {'description': '검색어 ($search 파라미터)', 'type': 'string'},
                                              'select_params': {   'baseModel': 'SelectParams',
@@ -109,7 +109,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                                                  'type': 'int'}],
                            'signature': 'search_term: str, select_params: Optional[SelectParams] = None, top: int = '
                                         '50'},
-        'name': 'handler_mail_fetch_search'},
+        'name': 'mail_fetch_search'},
     {   'description': '첨부파일 다운로드 포함 메일 처리 기능',
         'inputSchema': {   'properties': {   'filter_params': {   'baseModel': 'FilterParams',
                                                                   'description': '메일 필터링 조건',
@@ -152,4 +152,4 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                                                  'type': 'Optional[str]'}],
                            'signature': 'filter_params: Optional[FilterParams] = None, search_term: Optional[str] = '
                                         'None, top: int = 50, save_directory: Optional[str] = None'},
-        'name': 'handler_mail_process_with_download'}]
+        'name': 'mail_process_with_download'}]

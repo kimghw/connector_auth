@@ -17,7 +17,7 @@ import json
 MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
 [
     {
-        "name": "handler_mail_fetch_filter",
+        "name": "mail_fetch_filter",
         "description": "필터 방식 메일 조회 기능",
         "inputSchema": {
             "type": "object",
@@ -55,7 +55,7 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
         }
     },
     {
-        "name": "handler_mail_fetch_search",
+        "name": "mail_fetch_search",
         "description": "검색 방식 메일 조회 기능",
         "inputSchema": {
             "type": "object",
@@ -89,7 +89,7 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
         }
     },
     {
-        "name": "handler_mail_process_with_download",
+        "name": "mail_process_with_download",
         "description": "첨부파일 다운로드 포함 메일 처리 기능",
         "inputSchema": {
             "type": "object",

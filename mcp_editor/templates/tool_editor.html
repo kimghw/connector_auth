@@ -3863,25 +3863,62 @@
         }
 
         function saveTools() {
+            console.log('[DEBUG] saveTools() called');
+            console.log('[DEBUG] tools:', tools);
+            console.log('[DEBUG] internalArgs:', internalArgs);
+            console.log('[DEBUG] fileMtimes:', fileMtimes);
+
             const profileQuery = profileParam();
             const saveProfile = originalProfile || 'default';
+            const saveButton = document.querySelector('[data-debug-id="BTN_SAVE"]');
+            const saveLabel = saveButton ? saveButton.innerHTML : '';
+            console.log('[DEBUG] profileQuery:', profileQuery);
+            console.log('[DEBUG] saveProfile:', saveProfile);
 
             // Use the new save-all API to atomically save tools + internal_args
-            fetch(`/api/tools/save-all${profileQuery}`, {
+            const url = `/api/tools/save-all${profileQuery}`;
+            const payload = {
+                tools: tools,
+                internal_args: internalArgs,
+                file_mtimes: fileMtimes  // For conflict detection
+            };
+
+            console.log('[DEBUG] Request URL:', url);
+            try {
+                console.log('[DEBUG] Request payload:', JSON.stringify(payload, null, 2));
+            } catch (error) {
+                console.warn('[DEBUG] Request payload serialization failed:', error);
+            }
+
+            let payloadJson = '';
+            try {
+                payloadJson = JSON.stringify(payload);
+            } catch (error) {
+                console.error('Error serializing save payload:', error);
+                showNotification(`Failed to serialize tools: ${error.message}`, 'error');
+                return;
+            }
+
+            if (saveButton) {
+                saveButton.disabled = true;
+                saveButton.innerHTML = '<span class="material-icons">save</span> Saving...';
+            }
+
+            fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    tools: tools,
-                    internal_args: internalArgs,
-                    file_mtimes: fileMtimes  // For conflict detection
-                })
+                body: payloadJson
             })
             .then(response => {
+                console.log('[DEBUG] Response status:', response.status);
+                console.log('[DEBUG] Response headers:', response.headers);
+
                 if (response.status === 409) {
                     // Conflict detected
                     return response.json().then(data => {
+                        console.log('[DEBUG] Conflict data:', data);
                         showNotification(`${data.message}. Please reload and try again.`, 'error');
                         throw new Error('Conflict');
                     });
@@ -3889,19 +3926,28 @@
                 return response.json();
             })
             .then(data => {
+                console.log('[DEBUG] Response data:', data);
+
                 if (data.success) {
-                    const savedInfo = data.saved.join(', ');
+                    const savedInfo = Array.isArray(data.saved) ? data.saved.join(', ') : 'files';
                     showNotification(`Saved: ${savedInfo} to "${saveProfile}"!`, 'success');
                     // Update file mtimes after successful save
                     loadTools();  // Reload to get fresh mtimes
                 } else {
-                    showNotification(`Error saving: ${data.error}`, 'error');
+                    showNotification(`Error saving: ${data.error || 'Unknown error'}`, 'error');
                 }
             })
             .catch(error => {
+                console.error('[DEBUG] Catch block error:', error);
                 if (error.message !== 'Conflict') {
                     console.error('Error saving:', error);
                     showNotification('Failed to save', 'error');
+                }
+            })
+            .finally(() => {
+                if (saveButton) {
+                    saveButton.disabled = false;
+                    saveButton.innerHTML = saveLabel || '<span class="material-icons">save</span> Save Changes';
                 }
             });
         }
@@ -4007,12 +4053,22 @@
         }
 
         function showNotification(message, type) {
+            console.log('[DEBUG] showNotification() called');
+            console.log('[DEBUG] message:', message);
+            console.log('[DEBUG] type:', type);
+
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
             notification.textContent = message;
             document.body.appendChild(notification);
+
+            console.log('[DEBUG] Notification element created and appended');
+            console.log('[DEBUG] notification.className:', notification.className);
+            console.log('[DEBUG] notification.textContent:', notification.textContent);
+
             setTimeout(() => {
                 notification.remove();
+                console.log('[DEBUG] Notification removed after 3 seconds');
             }, 3000);
         }
 
