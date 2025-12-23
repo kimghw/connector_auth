@@ -1166,9 +1166,7 @@
         window.onload = function() {
             console.log('[DEBUG] window.onload triggered');
             console.log('[DEBUG] Calling loadProfiles()...');
-            loadProfiles();
-            console.log('[DEBUG] Calling loadGraphTypesProperties()...');
-            loadGraphTypesProperties();
+            loadProfiles();  // This will call loadGraphTypesProperties() after profile is loaded
             initDebugIndexing();
             console.log('[DEBUG] Calling checkServerStatus()...');
             checkServerStatus();
@@ -1523,6 +1521,7 @@
                     loadGeneratorDefaults();
                     loadTemplateSources();  // Load available template sources
                     loadMcpServices();  // Load MCP services for current profile
+                    loadGraphTypesProperties();  // Load graph types for current profile
                 })
                 .catch(error => {
                     console.error('Error loading profiles:', error);
@@ -1534,6 +1533,7 @@
                     loadGeneratorDefaults();
                     loadTemplateSources();
                     loadMcpServices();
+                    loadGraphTypesProperties();
                 });
         }
 
@@ -2904,12 +2904,9 @@
 
                             <div id="graphTypesPropertyDiv" style="display: none;">
                                 <div class="form-group">
-                                    <label>Select Type (from outlook_types.py)</label>
-                                    <select id="graphTypeClass" onchange="handleClassChange()" class="form-control">
+                                    <label>Select Type (from ${typesName}.py)</label>
+                                    <select id="graphTypeClass" onchange="handleClassChange()" class="form-control" data-debug-id="FIELD_GRAPH_TYPE_CLASS">
                                         <option value="">-- Select Type --</option>
-                                        <option value="FilterParams">FilterParams (Filter criteria)</option>
-                                        <option value="ExcludeParams">ExcludeParams (Exclusion criteria)</option>
-                                        <option value="SelectParams">SelectParams (Field selection)</option>
                                     </select>
                                 </div>
                                 <div class="form-group" id="propertySelectionDiv" style="display: none;">
@@ -2941,6 +2938,20 @@
             modalDiv.innerHTML = modalHtml;
             document.body.appendChild(modalDiv);
 
+            // Populate graph type class dropdown if types are available
+            if (hasTypes && window.graphTypesProperties && window.graphTypesProperties.classes) {
+                const classSelect = document.getElementById('graphTypeClass');
+                window.graphTypesProperties.classes.forEach(cls => {
+                    const option = document.createElement('option');
+                    option.value = cls.name || cls;
+                    option.textContent = `${cls.name || cls}${cls.description ? ' (' + cls.description + ')' : ''}`;
+                    classSelect.appendChild(option);
+                });
+                console.log('[DEBUG] Populated graph type classes:', window.graphTypesProperties.classes.length, 'classes');
+            } else {
+                console.log('[DEBUG] No graph types available. hasTypes:', hasTypes, 'graphTypesProperties:', window.graphTypesProperties);
+            }
+
             // Initialize the property source view to show custom property fields by default
             handlePropertySourceChange();
         }
@@ -2949,6 +2960,8 @@
             const source = document.getElementById('propertySource').value;
             document.getElementById('customPropertyDiv').style.display = source === 'custom' ? 'block' : 'none';
             document.getElementById('graphTypesPropertyDiv').style.display = source === 'graph_types' ? 'block' : 'none';
+
+            console.log('[DEBUG] Property source changed to:', source);
         }
 
         function handleClassChange() {
@@ -2956,8 +2969,12 @@
             const selectionDiv = document.getElementById('propertySelectionDiv');
             const checkboxList = document.getElementById('propertyCheckboxList');
 
+            console.log('[DEBUG] handleClassChange called. className:', className);
+            console.log('[DEBUG] window.graphTypesProperties:', window.graphTypesProperties);
+
             if (className && window.graphTypesProperties) {
                 const properties = window.graphTypesProperties.properties_by_class[className] || [];
+                console.log('[DEBUG] Found properties for', className, ':', properties.length, 'properties');
 
                 // Generate checkboxes for each property
                 let checkboxHtml = '';
@@ -2988,6 +3005,7 @@
                 checkboxList.innerHTML = checkboxHtml || '<div style="padding: 10px; text-align: center; color: #666;">No properties available</div>';
                 selectionDiv.style.display = 'block';
             } else {
+                console.log('[DEBUG] Hiding property selection. className:', className, 'graphTypesProperties:', !!window.graphTypesProperties);
                 selectionDiv.style.display = 'none';
             }
         }
