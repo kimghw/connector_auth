@@ -1898,7 +1898,12 @@ def save_internal_args(internal_args: dict, paths: dict) -> dict:
     try:
         internal_args_path = paths.get("internal_args_path")
         if not internal_args_path:
+            print("[ERROR] internal_args_path not configured in paths")
             return {"error": "internal_args_path not configured"}
+
+        # Debug logging
+        print(f"[DEBUG] Saving internal_args to: {internal_args_path}")
+        print(f"[DEBUG] internal_args content ({len(internal_args)} tools):", json.dumps(internal_args, indent=2, ensure_ascii=False))
 
         # Ensure directory exists
         os.makedirs(os.path.dirname(internal_args_path), exist_ok=True)
@@ -1906,8 +1911,10 @@ def save_internal_args(internal_args: dict, paths: dict) -> dict:
         with open(internal_args_path, 'w', encoding='utf-8') as f:
             json.dump(internal_args, f, indent=2, ensure_ascii=False)
 
+        print(f"[SUCCESS] Saved internal_args to {internal_args_path}")
         return {"success": True, "path": internal_args_path}
     except Exception as e:
+        print(f"[ERROR] Failed to save internal_args: {e}")
         return {"error": str(e)}
 
 
@@ -2052,6 +2059,11 @@ def save_all_definitions():
         internal_args = data.get("internal_args", {})
         loaded_mtimes = data.get("file_mtimes")  # For conflict detection
 
+        # Debug logging
+        print(f"\n[DEBUG] /api/tools/save-all called for profile: {profile}")
+        print(f"[DEBUG] Received {len(tools_data) if tools_data else 0} tools")
+        print(f"[DEBUG] Received internal_args: {json.dumps(internal_args, indent=2, ensure_ascii=False)}")
+
         if not tools_data or not isinstance(tools_data, list):
             return jsonify({"error": "tools must be a list"}), 400
 
@@ -2084,12 +2096,14 @@ def save_all_definitions():
         tools_data = prune_internal_properties(tools_data, internal_args)
 
         # Check for file conflicts (optional)
+        # Note: templates file is auto-scanned from source code, so external modification is expected
         if loaded_mtimes:
             current_mtimes = get_file_mtimes(paths)
             conflicts = []
-            for key in ["definitions", "templates", "internal_args"]:
+            # Only check definitions and internal_args, NOT templates (templates are auto-generated)
+            for key in ["definitions", "internal_args"]:
                 if key in loaded_mtimes and key in current_mtimes:
-                    if abs(current_mtimes[key] - loaded_mtimes[key]) > 1:  # 1 second tolerance
+                    if abs(current_mtimes[key] - loaded_mtimes[key]) > 5:  # 5 second tolerance
                         conflicts.append(key)
             if conflicts:
                 return jsonify({

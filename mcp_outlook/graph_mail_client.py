@@ -151,6 +151,7 @@ class GraphMailClient:
                     }
 
                 result = await self.mail_query.query_filter(
+                    user_email=self.user_email,
                     filter=filter_params or {},
                     exclude=exclude_params,
                     select=select_params,
@@ -168,6 +169,7 @@ class GraphMailClient:
                     }
 
                 result = await self.mail_query.query_search(
+                    user_email=self.user_email,
                     search=search_term,
                     client_filter=client_filter,
                     select=select_params,
@@ -184,6 +186,7 @@ class GraphMailClient:
                     }
 
                 result = await self.mail_query.query_url(
+                    user_email=self.user_email,
                     url=url,
                     top=top,
                     client_filter=client_filter

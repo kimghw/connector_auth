@@ -168,7 +168,8 @@ class MailService:
         top: int = 50
     ) -> Dict[str, Any]:
         """필터 방식 메일 조회 - query_method 고정"""
-        return await self.build_and_fetch(
+        self._ensure_initialized()
+        return await self._client.build_and_fetch(
             query_method=QueryMethod.FILTER,
             filter_params=filter_params,
             exclude_params=exclude_params,
@@ -191,7 +192,8 @@ class MailService:
         top: int = 50
     ) -> Dict[str, Any]:
         """검색 방식 메일 조회 - query_method 고정"""
-        return await self.build_and_fetch(
+        self._ensure_initialized()
+        return await self._client.build_and_fetch(
             query_method=QueryMethod.SEARCH,
             search_term=search_term,
             select_params=select_params,
@@ -213,7 +215,8 @@ class MailService:
         top: int = 50
     ) -> Dict[str, Any]:
         """URL 방식 메일 조회 - query_method 고정"""
-        return await self.build_and_fetch(
+        self._ensure_initialized()
+        return await self._client.build_and_fetch(
             query_method=QueryMethod.URL,
             url=url,
             top=top
