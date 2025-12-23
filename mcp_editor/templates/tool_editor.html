@@ -3002,6 +3002,11 @@
                 }
                 tool.inputSchema.properties[propName][field] = value;
             }
+
+            // If targetParam was changed, update the service method params display
+            if (field === 'targetParam') {
+                loadAndDisplayServiceMethodParams(index);
+            }
         }
 
         function updatePropertyEnum(index, propName, value) {
