@@ -1493,19 +1493,21 @@
         // Load graph types properties for current profile
         function loadGraphTypesProperties() {
             const profileQuery = originalProfile ? `?profile=${encodeURIComponent(originalProfile)}` : '';
-            fetch(`/api/graph-types-properties${profileQuery}`)
+            return fetch(`/api/graph-types-properties${profileQuery}`)
                 .then(response => response.json())
                 .then(data => {
                     window.graphTypesProperties = data;
                     window.hasTypesFile = data.has_types || false;
                     window.typesName = data.types_name || 'types';
                     console.log('Loaded graph types properties:', data, 'hasTypes:', window.hasTypesFile, 'typesName:', window.typesName);
+                    return data;
                 })
                 .catch(error => {
                     console.error('Error loading graph types properties:', error);
                     window.graphTypesProperties = null;
                     window.hasTypesFile = false;
                     window.typesName = 'types';
+                    return null;
                 });
         }
 
@@ -2962,6 +2964,23 @@
             document.getElementById('graphTypesPropertyDiv').style.display = source === 'graph_types' ? 'block' : 'none';
 
             console.log('[DEBUG] Property source changed to:', source);
+
+            if (source === 'graph_types') {
+                const classSelect = document.getElementById('graphTypeClass');
+                if (!classSelect) return;
+
+                const populate = () => {
+                    if (classSelect.options.length <= 1) {
+                        populateGraphTypeOptions(classSelect);
+                    }
+                };
+
+                if (window.graphTypesProperties && Array.isArray(window.graphTypesProperties.classes)) {
+                    populate();
+                } else {
+                    loadGraphTypesProperties().then(populate);
+                }
+            }
         }
 
         function handleClassChange() {

@@ -215,7 +215,20 @@ def extract_class_properties(file_path: str) -> Dict[str, List[Dict[str, Any]]]:
     return classes_info
 
 
-def main(server_name: Optional[str] = None, output_dir: Optional[str] = None):
+def _infer_server_name_from_paths(paths: List[str]) -> Optional[str]:
+    if not paths:
+        return None
+    base_dir = os.path.basename(os.path.dirname(paths[0]))
+    if base_dir.startswith('mcp_'):
+        base_dir = base_dir[4:]
+    return base_dir or None
+
+
+def main(
+    server_name: Optional[str] = None,
+    output_dir: Optional[str] = None,
+    graph_type_paths: Optional[List[str]] = None
+):
     """
     Extract types and save to JSON file
 
@@ -223,14 +236,18 @@ def main(server_name: Optional[str] = None, output_dir: Optional[str] = None):
         server_name: Server name for output file (default: from config or 'default')
         output_dir: Output directory (default: MCPMetaRegistry folder)
     """
-    graph_type_paths = load_graph_type_paths()
+    if graph_type_paths:
+        graph_type_paths = [_resolve_path(p) for p in graph_type_paths]
+    else:
+        graph_type_paths = load_graph_type_paths()
     if not graph_type_paths:
         print("Error: No graph_types paths configured")
         return
 
     # Determine server name
     if not server_name:
-        # Try to get from environment or use default
+        server_name = _infer_server_name_from_paths(graph_type_paths)
+    if not server_name:
         server_name = os.environ.get("MCP_EDITOR_MODULE", "default")
 
     merged_properties: Dict[str, List[Dict[str, Any]]] = {}
@@ -306,6 +323,12 @@ if __name__ == '__main__':
         type=str,
         help="Output directory (default: MCPMetaRegistry folder)"
     )
+    parser.add_argument(
+        "types_files",
+        nargs="*",
+        help="Optional types files to parse (overrides config)"
+    )
 
     args = parser.parse_args()
-    main(server_name=args.server_name, output_dir=args.output_dir)
+    graph_type_paths = args.types_files if args.types_files else None
+    main(server_name=args.server_name, output_dir=args.output_dir, graph_type_paths=graph_type_paths)

@@ -1502,8 +1502,11 @@ def get_graph_types_properties():
             import subprocess
             extract_script = os.path.join(os.path.dirname(__file__), 'mcp_service_registry', 'extract_types.py')
             if os.path.exists(extract_script):
-                # Pass types files as arguments
-                subprocess.run([sys.executable, extract_script] + types_files, check=True)
+                # Pass types files and server name so output matches the active profile
+                cmd = [sys.executable, extract_script, "--server-name", server_name] + types_files
+                subprocess.run(cmd, check=True)
+                if os.path.exists(registry_path):
+                    properties_path = registry_path
                 if os.path.exists(properties_path):
                     with open(properties_path, 'r', encoding='utf-8') as f:
                         data = json.load(f)
