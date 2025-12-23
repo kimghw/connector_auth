@@ -108,6 +108,14 @@
             text-decoration: none;
         }
 
+        .btn-icon-only {
+            padding: 0;
+            width: 36px;
+            height: 36px;
+            justify-content: center;
+            border-radius: 50%;
+        }
+
         .btn-primary {
             background: var(--primary-color);
             color: white;
@@ -136,6 +144,42 @@
             background: var(--danger-hover);
         }
 
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #30b350;
+        }
+
+        .btn-success:disabled {
+            background: #86868b;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #ff9500;
+        }
+
+        .btn-warning:disabled {
+            background: #86868b;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .btn-danger:disabled {
+            background: #86868b;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
         .btn-important {
             background: linear-gradient(135deg, #34c759 0%, #30b350 100%);
             color: white;
@@ -160,9 +204,9 @@
         .btn-tooltip::after {
             content: attr(data-tooltip);
             position: absolute;
-            bottom: calc(100% + 10px);
+            top: calc(100% + 10px);
             left: 50%;
-            transform: translateX(-50%) translateY(4px);
+            transform: translateX(-50%) translateY(-4px);
             background: rgba(20, 20, 23, 0.95);
             backdrop-filter: blur(4px);
             -webkit-backdrop-filter: blur(4px);
@@ -187,11 +231,11 @@
         .btn-tooltip::before {
             content: '';
             position: absolute;
-            bottom: calc(100% + 4px);
+            top: calc(100% + 4px);
             left: 50%;
-            transform: translateX(-50%) translateY(4px);
+            transform: translateX(-50%) translateY(-4px);
             border: 6px solid transparent;
-            border-top-color: rgba(20, 20, 23, 0.95);
+            border-bottom-color: rgba(20, 20, 23, 0.95);
             opacity: 0;
             visibility: hidden;
             transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -721,18 +765,70 @@
             width: 8px;
             height: 8px;
         }
-        
+
         ::-webkit-scrollbar-track {
             background: transparent;
         }
-        
+
         ::-webkit-scrollbar-thumb {
             background: #d2d2d7;
             border-radius: 4px;
         }
-        
+
         ::-webkit-scrollbar-thumb:hover {
             background: #86868b;
+        }
+
+        /* MCP Server Controller Styles */
+        .mcp-controller {
+            transition: all 0.3s ease;
+        }
+
+        .mcp-controller:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            transition: all 0.3s ease;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .status-indicator.running {
+            background: #28a745;
+            box-shadow: 0 0 8px rgba(40, 167, 69, 0.5);
+        }
+
+        .status-indicator.stopped {
+            background: #dc3545;
+            animation: none;
+        }
+
+        .status-indicator.checking {
+            background: #6c757d;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.3;
+            }
         }
     </style>
 </head>
@@ -749,26 +845,26 @@
                 <span>MCP Tool Definitions Editor</span>
             </h1>
             <div class="header-buttons">
-                <button class="btn btn-secondary btn-tooltip" data-debug-id="BTN_RELOAD" onclick="loadTools()" data-tooltip="📂 Load: tool_definitions.py&#10;📂 Load: tool_internal_args.json&#10;&#10;Refresh tool list from server files">
-                    <span class="material-icons">refresh</span> Reload
+                <button class="btn btn-secondary btn-tooltip btn-icon-only" data-debug-id="BTN_RELOAD" onclick="loadTools()" data-tooltip="📂 Load: tool_definitions.py&#10;📂 Load: tool_internal_args.json&#10;&#10;Refresh tool list from server files">
+                    <span class="material-icons">refresh</span>
                 </button>
-                <button class="btn btn-secondary btn-tooltip debug-index-toggle" data-debug-id="BTN_IDS" id="debugIndexToggle" onclick="toggleDebugIndexes()" data-tooltip="Show IDs on buttons/fields and hover to see inline handlers" aria-pressed="false">
-                    <span class="material-icons">push_pin</span> IDs
+                <button class="btn btn-secondary btn-tooltip debug-index-toggle btn-icon-only" data-debug-id="BTN_IDS" id="debugIndexToggle" onclick="toggleDebugIndexes()" data-tooltip="Show IDs on buttons/fields and hover to see inline handlers" aria-pressed="false">
+                    <span class="material-icons">push_pin</span>
                     <span class="debug-dup-badge" id="debugDuplicateBadge" aria-hidden="true"></span>
                 </button>
-                <button class="btn btn-secondary" data-debug-id="BTN_BACKUPS" onclick="showBackups()">
-                    <span class="material-icons">inventory_2</span> Backups
+                <button class="btn btn-secondary btn-tooltip btn-icon-only" data-debug-id="BTN_BACKUPS" onclick="showBackups()" data-tooltip="Manage backups">
+                    <span class="material-icons">inventory_2</span>
                 </button>
-                <button class="btn btn-secondary" data-debug-id="BTN_VALIDATE" onclick="validateTools()">
-                    <span class="material-icons">check_circle</span> Validate
+                <button class="btn btn-secondary btn-tooltip btn-icon-only" data-debug-id="BTN_VALIDATE" onclick="validateTools()" data-tooltip="Validate tool definitions">
+                    <span class="material-icons">check_circle</span>
                 </button>
-                <button class="btn btn-primary btn-tooltip" data-debug-id="BTN_SAVE" onclick="saveTools()" data-tooltip="💾 Save: tool_definitions.py&#10;💾 Save: tool_definition_templates.py&#10;💾 Save: tool_internal_args.json&#10;&#10;Save all changes to disk">
+                <button class="btn btn-secondary btn-tooltip" data-debug-id="BTN_SAVE" onclick="saveTools()" data-tooltip="💾 Save: tool_definitions.py&#10;💾 Save: tool_definition_templates.py&#10;💾 Save: tool_internal_args.json&#10;&#10;Save all changes to disk">
                     <span class="material-icons">save</span> Save Changes
                 </button>
                 <button class="btn btn-important btn-tooltip" data-debug-id="BTN_GENERATE" onclick="openGeneratorModal()" data-tooltip="⚙️ Input: tool_definitions.py&#10;📄 Template: *_server_template.jinja2&#10;🚀 Output: server.py&#10;&#10;Generate MCP server from template">
                     <span class="material-icons">auto_fix_high</span> Generate Server
                 </button>
-                <button class="btn btn-success btn-tooltip" data-debug-id="BTN_NEW_PROJECT" onclick="openCreateProjectModal()" data-tooltip="🚀 Create new MCP server project&#10;📁 Complete folder structure&#10;📝 Ready-to-use templates&#10;&#10;Create a new MCP service from scratch">
+                <button class="btn btn-primary btn-tooltip" data-debug-id="BTN_NEW_PROJECT" onclick="openCreateProjectModal()" data-tooltip="🚀 Create new MCP server project&#10;📁 Complete folder structure&#10;📝 Ready-to-use templates&#10;&#10;Create a new MCP service from scratch">
                     <span class="material-icons">add_circle</span> New Project
                 </button>
             </div>
@@ -796,6 +892,46 @@
         <div class="main-content" data-debug-id="AREA_MAIN_CONTENT">
             <div class="sidebar" data-debug-id="AREA_SIDEBAR">
                 <div class="tool-list" data-debug-id="AREA_TOOL_LIST">
+                    <!-- MCP Server Controller -->
+                    <div class="mcp-controller" data-debug-id="AREA_MCP_CONTROLLER" style="margin-bottom: 20px; padding: 16px; background: white; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05);">
+                        <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                            <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #0071e3, #00c6fb); display: flex; align-items: center; justify-content: center; margin-right: 12px; box-shadow: 0 4px 8px rgba(0,113,227,0.2);">
+                                <span class="material-icons" style="color: white; font-size: 24px;">dns</span>
+                            </div>
+                            <div style="flex: 1;">
+                                <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: #1d1d1f;">MCP Server</h3>
+                                <div id="serverStatus" data-debug-id="LABEL_SERVER_STATUS" style="display: flex; align-items: center; font-size: 12px; margin-top: 2px;">
+                                    <span class="status-indicator" id="statusIndicator" style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #86868b; margin-right: 6px;"></span>
+                                    <span id="statusText" style="color: #86868b; font-weight: 500;">Checking...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+                            <button class="btn btn-sm" data-debug-id="BTN_SERVER_START" id="btnStart" onclick="startServer()" style="background: #e8f5e9; color: #2e7d32; border: none; padding: 6px 4px; border-radius: 8px; font-weight: 600; transition: all 0.2s; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; height: auto;">
+                                <span class="material-icons" style="font-size: 20px; margin-bottom: 2px;">play_arrow</span>
+                                <span style="font-size: 10px;">Start</span>
+                            </button>
+                            <button class="btn btn-sm" data-debug-id="BTN_SERVER_STOP" id="btnStop" onclick="stopServer()" style="background: #ffebee; color: #c62828; border: none; padding: 6px 4px; border-radius: 8px; font-weight: 600; transition: all 0.2s; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; height: auto;">
+                                <span class="material-icons" style="font-size: 20px; margin-bottom: 2px;">stop</span>
+                                <span style="font-size: 10px;">Stop</span>
+                            </button>
+                            <button class="btn btn-sm" data-debug-id="BTN_SERVER_RESTART" id="btnRestart" onclick="restartServer()" style="background: #fff3e0; color: #ef6c00; border: none; padding: 6px 4px; border-radius: 8px; font-weight: 600; transition: all 0.2s; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; height: auto;">
+                                <span class="material-icons" style="font-size: 20px; margin-bottom: 2px;">refresh</span>
+                                <span style="font-size: 10px;">Restart</span>
+                            </button>
+                        </div>
+
+                        <div id="serverInfo" data-debug-id="LABEL_SERVER_INFO" style="font-size: 11px; color: #86868b; background: #f5f5f7; padding: 8px 12px; border-radius: 8px; display: flex; justify-content: space-between;">
+                            <div id="profileInfo">
+                                <span style="font-weight: 600;">Profile:</span> <span id="profileValue">default</span>
+                            </div>
+                            <div id="pidInfo" style="display: none;">
+                                <span style="font-weight: 600;">PID:</span> <span id="pidValue">-</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <button class="add-button" data-debug-id="BTN_ADD_TOOL" onclick="addNewTool()">
                         <span class="material-icons">add</span> Add New Tool
                     </button>
@@ -1024,6 +1160,7 @@
         let debugIndexEnabled = false;
         let debugIndexObserver = null;
         let debugIndexRefreshPending = false;
+        let debugMetadataDirty = true;
 
         // Load tools on page load
         window.onload = function() {
@@ -1033,6 +1170,10 @@
             console.log('[DEBUG] Calling loadGraphTypesProperties()...');
             loadGraphTypesProperties();
             initDebugIndexing();
+            console.log('[DEBUG] Calling checkServerStatus()...');
+            checkServerStatus();
+            // Auto-refresh server status every 5 seconds
+            setInterval(checkServerStatus, 5000);
             console.log('[DEBUG] window.onload completed');
         };
 
@@ -1145,6 +1286,154 @@
                 showNotification('Failed to load template', 'error');
             });
         }
+
+        // ===== MCP Server Control Functions =====
+        function checkServerStatus() {
+            const profileQuery = profileParam();
+            fetch(`/api/server/status${profileQuery}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateServerStatusUI(data);
+                })
+                .catch(error => {
+                    console.error('Error checking server status:', error);
+                    updateServerStatusUI({ running: false, error: error.message });
+                });
+        }
+
+        function updateServerStatusUI(status) {
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const btnStart = document.getElementById('btnStart');
+            const btnStop = document.getElementById('btnStop');
+            const btnRestart = document.getElementById('btnRestart');
+            const pidInfo = document.getElementById('pidInfo');
+            const pidValue = document.getElementById('pidValue');
+            const profileValue = document.getElementById('profileValue');
+
+            if (status.running) {
+                // Server is running
+                statusIndicator.style.background = '#28a745';
+                statusText.textContent = 'Running';
+                statusText.style.color = '#28a745';
+                btnStart.disabled = true;
+                btnStop.disabled = false;
+                btnRestart.disabled = false;
+
+                // Show PID info if available
+                if (status.pid) {
+                    pidInfo.style.display = 'block';
+                    pidValue.textContent = status.pid;
+                } else {
+                    pidInfo.style.display = 'none';
+                }
+            } else {
+                // Server is stopped
+                statusIndicator.style.background = '#dc3545';
+                statusText.textContent = 'Stopped';
+                statusText.style.color = '#dc3545';
+                btnStart.disabled = false;
+                btnStop.disabled = true;
+                btnRestart.disabled = true;
+                pidInfo.style.display = 'none';
+            }
+
+            // Update profile info
+            if (profileValue && status.profile) {
+                profileValue.textContent = status.profile;
+            }
+        }
+
+        function startServer() {
+            const profileQuery = profileParam();
+            const btnStart = document.getElementById('btnStart');
+            const statusText = document.getElementById('statusText');
+
+            btnStart.disabled = true;
+            statusText.textContent = 'Starting...';
+            statusText.style.color = '#ffc107';
+
+            fetch(`/api/server/start${profileQuery}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Server started successfully', 'success');
+                        checkServerStatus();
+                    } else {
+                        showToast('Failed to start server: ' + (data.error || 'Unknown error'), 'error');
+                        btnStart.disabled = false;
+                        statusText.textContent = 'Stopped';
+                        statusText.style.color = '#dc3545';
+                    }
+                })
+                .catch(error => {
+                    showToast('Error starting server: ' + error.message, 'error');
+                    btnStart.disabled = false;
+                    statusText.textContent = 'Stopped';
+                    statusText.style.color = '#dc3545';
+                });
+        }
+
+        function stopServer() {
+            const profileQuery = profileParam();
+            const btnStop = document.getElementById('btnStop');
+            const statusText = document.getElementById('statusText');
+
+            btnStop.disabled = true;
+            statusText.textContent = 'Stopping...';
+            statusText.style.color = '#ffc107';
+
+            fetch(`/api/server/stop${profileQuery}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ force: false })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Server stopped successfully', 'success');
+                        checkServerStatus();
+                    } else {
+                        showToast('Failed to stop server: ' + (data.error || 'Unknown error'), 'error');
+                        btnStop.disabled = false;
+                        checkServerStatus();
+                    }
+                })
+                .catch(error => {
+                    showToast('Error stopping server: ' + error.message, 'error');
+                    btnStop.disabled = false;
+                    checkServerStatus();
+                });
+        }
+
+        function restartServer() {
+            const profileQuery = profileParam();
+            const btnRestart = document.getElementById('btnRestart');
+            const statusText = document.getElementById('statusText');
+
+            btnRestart.disabled = true;
+            statusText.textContent = 'Restarting...';
+            statusText.style.color = '#ffc107';
+
+            fetch(`/api/server/restart${profileQuery}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Server restarted successfully', 'success');
+                        checkServerStatus();
+                    } else {
+                        showToast('Failed to restart server: ' + (data.error || 'Unknown error'), 'error');
+                        btnRestart.disabled = false;
+                        checkServerStatus();
+                    }
+                })
+                .catch(error => {
+                    showToast('Error restarting server: ' + error.message, 'error');
+                    btnRestart.disabled = false;
+                    checkServerStatus();
+                });
+        }
+        // ===== End of MCP Server Control Functions =====
 
         function loadMcpServices() {
             // Load MCP services for current profile
@@ -3779,6 +4068,7 @@
 
             if (!debugIndexObserver) {
                 debugIndexObserver = new MutationObserver(() => {
+                    debugMetadataDirty = true;
                     queueDebugIndexRefresh();
                 });
                 debugIndexObserver.observe(document.body, { childList: true, subtree: true });
@@ -3839,6 +4129,44 @@
 
             const duplicateCount = Array.from(idCounts.values()).filter(count => count > 1).length;
             updateDebugDuplicateBadge(duplicateCount);
+            debugMetadataDirty = false;
+        }
+
+        function ensureDebugMetadata() {
+            if (!debugMetadataDirty) {
+                return;
+            }
+
+            const targets = getDebugTargets();
+            const usedIds = new Set();
+            const buttonCounter = { value: 1 };
+            const fieldCounter = { value: 1 };
+
+            targets.areas.forEach(target => {
+                const explicitId = getExplicitDebugId(target);
+                const isAuto = !explicitId;
+                const labelText = explicitId || getNextAutoDebugId('a', usedIds, { value: 1 });
+                usedIds.add(labelText);
+                applyDebugMetadata(target, labelText, isAuto);
+            });
+
+            targets.buttons.forEach(target => {
+                const explicitId = getExplicitDebugId(target);
+                const isAuto = !explicitId;
+                const labelText = explicitId || getNextAutoDebugId('', usedIds, buttonCounter);
+                usedIds.add(labelText);
+                applyDebugMetadata(target, labelText, isAuto);
+            });
+
+            targets.fields.forEach(target => {
+                const explicitId = getExplicitDebugId(target);
+                const isAuto = !explicitId;
+                const labelText = explicitId || getNextAutoDebugId('f', usedIds, fieldCounter);
+                usedIds.add(labelText);
+                applyDebugMetadata(target, labelText, isAuto);
+            });
+
+            debugMetadataDirty = false;
         }
 
         function getDebugTargets() {
@@ -3956,7 +4284,7 @@
             return true;
         }
 
-        function addDebugLabel(overlay, target, labelText, kind, isAuto) {
+        function applyDebugMetadata(target, labelText, isAuto) {
             if (!target || !labelText) {
                 return;
             }
@@ -3977,6 +4305,14 @@
             } else {
                 target.removeAttribute('data-debug-actions');
             }
+        }
+
+        function addDebugLabel(overlay, target, labelText, kind, isAuto) {
+            if (!target || !labelText) {
+                return;
+            }
+
+            applyDebugMetadata(target, labelText, isAuto);
 
             const rect = target.getBoundingClientRect();
             if (!isRectVisible(rect)) {
@@ -4050,30 +4386,30 @@
 
         function updateDebugTooltip(event) {
             if (!debugIndexEnabled) {
+                ensureDebugMetadata();
+            }
+
+            const target = event.target instanceof Element
+                ? event.target.closest('[data-debug-id], [data-debug-auto-id], [data-fixed-debug-id]')
+                : null;
+            if (!target || !isValidDebugTarget(target)) {
                 hideDebugTooltip();
                 return;
             }
 
-            const target = event.target instanceof Element
-                ? event.target.closest('[data-debug-id], [data-debug-auto-id]')
-                : null;
-            if (!target) {
+            const debugId = getExplicitDebugId(target) || target.getAttribute('data-debug-auto-id');
+            if (!debugId) {
                 hideDebugTooltip();
                 return;
             }
 
             const actions = target.getAttribute('data-debug-actions');
-            if (!actions) {
-                hideDebugTooltip();
-                return;
-            }
-
             const tooltip = document.getElementById('debug-tooltip');
             if (!tooltip) {
                 return;
             }
 
-            tooltip.textContent = actions;
+            tooltip.textContent = actions ? `ID: ${debugId}\n${actions}` : `ID: ${debugId}`;
             tooltip.style.display = 'block';
 
             let left = event.clientX + 12;
