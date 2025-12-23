@@ -2591,7 +2591,7 @@
                 ? tool.mcp_service
                 : tool.mcp_service?.name;
 
-            if (!serviceName || !tool.inputSchema?.properties) return;
+            if (!serviceName) return;
 
             const currentProfile = window.currentProfile || 'mcp_outlook';
             fetch(`/api/registry?profile=${currentProfile}`)
@@ -2600,8 +2600,24 @@
                     if (registry && registry.services && registry.services[serviceName]) {
                         const service = registry.services[serviceName];
                         if (service.parameters) {
+                            // Combine both inputSchema properties and internal args
+                            const allProperties = {};
+
+                            // Add inputSchema properties
+                            if (tool.inputSchema?.properties) {
+                                Object.entries(tool.inputSchema.properties).forEach(([propName, propDef]) => {
+                                    allProperties[propName] = propDef;
+                                });
+                            }
+
+                            // Add internal args
+                            const toolInternalArgs = internalArgs[tool.name] || {};
+                            Object.entries(toolInternalArgs).forEach(([propName, propDef]) => {
+                                allProperties[propName] = propDef;
+                            });
+
                             // Update each property's targetParam dropdown
-                            Object.entries(tool.inputSchema.properties).forEach(([propName, propDef]) => {
+                            Object.entries(allProperties).forEach(([propName, propDef]) => {
                                 const propId = `prop-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}`;
                                 const select = document.getElementById(`targetparam-${propId}`);
 
@@ -2993,6 +3009,15 @@
                     // Only update if there's no baseModel (baseModel takes precedence)
                     if (!internalArgs[toolName][propName].original_schema?.baseModel) {
                         internalArgs[toolName][propName].type = value;
+                    }
+                }
+                // Add targetParam to top level for internal args
+                if (field === 'targetParam') {
+                    if (value) {
+                        internalArgs[toolName][propName].targetParam = value;
+                    } else {
+                        // Remove targetParam if value is empty
+                        delete internalArgs[toolName][propName].targetParam;
                     }
                 }
             } else {

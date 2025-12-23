@@ -11,7 +11,6 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                                                                    'type': 'object'},
                                              'filter_params': {   'baseModel': 'FilterParams',
                                                                   'description': '메일 필터링 조건',
-                                                                  'targetParam': 'filter_params',
                                                                   'properties': {   'received_date_from': {   'description': '메일 '
                                                                                                                              '수신 '
                                                                                                                              '시작 '
@@ -52,6 +51,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                                                                                                                        '이 '
                                                                                                                        '값)',
                                                                                                         'type': 'string'}},
+                                                                  'targetParam': 'filter_params',
                                                                   'type': 'object'}},
                            'required': [],
                            'type': 'object'},
@@ -84,6 +84,37 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                            'signature': 'user_email: str, filter_params: Optional[FilterParams] = None, '
                                         'exclude_params: Optional[ExcludeParams] = None, select_params: '
                                         'Optional[SelectParams] = None, top: int = 50'},
+        'mcp_service_factors': {   'exclude_params_internal': {   'baseModel': 'ExcludeParams',
+                                                                  'description': 'ExcludeParams parameters',
+                                                                  'parameters': {   'exclude_body_keywords': {   'description': '본문에서 '
+                                                                                                                                '제외할 '
+                                                                                                                                '키워드 '
+                                                                                                                                '목록',
+                                                                                                                 'type': 'string'},
+                                                                                    'exclude_from_address': {   'description': '제외할 '
+                                                                                                                               '발신자 '
+                                                                                                                               '주소 '
+                                                                                                                               '(from '
+                                                                                                                               '필드)',
+                                                                                                                'type': 'string'},
+                                                                                    'exclude_preview_keywords': {   'description': '미리보기에서 '
+                                                                                                                                   '제외할 '
+                                                                                                                                   '키워드 '
+                                                                                                                                   '목록',
+                                                                                                                    'type': 'string'},
+                                                                                    'exclude_sender_address': {   'description': '제외할 '
+                                                                                                                                 '실제 '
+                                                                                                                                 '발신자 '
+                                                                                                                                 '주소 '
+                                                                                                                                 '(sender '
+                                                                                                                                 '필드)',
+                                                                                                                  'type': 'string'},
+                                                                                    'exclude_subject_keywords': {   'description': '제목에서 '
+                                                                                                                                   '제외할 '
+                                                                                                                                   '키워드 '
+                                                                                                                                   '목록',
+                                                                                                                    'type': 'string'}},
+                                                                  'source': 'internal'}},
         'name': 'mail_fetch_filter'},
     {   'description': '검색 방식 메일 조회 기능',
         'inputSchema': {   'properties': {   'search_term': {'description': '검색어 ($search 파라미터)', 'type': 'string'},
@@ -200,4 +231,12 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                            'required': [],
                            'type': 'object'},
         'mcp_service': 'query_mail_list',
+        'mcp_service_factors': {   'dddd2': {   'baseModel': 'ExcludeParams',
+                                                'description': 'ExcludeParams parameters',
+                                                'parameters': {   'exclude_from_address': {   'default': 'block@krs.co.kr',
+                                                                                              'description': '제외할 발신자 '
+                                                                                                             '주소 (from '
+                                                                                                             '필드)',
+                                                                                              'type': 'string'}},
+                                                'source': 'internal'}},
         'name': 'mail_list'}]

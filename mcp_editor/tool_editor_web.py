@@ -717,6 +717,9 @@ def get_tool_names() -> List[str]:
 
         # Build template tools
         template_tools = []
+        # Load internal args to check for _internal parameters
+        internal_args = load_internal_args(paths)
+
         for tool in tools_data:
             template_tool = {k: v for k, v in tool.items()}
             if 'inputSchema' in template_tool:
@@ -730,6 +733,30 @@ def get_tool_names() -> List[str]:
                     template_tool['mcp_service']['signature'] = service_info.get('signature')
                     if service_info.get('parameters'):
                         template_tool['mcp_service']['parameters'] = service_info['parameters']
+
+            # Add mcp_service_factors for internal parameters
+            # These are service method parameters that are internally configured
+            tool_name = tool.get('name')
+            if tool_name and tool_name in internal_args:
+                service_factors = {}
+                for param_name, param_info in internal_args[tool_name].items():
+                    # Each key is the actual service method parameter name
+                    # Store essential information for internal parameters
+                    factor_data = {
+                        'source': 'internal',
+                        'baseModel': param_info.get('original_schema', {}).get('baseModel') or param_info.get('type'),
+                        'description': param_info.get('description', '')
+                    }
+
+                    # Add parameters structure from original_schema if available
+                    # The parameters already include default values where needed
+                    if 'original_schema' in param_info and 'properties' in param_info['original_schema']:
+                        factor_data['parameters'] = param_info['original_schema']['properties']
+
+                    service_factors[param_name] = factor_data
+
+                if service_factors:
+                    template_tool['mcp_service_factors'] = service_factors
 
             template_tools.append(template_tool)
 
@@ -819,6 +846,11 @@ def get_tools():
 def get_registry():
     """API endpoint to get service registry for current profile"""
     profile = request.args.get("profile")
+
+    # If no profile, use default
+    if not profile:
+        profile = "mcp_outlook"
+
     profile_conf = get_profile_config(profile)
 
     # Get registry path

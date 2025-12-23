@@ -25,7 +25,8 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
                 "exclude_params": {
                     "type": "object",
                     "description": "제외 조건",
-                    "baseModel": "ExcludeParams"
+                    "baseModel": "ExcludeParams",
+                    "targetParam": "exclude_params"
                 },
                 "filter_params": {
                     "type": "object",
@@ -48,7 +49,8 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
                             "description": "메일 발신 종료 날짜 (포함, sentDateTime <= 이 값)"
                         }
                     },
-                    "baseModel": "FilterParams"
+                    "baseModel": "FilterParams",
+                    "targetParam": "filter_params"
                 }
             },
             "required": []
