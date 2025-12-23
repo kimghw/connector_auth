@@ -7,9 +7,11 @@ from typing import List, Dict, Any
 MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 조회 기능',
         'inputSchema': {   'properties': {   'exclude_params': {   'baseModel': 'ExcludeParams',
                                                                    'description': '제외 조건',
+                                                                   'targetParam': 'exclude_params',
                                                                    'type': 'object'},
                                              'filter_params': {   'baseModel': 'FilterParams',
                                                                   'description': '메일 필터링 조건',
+                                                                  'targetParam': 'filter_params',
                                                                   'properties': {   'received_date_from': {   'description': '메일 '
                                                                                                                              '수신 '
                                                                                                                              '시작 '

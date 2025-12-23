@@ -287,8 +287,7 @@ async def call_tool(request: Request):
             )
 
         # Process arguments based on tool configuration
-{%- if server_name == 'outlook' %}
-        # Handle parameter transformations for outlook tools
+        # Handle parameter transformations
         processed_args = {}
 
         # Get tool configuration
@@ -303,25 +302,20 @@ async def call_tool(request: Request):
                 # Transform object parameters to their expected types
                 if param_schema.get("type") == "object":
                     base_model = param_schema.get("baseModel")
-                    if base_model == "FilterParams":
-                        processed_args["filter"] = FilterParams(**param_value) if param_value else None
-                    elif base_model == "ExcludeParams":
-                        if "exclude" in implementation_info["method"] or "exclude" in param_name:
-                            processed_args["exclude"] = ExcludeParams(**param_value) if param_value else None
-                        else:
-                            processed_args["client_filter"] = ExcludeParams(**param_value) if param_value else None
-                    elif base_model == "SelectParams":
-                        processed_args["select"] = SelectParams(**param_value) if param_value else None
+                    target_param = param_schema.get("targetParam", param_name)  # Use targetParam if specified
+
+                    # Create object instance based on baseModel
+                    if base_model and base_model in globals():
+                        model_class = globals()[base_model]
+                        processed_args[target_param] = model_class(**param_value) if param_value else None
                     else:
-                        processed_args[param_name] = param_value
+                        processed_args[target_param] = param_value
                 else:
-                    processed_args[param_name] = param_value
+                    # For non-object types, check if there's a targetParam mapping
+                    target_param = param_schema.get("targetParam", param_name)
+                    processed_args[target_param] = param_value
         else:
             processed_args = arguments
-{%- else %}
-        # Direct argument passing for other servers
-        processed_args = arguments
-{%- endif %}
 
         # Call the method
         result = await method(**processed_args)

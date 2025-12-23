@@ -815,6 +815,35 @@ def get_tools():
     })
 
 
+@app.route('/api/registry', methods=['GET'])
+def get_registry():
+    """API endpoint to get service registry for current profile"""
+    profile = request.args.get("profile")
+    profile_conf = get_profile_config(profile)
+
+    # Get registry path
+    registry_path = profile_conf.get("registry_path")
+    if not registry_path:
+        # Default to mcp_service_registry/registry_{server}.json
+        server_name = profile.replace("mcp_", "")
+        registry_path = os.path.join(
+            os.path.dirname(__file__),
+            "mcp_service_registry",
+            f"registry_{server_name}.json"
+        )
+
+    # Load registry file
+    try:
+        if os.path.exists(registry_path):
+            with open(registry_path, 'r', encoding='utf-8') as f:
+                registry_data = json.load(f)
+            return jsonify(registry_data)
+        else:
+            return jsonify({"error": "Registry file not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/tools', methods=['POST'])
 def save_tools():
     """API endpoint to save tool definitions"""

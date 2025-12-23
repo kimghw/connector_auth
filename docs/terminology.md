@@ -61,6 +61,27 @@
   - 신규 추가 필드
 
 ### 파라미터 레벨
+- **Schema Property Name**: inputSchema.properties에 정의되는 이름
+  - LLM이 인식하고 사용하는 파라미터 이름
+  - MCP 도구 정의에서 args 딕셔너리의 키
+  - tool_definitions.py의 inputSchema.properties에 들어가는 이름
+  - 예시:
+    ```python
+    # tool_definitions.py
+    {
+        "name": "mail_fetch_filter",
+        "inputSchema": {
+            "properties": {
+                "filter_params": {  # ← 이것이 Schema Property Name
+                    "type": "object",
+                    "baseModel": "FilterParams",
+                    "targetParam": "filter"  # ← 실제 서비스 메서드 파라미터
+                }
+            }
+        }
+    }
+    ```
+
 - **params**: 단순 타입 파라미터 정보
   - 예: string, integer, boolean 타입의 파라미터
 
@@ -69,6 +90,10 @@
 
 - **call_params**: 함수 호출 시 사용할 파라미터 매핑
   - 예: `filter` → `filter_params` 매핑
+
+- **targetParam**: Schema Property Name과 실제 서비스 메서드 파라미터를 매핑
+  - Schema Property Name이 서비스 메서드 파라미터명과 다를 때 사용
+  - 예: `"filter_params"` (Schema) → `"filter"` (메서드 파라미터)
 
 ### 메타데이터 레벨
 - **metadata**: Tool의 부가 정보

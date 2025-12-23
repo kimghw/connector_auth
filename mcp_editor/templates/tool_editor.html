@@ -2114,9 +2114,21 @@
                     toolItem.classList.add('active');
                 }
                 toolItem.onclick = () => selectTool(index);
+
+                // Get service method info
+                const serviceName = typeof tool.mcp_service === 'string'
+                    ? tool.mcp_service
+                    : tool.mcp_service?.name;
+                const serviceMethodHtml = serviceName
+                    ? `<div style="margin-top: 5px; font-size: 11px; color: var(--primary-color); font-weight: 500;">
+                        <span style="color: #666;">Service:</span> ${serviceName}
+                       </div>`
+                    : '';
+
                 toolItem.innerHTML = `
                     <h3>${tool.name}</h3>
                     <p>${tool.description}</p>
+                    ${serviceMethodHtml}
                 `;
                 toolList.appendChild(toolItem);
                 console.log(`[DEBUG] Tool ${index} appended to DOM`);
@@ -2223,8 +2235,16 @@
                              style="${isInternal ? 'border-left: 3px solid var(--warning-color);' : ''}">
                             <div style="display: flex; align-items: center;">
                                 <span class="collapse-icon" id="icon-${propId}">▼</span>
-                                <strong style="font-size: 15px; color: #333;">${propName}</strong>
+                                <input type="text" value="${propName}"
+                                       id="propname-${propId}"
+                                       data-original-name="${propName}"
+                                       style="font-size: 15px; color: #333; font-weight: bold; border: 1px solid transparent; background: transparent; padding: 2px 6px; border-radius: 4px; min-width: 100px;"
+                                       onfocus="this.style.borderColor='var(--primary-color)'; this.style.background='white';"
+                                       onblur="renameSchemaProperty(${index}, this.dataset.originalName, this.value, this); this.style.borderColor='transparent'; this.style.background='transparent';"
+                                       onkeypress="if(event.key === 'Enter') { this.blur(); }"
+                                       onclick="event.stopPropagation();">
                                 <span style="margin-left: 12px; font-size: 12px; color: #666; background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${propDef.type}</span>
+                                ${propDef.targetParam ? `<span style="margin-left: 8px; font-size: 11px; color: #007bff; background: #e7f1ff; padding: 2px 6px; border-radius: 4px;" title="Maps to service method parameter">→ ${propDef.targetParam}</span>` : ''}
                                 ${isRequired ? '<span style="margin-left: 8px; font-size: 11px; color: var(--danger-color); font-weight: 600;">REQUIRED</span>' : ''}
                                 ${isInternal ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--warning-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">INTERNAL</span>' : ''}
                                 ${isMcpParam ? `<span style="margin-left: 8px; font-size: 10px; color: white; background: ${isInternal ? 'var(--warning-color)' : 'var(--primary-color)'}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">MCP</span>` : ''}
@@ -2269,6 +2289,17 @@
                                 <option value="array" ${propDef.type === 'array' ? 'selected' : ''}>array</option>
                                 <option value="object" ${propDef.type === 'object' ? 'selected' : ''}>object</option>
                             </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 8px;">
+                            <label style="font-size: 11px;">Service Method Parameter</label>
+                            <select class="form-control" style="font-size: 12px;"
+                                    id="targetparam-${propId}"
+                                    onchange="updatePropertyField(${index}, '${propName}', 'targetParam', this.value || undefined)">
+                                <option value="">-- Same as Input Schema Name (${propName}) --</option>
+                            </select>
+                            <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px;">
+                                Maps this property to a specific service method parameter. Leave default if names match.
+                            </div>
                         </div>
                         <div class="form-group" style="margin-bottom: 8px;">
                             <label style="font-size: 11px;">Description</label>
@@ -2478,10 +2509,10 @@
                                onchange="updateToolField(${index}, 'name', this.value)">
                     </div>
                     <div class="form-group" style="flex: 1; min-width: 260px; margin-bottom: 0;">
-                        <label>MCP Service</label>
+                        <label>MCP Service Method</label>
                         <select class="form-control" id="mcpService" data-debug-id="FIELD_TOOL_SERVICE"
                                 onchange="updateMcpService(${index}, this.value)">
-                            <option value="">-- Select MCP Service --</option>
+                            <option value="">-- Select MCP Service Method --</option>
                             ${window.mcpServices ? window.mcpServices.map(service => {
                                 const currentService = typeof tool.mcp_service === 'object' ? tool.mcp_service?.name : tool.mcp_service;
                                 return `<option value="${service}" ${currentService === service ? 'selected' : ''}>${service}</option>`;
@@ -2489,6 +2520,25 @@
                         </select>
                     </div>
                 </div>
+
+                ${(() => {
+                    const serviceName = typeof tool.mcp_service === 'string'
+                        ? tool.mcp_service
+                        : tool.mcp_service?.name;
+
+                    if (serviceName) {
+                        return `
+                        <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+                            <div style="font-size: 12px; font-weight: 600; color: #495057; margin-bottom: 8px;">
+                                Service Method Parameters:
+                            </div>
+                            <div id="serviceMethodParams" style="font-size: 11px; color: #6c757d;">
+                                Loading parameters...
+                            </div>
+                        </div>`;
+                    }
+                    return '';
+                })()}
 
                 <div class="form-group">
                     <label>Description</label>
@@ -2527,6 +2577,211 @@
                     </div>
                 </div>
             `;
+
+            // Load and display service method parameters
+            loadAndDisplayServiceMethodParams(index);
+
+            // Load service method parameters for each existing property's targetParam dropdown
+            loadTargetParamsForExistingProperties(index);
+        }
+
+        function loadTargetParamsForExistingProperties(index) {
+            const tool = tools[index];
+            const serviceName = typeof tool.mcp_service === 'string'
+                ? tool.mcp_service
+                : tool.mcp_service?.name;
+
+            if (!serviceName || !tool.inputSchema?.properties) return;
+
+            const currentProfile = window.currentProfile || 'mcp_outlook';
+            fetch(`/api/registry?profile=${currentProfile}`)
+                .then(response => response.json())
+                .then(registry => {
+                    if (registry && registry.services && registry.services[serviceName]) {
+                        const service = registry.services[serviceName];
+                        if (service.parameters) {
+                            // Update each property's targetParam dropdown
+                            Object.entries(tool.inputSchema.properties).forEach(([propName, propDef]) => {
+                                const propId = `prop-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                                const select = document.getElementById(`targetparam-${propId}`);
+
+                                if (select) {
+                                    // Clear existing options except the first one
+                                    select.innerHTML = `<option value="">-- Same as Input Schema Name (${propName}) --</option>`;
+
+                                    // Add service method parameters as options
+                                    service.parameters.forEach(param => {
+                                        const option = document.createElement('option');
+                                        option.value = param.name;
+                                        option.textContent = `${param.name} (${param.type})`;
+                                        if (propDef.targetParam === param.name) {
+                                            option.selected = true;
+                                        }
+                                        select.appendChild(option);
+                                    });
+                                }
+                            });
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Failed to load target params for existing properties:', error);
+                });
+        }
+
+        function loadAndDisplayServiceMethodParams(index) {
+            const tool = tools[index];
+            const serviceName = typeof tool.mcp_service === 'string'
+                ? tool.mcp_service
+                : tool.mcp_service?.name;
+
+            const paramsDiv = document.getElementById('serviceMethodParams');
+            if (!paramsDiv || !serviceName) return;
+
+            // Load registry to get method parameters
+            fetch('/api/registry')
+                .then(response => response.json())
+                .then(registry => {
+                    if (registry && registry.services && registry.services[serviceName]) {
+                        const service = registry.services[serviceName];
+
+                        let paramsHtml = '';
+
+                        // Show handler information
+                        if (service.handler) {
+                            paramsHtml += `
+                                <div style="margin-bottom: 8px;">
+                                    <strong>Class:</strong> ${service.handler.class_name || 'N/A'}<br>
+                                    <strong>Method:</strong> ${service.handler.method || serviceName}<br>
+                                    <strong>Module:</strong> ${service.handler.module_path || 'N/A'}
+                                </div>
+                            `;
+                        }
+
+                        // Show parameters and check coverage
+                        if (service.parameters && service.parameters.length > 0) {
+                            const schemaProperties = tool.inputSchema?.properties || {};
+                            const toolInternalArgs = internalArgs[tool.name] || {};
+
+                            // Get all properties from both schema and internal args
+                            const allDefinedProps = new Set([
+                                ...Object.keys(schemaProperties),
+                                ...Object.keys(toolInternalArgs)
+                            ]);
+
+                            paramsHtml += '<div style="margin-top: 8px;"><strong>Parameters:</strong></div>';
+                            paramsHtml += '<ul style="margin: 4px 0; padding-left: 20px;">';
+
+                            let missingRequiredParams = [];
+
+                            service.parameters.forEach(param => {
+                                // Check if this parameter is defined in schema or internal args
+                                let isDefined = false;
+                                let definedWhere = '';
+
+                                // Check direct match
+                                if (allDefinedProps.has(param.name)) {
+                                    isDefined = true;
+                                    if (schemaProperties[param.name]) {
+                                        definedWhere = '✓ Schema';
+                                    } else if (toolInternalArgs[param.name]) {
+                                        definedWhere = '✓ Internal';
+                                    }
+                                } else {
+                                    // Check targetParam mappings
+                                    for (const [propName, propDef] of Object.entries(schemaProperties)) {
+                                        if (propDef.targetParam === param.name) {
+                                            isDefined = true;
+                                            definedWhere = `✓ Schema (via ${propName})`;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                const isRequired = param.is_required;
+                                const defaultVal = param.has_default && param.default !== null
+                                    ? ` = ${JSON.stringify(param.default)}`
+                                    : '';
+
+                                const statusColor = isDefined ? '#28a745' : (isRequired ? '#dc3545' : '#ffc107');
+                                const statusIcon = isDefined ? '✓' : (isRequired ? '✗' : '○');
+                                const statusText = isDefined ? definedWhere : (isRequired ? 'Missing!' : 'Optional');
+
+                                if (!isDefined && isRequired) {
+                                    missingRequiredParams.push(param.name);
+                                }
+
+                                paramsHtml += `
+                                    <li>
+                                        <code>${param.name}: ${param.type}${defaultVal}</code>
+                                        ${isRequired ? '<span style="color: #dc3545;"> *</span>' : ''}
+                                        <span style="margin-left: 10px; color: ${statusColor}; font-weight: 600;">
+                                            ${statusIcon} ${statusText}
+                                        </span>
+                                    </li>`;
+                            });
+                            paramsHtml += '</ul>';
+
+                            // Show warning for missing required parameters
+                            if (missingRequiredParams.length > 0) {
+                                paramsHtml += `
+                                    <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 8px; margin-top: 8px;">
+                                        <strong style="color: #856404;">⚠️ Missing Required Parameters:</strong>
+                                        <ul style="margin: 4px 0 0 0; padding-left: 20px;">
+                                            ${missingRequiredParams.map(p => `<li style="color: #856404;">${p}</li>`).join('')}
+                                        </ul>
+                                        <div style="margin-top: 8px;">
+                                            <button class="btn btn-sm btn-warning" onclick="addMissingParameters(${index}, ${JSON.stringify(missingRequiredParams).replace(/"/g, '&quot;')})">
+                                                Add Missing Parameters
+                                            </button>
+                                        </div>
+                                    </div>`;
+                            }
+                        } else {
+                            paramsHtml += '<div style="margin-top: 8px;">No parameters defined</div>';
+                        }
+
+                        paramsDiv.innerHTML = paramsHtml;
+                    } else {
+                        paramsDiv.innerHTML = 'Service method not found in registry';
+                    }
+                })
+                .catch(error => {
+                    console.error('Failed to load service method params:', error);
+                    paramsDiv.innerHTML = 'Failed to load parameters';
+                });
+        }
+
+        function addMissingParameters(index, missingParams) {
+            const tool = tools[index];
+
+            if (!tool.inputSchema) {
+                tool.inputSchema = { properties: {}, required: [] };
+            }
+            if (!tool.inputSchema.properties) {
+                tool.inputSchema.properties = {};
+            }
+
+            // Add each missing parameter
+            missingParams.forEach(paramName => {
+                // Add to schema properties
+                tool.inputSchema.properties[paramName] = {
+                    type: 'string',  // Default type, should be updated based on actual parameter type
+                    description: `Auto-added parameter for ${paramName}`
+                };
+
+                // Add to required if not already there
+                if (!tool.inputSchema.required) {
+                    tool.inputSchema.required = [];
+                }
+                if (!tool.inputSchema.required.includes(paramName)) {
+                    tool.inputSchema.required.push(paramName);
+                }
+            });
+
+            // Re-render the editor
+            renderToolEditor(tool, index);
+            showNotification(`Added ${missingParams.length} missing parameter(s)`, 'success');
         }
 
         function updateToolField(index, field, value) {
@@ -2892,12 +3147,24 @@
 
                             <div id="customPropertyDiv">
                                 <div class="form-group">
-                                    <label>Property Name</label>
-                                    <input type="text" id="customPropName" class="form-control" placeholder="Enter property name">
+                                    <label>Input Schema Name</label>
+                                    <input type="text" id="customPropName" class="form-control" placeholder="e.g., filter_params, user_email, search_term">
+                                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                                        This name will be used in inputSchema.properties for LLM to recognize.
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Service Method Parameter (optional)</label>
+                                    <select id="customTargetParam" class="form-control">
+                                        <option value="">-- Same as Input Schema Name --</option>
+                                    </select>
+                                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                                        Select which parameter in the service method this property maps to. Leave default if names match.
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label>Property Type</label>
-                                    <select id="customPropType" class="form-control">
+                                    <select id="customPropType" class="form-control" onchange="handleCustomTypeChange()">
                                         <option value="string">string</option>
                                         <option value="integer">integer</option>
                                         <option value="number">number</option>
@@ -2905,6 +3172,10 @@
                                         <option value="array">array</option>
                                         <option value="object">object</option>
                                     </select>
+                                </div>
+                                <div class="form-group" id="customBaseModelDiv" style="display: none;">
+                                    <label>Base Model (for object type)</label>
+                                    <input type="text" id="customBaseModel" class="form-control" placeholder="e.g., FilterParams, ExcludeParams">
                                 </div>
                                 <div class="form-group">
                                     <label>Description</label>
@@ -2920,11 +3191,20 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>Target Property Name (optional)</label>
+                                    <label>Input Schema Name (optional)</label>
                                     <input type="text" id="graphTypePropName" class="form-control"
-                                           placeholder="Leave empty to use default mapping">
+                                           placeholder="e.g., filter_params, exclude_params">
                                     <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
-                                        Use the _internal suffix to create an internal-only object.
+                                        The name that will appear in inputSchema.properties. Leave empty for automatic naming. Use _internal suffix for internal-only objects.
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Service Method Parameter (optional)</label>
+                                    <select id="graphTypeTargetParam" class="form-control">
+                                        <option value="">-- Same as Input Schema Name --</option>
+                                    </select>
+                                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                                        Select which parameter in the service method this property maps to. Leave default if names match.
                                     </div>
                                 </div>
                                 <div class="form-group" id="propertySelectionDiv" style="display: none;">
@@ -2972,6 +3252,64 @@
 
             // Initialize the property source view to show custom property fields by default
             handlePropertySourceChange();
+
+            // Load service method parameters for the dropdown
+            loadServiceMethodParameters(index);
+        }
+
+        function loadServiceMethodParameters(index) {
+            const tool = tools[index];
+            const toolName = tool.name;
+
+            // Try both select elements (custom and graph types)
+            const customSelect = document.getElementById('customTargetParam');
+            const graphSelect = document.getElementById('graphTypeTargetParam');
+
+            const selects = [customSelect, graphSelect].filter(s => s);
+
+            // Clear existing options except the default one for all selects
+            selects.forEach(select => {
+                select.innerHTML = '<option value="">-- Same as Input Schema Name --</option>';
+            });
+
+            // Try to get the service implementation info
+            if (tool.mcp_service) {
+                // Get the service name from tool definition
+                const serviceName = typeof tool.mcp_service === 'string'
+                    ? tool.mcp_service
+                    : tool.mcp_service.name;
+
+                // Load the registry to get actual method parameters
+                const currentProfile = window.currentProfile || 'mcp_outlook';
+                fetch(`/api/registry?profile=${currentProfile}`)
+                    .then(response => response.json())
+                    .then(registry => {
+                        if (registry && registry.services && registry.services[serviceName]) {
+                            const service = registry.services[serviceName];
+                            if (service.parameters) {
+                                service.parameters.forEach(param => {
+                                    selects.forEach(select => {
+                                        const option = document.createElement('option');
+                                        option.value = param.name;
+                                        option.textContent = `${param.name} (${param.type})`;
+                                        select.appendChild(option);
+                                    });
+                                });
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Failed to load service parameters:', error);
+                    });
+            }
+        }
+
+        function handleCustomTypeChange() {
+            const propType = document.getElementById('customPropType').value;
+            const baseModelDiv = document.getElementById('customBaseModelDiv');
+
+            // Show base model input only for object type
+            baseModelDiv.style.display = propType === 'object' ? 'block' : 'none';
         }
 
         function handlePropertySourceChange() {
@@ -3231,6 +3569,8 @@
                 const propName = document.getElementById('customPropName').value;
                 const propType = document.getElementById('customPropType').value;
                 const propDescription = document.getElementById('customPropDescription').value;
+                const targetParam = document.getElementById('customTargetParam').value;
+                const baseModel = document.getElementById('customBaseModel').value;
 
                 if (propName) {
                     if (!tools[index].inputSchema.properties) {
@@ -3246,10 +3586,22 @@
 
                     // For custom properties, use simple type
                     const jsonType = mapToJsonSchemaType(propType);
-                    tools[index].inputSchema.properties[propName] = {
+                    const propDef = {
                         type: jsonType,
                         description: propDescription
                     };
+
+                    // Add targetParam if specified and different from propName
+                    if (targetParam && targetParam.trim() && targetParam !== propName) {
+                        propDef.targetParam = targetParam.trim();
+                    }
+
+                    // Add baseModel for object types
+                    if (jsonType === 'object' && baseModel && baseModel.trim()) {
+                        propDef.baseModel = baseModel.trim();
+                    }
+
+                    tools[index].inputSchema.properties[propName] = propDef;
 
                     closeModal('propertyModal');
                     renderToolEditor(tools[index], index);
@@ -3334,6 +3686,12 @@
                         targetProp.baseModel = className;
                         if (!targetProp.description) {
                             targetProp.description = `${className} parameters`;
+                        }
+
+                        // Add targetParam if specified and different from targetPropName
+                        const customTargetParam = document.getElementById('graphTypeTargetParam')?.value;
+                        if (customTargetParam && customTargetParam.trim() && customTargetParam !== targetPropName) {
+                            targetProp.targetParam = customTargetParam.trim();
                         }
                     }
 
@@ -3517,6 +3875,72 @@
 
             // Otherwise, use the primary candidate to create a new object
             return candidates[0];
+        }
+
+        function renameSchemaProperty(index, oldName, newName, inputElement) {
+            // Trim and validate new name
+            newName = newName.trim();
+
+            // If name hasn't changed, do nothing
+            if (oldName === newName) {
+                return;
+            }
+
+            // Validate new name
+            if (!newName) {
+                showNotification('Property name cannot be empty', 'error');
+                inputElement.value = oldName;
+                return;
+            }
+
+            // Check for invalid characters (only allow alphanumeric and underscore)
+            if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(newName)) {
+                showNotification('Property name must start with a letter or underscore and contain only alphanumeric characters and underscores', 'error');
+                inputElement.value = oldName;
+                return;
+            }
+
+            const tool = tools[index];
+            const toolName = tool.name;
+
+            // Check if new name already exists
+            if (tool.inputSchema.properties[newName] && newName !== oldName) {
+                showNotification(`Property "${newName}" already exists`, 'error');
+                inputElement.value = oldName;
+                return;
+            }
+
+            // Check if it's an internal property
+            const isInternal = !tool.inputSchema.properties[oldName] && internalArgs[toolName]?.[oldName];
+
+            if (isInternal) {
+                // Rename in internalArgs
+                if (internalArgs[toolName] && internalArgs[toolName][oldName]) {
+                    internalArgs[toolName][newName] = internalArgs[toolName][oldName];
+                    delete internalArgs[toolName][oldName];
+                }
+            } else {
+                // Rename in inputSchema.properties
+                if (tool.inputSchema.properties[oldName]) {
+                    tool.inputSchema.properties[newName] = tool.inputSchema.properties[oldName];
+                    delete tool.inputSchema.properties[oldName];
+
+                    // Update required array if needed
+                    if (tool.inputSchema.required) {
+                        const reqIndex = tool.inputSchema.required.indexOf(oldName);
+                        if (reqIndex !== -1) {
+                            tool.inputSchema.required[reqIndex] = newName;
+                        }
+                    }
+                }
+            }
+
+            // Update the data-original-name attribute for future renames
+            inputElement.dataset.originalName = newName;
+
+            // Re-render the tool editor to reflect changes
+            renderToolEditor(tool, index);
+            showNotification(`Property renamed from "${oldName}" to "${newName}"`, 'success');
         }
 
         function removeProperty(index, propName) {
