@@ -150,7 +150,8 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
                         "received_date_from",
                         "received_date_to"
                     ],
-                    "baseModel": "FilterParams"
+                    "baseModel": "FilterParams",
+                    "targetParam": "filter_params"
                 },
                 "user_email": {
                     "type": "string",
