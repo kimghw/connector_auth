@@ -295,7 +295,9 @@ async def call_tool(request: Request):
 
         if tool_config:
             schema_props = tool_config.get("inputSchema", {}).get("properties", {})
+            tool_internal_args = INTERNAL_ARGS.get(tool_name, {})
 
+            # Process signature arguments
             for param_name, param_value in arguments.items():
                 param_schema = schema_props.get(param_name, {})
 
@@ -314,6 +316,37 @@ async def call_tool(request: Request):
                     # For non-object types, check if there's a targetParam mapping
                     target_param = param_schema.get("targetParam", param_name)
                     processed_args[target_param] = param_value
+
+            # Process internal arguments
+            for arg_name, arg_info in tool_internal_args.items():
+                # Check if this internal arg has a targetParam
+                target_param = arg_info.get("targetParam", arg_name)
+
+                # Build internal parameter
+                internal_value = build_internal_param(tool_name, arg_name)
+
+                if internal_value is not None:
+                    # Check if target_param already exists from signature args
+                    if target_param in processed_args:
+                        # Signature args have priority - merge internal into signature
+                        sig_value = processed_args[target_param]
+
+                        # If both are objects, merge them (signature priority)
+                        if hasattr(sig_value, '__dict__') and hasattr(internal_value, '__dict__'):
+                            # Convert to dict for merging
+                            sig_dict = vars(sig_value) if hasattr(sig_value, '__dict__') else sig_value
+                            internal_dict = vars(internal_value) if hasattr(internal_value, '__dict__') else internal_value
+
+                            # Merge with signature priority
+                            merged_dict = {**internal_dict, **sig_dict}
+
+                            # Recreate object with merged values
+                            param_type = type(sig_value)
+                            processed_args[target_param] = param_type(**merged_dict)
+                        # Otherwise keep signature value (signature priority)
+                    else:
+                        # No signature arg, use internal arg
+                        processed_args[target_param] = internal_value
         else:
             processed_args = arguments
 
@@ -470,21 +503,37 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- for arg_name, arg_info in tool.internal_args.items() %}
     {%- if not arg_name.endswith("_internal") %}
     {%- if arg_info.value is defined and arg_info.value is not none and arg_info.value != {} %}
-    {{ arg_name }}_params = {{ arg_info.type }}(**{{ arg_info.value | pprint }})
+    {{ arg_name }} = {{ arg_info.type }}(**{{ arg_info.value | pprint }})
     {%- elif arg_info.value is defined and arg_info.value == {} %}
-    {{ arg_name }}_params = {{ arg_info.type }}()
+    {{ arg_name }} = {{ arg_info.type }}()
     {%- else %}
-    {{ arg_name }}_params = build_internal_param("{{ tool.name }}", "{{ arg_name }}")
+    {{ arg_name }} = build_internal_param("{{ tool.name }}", "{{ arg_name }}")
     {%- endif %}
     {%- endif %}
     {%- endfor %}
     {%- endif %}
 
-    return await {{ tool.implementation.instance }}.{{ tool.implementation.method or tool.mcp_service or tool.service_method }}(
-        {%- for param_name, param_info in tool.call_params.items() %}
-        {{ param_name }}={{ param_info.value }}{{ "," if not loop.last else "" }}
-        {%- endfor %}
-    )
+    # Prepare call arguments with targetParam mappings
+    call_args = {}
+    {%- for param_name, param_info in tool.call_params.items() %}
+    call_args["{{ param_name }}"] = {{ param_info.value }}
+    {%- endfor %}
+
+    {%- if tool.internal_args %}
+    # Apply targetParam mappings for internal args
+    {%- for arg_name, arg_info in tool.internal_args.items() %}
+    {%- if not arg_name.endswith("_internal") %}
+    {%- if arg_info.targetParam %}
+    # Map {{ arg_name }} to {{ arg_info.targetParam }}
+    call_args["{{ arg_info.targetParam }}"] = {{ arg_name }}
+    {%- else %}
+    call_args["{{ arg_name }}"] = {{ arg_name }}
+    {%- endif %}
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+
+    return await {{ tool.implementation.instance }}.{{ tool.implementation.method or tool.mcp_service or tool.service_method }}(**call_args)
     {%- else %}
 
     # Extract parameters from args

@@ -234,7 +234,8 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
         'mcp_service': 'query_mail_list',
         'mcp_service_factors': {   'filter': {   'baseModel': 'FilterParams',
                                                  'description': 'FilterParams parameters',
-                                                 'parameters': {   'from_address': {   'description': 'from/emailAddress/address '
+                                                 'parameters': {   'from_address': {   'default': 'kimghw@krs.co.kr',
+                                                                                       'description': 'from/emailAddress/address '
                                                                                                       '- 단일 또는 여러 발신자 '
                                                                                                       '이메일 주소',
                                                                                        'type': 'string'}},
