@@ -497,38 +497,43 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- endif %}
     {%- endif %}
     {%- endfor %}
-    {%- if tool.internal_args %}
-
-    # Internal Args (pre-configured defaults)
-    {%- for arg_name, arg_info in tool.internal_args.items() %}
-    {%- if not arg_name.endswith("_internal") %}
-    {%- if arg_info.value is defined and arg_info.value is not none and arg_info.value != {} %}
-    {{ arg_name }} = {{ arg_info.type }}(**{{ arg_info.value | pprint }})
-    {%- elif arg_info.value is defined and arg_info.value == {} %}
-    {{ arg_name }} = {{ arg_info.type }}()
-    {%- else %}
-    {{ arg_name }} = build_internal_param("{{ tool.name }}", "{{ arg_name }}")
-    {%- endif %}
-    {%- endif %}
-    {%- endfor %}
-    {%- endif %}
-
-    # Prepare call arguments with targetParam mappings
+    # Prepare call arguments
     call_args = {}
+
+    # Add signature parameters
     {%- for param_name, param_info in tool.call_params.items() %}
     call_args["{{ param_name }}"] = {{ param_info.value }}
     {%- endfor %}
 
     {%- if tool.internal_args %}
-    # Apply targetParam mappings for internal args
+    # Process internal args with targetParam mappings
     {%- for arg_name, arg_info in tool.internal_args.items() %}
     {%- if not arg_name.endswith("_internal") %}
-    {%- if arg_info.targetParam %}
-    # Map {{ arg_name }} to {{ arg_info.targetParam }}
-    call_args["{{ arg_info.targetParam }}"] = {{ arg_name }}
+    {%- set target_param = arg_info.targetParam | default(arg_name) %}
+
+    # Build internal arg: {{ arg_name }}
+    {%- if arg_info.value is defined and arg_info.value is not none and arg_info.value != {} %}
+    _internal_{{ arg_name }} = {{ arg_info.type }}(**{{ arg_info.value | pprint }})
+    {%- elif arg_info.value is defined and arg_info.value == {} %}
+    _internal_{{ arg_name }} = {{ arg_info.type }}()
     {%- else %}
-    call_args["{{ arg_name }}"] = {{ arg_name }}
+    _internal_{{ arg_name }} = build_internal_param("{{ tool.name }}", "{{ arg_name }}")
     {%- endif %}
+
+    # Check if target param already exists from signature
+    if "{{ target_param }}" in call_args:
+        # Merge internal into signature (signature has priority)
+        existing_value = call_args["{{ target_param }}"]
+        if hasattr(existing_value, '__dict__') and hasattr(_internal_{{ arg_name }}, '__dict__'):
+            # Both are objects - merge them
+            internal_dict = vars(_internal_{{ arg_name }})
+            existing_dict = vars(existing_value)
+            merged_dict = {**internal_dict, **existing_dict}
+            call_args["{{ target_param }}"] = type(existing_value)(**merged_dict)
+        # Otherwise keep existing signature value
+    else:
+        # No conflict, use internal value with targetParam mapping
+        call_args["{{ target_param }}"] = _internal_{{ arg_name }}
     {%- endif %}
     {%- endfor %}
     {%- endif %}
