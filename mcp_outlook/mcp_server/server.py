@@ -244,6 +244,10 @@ async def call_tool(request: Request):
                 "service_class": "MailService",
                 "method": "query_mail_list"
             },
+            "mail_block_list": {
+                "service_class": "MailService",
+                "method": "query_mail_list"
+            },
         }
 
         if tool_name not in tool_implementations:
@@ -538,6 +542,52 @@ async def handle_mail_list(args: Dict[str, Any]) -> Dict[str, Any]:
     else:
         # No conflict, use internal value with targetParam mapping
         call_args["client_filter"] = _internal_client_filter
+
+    return await mail_service.query_mail_list(**call_args)
+
+async def handle_mail_block_list(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle mail_block_list tool call"""
+
+    # Extract parameters from args
+    user_email = args["user_email"]
+    filter_params = args.get("filter_params")
+    select_params = args.get("select_params")
+
+    # Convert dicts to parameter objects where needed
+    filter_params_internal_data = {}
+    filter_params_raw = args.get("filter_params")
+    filter_params_data = merge_param_data(filter_params_internal_data, filter_params_raw)
+    filter_params_params = FilterParams(**filter_params_data) if filter_params_data is not None else None
+    select_params_internal_data = {}
+    select_params_raw = args.get("select_params")
+    select_params_data = merge_param_data(select_params_internal_data, select_params_raw)
+    select_params_params = dict(**select_params_data) if select_params_data is not None else None
+    # Prepare call arguments
+    call_args = {}
+
+    # Add signature parameters
+    call_args["user_email"] = user_email
+    call_args["filter_params"] = filter_params_params
+    call_args["select_params"] = select_params_params
+    # Process internal args with targetParam mappings
+
+    # Build internal arg: filter
+    _internal_filter = build_internal_param("mail_block_list", "filter")
+
+    # Check if target param already exists from signature
+    if "filter" in call_args:
+        # Merge internal into signature (signature has priority)
+        existing_value = call_args["filter"]
+        if hasattr(existing_value, '__dict__') and hasattr(_internal_filter, '__dict__'):
+            # Both are objects - merge them
+            internal_dict = vars(_internal_filter)
+            existing_dict = vars(existing_value)
+            merged_dict = {**internal_dict, **existing_dict}
+            call_args["filter"] = type(existing_value)(**merged_dict)
+        # Otherwise keep existing signature value
+    else:
+        # No conflict, use internal value with targetParam mapping
+        call_args["filter"] = _internal_filter
 
     return await mail_service.query_mail_list(**call_args)
 

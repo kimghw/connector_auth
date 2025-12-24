@@ -232,14 +232,51 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                            'required': [],
                            'type': 'object'},
         'mcp_service': 'query_mail_list',
-        'mcp_service_factors': {   'client_filter_': {   'baseModel': 'ExcludeParams',
-                                                         'description': 'ExcludeParams parameters',
-                                                         'parameters': {   'exclude_from_address': {   'default': 'block@krs.co.kr',
-                                                                                                       'description': '제외할 '
-                                                                                                                      '발신자 '
-                                                                                                                      '주소 '
-                                                                                                                      '(from '
-                                                                                                                      '필드)',
-                                                                                                       'type': 'string'}},
-                                                         'source': 'internal'}},
-        'name': 'mail_list'}]
+        'mcp_service_factors': {   'client_filter': {   'baseModel': 'ExcludeParams',
+                                                        'description': 'ExcludeParams parameters',
+                                                        'parameters': {   'exclude_from_address': {   'default': 'block@krs.co.kr',
+                                                                                                      'description': '제외할 '
+                                                                                                                     '발신자 '
+                                                                                                                     '주소 '
+                                                                                                                     '(from '
+                                                                                                                     '필드)',
+                                                                                                      'type': 'string'}},
+                                                        'source': 'internal'}},
+        'name': 'mail_list'},
+    {   'description': 'block된 메일 중  사용자가 요청한 내용의 메일이 있는지 확인하는 툴입니다. 에이전트는 특정 기간동안의  메일을 조회하고 에이전트의 반환값을 받아서 LLM은 이중에 '
+                       '사용자가 요청한 메일이 있는지 검토한다.  ',
+        'inputSchema': {   'properties': {   'filter_params': {   'baseModel': 'FilterParams',
+                                                                  'description': 'FilterParams parameters',
+                                                                  'properties': {   'received_date_from': {   'description': '메일 '
+                                                                                                                             '수신 '
+                                                                                                                             '시작 '
+                                                                                                                             '날짜 '
+                                                                                                                             '(포함, '
+                                                                                                                             'receivedDateTime '
+                                                                                                                             '>= '
+                                                                                                                             '이 '
+                                                                                                                             '값)',
+                                                                                                              'type': 'string'},
+                                                                                    'received_date_to': {   'description': '메일 '
+                                                                                                                           '수신 '
+                                                                                                                           '종료 '
+                                                                                                                           '날짜 '
+                                                                                                                           '(포함, '
+                                                                                                                           'receivedDateTime '
+                                                                                                                           '<= '
+                                                                                                                           '이 '
+                                                                                                                           '값)',
+                                                                                                            'type': 'string'}},
+                                                                  'required': [],
+                                                                  'targetParam': 'filter_params',
+                                                                  'type': 'object'},
+                                             'select_params': {   'description': 'SelectParams parameters',
+                                                                  'type': 'object'},
+                                             'user_email': {   'description': '메일 조회가 안되면, 현재 세션과 관련된 user_email을 mcp '
+                                                                              '서버가 식별해서 제공한다. ',
+                                                               'targetParam': 'user_email',
+                                                               'type': 'string'}},
+                           'required': ['user_email'],
+                           'type': 'object'},
+        'mcp_service': 'fetch_filter',
+        'name': 'mail_block_list'}]

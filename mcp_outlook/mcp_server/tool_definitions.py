@@ -160,6 +160,44 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
             },
             "required": []
         }
+    },
+    {
+        "name": "mail_block_list",
+        "description": "block된 메일 중 사용자가 요청한 내용의 메일이 있는지 확인하는 툴입니다. 에이전트는 특정 기간동안의 메일을 조회하고 에이전트의 반환값을 받아서 LLM은 이중에 사용자가 요청한 메일이 있는지 검토한다.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "user_email": {
+                    "type": "string",
+                    "description": "메일 조회가 안되면, 현재 세션과 관련된 user_email을 mcp 서버가 식별해서 제공한다.",
+                    "targetParam": "user_email"
+                },
+                "filter_params": {
+                    "type": "object",
+                    "description": "FilterParams parameters",
+                    "properties": {
+                        "received_date_from": {
+                            "type": "string",
+                            "description": "메일 수신 시작 날짜 (포함, receivedDateTime >= 이 값)"
+                        },
+                        "received_date_to": {
+                            "type": "string",
+                            "description": "메일 수신 종료 날짜 (포함, receivedDateTime <= 이 값)"
+                        }
+                    },
+                    "required": [],
+                    "targetParam": "filter_params",
+                    "baseModel": "FilterParams"
+                },
+                "select_params": {
+                    "type": "object",
+                    "description": "SelectParams parameters"
+                }
+            },
+            "required": [
+                "user_email"
+            ]
+        }
     }
 ]
 """)
