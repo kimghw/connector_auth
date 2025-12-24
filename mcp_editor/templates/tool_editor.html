@@ -84,9 +84,18 @@
         }
 
         .brand-logo {
-            width: 24px;
-            height: 24px;
+            height: 32px;
+            width: auto;
             display: inline-block;
+            border-radius: 4px;
+            object-fit: contain;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #c084fc 0%, #60a5fa 40%, #34d399 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .header-buttons {
@@ -836,13 +845,8 @@
     <div class="container">
         <div class="header">
             <h1>
-                <span class="brand-logos" aria-label="MCP, Claude, OpenAI, Gemini">
-                    <img class="brand-logo" src="/static/brands/mcp.svg" alt="MCP" title="MCP" />
-                    <img class="brand-logo" src="/static/brands/claude.svg" alt="Claude" title="Claude" />
-                    <img class="brand-logo" src="/static/brands/openai.svg" alt="OpenAI" title="OpenAI" />
-                    <img class="brand-logo" src="/static/brands/gemini.svg" alt="Gemini" title="Gemini" />
-                </span>
-                <span>MCP Tool Definitions Editor</span>
+                <img class="brand-logo" src="/static/brands/미디어 (6).jpg" alt="Logo" title="Logo" />
+                <span>MCP Tool <span class="gradient-text">Editor</span></span>
             </h1>
             <div class="header-buttons">
                 <button class="btn btn-secondary btn-tooltip btn-icon-only" data-debug-id="BTN_RELOAD" onclick="loadTools()" data-tooltip="📂 Load: tool_definitions.py&#10;📂 Load: tool_internal_args.json&#10;&#10;Refresh tool list from server files">
@@ -2801,7 +2805,18 @@
         }
 
         function updateToolField(index, field, value) {
+            const oldValue = tools[index][field];
             tools[index][field] = value;
+
+            // If tool name is changed, update internal_args key as well
+            if (field === 'name' && oldValue !== value) {
+                if (internalArgs[oldValue]) {
+                    internalArgs[value] = internalArgs[oldValue];
+                    delete internalArgs[oldValue];
+                    console.log(`Updated internal_args key: "${oldValue}" → "${value}"`);
+                }
+            }
+
             renderToolList();
         }
 

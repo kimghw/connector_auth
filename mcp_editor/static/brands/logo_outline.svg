@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="outlineGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#c084fc"/>
+      <stop offset="40%" style="stop-color:#60a5fa"/>
+      <stop offset="100%" style="stop-color:#34d399"/>
+    </linearGradient>
+  </defs>
+  <!-- White background with rounded corners and gradient border -->
+  <rect x="2" y="2" width="96" height="96" rx="12" ry="12" fill="white" stroke="url(#outlineGradient)" stroke-width="3"/>
+  <!-- Arrow/cursor shape outline -->
+  <path d="M65 20 C75 25, 80 35, 75 50 C70 65, 55 75, 40 80 C35 82, 30 78, 35 73 C45 63, 50 50, 45 40 C42 32, 50 22, 60 20 C62 19.5, 64 19.5, 65 20 Z"
+        fill="none"
+        stroke="url(#outlineGradient)"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+</svg>
