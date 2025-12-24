@@ -232,12 +232,14 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                            'required': [],
                            'type': 'object'},
         'mcp_service': 'query_mail_list',
-        'mcp_service_factors': {   'filter': {   'baseModel': 'FilterParams',
-                                                 'description': 'FilterParams parameters',
-                                                 'parameters': {   'from_address': {   'default': 'kimghw@krs.co.kr',
-                                                                                       'description': 'from/emailAddress/address '
-                                                                                                      '- 단일 또는 여러 발신자 '
-                                                                                                      '이메일 주소',
-                                                                                       'type': 'string'}},
-                                                 'source': 'internal'}},
+        'mcp_service_factors': {   'client_filter_': {   'baseModel': 'ExcludeParams',
+                                                         'description': 'ExcludeParams parameters',
+                                                         'parameters': {   'exclude_from_address': {   'default': 'block@krs.co.kr',
+                                                                                                       'description': '제외할 '
+                                                                                                                      '발신자 '
+                                                                                                                      '주소 '
+                                                                                                                      '(from '
+                                                                                                                      '필드)',
+                                                                                                       'type': 'string'}},
+                                                         'source': 'internal'}},
         'name': 'mail_list'}]

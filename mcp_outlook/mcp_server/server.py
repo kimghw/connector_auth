@@ -147,6 +147,9 @@ app = FastAPI(title="Outlook MCP Server", version="1.0.0")
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on server startup"""
+    if hasattr(mail_service, 'initialize'):
+        await mail_service.initialize()
+        logger.info("MailService initialized")
     logger.info("Outlook MCP Server started")
 
 
@@ -518,23 +521,23 @@ async def handle_mail_list(args: Dict[str, Any]) -> Dict[str, Any]:
     call_args["user_email"] = user_email
     # Process internal args with targetParam mappings
 
-    # Build internal arg: filter
-    _internal_filter = build_internal_param("mail_list", "filter")
+    # Build internal arg: client_filter
+    _internal_client_filter = build_internal_param("mail_list", "client_filter")
 
     # Check if target param already exists from signature
-    if "filter_params" in call_args:
+    if "client_filter" in call_args:
         # Merge internal into signature (signature has priority)
-        existing_value = call_args["filter_params"]
-        if hasattr(existing_value, '__dict__') and hasattr(_internal_filter, '__dict__'):
+        existing_value = call_args["client_filter"]
+        if hasattr(existing_value, '__dict__') and hasattr(_internal_client_filter, '__dict__'):
             # Both are objects - merge them
-            internal_dict = vars(_internal_filter)
+            internal_dict = vars(_internal_client_filter)
             existing_dict = vars(existing_value)
             merged_dict = {**internal_dict, **existing_dict}
-            call_args["filter_params"] = type(existing_value)(**merged_dict)
+            call_args["client_filter"] = type(existing_value)(**merged_dict)
         # Otherwise keep existing signature value
     else:
         # No conflict, use internal value with targetParam mapping
-        call_args["filter_params"] = _internal_filter
+        call_args["client_filter"] = _internal_client_filter
 
     return await mail_service.query_mail_list(**call_args)
 

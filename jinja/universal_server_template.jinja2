@@ -170,6 +170,11 @@ app = FastAPI(title="{{ server_title | default(server_name | title + ' MCP Serve
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on server startup"""
+{%- for key, service_info in unique_services.items() %}
+    if hasattr({{ service_info.instance }}, 'initialize'):
+        await {{ service_info.instance }}.initialize()
+        logger.info("{{ service_info.class_name }} initialized")
+{%- endfor %}
     logger.info("{{ server_title | default(server_name | title + ' MCP Server') }} started")
 
 
