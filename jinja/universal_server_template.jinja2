@@ -312,10 +312,13 @@ async def call_tool(request: Request):
                     target_param = param_schema.get("targetParam", param_name)  # Use targetParam if specified
 
                     # Create object instance based on baseModel
+                    # Skip empty dicts - they should be treated as None for merging with internal args
                     if base_model and base_model in globals():
                         model_class = globals()[base_model]
-                        processed_args[target_param] = model_class(**param_value) if param_value else None
-                    else:
+                        if param_value:  # Only create object if param_value is not empty/None
+                            processed_args[target_param] = model_class(**param_value)
+                        # If empty, don't add to processed_args - let internal args take over
+                    elif param_value:  # Only add non-empty values
                         processed_args[target_param] = param_value
                 else:
                     # For non-object types, check if there's a targetParam mapping
@@ -338,9 +341,9 @@ async def call_tool(request: Request):
 
                         # If both are objects, merge them (signature priority)
                         if hasattr(sig_value, '__dict__') and hasattr(internal_value, '__dict__'):
-                            # Convert to dict for merging
-                            sig_dict = vars(sig_value) if hasattr(sig_value, '__dict__') else sig_value
-                            internal_dict = vars(internal_value) if hasattr(internal_value, '__dict__') else internal_value
+                            # Convert to dict for merging (exclude None values)
+                            sig_dict = {k: v for k, v in vars(sig_value).items() if v is not None}
+                            internal_dict = {k: v for k, v in vars(internal_value).items() if v is not None}
 
                             # Merge with signature priority
                             merged_dict = {**internal_dict, **sig_dict}
@@ -527,12 +530,12 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
 
     # Check if target param already exists from signature
     if "{{ target_param }}" in call_args:
-        # Merge internal into signature (signature has priority)
+        # Merge internal into signature (signature has priority, but skip None values)
         existing_value = call_args["{{ target_param }}"]
         if hasattr(existing_value, '__dict__') and hasattr(_internal_{{ arg_name }}, '__dict__'):
-            # Both are objects - merge them
-            internal_dict = vars(_internal_{{ arg_name }})
-            existing_dict = vars(existing_value)
+            # Both are objects - merge them (exclude None values from existing)
+            internal_dict = {k: v for k, v in vars(_internal_{{ arg_name }}).items() if v is not None}
+            existing_dict = {k: v for k, v in vars(existing_value).items() if v is not None}
             merged_dict = {**internal_dict, **existing_dict}
             call_args["{{ target_param }}"] = type(existing_value)(**merged_dict)
         # Otherwise keep existing signature value
