@@ -243,40 +243,68 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                                                                                                       'type': 'string'}},
                                                         'source': 'internal'}},
         'name': 'mail_list'},
-    {   'description': 'block된 메일 중  사용자가 요청한 내용의 메일이 있는지 확인하는 툴입니다. 에이전트는 특정 기간동안의  메일을 조회하고 에이전트의 반환값을 받아서 LLM은 이중에 '
-                       '사용자가 요청한 메일이 있는지 검토한다.  ',
+    {   'description': 'URL 방식 메일 조회 기능 - $filter 와 $select를 설정 가능',
         'inputSchema': {   'properties': {   'filter_params': {   'baseModel': 'FilterParams',
-                                                                  'description': 'FilterParams parameters',
+                                                                  'description': '메일 필터링 조건',
                                                                   'properties': {   'received_date_from': {   'description': '메일 '
                                                                                                                              '수신 '
                                                                                                                              '시작 '
-                                                                                                                             '날짜 '
-                                                                                                                             '(포함, '
-                                                                                                                             'receivedDateTime '
-                                                                                                                             '>= '
-                                                                                                                             '이 '
-                                                                                                                             '값)',
+                                                                                                                             '날짜',
                                                                                                               'type': 'string'},
                                                                                     'received_date_to': {   'description': '메일 '
                                                                                                                            '수신 '
                                                                                                                            '종료 '
-                                                                                                                           '날짜 '
-                                                                                                                           '(포함, '
-                                                                                                                           'receivedDateTime '
-                                                                                                                           '<= '
-                                                                                                                           '이 '
-                                                                                                                           '값)',
+                                                                                                                           '날짜',
                                                                                                             'type': 'string'}},
                                                                   'required': [],
                                                                   'targetParam': 'filter_params',
                                                                   'type': 'object'},
-                                             'select_params': {   'description': 'SelectParams parameters',
-                                                                  'type': 'object'},
-                                             'user_email': {   'description': '메일 조회가 안되면, 현재 세션과 관련된 user_email을 mcp '
-                                                                              '서버가 식별해서 제공한다. ',
-                                                               'targetParam': 'user_email',
-                                                               'type': 'string'}},
-                           'required': ['user_email'],
+                                             'select': {   'baseModel': 'SelectParams',
+                                                           'description': 'SelectParams parameters',
+                                                           'properties': {   'body_preview': {   'description': '메시지 '
+                                                                                                                '본문의 '
+                                                                                                                '처음 '
+                                                                                                                '255자 '
+                                                                                                                '(텍스트 '
+                                                                                                                '형식)',
+                                                                                                 'type': 'boolean'},
+                                                                             'created_date_time': {   'description': '메시지 '
+                                                                                                                     '생성 '
+                                                                                                                     '날짜/시간 '
+                                                                                                                     '(ISO '
+                                                                                                                     '8601 '
+                                                                                                                     '형식, '
+                                                                                                                     'UTC)',
+                                                                                                      'type': 'boolean'},
+                                                                             'from_recipient': {   'description': '메시지가 '
+                                                                                                                  '전송된 '
+                                                                                                                  '사서함의 '
+                                                                                                                  '소유자 '
+                                                                                                                  '(from '
+                                                                                                                  '필드)',
+                                                                                                   'type': 'boolean'},
+                                                                             'id': {   'description': '메시지 고유 식별자 (읽기 '
+                                                                                                      '전용)',
+                                                                                       'type': 'boolean'},
+                                                                             'received_date_time': {   'description': '메시지 '
+                                                                                                                      '수신 '
+                                                                                                                      '날짜/시간 '
+                                                                                                                      '(ISO '
+                                                                                                                      '8601 '
+                                                                                                                      '형식, '
+                                                                                                                      'UTC)',
+                                                                                                       'type': 'boolean'}},
+                                                           'required': [],
+                                                           'targetParam': 'select_params',
+                                                           'type': 'object'},
+                                             'top': {'default': 50, 'description': '최대 결과 수', 'type': 'integer'},
+                                             'url': {   'default': 'https://graph.microsoft.com/v1.0/me/mailFolders/junkemail/messages?',
+                                                        'description': 'only baseURL : '
+                                                                       'https://graph.microsoft.com/v1.0/me/mailFolders/junkemail/messages?',
+                                                        'targetParam': 'url',
+                                                        'type': 'string'},
+                                             'user_email': {'description': '사용자 이메일 (인증용)', 'type': 'string'}},
+                           'required': ['url', 'user_email'],
                            'type': 'object'},
-        'mcp_service': 'fetch_filter',
-        'name': 'mail_block_list'}]
+        'mcp_service': 'fetch_url',
+        'name': 'mail_query_url'}]

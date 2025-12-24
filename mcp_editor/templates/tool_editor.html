@@ -125,6 +125,24 @@
             border-radius: 50%;
         }
 
+        .btn-expandable {
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .btn-expandable .btn-text {
+            max-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            transition: max-width 0.3s ease, margin-left 0.3s ease;
+            margin-left: 0;
+        }
+
+        .btn-expandable:hover .btn-text {
+            max-width: 100px;
+            margin-left: 6px;
+        }
+
         .btn-primary {
             background: var(--primary-color);
             color: white;
@@ -862,14 +880,14 @@
                 <button class="btn btn-secondary btn-tooltip btn-icon-only" data-debug-id="BTN_VALIDATE" onclick="validateTools()" data-tooltip="Validate tool definitions">
                     <span class="material-icons">check_circle</span>
                 </button>
-                <button class="btn btn-secondary btn-tooltip" data-debug-id="BTN_SAVE" onclick="saveTools()" data-tooltip="💾 Save: tool_definitions.py&#10;💾 Save: tool_definition_templates.py&#10;💾 Save: tool_internal_args.json&#10;&#10;Save all changes to disk">
-                    <span class="material-icons">save</span> Save Changes
+                <button class="btn btn-secondary btn-tooltip btn-icon-only" data-debug-id="BTN_SAVE" onclick="saveTools()" data-tooltip="💾 Save: tool_definitions.py&#10;💾 Save: tool_definition_templates.py&#10;💾 Save: tool_internal_args.json&#10;&#10;Save all changes to disk">
+                    <span class="material-icons">save</span>
                 </button>
-                <button class="btn btn-important btn-tooltip" data-debug-id="BTN_GENERATE" onclick="openGeneratorModal()" data-tooltip="⚙️ Input: tool_definitions.py&#10;📄 Template: *_server_template.jinja2&#10;🚀 Output: server.py&#10;&#10;Generate MCP server from template">
+                <button class="btn btn-important btn-tooltip" data-debug-id="BTN_GENERATE" onclick="saveTools(); openGeneratorModal()" data-tooltip="⚙️ Input: tool_definitions.py&#10;📄 Template: *_server_template.jinja2&#10;🚀 Output: server.py&#10;&#10;Generate MCP server from template">
                     <span class="material-icons">auto_fix_high</span> Generate Server
                 </button>
-                <button class="btn btn-primary btn-tooltip" data-debug-id="BTN_NEW_PROJECT" onclick="openCreateProjectModal()" data-tooltip="🚀 Create new MCP server project&#10;📁 Complete folder structure&#10;📝 Ready-to-use templates&#10;&#10;Create a new MCP service from scratch">
-                    <span class="material-icons">add_circle</span> New Project
+                <button class="btn btn-primary btn-tooltip btn-expandable" data-debug-id="BTN_NEW_PROJECT" onclick="openCreateProjectModal()" data-tooltip="🚀 Create new MCP server project&#10;📁 Complete folder structure&#10;📝 Ready-to-use templates&#10;&#10;Create a new MCP service from scratch">
+                    <span class="material-icons">add_circle</span><span class="btn-text">New Project</span>
                 </button>
             </div>
         </div>
@@ -4475,7 +4493,7 @@
             .finally(() => {
                 if (saveButton) {
                     saveButton.disabled = false;
-                    saveButton.innerHTML = saveLabel || '<span class="material-icons">save</span> Save Changes';
+                    saveButton.innerHTML = saveLabel || '<span class="material-icons">save</span>';
                 }
             });
         }

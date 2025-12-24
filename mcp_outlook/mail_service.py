@@ -15,7 +15,7 @@ from mail_processing_options import (
     AttachmentOption,
     OutputFormat
 )
-from outlook_types import FilterParams, ExcludeParams, SelectParams
+from outlook_types import FilterParams, ExcludeParams, SelectParams, build_filter_query, build_select_query
 
 # mcp_service decorator is only needed for registry scanning, not runtime
 try:
@@ -218,14 +218,33 @@ class MailService:
         self,
         user_email: str,
         url: str,
+        filter_params: Optional[FilterParams] = None,
+        select_params: Optional[SelectParams] = None,
         top: int = 50
     ) -> Dict[str, Any]:
         """URL 방식 메일 조회 - query_method 고정"""
         self._ensure_initialized()
+
+        final_url = url
+
+        # filter_params가 있으면 URL에 $filter 추가
+        if filter_params:
+            filter_query = build_filter_query(filter_params)
+            if filter_query:
+                separator = "&" if "?" in final_url else "?"
+                final_url = f"{final_url}{separator}$filter={filter_query}"
+
+        # select_params가 있으면 URL에 $select 추가
+        if select_params:
+            select_query = build_select_query(select_params)
+            if select_query:
+                separator = "&" if "?" in final_url else "?"
+                final_url = f"{final_url}{separator}$select={select_query}"
+
         return await self._client.build_and_fetch(
             user_email=user_email,
             query_method=QueryMethod.URL,
-            url=url,
+            url=final_url,
             top=top
         )
 
