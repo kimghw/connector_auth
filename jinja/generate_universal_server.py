@@ -117,7 +117,7 @@ def extract_param_types(registry: Dict[str, Any]) -> List[str]:
     return sorted(list(param_types))
 
 
-def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], server_name: str, internal_args: Dict[str, Any] = None) -> Dict[str, Any]:
+def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], server_name: str, internal_args: Dict[str, Any] = None, protocol_type: str = 'rest') -> Dict[str, Any]:
     """Prepare Jinja2 context from registry, tools, and internal args"""
     if internal_args is None:
         internal_args = {}
@@ -285,6 +285,7 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
     context = {
         'server_name': server_name,
         'server_title': f"{server_name.replace('_', ' ').title()} MCP Server",
+        'protocol_type': protocol_type,  # Add protocol type to context
         'services': services,
         'tools': processed_tools,  # List of tools with implementation info for template iteration
         'tools_map': tools_map,    # Dict for quick lookup by name
@@ -301,7 +302,8 @@ def generate_server(
     output_path: str,
     registry_path: str,
     tools_path: str,
-    server_name: str
+    server_name: str,
+    protocol_type: str = 'rest'
 ):
     """Generate server.py from registry and template
 
@@ -311,6 +313,7 @@ def generate_server(
         registry_path: Path to service registry JSON
         tools_path: Path to tool definitions
         server_name: Name of the server (outlook, file_handler, etc.)
+        protocol_type: Protocol type ('rest', 'stdio', 'stream')
     """
 
     # Load registry and tools
@@ -331,7 +334,7 @@ def generate_server(
         print("No internal args file found")
 
     # Prepare context
-    context = prepare_context(registry, tools, server_name, internal_args)
+    context = prepare_context(registry, tools, server_name, internal_args, protocol_type)
 
     # Setup Jinja2
     template_dir = os.path.dirname(template_path)
@@ -354,6 +357,7 @@ def generate_server(
     print(f"\n✅ Generated {output_path} successfully!")
     print(f"\n📊 Summary:")
     print(f"  - Server: {server_name}")
+    print(f"  - Protocol: {protocol_type}")
     print(f"  - Services: {len(context['services'])}")
     print(f"  - Tools mapped: {len(context['tools'])}")
     print(f"  - Parameter types: {', '.join(context['param_types'])}")
@@ -409,6 +413,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Generate MCP server from universal template")
     parser.add_argument("server_name", help="Server name (e.g., 'outlook', 'file_handler')")
+    parser.add_argument("--protocol", help="Protocol type",
+                       choices=['rest', 'stdio', 'stream'], default='rest')
     parser.add_argument("--registry", help="Path to registry JSON file (auto-detected if not specified)")
     parser.add_argument("--tools", help="Path to tool definitions file (auto-detected if not specified)")
     parser.add_argument("--template", help="Path to Jinja2 template",
@@ -435,8 +441,12 @@ if __name__ == "__main__":
     if args.output:
         output_path = args.output
     else:
-        # Default: mcp_{server}/mcp_server/server.py
-        output_path = str(PROJECT_ROOT / f"mcp_{args.server_name}" / "mcp_server" / "server.py")
+        # Default: mcp_{server}/mcp_server/server_{protocol}.py
+        if args.protocol == 'rest':
+            filename = 'server.py'
+        else:
+            filename = f'server_{args.protocol}.py'
+        output_path = str(PROJECT_ROOT / f"mcp_{args.server_name}" / "mcp_server" / filename)
 
     # Generate server
     try:
@@ -445,7 +455,8 @@ if __name__ == "__main__":
             registry_path=registry_path,
             tools_path=tools_path,
             template_path=args.template,
-            output_path=output_path
+            output_path=output_path,
+            protocol_type=args.protocol
         )
     except Exception as e:
         print(f"❌ Error generating server: {e}")

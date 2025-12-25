@@ -1,17 +1,35 @@
 """
+{%- if protocol_type == 'rest' %}
 FastAPI MCP Server for {{ server_title | default(server_name | title) }}
 Routes MCP protocol requests to service functions
-Generated from universal template with registry data
+{%- elif protocol_type == 'stdio' %}
+STDIO MCP Server for {{ server_title | default(server_name | title) }}
+Handles MCP protocol via standard input/output
+{%- elif protocol_type == 'stream' %}
+Streaming MCP Server for {{ server_title | default(server_name | title) }}
+Handles MCP protocol via HTTP streaming (SSE)
+{%- else %}
+MCP Server for {{ server_title | default(server_name | title) }}
+{%- endif %}
+Generated from universal template with registry data and protocol selection
 """
 import json
 from typing import Dict, Any, List, Optional
+{%- if protocol_type == 'rest' or protocol_type == 'stream' %}
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
+{%- endif %}
 from pydantic import BaseModel
 import sys
 import os
 import logging
+{%- if protocol_type == 'rest' or protocol_type == 'stream' %}
 import aiohttp
+{%- endif %}
+{%- if protocol_type == 'stdio' %}
+import asyncio
+from typing import AsyncIterator
+{%- endif %}
 
 # Add parent directories to path for module access
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -34,7 +52,10 @@ from outlook_types import {{ param_types | join(', ') }}
 {%- endif %}
 
 # Import tool definitions
-from tool_definitions import MCP_TOOLS
+try:
+    from .tool_definitions import MCP_TOOLS
+except ImportError:
+    from tool_definitions import MCP_TOOLS
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -62,6 +83,8 @@ from {{ service_info.module_path.replace('.', '_').replace('mcp_', '').replace('
 {%- for key, service_info in unique_services.items() %}
 {{ service_info.instance }} = {{ service_info.class_name }}()
 {%- endfor %}
+
+{%- include 'protocol_base.jinja2' %}
 
 
 # ============================================================
@@ -162,285 +185,6 @@ def merge_param_data(internal_data: dict, runtime_data):
     if internal_data:
         return {**internal_data, **runtime_data}
     return runtime_data
-
-
-app = FastAPI(title="{{ server_title | default(server_name | title + ' MCP Server') }}", version="1.0.0")
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on server startup"""
-{%- for key, service_info in unique_services.items() %}
-    if hasattr({{ service_info.instance }}, 'initialize'):
-        await {{ service_info.instance }}.initialize()
-        logger.info("{{ service_info.class_name }} initialized")
-{%- endfor %}
-    logger.info("{{ server_title | default(server_name | title + ' MCP Server') }} started")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on server shutdown"""
-    logger.info("{{ server_title | default(server_name | title + ' MCP Server') }} stopped")
-
-
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "name": "{{ server_title | default(server_name | title + ' MCP Server') }}",
-        "version": "1.0.0"
-    }
-
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "server": "{{ server_name }}"}
-
-
-@app.post("/mcp/v1/initialize")
-async def initialize(request: Request):
-    """Initialize MCP session"""
-    body = await request.json()
-    return {
-        "protocolVersion": "1.0",
-        "serverInfo": {
-            "name": "{{ server_name }}-mcp-server",
-            "version": "1.0.0"
-        },
-        "capabilities": {
-            "tools": {}
-        }
-    }
-
-
-@app.post("/mcp/v1/tools/list")
-async def list_tools(request: Request):
-    """List available MCP tools"""
-    try:
-        # Get tools metadata
-        tools_list = []
-        for tool in MCP_TOOLS:
-            tools_list.append({
-                "name": tool["name"],
-                "description": tool.get("description", ""),
-                "inputSchema": tool.get("inputSchema", {})
-            })
-
-        return JSONResponse(content={
-            "result": {
-                "tools": tools_list
-            }
-        })
-    except Exception as e:
-        logger.error(f"Error listing tools: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": {"message": str(e)}}
-        )
-
-
-@app.post("/mcp/v1/tools/call")
-async def call_tool(request: Request):
-    """Execute an MCP tool"""
-    try:
-        data = await request.json()
-        tool_name = data.get("params", {}).get("name")
-        arguments = data.get("params", {}).get("arguments", {})
-
-        logger.info(f"Tool call: {tool_name} with args: {arguments}")
-
-        # Map tool name to service implementation
-        tool_implementations = {
-{%- for tool in tools %}
-            "{{ tool.name }}": {
-                "service_class": "{{ tool.implementation.class_name }}",
-                "method": "{{ tool.implementation.method }}"
-            },
-{%- endfor %}
-        }
-
-        if tool_name not in tool_implementations:
-            return JSONResponse(
-                status_code=404,
-                content={"error": {"message": f"Unknown tool: {tool_name}"}}
-            )
-
-        implementation_info = tool_implementations[tool_name]
-
-        # Get service instance by class name
-        service_class = implementation_info["service_class"]
-        service_instance = {
-{%- for key, service_info in unique_services.items() %}
-            "{{ service_info.class_name }}": {{ service_info.instance }},
-{%- endfor %}
-        }.get(service_class)
-
-        if not service_instance:
-            return JSONResponse(
-                status_code=500,
-                content={"error": {"message": f"Service not available: {service_class}"}}
-            )
-
-        # Get the method
-        method = getattr(service_instance, implementation_info["method"], None)
-        if not method:
-            return JSONResponse(
-                status_code=500,
-                content={"error": {"message": f"Method not found: {implementation_info['method']}"}}
-            )
-
-        # Process arguments based on tool configuration
-        # Handle parameter transformations
-        processed_args = {}
-
-        # Get tool configuration
-        tool_config = next((t for t in MCP_TOOLS if t["name"] == tool_name), None)
-
-        if tool_config:
-            schema_props = tool_config.get("inputSchema", {}).get("properties", {})
-            tool_internal_args = INTERNAL_ARGS.get(tool_name, {})
-
-            # Process signature arguments
-            for param_name, param_value in arguments.items():
-                param_schema = schema_props.get(param_name, {})
-
-                # Transform object parameters to their expected types
-                if param_schema.get("type") == "object":
-                    base_model = param_schema.get("baseModel")
-                    target_param = param_schema.get("targetParam", param_name)  # Use targetParam if specified
-
-                    # Create object instance based on baseModel
-                    # Skip empty dicts - they should be treated as None for merging with internal args
-                    if base_model and base_model in globals():
-                        model_class = globals()[base_model]
-                        if param_value:  # Only create object if param_value is not empty/None
-                            processed_args[target_param] = model_class(**param_value)
-                        # If empty, don't add to processed_args - let internal args take over
-                    elif param_value:  # Only add non-empty values
-                        processed_args[target_param] = param_value
-                else:
-                    # For non-object types, check if there's a targetParam mapping
-                    target_param = param_schema.get("targetParam", param_name)
-                    processed_args[target_param] = param_value
-
-            # Process internal arguments
-            for arg_name, arg_info in tool_internal_args.items():
-                # Check if this internal arg has a targetParam
-                target_param = arg_info.get("targetParam", arg_name)
-
-                # Build internal parameter
-                internal_value = build_internal_param(tool_name, arg_name)
-
-                if internal_value is not None:
-                    # Check if target_param already exists from signature args
-                    if target_param in processed_args:
-                        # Signature args have priority - merge internal into signature
-                        sig_value = processed_args[target_param]
-
-                        # If both are objects, merge them (signature priority)
-                        if hasattr(sig_value, '__dict__') and hasattr(internal_value, '__dict__'):
-                            # Convert to dict for merging (exclude None values)
-                            sig_dict = {k: v for k, v in vars(sig_value).items() if v is not None}
-                            internal_dict = {k: v for k, v in vars(internal_value).items() if v is not None}
-
-                            # Merge with signature priority
-                            merged_dict = {**internal_dict, **sig_dict}
-
-                            # Recreate object with merged values
-                            param_type = type(sig_value)
-                            processed_args[target_param] = param_type(**merged_dict)
-                        # Otherwise keep signature value (signature priority)
-                    else:
-                        # No signature arg, use internal arg
-                        processed_args[target_param] = internal_value
-        else:
-            processed_args = arguments
-
-        # Call the method
-        result = await method(**processed_args)
-
-        # Format response
-        if isinstance(result, dict):
-            response_content = result
-        elif isinstance(result, list):
-            response_content = {"items": result}
-        elif isinstance(result, str):
-            response_content = {"message": result}
-        elif result is None:
-            response_content = {"success": True}
-        else:
-            response_content = {"result": str(result)}
-
-        return JSONResponse(content={
-            "result": {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": json.dumps(response_content, ensure_ascii=False, indent=2)
-                    }
-                ]
-            }
-        })
-
-    except aiohttp.ClientResponseError as e:
-        # HTTP-level errors from external API calls
-        logger.error(f"API error executing tool {tool_name}: {e.status} {e.message}", exc_info=True)
-        if e.status == 401:
-            return JSONResponse(
-                status_code=401,
-                content={"error": {"code": "AUTH_EXPIRED", "message": "Access token expired or invalid. Re-authentication required."}}
-            )
-        elif e.status == 403:
-            return JSONResponse(
-                status_code=403,
-                content={"error": {"code": "PERMISSION_DENIED", "message": "Insufficient permissions for this operation."}}
-            )
-        elif e.status == 404:
-            return JSONResponse(
-                status_code=404,
-                content={"error": {"code": "NOT_FOUND", "message": f"Resource not found: {e.message}"}}
-            )
-        elif e.status == 429:
-            return JSONResponse(
-                status_code=429,
-                content={"error": {"code": "RATE_LIMITED", "message": "API rate limit exceeded. Please retry later."}}
-            )
-        else:
-            return JSONResponse(
-                status_code=e.status,
-                content={"error": {"code": "API_ERROR", "message": str(e)}}
-            )
-    except HTTPException as e:
-        # FastAPI HTTP exceptions (pass through)
-        logger.error(f"HTTP error executing tool {tool_name}: {e.status_code} {e.detail}", exc_info=True)
-        return JSONResponse(
-            status_code=e.status_code,
-            content={"error": {"code": "HTTP_ERROR", "message": e.detail}}
-        )
-    except Exception as e:
-        # Check for auth-related keywords in generic exceptions
-        error_str = str(e).lower()
-        if "401" in error_str or "unauthorized" in error_str or "token expired" in error_str:
-            logger.error(f"Auth error executing tool {tool_name}: {e}", exc_info=True)
-            return JSONResponse(
-                status_code=401,
-                content={"error": {"code": "AUTH_EXPIRED", "message": "Authentication failed. Re-authentication required."}}
-            )
-        elif "403" in error_str or "forbidden" in error_str or "permission" in error_str:
-            logger.error(f"Permission error executing tool {tool_name}: {e}", exc_info=True)
-            return JSONResponse(
-                status_code=403,
-                content={"error": {"code": "PERMISSION_DENIED", "message": "Permission denied."}}
-            )
-
-        # General internal error
-        logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
-        return JSONResponse(
-            status_code=500,
-            content={"error": {"code": "INTERNAL_ERROR", "message": str(e)}}
-        )
 
 # Tool handler functions
 {%- for tool in tools %}
@@ -569,18 +313,34 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- endif %}
 {%- endfor %}
 
-
-def create_error_response(id: Any, code: int, message: str) -> JSONResponse:
-    """Create MCP error response"""
-    return JSONResponse(content={
-        "jsonrpc": "2.0",
-        "id": id,
-        "error": {
-            "code": code,
-            "message": message
-        }
-    })
+{#- Include protocol-specific handlers based on protocol_type -#}
+{%- if protocol_type == 'rest' %}
+{% include 'server_rest.jinja2' %}
+{%- elif protocol_type == 'stdio' %}
+{#- STDIO protocol implementation would go here -#}
+# STDIO protocol handler
+async def handle_stdio():
+    """Handle MCP protocol via stdin/stdout"""
+    # TODO: Implement STDIO handler
+    pass
+{%- elif protocol_type == 'stream' %}
+{#- Streaming protocol implementation would go here -#}
+# Streaming protocol handler
+async def handle_stream():
+    """Handle MCP protocol via HTTP streaming"""
+    # TODO: Implement streaming handler
+    pass
+{%- endif %}
 
 if __name__ == "__main__":
+{%- if protocol_type == 'rest' %}
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+{%- elif protocol_type == 'stdio' %}
+    asyncio.run(handle_stdio())
+{%- elif protocol_type == 'stream' %}
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)  # Different port for streaming
+{%- else %}
+    raise ValueError("Unsupported protocol_type: {{ protocol_type }}")
+{%- endif %}

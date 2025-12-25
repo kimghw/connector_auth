@@ -1,0 +1,68 @@
+# ============================================================
+# Common MCP protocol utilities (shared across protocols)
+# ============================================================
+
+SUPPORTED_PROTOCOLS = {"rest", "stdio", "stream"}
+
+# Pre-computed tool -> implementation mapping
+TOOL_IMPLEMENTATIONS = {
+{%- for tool in tools %}
+    "{{ tool.name }}": {
+        "service_class": "{{ tool.implementation.class_name }}",
+        "method": "{{ tool.implementation.method or tool.service_method or tool.name }}"
+    },
+{%- endfor %}
+}
+
+# Pre-computed service class -> instance mapping
+SERVICE_INSTANCES = {
+{%- for key, service_info in unique_services.items() %}
+    "{{ service_info.class_name }}": {{ service_info.instance }},
+{%- endfor %}
+}
+
+
+def get_tool_config(tool_name: str) -> Optional[dict]:
+    """Lookup MCP tool definition by name"""
+    for tool in MCP_TOOLS:
+        if tool.get("name") == tool_name:
+            return tool
+    return None
+
+
+def get_tool_implementation(tool_name: str) -> Optional[dict]:
+    """Get implementation mapping for a tool"""
+    return TOOL_IMPLEMENTATIONS.get(tool_name)
+
+
+def get_service_instance(service_class: str):
+    """Get instantiated service by class name"""
+    return SERVICE_INSTANCES.get(service_class)
+
+
+def format_tool_result(result: Any) -> Dict[str, Any]:
+    """Normalize service results into a consistent MCP payload"""
+    if isinstance(result, dict):
+        return result
+    if isinstance(result, list):
+        return {"items": result}
+    if isinstance(result, str):
+        return {"message": result}
+    if result is None:
+        return {"success": True}
+    return {"result": str(result)}
+
+
+def build_mcp_content(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Wrap normalized payload into MCP content envelope"""
+    return {
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(payload, ensure_ascii=False, indent=2)
+                }
+            ]
+        }
+    }
+
