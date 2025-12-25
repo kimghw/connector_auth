@@ -1462,6 +1462,8 @@
             fetch(`/api/mcp-services${profileQuery}`)
                 .then(response => response.json())
                 .then(data => {
+                    console.log('Raw MCP services API response:', data);
+
                     window.mcpServiceDetails = data.services_with_signatures || [];
                     // Use service names from services_with_signatures (these match mcp_service.name)
                     // Fall back to data.services if services_with_signatures is empty
@@ -1472,6 +1474,11 @@
                     }
                     console.log('MCP Services loaded:', window.mcpServices, 'from profile:', originalProfile || 'default');
                     console.log('MCP Service details loaded:', window.mcpServiceDetails);
+
+                    // Log first service detail for debugging
+                    if (window.mcpServiceDetails.length > 0) {
+                        console.log('First service detail example:', window.mcpServiceDetails[0]);
+                    }
 
                     if (currentToolIndex >= 0) {
                         renderToolEditor(tools[currentToolIndex], currentToolIndex);
@@ -2091,7 +2098,8 @@
             // Always use originalProfile for saving operations
             // This ensures changes are saved to the profile where tools were loaded from,
             // even if MCP services are loaded from a different template source
-            return originalProfile ? `?profile=${encodeURIComponent(originalProfile)}` : '';
+            const profileName = originalProfile || currentProfile;
+            return profileName ? `?profile=${encodeURIComponent(profileName)}` : '';
         }
 
         function populateGraphTypeOptions(selectEl) {
@@ -2200,6 +2208,18 @@
                 const serviceDetail = window.mcpServiceDetails
                     ? window.mcpServiceDetails.find(svc => svc.name === serviceName)
                     : null;
+
+                // Debug logging
+                if (propName === 'user_email' || propName === 'filter_params') {
+                    console.log('Debug isPropertyMcpParam:', {
+                        propName,
+                        serviceName,
+                        serviceDetail,
+                        mcpServiceDetails: window.mcpServiceDetails,
+                        tool_mcp_service: tool.mcp_service
+                    });
+                }
+
                 const parameters = (serviceDetail && Array.isArray(serviceDetail.parameters))
                     ? serviceDetail.parameters
                     : (typeof tool.mcp_service === 'object' ? tool.mcp_service.parameters : null);
@@ -2208,7 +2228,7 @@
                 }
 
                 const normalizedName = normalizeMcpPropName(propName);
-                return parameters.some(param => {
+                const result = parameters.some(param => {
                     if (!param) {
                         return false;
                     }
@@ -2217,6 +2237,13 @@
                     }
                     return param.name === normalizedName;
                 });
+
+                // Debug logging for result
+                if (propName === 'user_email' || propName === 'filter_params') {
+                    console.log('MCP param check result for', propName, ':', result, 'parameters:', parameters);
+                }
+
+                return result;
             };
 
             // CRITICAL: Merge properties from inputSchema AND internalArgs
@@ -2532,7 +2559,7 @@
                     </div>
                     <div class="form-group" style="flex: 1; min-width: 260px; margin-bottom: 0;">
                         <label>MCP Service Method</label>
-                        <select class="form-control" id="mcpService" data-debug-id="FIELD_TOOL_SERVICE"
+                        <select class="form-control" id="field_tool_method" data-debug-id="FIELD_TOOL_SERVICE"
                                 onchange="updateMcpService(${index}, this.value)">
                             <option value="">-- Select MCP Service Method --</option>
                             ${window.mcpServices ? window.mcpServices.map(service => {
@@ -2615,8 +2642,9 @@
 
             if (!serviceName) return;
 
-            const currentProfile = window.currentProfile || 'mcp_outlook';
-            fetch(`/api/registry?profile=${currentProfile}`)
+            const registryQuery = profileParam() || (window.currentProfile ? `?profile=${encodeURIComponent(window.currentProfile)}` : '');
+            const registryUrl = `/api/registry${registryQuery}`;
+            fetch(registryUrl)
                 .then(response => response.json())
                 .then(registry => {
                     if (registry && registry.services && registry.services[serviceName]) {
@@ -2677,7 +2705,9 @@
             if (!paramsDiv || !serviceName) return;
 
             // Load registry to get method parameters
-            fetch('/api/registry')
+            const registryQuery = profileParam() || (window.currentProfile ? `?profile=${encodeURIComponent(window.currentProfile)}` : '');
+            const registryUrl = `/api/registry${registryQuery}`;
+            fetch(registryUrl)
                 .then(response => response.json())
                 .then(registry => {
                     if (registry && registry.services && registry.services[serviceName]) {
@@ -3343,8 +3373,9 @@
                     : tool.mcp_service.name;
 
                 // Load the registry to get actual method parameters
-                const currentProfile = window.currentProfile || 'mcp_outlook';
-                fetch(`/api/registry?profile=${currentProfile}`)
+                const registryQuery = profileParam() || (window.currentProfile ? `?profile=${encodeURIComponent(window.currentProfile)}` : '');
+                const registryUrl = `/api/registry${registryQuery}`;
+                fetch(registryUrl)
                     .then(response => response.json())
                     .then(registry => {
                         if (registry && registry.services && registry.services[serviceName]) {

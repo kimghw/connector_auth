@@ -89,3 +89,6 @@ mcp_editor/*/*.json
 # Backup directories
 jinja/backups_*/
 backups_*/
+
+# Debug files
+mcp_editor/debug_info.md

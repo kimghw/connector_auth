@@ -848,9 +848,10 @@ def get_registry():
     """API endpoint to get service registry for current profile"""
     profile = request.args.get("profile")
 
-    # If no profile, use default
+    # If no profile, use first available profile
     if not profile:
-        profile = "mcp_outlook"
+        profiles = list_profile_names()
+        profile = profiles[0] if profiles else "mcp_outlook"
 
     profile_conf = get_profile_config(profile)
 
@@ -858,7 +859,7 @@ def get_registry():
     registry_path = profile_conf.get("registry_path")
     if not registry_path:
         # Default to mcp_service_registry/registry_{server}.json
-        server_name = profile.replace("mcp_", "")
+        server_name = get_server_name_from_profile(profile) or profile.replace("mcp_", "")
         registry_path = os.path.join(
             os.path.dirname(__file__),
             "mcp_service_registry",
@@ -1117,15 +1118,13 @@ def get_mcp_services():
                     detailed = []
 
                     for service_name, service_info in data['services'].items():
-                        # Add to decorated services (tool names)
-                        # Support both 'handler' (old) and 'implementation' (new) formats
-                        handler = service_info.get('implementation', service_info.get('handler', {}))
-                        tool_name = service_info.get('metadata', {}).get('tool_name', handler.get('method', service_name))
-                        decorated.append(tool_name)
+                        # Add to decorated services (use service_name, not tool_name)
+                        # Service name should match what's selected in the UI
+                        decorated.append(service_name)
 
-                        # Build detailed info
+                        # Build detailed info with service_name (not tool_name)
                         detailed.append({
-                            "name": service_name,
+                            "name": service_name,  # Use service_name consistently
                             "parameters": service_info.get("parameters", []),
                             "signature": service_info.get("signature", "")
                         })
