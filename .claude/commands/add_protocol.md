@@ -20,125 +20,121 @@ jinja/
 ### Step 1: 프로토콜 템플릿 작성
 `jinja/server_[protocol_name].jinja2` 파일을 생성합니다.
 
-#### 예시: WebSocket 프로토콜
+#### ⚠️ 중요 주의사항
+- **템플릿은 핸들러만 포함**: 전체 서버 코드가 아닌 프로토콜 핸들러 부분만 작성
+- **Import 문 제외**: universal_server_template에서 이미 처리
+- **서비스 인스턴스 생성 제외**: universal_server_template에서 생성됨
+
+#### 예시: StreamableHTTP 프로토콜 (실제 구현 예제)
 ```jinja2
-{# server_websocket.jinja2 #}
-import asyncio
-import websockets
+{# server_stream.jinja2 #}
+# StreamableHTTP Protocol Implementation
+import aiohttp
+from aiohttp import web
+from typing import AsyncIterator
 import json
-from typing import Dict, Any
 
-class WebSocketMCPServer:
+class StreamableHTTPMCPServer:
+    """MCP StreamableHTTP Protocol Server
+
+    HTTP 기반 스트리밍 프로토콜로 청크 단위의 응답을 지원합니다.
+    Transfer-Encoding: chunked를 사용하여 점진적 응답 전송이 가능합니다.
+    """
+
     def __init__(self):
-        self.connections = set()
+        self.app = web.Application()
+        self.setup_routes()
+        logger.info("{{ server_title }} StreamableHTTP Server initialized")
 
-    async def handle_connection(self, websocket, path):
-        """WebSocket 연결 처리"""
-        self.connections.add(websocket)
+    def setup_routes(self):
+        """HTTP 라우트 설정"""
+        # MCP 표준 엔드포인트
+        self.app.router.add_post('/mcp/v1/initialize', self.handle_initialize)
+        self.app.router.add_post('/mcp/v1/tools/list', self.handle_tools_list)
+        self.app.router.add_post('/mcp/v1/tools/call', self.handle_tools_call)
+        # Health check
+        self.app.router.add_get('/health', self.handle_health)
+
+    async def handle_tools_call(self, request: web.Request) -> web.Response:
+        """도구 실행 - 스트리밍 응답 지원"""
         try:
-            async for message in websocket:
-                data = json.loads(message)
-                response = await self.process_request(data)
-                await websocket.send(json.dumps(response))
-        finally:
-            self.connections.remove(websocket)
+            data = await request.json()
+            tool_name = data.get('name')
+            arguments = data.get('arguments', {})
+            stream = data.get('stream', False)  # 스트리밍 옵션
 
-    async def process_request(self, data: Dict[str, Any]):
-        """MCP 요청 처리"""
-        method = data.get('method')
-        params = data.get('params', {})
+            if stream:
+                # 스트리밍 응답
+                return await self.stream_tool_response(tool_name, arguments, request)
+            else:
+                # 일반 응답
+                handler_name = f"handle_{tool_name.replace('-', '_')}"
+                if handler_name in globals():
+                    result = await globals()[handler_name](arguments)
+                    return web.json_response({"content": [{"type": "text", "text": str(result)}]})
+                else:
+                    raise ValueError(f"Unknown tool: {tool_name}")
 
-        if method == 'tools/list':
-            return await self.list_tools()
-        elif method == 'tools/call':
-            return await self.call_tool(params)
-        else:
-            return {"error": {"code": -32601, "message": "Method not found"}}
-
-    async def list_tools(self):
-        """도구 목록 반환"""
-        return {
-            "tools": [
-                {% for tool in tools %}
-                {
-                    "name": "{{ tool.name }}",
-                    "description": "{{ tool.description }}",
-                    "inputSchema": {{ tool.inputSchema | tojson }}
-                },
-                {% endfor %}
-            ]
-        }
-
-    async def call_tool(self, params: Dict[str, Any]):
-        """도구 실행"""
-        tool_name = params.get('name')
-        arguments = params.get('arguments', {})
-
-        {% for tool in tools %}
-        if tool_name == "{{ tool.name }}":
-            return await self.handle_{{ tool.name | replace('-', '_') }}(arguments)
-        {% endfor %}
-
-        return {"error": {"code": -32602, "message": f"Unknown tool: {tool_name}"}}
-
-    {% for tool in tools %}
-    async def handle_{{ tool.name | replace('-', '_') }}(self, args: Dict[str, Any]):
-        """{{ tool.description }}"""
-        try:
-            # 서비스 인스턴스와 메서드 조회
-            impl = TOOL_IMPLEMENTATIONS.get("{{ tool.name }}")
-            if not impl:
-                return {"error": {"code": -32603, "message": "Tool not implemented"}}
-
-            service_instance = SERVICE_INSTANCES[impl['service_class']]
-            method = getattr(service_instance, impl['method'])
-
-            # Internal Args 처리
-            {% if tool.internal_args %}
-            processed_args = await process_internal_args("{{ tool.name }}", args)
-            {% else %}
-            processed_args = args
-            {% endif %}
-
-            # 메서드 실행
-            result = await method(**processed_args)
-
-            return {"result": result}
         except Exception as e:
-            return {"error": {"code": -32603, "message": str(e)}}
-    {% endfor %}
+            return web.json_response(
+                {"error": {"code": -32603, "message": str(e)}}, status=500
+            )
 
-# 서버 시작 함수
-async def start_websocket_server():
-    server = WebSocketMCPServer()
-    async with websockets.serve(server.handle_connection, "localhost", 8765):
-        print("WebSocket MCP Server started on ws://localhost:8765")
-        await asyncio.Future()  # 무한 대기
+    async def stream_tool_response(self, tool_name: str, arguments: dict, request: web.Request) -> web.StreamResponse:
+        """도구 응답을 스트리밍으로 전송"""
+        response = web.StreamResponse()
+        response.headers['Content-Type'] = 'application/x-ndjson'  # Newline Delimited JSON
+        response.headers['Transfer-Encoding'] = 'chunked'
+        await response.prepare(request)
 
-if __name__ == "__main__":
-    asyncio.run(start_websocket_server())
+        try:
+            # 예제: 청크 단위로 데이터 전송
+            for i in range(5):
+                chunk = {"type": "chunk", "content": f"Chunk {i}", "done": False}
+                await response.write((json.dumps(chunk) + '\n').encode('utf-8'))
+                await asyncio.sleep(0.5)  # 시뮬레이션
+
+            # 완료 신호
+            end_chunk = {"type": "end", "done": True}
+            await response.write((json.dumps(end_chunk) + '\n').encode('utf-8'))
+        finally:
+            await response.write_eof()
+
+        return response
+
+    def run(self, host: str = '0.0.0.0', port: int = 8080):
+        """서버 실행"""
+        web.run_app(self.app, host=host, port=port)
+
+# 메인 엔트리 포인트
+def handle_streamablehttp(host: str = '0.0.0.0', port: int = 8080):
+    """Handle MCP protocol via StreamableHTTP"""
+    server = StreamableHTTPMCPServer()
+    server.run(host, port)
 ```
 
 ### Step 2: Universal Template 업데이트
 `universal_server_template.jinja2`에 새 프로토콜 포함:
 
 ```jinja2
-{# 프로토콜별 핸들러 포함 섹션 #}
-{% if protocol_type == 'rest' %}
+{#- Include protocol-specific handlers based on protocol_type -#}
+{%- if protocol_type == 'rest' %}
 {% include 'server_rest.jinja2' %}
-{% elif protocol_type == 'stdio' %}
-{% include 'server_stdio.jinja2' %}
-{% elif protocol_type == 'websocket' %}
-{% include 'server_websocket.jinja2' %}
-{% endif %}
+{%- elif protocol_type == 'stdio' %}
+{% include 'server_stdio.jinja2' %}  {# ← 반드시 include 사용! TODO 코드로 남기지 말 것 #}
+{%- elif protocol_type == 'stream' %}
+{% include 'server_stream.jinja2' %}
+{%- endif %}
 ```
+
+**⚠️ 주의**: 절대 TODO나 pass 코드를 직접 작성하지 말고 반드시 `{% include %}` 사용
 
 ### Step 3: Protocol Base 업데이트
 `protocol_base.jinja2`에 공통 유틸리티 추가:
 
 ```jinja2
 # 지원 프로토콜 목록
-SUPPORTED_PROTOCOLS = {"rest", "stdio", "websocket"}
+SUPPORTED_PROTOCOLS = {"rest", "stdio", "stream"}
 
 # 도구 → 서비스 매핑
 TOOL_IMPLEMENTATIONS = {
@@ -230,7 +226,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('server_name', help='Server name (e.g., outlook)')
     parser.add_argument('--protocol', default='rest',
-                       choices=['rest', 'stdio', 'websocket'],
+                       choices=['rest', 'stdio', 'stream'],
                        help='Protocol type')
     args = parser.parse_args()
 
@@ -265,8 +261,8 @@ if __name__ == "__main__":
 # REST 서버 생성
 python jinja/generate_universal_server.py outlook --protocol rest
 
-# WebSocket 서버 생성
-python jinja/generate_universal_server.py outlook --protocol websocket
+# StreamableHTTP 서버 생성
+python jinja/generate_universal_server.py outlook --protocol stream
 
 # STDIO 서버 생성
 python jinja/generate_universal_server.py outlook --protocol stdio
@@ -275,15 +271,20 @@ python jinja/generate_universal_server.py outlook --protocol stdio
 ### 테스트 실행
 ```bash
 # 문법 검증
-python -m py_compile mcp_outlook/server_websocket.py
+python -m py_compile mcp_outlook/mcp_server/server_stream.py
 
 # 서버 시작
-python mcp_outlook/server_websocket.py
+python mcp_outlook/mcp_server/server_stream.py
 
-# 클라이언트 테스트
-wscat -c ws://localhost:8765
-> {"method": "tools/list"}
-> {"method": "tools/call", "params": {"name": "mail_search", "arguments": {}}}
+# 클라이언트 테스트 (curl 사용)
+curl -X POST http://localhost:8080/mcp/v1/tools/list \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# 스트리밍 테스트
+curl -X POST http://localhost:8080/mcp/v1/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{"name": "tool_name", "arguments": {}, "stream": true}' -N
 ```
 
 ## 6. 프로토콜별 특징
@@ -300,28 +301,144 @@ wscat -c ws://localhost:8765
 - 프로세스 간 통신 적합
 - 낮은 오버헤드
 
-### WebSocket
-- 양방향 실시간 통신
-- 연결 상태 유지
-- 이벤트 기반 처리
-- 스트리밍 데이터 지원
+### StreamableHTTP
+- HTTP 기반 스트리밍 프로토콜
+- Transfer-Encoding: chunked 사용
+- NDJSON (Newline Delimited JSON) 형식
+- 점진적 데이터 전송 지원
+- SSE보다 유연한 커스텀 스트리밍
 
-## 7. 디버깅 및 문제 해결
+## 7. 프로토콜 템플릿 작성 시 중요 고려사항
 
-### 일반적인 문제
+### 필수 Import 관리
+```jinja2
+{# universal_server_template.jinja2에서 관리 #}
+{%- if protocol_type == 'stdio' or protocol_type == 'stream' %}
+import asyncio
+from typing import AsyncIterator
+{%- endif %}
+
+{%- if protocol_type == 'rest' or protocol_type == 'stream' %}
+import aiohttp
+{%- endif %}
+```
+- **주의**: 각 프로토콜에 필요한 import를 universal_server_template에서 조건부로 관리
+- 프로토콜 템플릿 자체에는 프로토콜 특화 import만 포함
+
+### 비동기 실행 모델 선택
 ```python
-# ImportError 해결
-# module_path가 올바른지 확인
-print(f"Importing {service_info['module_path']}")
+# STDIO: asyncio.run() 사용
+if protocol_type == 'stdio':
+    asyncio.run(handle_stdio())
 
-# KeyError 해결
-# Registry 구조 검증
-assert 'services' in registry
-assert all(key in service for key in ['implementation', 'parameters'])
+# StreamableHTTP: 일반 함수로 실행 (aiohttp가 자체 이벤트 루프 관리)
+elif protocol_type == 'stream':
+    handle_streamablehttp()  # NOT asyncio.run()
+```
+- **중요**: aiohttp의 web.run_app()은 자체 이벤트 루프를 생성하므로 asyncio.run()과 충돌
+- 프로토콜별 이벤트 루프 관리 방식 확인 필수
 
-# TypeError 해결
-# 매개변수 타입 확인
-print(f"Expected: {param_type}, Got: {type(value)}")
+### 엔트리 포인트 함수 시그니처
+```python
+# 비동기 함수 (STDIO 등)
+async def handle_stdio():
+    server = StdioMCPServer()
+    await server.run()
+
+# 동기 함수 (StreamableHTTP 등)
+def handle_streamablehttp(host='0.0.0.0', port=8080):
+    server = StreamableHTTPMCPServer()
+    server.run(host, port)  # web.run_app 내부에서 이벤트 루프 관리
+```
+
+### 프로토콜별 응답 형식
+```python
+# REST/StreamableHTTP: web.Response 또는 web.StreamResponse
+return web.json_response({"result": data})
+
+# STDIO: 딕셔너리 반환 (JSON-RPC 형식)
+return {"jsonrpc": "2.0", "id": request_id, "result": data}
+
+# WebSocket: 직접 전송
+await websocket.send(json.dumps({"result": data}))
+```
+
+### 스트리밍 구현 패턴
+```python
+# StreamableHTTP 스트리밍 예제
+async def stream_tool_response(self, tool_name: str, arguments: dict):
+    response = web.StreamResponse()
+    response.headers['Content-Type'] = 'application/x-ndjson'
+    response.headers['Transfer-Encoding'] = 'chunked'
+    await response.prepare(request)
+
+    # NDJSON 형식으로 청크 전송
+    async for chunk in data_generator():
+        await response.write((json.dumps(chunk) + '\n').encode())
+
+    await response.write_eof()
+    return response
+```
+
+## 8. 디버깅 및 문제 해결
+
+### 일반적인 문제와 해결방법
+
+#### 1. ImportError
+```python
+# 문제: asyncio가 정의되지 않음
+NameError: name 'asyncio' is not defined
+
+# 해결: universal_server_template.jinja2에서 조건부 import 추가
+{%- if protocol_type == 'stdio' or protocol_type == 'stream' %}
+import asyncio
+{%- endif %}
+```
+
+#### 2. 이벤트 루프 충돌
+```python
+# 문제: Cannot run the event loop while another loop is running
+RuntimeError: Cannot run the event loop while another loop is running
+
+# 해결: asyncio.run()과 web.run_app() 동시 사용 금지
+# 잘못된 코드
+asyncio.run(handle_streamablehttp())  # X
+
+# 올바른 코드
+handle_streamablehttp()  # O
+```
+
+#### 3. 템플릿 Include 누락
+```python
+# 문제: TODO 코드가 그대로 생성됨
+# Streaming protocol handler
+async def handle_stream():
+    """Handle MCP protocol via HTTP streaming"""
+    # TODO: Implement streaming handler
+    pass
+
+# 해결: 반드시 {% include %} 사용
+{%- elif protocol_type == 'stream' %}
+{% include 'server_stream.jinja2' %}
+{%- endif %}
+```
+
+### 테스트 방법
+```bash
+# 1. 문법 검증
+python -m py_compile mcp_outlook/server_stream.py
+
+# 2. 짧은 테스트 실행 (타임아웃 사용)
+timeout 3 python mcp_outlook/server_stream.py
+
+# 3. 백그라운드 실행 및 모니터링
+python server_stream.py &
+curl -X GET http://localhost:8080/health
+
+# 4. 스트리밍 테스트 (-N 옵션으로 버퍼링 비활성화)
+curl -X POST http://localhost:8080/mcp/v1/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{"name": "tool", "arguments": {}, "stream": true}' -N
 ```
 
 ### 로깅 추가
@@ -329,7 +446,7 @@ print(f"Expected: {param_type}, Got: {type(value)}")
 import logging
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
@@ -338,19 +455,170 @@ logger.info(f"Processing tool: {tool_name}")
 logger.debug(f"Arguments: {arguments}")
 ```
 
-## 8. 체크리스트
+## 9. 생성된 서버 파일 테스트 (필수)
+
+### 테스트 순서
+프로토콜 템플릿 작성 후 **반드시** 다음 순서로 테스트를 수행해야 합니다:
+
+#### 1단계: 서버 파일 생성
+```bash
+# 템플릿으로부터 실제 서버 파일 생성
+python jinja/generate_universal_server.py outlook --protocol stream
+
+# 생성 확인
+ls -la mcp_outlook/mcp_server/server_stream.py
+```
+
+#### 2단계: 문법 검증
+```bash
+# Python 문법 오류 확인
+python -m py_compile mcp_outlook/mcp_server/server_stream.py
+
+# 임포트 오류 확인
+python -c "import mcp_outlook.mcp_server.server_stream"
+```
+
+#### 3단계: 서버 시작 테스트
+```bash
+# 짧은 시간 동안 실행하여 시작 오류 확인
+timeout 3 python mcp_outlook/mcp_server/server_stream.py
+
+# 백그라운드 실행
+cd mcp_outlook/mcp_server && python server_stream.py &
+```
+
+#### 4단계: 엔드포인트 테스트
+```bash
+# Health check
+curl -X GET http://localhost:8080/health
+
+# Initialize
+curl -X POST http://localhost:8080/mcp/v1/initialize \
+  -H "Content-Type: application/json" \
+  -d '{"clientInfo": {"name": "test-client"}}'
+
+# Tools list
+curl -X POST http://localhost:8080/mcp/v1/tools/list \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# Tool call (일반)
+curl -X POST http://localhost:8080/mcp/v1/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{"name": "tool_name", "arguments": {}}'
+
+# Tool call (스트리밍)
+curl -X POST http://localhost:8080/mcp/v1/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{"name": "tool_name", "arguments": {}, "stream": true}' -N
+```
+
+#### 5단계: 오류 수정 사이클
+```bash
+# 오류 발생 시:
+1. 템플릿 수정 (server_stream.jinja2)
+2. 서버 재생성
+   python jinja/generate_universal_server.py outlook --protocol stream
+3. 재테스트
+   python -m py_compile mcp_outlook/mcp_server/server_stream.py
+4. 반복
+```
+
+### 자주 발생하는 테스트 실패와 해결
+
+#### Import 누락
+```python
+# 오류: NameError: name 'asyncio' is not defined
+# 해결: universal_server_template.jinja2에서 조건부 import 추가
+```
+
+#### 이벤트 루프 충돌
+```python
+# 오류: RuntimeError: Cannot run the event loop while another loop is running
+# 해결: asyncio.run()과 web.run_app() 동시 사용 확인
+```
+
+#### 포트 충돌
+```bash
+# 오류: [Errno 48] Address already in use
+# 해결:
+lsof -i :8080
+kill -9 [PID]
+```
+
+### 테스트 자동화 스크립트
+```bash
+#!/bin/bash
+# test_new_protocol.sh
+
+PROTOCOL=$1
+SERVER_NAME=$2
+PORT=${3:-8080}
+
+echo "=== Testing $PROTOCOL protocol for $SERVER_NAME ==="
+
+# 1. Generate server
+echo "Generating server..."
+python jinja/generate_universal_server.py $SERVER_NAME --protocol $PROTOCOL
+
+# 2. Syntax check
+echo "Checking syntax..."
+python -m py_compile mcp_$SERVER_NAME/mcp_server/server_$PROTOCOL.py || exit 1
+
+# 3. Start server
+echo "Starting server..."
+timeout 3 python mcp_$SERVER_NAME/mcp_server/server_$PROTOCOL.py &
+sleep 2
+
+# 4. Test endpoints
+echo "Testing health..."
+curl -s http://localhost:$PORT/health | jq .
+
+echo "Testing initialize..."
+curl -s -X POST http://localhost:$PORT/mcp/v1/initialize \
+  -H "Content-Type: application/json" \
+  -d '{"clientInfo": {"name": "test"}}' | jq .
+
+echo "Testing tools list..."
+curl -s -X POST http://localhost:$PORT/mcp/v1/tools/list \
+  -H "Content-Type: application/json" \
+  -d '{}' | jq '.tools | length'
+
+echo "=== Test completed ==="
+```
+
+## 10. 체크리스트
 
 새 프로토콜 추가 시 확인사항:
 
+### 필수 체크리스트
 - [ ] 프로토콜 템플릿 파일 생성 (`server_[protocol].jinja2`)
-- [ ] Universal template에 조건문 추가
+- [ ] Universal template에 `{% include %}` 추가 (TODO 코드 금지)
+- [ ] 메인 엔트리 포인트 함수 정의 (`handle_[protocol]()`)
 - [ ] Protocol base에 프로토콜 추가
 - [ ] 생성 스크립트에 옵션 추가
 - [ ] 필요한 의존성 패키지 설치
-- [ ] 단위 테스트 작성
-- [ ] 통합 테스트 수행
-- [ ] 문서 업데이트
+
+### 생성 및 테스트 체크리스트 (필수)
+- [ ] 템플릿으로 서버 파일 생성 완료
+- [ ] Python 문법 검증 통과
+- [ ] 서버 시작 오류 없음
+- [ ] Health check 응답 정상
+- [ ] Initialize 엔드포인트 정상
+- [ ] Tools/list 엔드포인트 정상
+- [ ] Tools/call 엔드포인트 정상
+- [ ] 스트리밍 기능 테스트 (해당되는 경우)
+- [ ] 에러 처리 검증
+
+### 문서화 체크리스트
+- [ ] 프로토콜 특징 문서화
+- [ ] 테스트 방법 문서화
+- [ ] 트러블슈팅 가이드 작성
+
+## 9. 참고사항
+
+상세한 구현 가이드와 문제 해결 방법은 `stdio_protocol_reference.md` 참조
 
 **작성일**: 2025-12-25
-**버전**: 2.0.0
+**버전**: 2.1.0
 **작성자**: Claude Assistant

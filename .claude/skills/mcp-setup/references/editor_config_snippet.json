@@ -1,0 +1,12 @@
+{
+  "mcp_demo": {
+    "template_definitions_path": "mcp_demo/tool_definition_templates.py",
+    "tool_definitions_path": "../mcp_demo/mcp_server/tool_definitions.py",
+    "backup_dir": "mcp_demo/backups",
+    "types_files": [
+      "../mcp_demo/demo_types.py"
+    ],
+    "host": "0.0.0.0",
+    "port": 8091
+  }
+}
