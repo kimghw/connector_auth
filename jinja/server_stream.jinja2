@@ -1,0 +1,286 @@
+{# server_stream.jinja2 - StreamableHTTP Protocol Implementation #}
+# StreamableHTTP Protocol Implementation for MCP Server
+import asyncio
+import json
+from aiohttp import web
+from typing import AsyncIterator, Dict, Any, Optional
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+class StreamableHTTPMCPServer:
+    """MCP StreamableHTTP Protocol Server
+
+    HTTP 기반 스트리밍 프로토콜로 청크 단위의 응답을 지원합니다.
+    Transfer-Encoding: chunked를 사용하여 점진적 응답 전송이 가능합니다.
+    """
+
+    def __init__(self):
+        self.app = web.Application()
+        self.setup_routes()
+        logger.info(f"{{ server_title }} StreamableHTTP Server initialized")
+
+    def setup_routes(self):
+        """HTTP 라우트 설정"""
+        # MCP 표준 엔드포인트
+        self.app.router.add_post('/mcp/v1/initialize', self.handle_initialize)
+        self.app.router.add_post('/mcp/v1/tools/list', self.handle_tools_list)
+        self.app.router.add_post('/mcp/v1/tools/call', self.handle_tools_call)
+        # Health check
+        self.app.router.add_get('/health', self.handle_health)
+        # CORS 처리
+        self.app.router.add_route('OPTIONS', '/{path:.*}', self.handle_options)
+
+    async def handle_options(self, request: web.Request) -> web.Response:
+        """CORS preflight 요청 처리"""
+        return web.Response(
+            headers={
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Max-Age': '3600'
+            }
+        )
+
+    def add_cors_headers(self, response: web.Response) -> web.Response:
+        """CORS 헤더 추가"""
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
+
+    async def handle_health(self, request: web.Request) -> web.Response:
+        """Health check endpoint"""
+        response = web.json_response({
+            "status": "healthy",
+            "server": "{{ server_name }}",
+            "protocol": "streamableHTTP",
+            "version": "1.0.0"
+        })
+        return self.add_cors_headers(response)
+
+    async def handle_initialize(self, request: web.Request) -> web.Response:
+        """Initialize endpoint"""
+        try:
+            data = await request.json()
+            client_info = data.get('clientInfo', {})
+            logger.info(f"Client connected: {client_info.get('name', 'unknown')}")
+
+            response_data = {
+                "protocolVersion": "0.1.0",
+                "capabilities": {
+                    "tools": {},
+                    "prompts": {},
+                    "resources": {},
+                    "streaming": True  # 스트리밍 지원 표시
+                },
+                "serverInfo": {
+                    "name": "{{ server_name }}",
+                    "version": "1.0.0",
+                    "protocol": "streamableHTTP"
+                }
+            }
+
+            response = web.json_response(response_data)
+            return self.add_cors_headers(response)
+
+        except Exception as e:
+            logger.error(f"Error in initialize: {e}")
+            return web.json_response(
+                {"error": {"code": -32603, "message": str(e)}},
+                status=500
+            )
+
+    async def handle_tools_list(self, request: web.Request) -> web.Response:
+        """List available tools"""
+        try:
+            # MCP_TOOLS에 스트리밍 지원 정보 추가
+            tools_with_streaming = []
+            for tool in MCP_TOOLS:
+                tool_copy = tool.copy()
+                # 특정 도구에 대해 스트리밍 지원 표시 가능
+                tool_copy['supportsStreaming'] = True
+                tools_with_streaming.append(tool_copy)
+
+            response = web.json_response({"tools": tools_with_streaming})
+            return self.add_cors_headers(response)
+
+        except Exception as e:
+            logger.error(f"Error listing tools: {e}")
+            return web.json_response(
+                {"error": {"code": -32603, "message": str(e)}},
+                status=500
+            )
+
+    async def handle_tools_call(self, request: web.Request) -> web.Response:
+        """도구 실행 - 스트리밍 응답 지원"""
+        try:
+            data = await request.json()
+            tool_name = data.get('name')
+            arguments = data.get('arguments', {})
+            stream = data.get('stream', False)  # 스트리밍 옵션
+
+            if not tool_name:
+                return web.json_response(
+                    {"error": {"code": -32602, "message": "Tool name is required"}},
+                    status=400
+                )
+
+            # 도구 핸들러 검색
+            handler_name = f"handle_{tool_name.replace('-', '_')}"
+            if handler_name not in globals():
+                return web.json_response(
+                    {"error": {"code": -32602, "message": f"Unknown tool: {tool_name}"}},
+                    status=400
+                )
+
+            if stream:
+                # 스트리밍 응답
+                return await self.stream_tool_response(tool_name, arguments, request)
+            else:
+                # 일반 응답
+                result = await globals()[handler_name](arguments)
+
+                # 결과 포맷팅
+                if isinstance(result, dict) and "content" in result:
+                    response_data = result
+                elif isinstance(result, str):
+                    response_data = {
+                        "content": [
+                            {"type": "text", "text": result}
+                        ]
+                    }
+                else:
+                    response_data = {
+                        "content": [
+                            {"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}
+                        ]
+                    }
+
+                response = web.json_response(response_data)
+                return self.add_cors_headers(response)
+
+        except ValueError as e:
+            return web.json_response(
+                {"error": {"code": -32602, "message": str(e)}},
+                status=400
+            )
+        except Exception as e:
+            logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
+            return web.json_response(
+                {"error": {"code": -32603, "message": str(e)}},
+                status=500
+            )
+
+    async def stream_tool_response(self, tool_name: str, arguments: dict, request: web.Request) -> web.StreamResponse:
+        """도구 응답을 스트리밍으로 전송"""
+        response = web.StreamResponse()
+        response.headers['Content-Type'] = 'application/x-ndjson'  # Newline Delimited JSON
+        response.headers['Transfer-Encoding'] = 'chunked'
+        response.headers['Cache-Control'] = 'no-cache'
+
+        # CORS 헤더 추가
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+
+        await response.prepare(request)
+
+        try:
+            # 도구 핸들러 실행
+            handler_name = f"handle_{tool_name.replace('-', '_')}"
+            handler = globals()[handler_name]
+
+            # 스트리밍 가능한 도구인지 확인
+            if asyncio.iscoroutinefunction(handler):
+                result = await handler(arguments)
+
+                # 결과를 청크로 분할하여 전송 (시뮬레이션)
+                if isinstance(result, str):
+                    # 텍스트를 청크로 분할
+                    chunks = [result[i:i+100] for i in range(0, len(result), 100)]
+                    for i, chunk in enumerate(chunks):
+                        chunk_data = {
+                            "type": "chunk",
+                            "content": chunk,
+                            "index": i,
+                            "done": False
+                        }
+                        await response.write((json.dumps(chunk_data) + '\n').encode('utf-8'))
+                        await asyncio.sleep(0.1)  # 스트리밍 효과
+
+                elif isinstance(result, dict):
+                    # 딕셔너리를 부분적으로 전송
+                    chunk_data = {
+                        "type": "chunk",
+                        "content": result,
+                        "index": 0,
+                        "done": False
+                    }
+                    await response.write((json.dumps(chunk_data) + '\n').encode('utf-8'))
+
+                elif isinstance(result, list):
+                    # 리스트 항목을 하나씩 전송
+                    for i, item in enumerate(result):
+                        chunk_data = {
+                            "type": "chunk",
+                            "content": item,
+                            "index": i,
+                            "done": False
+                        }
+                        await response.write((json.dumps(chunk_data) + '\n').encode('utf-8'))
+                        await asyncio.sleep(0.05)  # 스트리밍 효과
+
+            # 완료 신호
+            end_chunk = {
+                "type": "end",
+                "done": True,
+                "summary": f"Completed {tool_name} execution"
+            }
+            await response.write((json.dumps(end_chunk) + '\n').encode('utf-8'))
+
+        except Exception as e:
+            # 에러 청크 전송
+            error_chunk = {
+                "type": "error",
+                "error": {"code": -32603, "message": str(e)},
+                "done": True
+            }
+            await response.write((json.dumps(error_chunk) + '\n').encode('utf-8'))
+            logger.error(f"Streaming error for {tool_name}: {e}", exc_info=True)
+
+        finally:
+            await response.write_eof()
+
+        return response
+
+    async def on_startup(self, app):
+        """서버 시작 시 실행"""
+        logger.info(f"{{ server_title }} StreamableHTTP Server starting on port {app['port']}")
+
+        # Initialize services
+        {%- for key, service_info in unique_services.items() %}
+        if hasattr({{ service_info.instance }}, 'initialize'):
+            await {{ service_info.instance }}.initialize()
+            logger.info("{{ service_info.class_name }} initialized")
+        {%- endfor %}
+
+    async def on_cleanup(self, app):
+        """서버 종료 시 정리"""
+        logger.info(f"{{ server_title }} StreamableHTTP Server shutting down")
+
+    def run(self, host: str = '0.0.0.0', port: int = 8001):
+        """서버 실행"""
+        self.app['port'] = port
+        self.app.on_startup.append(self.on_startup)
+        self.app.on_cleanup.append(self.on_cleanup)
+
+        logger.info(f"Starting {{ server_title }} StreamableHTTP Server on {host}:{port}")
+        web.run_app(self.app, host=host, port=port, print=lambda _: None)
+
+# 메인 엔트리 포인트
+def handle_streamablehttp(host: str = '0.0.0.0', port: int = 8001):
+    """Handle MCP protocol via StreamableHTTP"""
+    server = StreamableHTTPMCPServer()
+    server.run(host, port)

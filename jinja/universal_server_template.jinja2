@@ -26,7 +26,7 @@ import logging
 {%- if protocol_type == 'rest' or protocol_type == 'stream' %}
 import aiohttp
 {%- endif %}
-{%- if protocol_type == 'stdio' %}
+{%- if protocol_type == 'stdio' or protocol_type == 'stream' %}
 import asyncio
 from typing import AsyncIterator
 {%- endif %}
@@ -317,19 +317,9 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
 {%- if protocol_type == 'rest' %}
 {% include 'server_rest.jinja2' %}
 {%- elif protocol_type == 'stdio' %}
-{#- STDIO protocol implementation would go here -#}
-# STDIO protocol handler
-async def handle_stdio():
-    """Handle MCP protocol via stdin/stdout"""
-    # TODO: Implement STDIO handler
-    pass
+{% include 'server_stdio.jinja2' %}
 {%- elif protocol_type == 'stream' %}
-{#- Streaming protocol implementation would go here -#}
-# Streaming protocol handler
-async def handle_stream():
-    """Handle MCP protocol via HTTP streaming"""
-    # TODO: Implement streaming handler
-    pass
+{% include 'server_stream.jinja2' %}
 {%- endif %}
 
 if __name__ == "__main__":
@@ -339,8 +329,7 @@ if __name__ == "__main__":
 {%- elif protocol_type == 'stdio' %}
     asyncio.run(handle_stdio())
 {%- elif protocol_type == 'stream' %}
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)  # Different port for streaming
+    handle_streamablehttp(host="0.0.0.0", port=8001)  # StreamableHTTP server
 {%- else %}
     raise ValueError("Unsupported protocol_type: {{ protocol_type }}")
 {%- endif %}

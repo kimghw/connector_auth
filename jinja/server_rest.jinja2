@@ -84,8 +84,8 @@ async def call_tool(request: Request):
     """Execute an MCP tool"""
     try:
         data = await request.json()
-        tool_name = data.get("params", {}).get("name")
-        arguments = data.get("params", {}).get("arguments", {})
+        tool_name = data.get("name")
+        arguments = data.get("arguments", {})
 
         logger.info(f"Tool call: {tool_name} with args: {arguments}")
 

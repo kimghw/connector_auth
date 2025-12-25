@@ -1,6 +1,6 @@
 """
-FastAPI MCP Server for Outlook MCP Server
-Routes MCP protocol requests to service functions
+Streaming MCP Server for Outlook MCP Server
+Handles MCP protocol via HTTP streaming (SSE)
 Generated from universal template with registry data and protocol selection
 """
 import json
@@ -12,6 +12,8 @@ import sys
 import os
 import logging
 import aiohttp
+import asyncio
+from typing import AsyncIterator
 
 # Add parent directories to path for module access
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -411,270 +413,290 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     call_args["user_email"] = user_email
 
     return await mail_service.fetch_url(**call_args)
-# ============================================================
-# REST API Protocol Handlers for MCP
-# ============================================================
 
-app = FastAPI(title="Outlook MCP Server", version="1.0.0")
+# StreamableHTTP Protocol Implementation for MCP Server
+import asyncio
+import json
+from aiohttp import web
+from typing import AsyncIterator, Dict, Any, Optional
+import logging
 
+# Configure logging
+logger = logging.getLogger(__name__)
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on server startup"""
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    logger.info("Outlook MCP Server started")
+class StreamableHTTPMCPServer:
+    """MCP StreamableHTTP Protocol Server
 
+    HTTP 기반 스트리밍 프로토콜로 청크 단위의 응답을 지원합니다.
+    Transfer-Encoding: chunked를 사용하여 점진적 응답 전송이 가능합니다.
+    """
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on server shutdown"""
-    logger.info("Outlook MCP Server stopped")
+    def __init__(self):
+        self.app = web.Application()
+        self.setup_routes()
+        logger.info(f"Outlook MCP Server StreamableHTTP Server initialized")
 
+    def setup_routes(self):
+        """HTTP 라우트 설정"""
+        # MCP 표준 엔드포인트
+        self.app.router.add_post('/mcp/v1/initialize', self.handle_initialize)
+        self.app.router.add_post('/mcp/v1/tools/list', self.handle_tools_list)
+        self.app.router.add_post('/mcp/v1/tools/call', self.handle_tools_call)
+        # Health check
+        self.app.router.add_get('/health', self.handle_health)
+        # CORS 처리
+        self.app.router.add_route('OPTIONS', '/{path:.*}', self.handle_options)
 
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "name": "Outlook MCP Server",
-        "version": "1.0.0"
-    }
-
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "server": "outlook"}
-
-
-@app.post("/mcp/v1/initialize")
-async def initialize(request: Request):
-    """Initialize MCP session"""
-    body = await request.json()
-    return {
-        "protocolVersion": "1.0",
-        "serverInfo": {
-            "name": "outlook-mcp-server",
-            "version": "1.0.0"
-        },
-        "capabilities": {
-            "tools": {}
-        }
-    }
-
-
-@app.post("/mcp/v1/tools/list")
-async def list_tools(request: Request):
-    """List available MCP tools"""
-    try:
-        # Get tools metadata
-        tools_list = []
-        for tool in MCP_TOOLS:
-            tools_list.append({
-                "name": tool["name"],
-                "description": tool.get("description", ""),
-                "inputSchema": tool.get("inputSchema", {})
-            })
-
-        return JSONResponse(content={
-            "result": {
-                "tools": tools_list
+    async def handle_options(self, request: web.Request) -> web.Response:
+        """CORS preflight 요청 처리"""
+        return web.Response(
+            headers={
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Max-Age': '3600'
             }
+        )
+
+    def add_cors_headers(self, response: web.Response) -> web.Response:
+        """CORS 헤더 추가"""
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        return response
+
+    async def handle_health(self, request: web.Request) -> web.Response:
+        """Health check endpoint"""
+        response = web.json_response({
+            "status": "healthy",
+            "server": "outlook",
+            "protocol": "streamableHTTP",
+            "version": "1.0.0"
         })
-    except Exception as e:
-        logger.error(f"Error listing tools: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": {"message": str(e)}}
-        )
+        return self.add_cors_headers(response)
 
+    async def handle_initialize(self, request: web.Request) -> web.Response:
+        """Initialize endpoint"""
+        try:
+            data = await request.json()
+            client_info = data.get('clientInfo', {})
+            logger.info(f"Client connected: {client_info.get('name', 'unknown')}")
 
-@app.post("/mcp/v1/tools/call")
-async def call_tool(request: Request):
-    """Execute an MCP tool"""
-    try:
-        data = await request.json()
-        tool_name = data.get("name")
-        arguments = data.get("arguments", {})
+            response_data = {
+                "protocolVersion": "0.1.0",
+                "capabilities": {
+                    "tools": {},
+                    "prompts": {},
+                    "resources": {},
+                    "streaming": True  # 스트리밍 지원 표시
+                },
+                "serverInfo": {
+                    "name": "outlook",
+                    "version": "1.0.0",
+                    "protocol": "streamableHTTP"
+                }
+            }
 
-        logger.info(f"Tool call: {tool_name} with args: {arguments}")
+            response = web.json_response(response_data)
+            return self.add_cors_headers(response)
 
-        implementation_info = get_tool_implementation(tool_name)
-        if not implementation_info:
-            return JSONResponse(
-                status_code=404,
-                content={"error": {"message": f"Unknown tool: {tool_name}"}}
+        except Exception as e:
+            logger.error(f"Error in initialize: {e}")
+            return web.json_response(
+                {"error": {"code": -32603, "message": str(e)}},
+                status=500
             )
 
-        # Get service instance by class name
-        service_class = implementation_info["service_class"]
-        service_instance = get_service_instance(service_class)
+    async def handle_tools_list(self, request: web.Request) -> web.Response:
+        """List available tools"""
+        try:
+            # MCP_TOOLS에 스트리밍 지원 정보 추가
+            tools_with_streaming = []
+            for tool in MCP_TOOLS:
+                tool_copy = tool.copy()
+                # 특정 도구에 대해 스트리밍 지원 표시 가능
+                tool_copy['supportsStreaming'] = True
+                tools_with_streaming.append(tool_copy)
 
-        if not service_instance:
-            return JSONResponse(
-                status_code=500,
-                content={"error": {"message": f"Service not available: {service_class}"}}
+            response = web.json_response({"tools": tools_with_streaming})
+            return self.add_cors_headers(response)
+
+        except Exception as e:
+            logger.error(f"Error listing tools: {e}")
+            return web.json_response(
+                {"error": {"code": -32603, "message": str(e)}},
+                status=500
             )
 
-        # Get the method
-        method_name = implementation_info["method"]
-        method = getattr(service_instance, method_name, None)
-        if not method:
-            return JSONResponse(
-                status_code=500,
-                content={"error": {"message": f"Method not found: {method_name}"}}
-            )
+    async def handle_tools_call(self, request: web.Request) -> web.Response:
+        """도구 실행 - 스트리밍 응답 지원"""
+        try:
+            data = await request.json()
+            tool_name = data.get('name')
+            arguments = data.get('arguments', {})
+            stream = data.get('stream', False)  # 스트리밍 옵션
 
-        # Process arguments based on tool configuration
-        # Handle parameter transformations
-        processed_args = {}
+            if not tool_name:
+                return web.json_response(
+                    {"error": {"code": -32602, "message": "Tool name is required"}},
+                    status=400
+                )
 
-        # Get tool configuration
-        tool_config = get_tool_config(tool_name)
+            # 도구 핸들러 검색
+            handler_name = f"handle_{tool_name.replace('-', '_')}"
+            if handler_name not in globals():
+                return web.json_response(
+                    {"error": {"code": -32602, "message": f"Unknown tool: {tool_name}"}},
+                    status=400
+                )
 
-        if tool_config:
-            schema_props = tool_config.get("inputSchema", {}).get("properties", {})
-            tool_internal_args = INTERNAL_ARGS.get(tool_name, {})
+            if stream:
+                # 스트리밍 응답
+                return await self.stream_tool_response(tool_name, arguments, request)
+            else:
+                # 일반 응답
+                result = await globals()[handler_name](arguments)
 
-            # Process signature arguments
-            for param_name, param_value in arguments.items():
-                param_schema = schema_props.get(param_name, {})
-
-                # Transform object parameters to their expected types
-                if param_schema.get("type") == "object":
-                    base_model = param_schema.get("baseModel")
-                    target_param = param_schema.get("targetParam", param_name)  # Use targetParam if specified
-
-                    # Create object instance based on baseModel
-                    # Skip empty dicts - they should be treated as None for merging with internal args
-                    if base_model and base_model in globals():
-                        model_class = globals()[base_model]
-                        if param_value:  # Only create object if param_value is not empty/None
-                            processed_args[target_param] = model_class(**param_value)
-                        # If empty, don't add to processed_args - let internal args take over
-                    elif param_value:  # Only add non-empty values
-                        processed_args[target_param] = param_value
+                # 결과 포맷팅
+                if isinstance(result, dict) and "content" in result:
+                    response_data = result
+                elif isinstance(result, str):
+                    response_data = {
+                        "content": [
+                            {"type": "text", "text": result}
+                        ]
+                    }
                 else:
-                    # For non-object types, check if there's a targetParam mapping
-                    target_param = param_schema.get("targetParam", param_name)
-                    processed_args[target_param] = param_value
+                    response_data = {
+                        "content": [
+                            {"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}
+                        ]
+                    }
 
-            # Process internal arguments
-            for arg_name, arg_info in tool_internal_args.items():
-                # Check if this internal arg has a targetParam
-                target_param = arg_info.get("targetParam", arg_name)
+                response = web.json_response(response_data)
+                return self.add_cors_headers(response)
 
-                # Build internal parameter
-                internal_value = build_internal_param(tool_name, arg_name)
-
-                if internal_value is not None:
-                    # Check if target_param already exists from signature args
-                    if target_param in processed_args:
-                        # Signature args have priority - merge internal into signature
-                        sig_value = processed_args[target_param]
-
-                        # If both are objects, merge them (signature priority)
-                        if hasattr(sig_value, '__dict__') and hasattr(internal_value, '__dict__'):
-                            # Convert to dict for merging (exclude None values)
-                            sig_dict = {k: v for k, v in vars(sig_value).items() if v is not None}
-                            internal_dict = {k: v for k, v in vars(internal_value).items() if v is not None}
-
-                            # Merge with signature priority
-                            merged_dict = {**internal_dict, **sig_dict}
-
-                            # Recreate object with merged values
-                            param_type = type(sig_value)
-                            processed_args[target_param] = param_type(**merged_dict)
-                        # Otherwise keep signature value (signature priority)
-                    else:
-                        # No signature arg, use internal arg
-                        processed_args[target_param] = internal_value
-        else:
-            processed_args = arguments
-
-        # Call the method
-        result = await method(**processed_args)
-
-        response_content = format_tool_result(result)
-        return JSONResponse(content=build_mcp_content(response_content))
-
-    except aiohttp.ClientResponseError as e:
-        # HTTP-level errors from external API calls
-        logger.error(f"API error executing tool {tool_name}: {e.status} {e.message}", exc_info=True)
-        if e.status == 401:
-            return JSONResponse(
-                status_code=401,
-                content={"error": {"code": "AUTH_EXPIRED", "message": "Access token expired or invalid. Re-authentication required."}}
+        except ValueError as e:
+            return web.json_response(
+                {"error": {"code": -32602, "message": str(e)}},
+                status=400
             )
-        elif e.status == 403:
-            return JSONResponse(
-                status_code=403,
-                content={"error": {"code": "PERMISSION_DENIED", "message": "Insufficient permissions for this operation."}}
-            )
-        elif e.status == 404:
-            return JSONResponse(
-                status_code=404,
-                content={"error": {"code": "NOT_FOUND", "message": f"Resource not found: {e.message}"}}
-            )
-        elif e.status == 429:
-            return JSONResponse(
-                status_code=429,
-                content={"error": {"code": "RATE_LIMITED", "message": "API rate limit exceeded. Please retry later."}}
-            )
-        else:
-            return JSONResponse(
-                status_code=e.status,
-                content={"error": {"code": "API_ERROR", "message": str(e)}}
-            )
-    except HTTPException as e:
-        # FastAPI HTTP exceptions (pass through)
-        logger.error(f"HTTP error executing tool {tool_name}: {e.status_code} {e.detail}", exc_info=True)
-        return JSONResponse(
-            status_code=e.status_code,
-            content={"error": {"code": "HTTP_ERROR", "message": e.detail}}
-        )
-    except Exception as e:
-        # Check for auth-related keywords in generic exceptions
-        error_str = str(e).lower()
-        if "401" in error_str or "unauthorized" in error_str or "token expired" in error_str:
-            logger.error(f"Auth error executing tool {tool_name}: {e}", exc_info=True)
-            return JSONResponse(
-                status_code=401,
-                content={"error": {"code": "AUTH_EXPIRED", "message": "Authentication failed. Re-authentication required."}}
-            )
-        elif "403" in error_str or "forbidden" in error_str or "permission" in error_str:
-            logger.error(f"Permission error executing tool {tool_name}: {e}", exc_info=True)
-            return JSONResponse(
-                status_code=403,
-                content={"error": {"code": "PERMISSION_DENIED", "message": "Permission denied."}}
+        except Exception as e:
+            logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
+            return web.json_response(
+                {"error": {"code": -32603, "message": str(e)}},
+                status=500
             )
 
-        # General internal error
-        logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
-        return JSONResponse(
-            status_code=500,
-            content={"error": {"code": "INTERNAL_ERROR", "message": str(e)}}
-        )
+    async def stream_tool_response(self, tool_name: str, arguments: dict, request: web.Request) -> web.StreamResponse:
+        """도구 응답을 스트리밍으로 전송"""
+        response = web.StreamResponse()
+        response.headers['Content-Type'] = 'application/x-ndjson'  # Newline Delimited JSON
+        response.headers['Transfer-Encoding'] = 'chunked'
+        response.headers['Cache-Control'] = 'no-cache'
+
+        # CORS 헤더 추가
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+
+        await response.prepare(request)
+
+        try:
+            # 도구 핸들러 실행
+            handler_name = f"handle_{tool_name.replace('-', '_')}"
+            handler = globals()[handler_name]
+
+            # 스트리밍 가능한 도구인지 확인
+            if asyncio.iscoroutinefunction(handler):
+                result = await handler(arguments)
+
+                # 결과를 청크로 분할하여 전송 (시뮬레이션)
+                if isinstance(result, str):
+                    # 텍스트를 청크로 분할
+                    chunks = [result[i:i+100] for i in range(0, len(result), 100)]
+                    for i, chunk in enumerate(chunks):
+                        chunk_data = {
+                            "type": "chunk",
+                            "content": chunk,
+                            "index": i,
+                            "done": False
+                        }
+                        await response.write((json.dumps(chunk_data) + '\n').encode('utf-8'))
+                        await asyncio.sleep(0.1)  # 스트리밍 효과
+
+                elif isinstance(result, dict):
+                    # 딕셔너리를 부분적으로 전송
+                    chunk_data = {
+                        "type": "chunk",
+                        "content": result,
+                        "index": 0,
+                        "done": False
+                    }
+                    await response.write((json.dumps(chunk_data) + '\n').encode('utf-8'))
+
+                elif isinstance(result, list):
+                    # 리스트 항목을 하나씩 전송
+                    for i, item in enumerate(result):
+                        chunk_data = {
+                            "type": "chunk",
+                            "content": item,
+                            "index": i,
+                            "done": False
+                        }
+                        await response.write((json.dumps(chunk_data) + '\n').encode('utf-8'))
+                        await asyncio.sleep(0.05)  # 스트리밍 효과
+
+            # 완료 신호
+            end_chunk = {
+                "type": "end",
+                "done": True,
+                "summary": f"Completed {tool_name} execution"
+            }
+            await response.write((json.dumps(end_chunk) + '\n').encode('utf-8'))
+
+        except Exception as e:
+            # 에러 청크 전송
+            error_chunk = {
+                "type": "error",
+                "error": {"code": -32603, "message": str(e)},
+                "done": True
+            }
+            await response.write((json.dumps(error_chunk) + '\n').encode('utf-8'))
+            logger.error(f"Streaming error for {tool_name}: {e}", exc_info=True)
+
+        finally:
+            await response.write_eof()
+
+        return response
+
+    async def on_startup(self, app):
+        """서버 시작 시 실행"""
+        logger.info(f"Outlook MCP Server StreamableHTTP Server starting on port {app['port']}")
+
+        # Initialize services
+        if hasattr(mail_service, 'initialize'):
+            await mail_service.initialize()
+            logger.info("MailService initialized")
+
+    async def on_cleanup(self, app):
+        """서버 종료 시 정리"""
+        logger.info(f"Outlook MCP Server StreamableHTTP Server shutting down")
+
+    def run(self, host: str = '0.0.0.0', port: int = 8001):
+        """서버 실행"""
+        self.app['port'] = port
+        self.app.on_startup.append(self.on_startup)
+        self.app.on_cleanup.append(self.on_cleanup)
+
+        logger.info(f"Starting Outlook MCP Server StreamableHTTP Server on {host}:{port}")
+        web.run_app(self.app, host=host, port=port, print=lambda _: None)
+
+# 메인 엔트리 포인트
+def handle_streamablehttp(host: str = '0.0.0.0', port: int = 8001):
+    """Handle MCP protocol via StreamableHTTP"""
+    server = StreamableHTTPMCPServer()
+    server.run(host, port)
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    handle_streamablehttp(host="0.0.0.0", port=8001)  # StreamableHTTP server

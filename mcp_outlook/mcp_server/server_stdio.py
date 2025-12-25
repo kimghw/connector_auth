@@ -1,17 +1,16 @@
 """
-FastAPI MCP Server for Outlook MCP Server
-Routes MCP protocol requests to service functions
+STDIO MCP Server for Outlook MCP Server
+Handles MCP protocol via standard input/output
 Generated from universal template with registry data and protocol selection
 """
 import json
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import sys
 import os
 import logging
-import aiohttp
+import asyncio
+from typing import AsyncIterator
 
 # Add parent directories to path for module access
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -411,270 +410,249 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     call_args["user_email"] = user_email
 
     return await mail_service.fetch_url(**call_args)
-# ============================================================
-# REST API Protocol Handlers for MCP
-# ============================================================
 
-app = FastAPI(title="Outlook MCP Server", version="1.0.0")
+# STDIO Protocol Implementation for MCP Server
+import sys
+import json
+import asyncio
+from typing import Dict, Any, Optional, AsyncIterator
+from asyncio import StreamReader, StreamWriter
+import logging
 
+# Configure logging for STDIO (stderr to avoid interfering with stdout)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr  # Important: use stderr for logging
+)
+logger = logging.getLogger(__name__)
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on server startup"""
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    logger.info("Outlook MCP Server started")
+class StdioMCPServer:
+    """MCP STDIO Protocol Server
 
+    Handles MCP protocol communication via standard input/output using JSON-RPC format.
+    Messages are delimited by newlines for easy parsing.
+    """
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on server shutdown"""
-    logger.info("Outlook MCP Server stopped")
+    def __init__(self):
+        self.running = False
+        self.request_id_counter = 0
+        logger.info(f"Outlook MCP Server STDIO Server initialized")
 
+    async def read_message(self) -> Optional[Dict[str, Any]]:
+        """Read a single JSON-RPC message from stdin"""
+        try:
+            line = await asyncio.get_event_loop().run_in_executor(None, sys.stdin.readline)
+            if not line:
+                return None
 
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "name": "Outlook MCP Server",
-        "version": "1.0.0"
-    }
+            message = json.loads(line.strip())
+            logger.debug(f"Received message: {message}")
+            return message
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON received: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error reading message: {e}")
+            return None
 
+    def write_message(self, message: Dict[str, Any]):
+        """Write a JSON-RPC message to stdout"""
+        try:
+            json_str = json.dumps(message, ensure_ascii=False)
+            sys.stdout.write(json_str + '\n')
+            sys.stdout.flush()
+            logger.debug(f"Sent message: {message}")
+        except Exception as e:
+            logger.error(f"Error writing message: {e}")
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "server": "outlook"}
-
-
-@app.post("/mcp/v1/initialize")
-async def initialize(request: Request):
-    """Initialize MCP session"""
-    body = await request.json()
-    return {
-        "protocolVersion": "1.0",
-        "serverInfo": {
-            "name": "outlook-mcp-server",
-            "version": "1.0.0"
-        },
-        "capabilities": {
-            "tools": {}
-        }
-    }
-
-
-@app.post("/mcp/v1/tools/list")
-async def list_tools(request: Request):
-    """List available MCP tools"""
-    try:
-        # Get tools metadata
-        tools_list = []
-        for tool in MCP_TOOLS:
-            tools_list.append({
-                "name": tool["name"],
-                "description": tool.get("description", ""),
-                "inputSchema": tool.get("inputSchema", {})
-            })
-
-        return JSONResponse(content={
-            "result": {
-                "tools": tools_list
+    def send_error(self, request_id: Any, code: int, message: str, data: Any = None):
+        """Send JSON-RPC error response"""
+        error_response = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {
+                "code": code,
+                "message": message
             }
-        })
-    except Exception as e:
-        logger.error(f"Error listing tools: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": {"message": str(e)}}
-        )
+        }
+        if data is not None:
+            error_response["error"]["data"] = data
+        self.write_message(error_response)
 
+    def send_result(self, request_id: Any, result: Any):
+        """Send JSON-RPC success response"""
+        response = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": result
+        }
+        self.write_message(response)
 
-@app.post("/mcp/v1/tools/call")
-async def call_tool(request: Request):
-    """Execute an MCP tool"""
-    try:
-        data = await request.json()
-        tool_name = data.get("name")
-        arguments = data.get("arguments", {})
+    async def handle_initialize(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle initialize request"""
+        client_info = params.get("clientInfo", {})
+        logger.info(f"Client connected: {client_info.get('name', 'unknown')}")
 
-        logger.info(f"Tool call: {tool_name} with args: {arguments}")
+        return {
+            "protocolVersion": "0.1.0",
+            "capabilities": {
+                "tools": {},
+                "prompts": {},
+                "resources": {}
+            },
+            "serverInfo": {
+                "name": "outlook",
+                "version": "1.0.0"
+            }
+        }
 
-        implementation_info = get_tool_implementation(tool_name)
-        if not implementation_info:
-            return JSONResponse(
-                status_code=404,
-                content={"error": {"message": f"Unknown tool: {tool_name}"}}
-            )
+    async def handle_tools_list(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle tools/list request"""
+        return {"tools": MCP_TOOLS}
 
-        # Get service instance by class name
-        service_class = implementation_info["service_class"]
-        service_instance = get_service_instance(service_class)
+    async def handle_tools_call(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle tools/call request"""
+        tool_name = params.get("name")
+        arguments = params.get("arguments", {})
 
-        if not service_instance:
-            return JSONResponse(
-                status_code=500,
-                content={"error": {"message": f"Service not available: {service_class}"}}
-            )
+        if not tool_name:
+            raise ValueError("Tool name is required")
 
-        # Get the method
-        method_name = implementation_info["method"]
-        method = getattr(service_instance, method_name, None)
+        # Look up the handler function
+        handler_name = f"handle_{tool_name.replace('-', '_')}"
+        if handler_name not in globals():
+            raise ValueError(f"Unknown tool: {tool_name}")
+
+        try:
+            # Call the tool handler
+            result = await globals()[handler_name](arguments)
+
+            # Format result for MCP
+            if isinstance(result, dict) and "content" in result:
+                return result
+            elif isinstance(result, str):
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": result
+                        }
+                    ]
+                }
+            else:
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(result, ensure_ascii=False, indent=2)
+                        }
+                    ]
+                }
+        except Exception as e:
+            logger.error(f"Error executing tool {tool_name}: {e}")
+            raise
+
+    async def handle_request(self, request: Dict[str, Any]):
+        """Handle a single JSON-RPC request"""
+        request_id = request.get("id")
+        method = request.get("method")
+        params = request.get("params", {})
+
         if not method:
-            return JSONResponse(
-                status_code=500,
-                content={"error": {"message": f"Method not found: {method_name}"}}
-            )
+            self.send_error(request_id, -32600, "Invalid Request: missing method")
+            return
 
-        # Process arguments based on tool configuration
-        # Handle parameter transformations
-        processed_args = {}
+        try:
+            # Route to appropriate handler based on method
+            if method == "initialize":
+                result = await self.handle_initialize(params)
+            elif method == "tools/list":
+                result = await self.handle_tools_list(params)
+            elif method == "tools/call":
+                result = await self.handle_tools_call(params)
+            elif method == "shutdown":
+                logger.info("Shutdown requested")
+                self.running = False
+                result = {}
+            elif method == "ping":
+                result = {"pong": True}
+            else:
+                self.send_error(request_id, -32601, f"Method not found: {method}")
+                return
 
-        # Get tool configuration
-        tool_config = get_tool_config(tool_name)
+            # Send successful response
+            self.send_result(request_id, result)
 
-        if tool_config:
-            schema_props = tool_config.get("inputSchema", {}).get("properties", {})
-            tool_internal_args = INTERNAL_ARGS.get(tool_name, {})
+        except ValueError as e:
+            self.send_error(request_id, -32602, f"Invalid params: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error handling request: {e}", exc_info=True)
+            self.send_error(request_id, -32603, f"Internal error: {str(e)}")
 
-            # Process signature arguments
-            for param_name, param_value in arguments.items():
-                param_schema = schema_props.get(param_name, {})
+    async def handle_notification(self, notification: Dict[str, Any]):
+        """Handle JSON-RPC notifications (no response expected)"""
+        method = notification.get("method")
+        params = notification.get("params", {})
 
-                # Transform object parameters to their expected types
-                if param_schema.get("type") == "object":
-                    base_model = param_schema.get("baseModel")
-                    target_param = param_schema.get("targetParam", param_name)  # Use targetParam if specified
+        logger.info(f"Received notification: {method}")
 
-                    # Create object instance based on baseModel
-                    # Skip empty dicts - they should be treated as None for merging with internal args
-                    if base_model and base_model in globals():
-                        model_class = globals()[base_model]
-                        if param_value:  # Only create object if param_value is not empty/None
-                            processed_args[target_param] = model_class(**param_value)
-                        # If empty, don't add to processed_args - let internal args take over
-                    elif param_value:  # Only add non-empty values
-                        processed_args[target_param] = param_value
+        # Notifications don't require responses
+        if method == "cancelled":
+            logger.info(f"Request cancelled: {params.get('id')}")
+        elif method == "progress":
+            logger.info(f"Progress update: {params}")
+        # Add more notification handlers as needed
+
+    async def run(self):
+        """Main server loop"""
+        self.running = True
+
+        # Initialize services before starting
+        if hasattr(mail_service, 'initialize'):
+            await mail_service.initialize()
+            logger.info("MailService initialized")
+
+        logger.info(f"Outlook MCP Server STDIO Server started")
+        logger.info("Waiting for messages on stdin...")
+
+        # Send server ready notification
+        self.write_message({
+            "jsonrpc": "2.0",
+            "method": "server.ready",
+            "params": {}
+        })
+
+        try:
+            while self.running:
+                # Read next message
+                message = await self.read_message()
+
+                if message is None:
+                    # EOF or error - exit gracefully
+                    logger.info("Input stream closed, shutting down")
+                    break
+
+                # Check if it's a request or notification
+                if "id" in message:
+                    # Request - requires response
+                    await self.handle_request(message)
                 else:
-                    # For non-object types, check if there's a targetParam mapping
-                    target_param = param_schema.get("targetParam", param_name)
-                    processed_args[target_param] = param_value
+                    # Notification - no response needed
+                    await self.handle_notification(message)
 
-            # Process internal arguments
-            for arg_name, arg_info in tool_internal_args.items():
-                # Check if this internal arg has a targetParam
-                target_param = arg_info.get("targetParam", arg_name)
+        except KeyboardInterrupt:
+            logger.info("Interrupted by user")
+        except Exception as e:
+            logger.error(f"Server error: {e}", exc_info=True)
+        finally:
+            logger.info("Outlook MCP Server STDIO Server stopped")
 
-                # Build internal parameter
-                internal_value = build_internal_param(tool_name, arg_name)
-
-                if internal_value is not None:
-                    # Check if target_param already exists from signature args
-                    if target_param in processed_args:
-                        # Signature args have priority - merge internal into signature
-                        sig_value = processed_args[target_param]
-
-                        # If both are objects, merge them (signature priority)
-                        if hasattr(sig_value, '__dict__') and hasattr(internal_value, '__dict__'):
-                            # Convert to dict for merging (exclude None values)
-                            sig_dict = {k: v for k, v in vars(sig_value).items() if v is not None}
-                            internal_dict = {k: v for k, v in vars(internal_value).items() if v is not None}
-
-                            # Merge with signature priority
-                            merged_dict = {**internal_dict, **sig_dict}
-
-                            # Recreate object with merged values
-                            param_type = type(sig_value)
-                            processed_args[target_param] = param_type(**merged_dict)
-                        # Otherwise keep signature value (signature priority)
-                    else:
-                        # No signature arg, use internal arg
-                        processed_args[target_param] = internal_value
-        else:
-            processed_args = arguments
-
-        # Call the method
-        result = await method(**processed_args)
-
-        response_content = format_tool_result(result)
-        return JSONResponse(content=build_mcp_content(response_content))
-
-    except aiohttp.ClientResponseError as e:
-        # HTTP-level errors from external API calls
-        logger.error(f"API error executing tool {tool_name}: {e.status} {e.message}", exc_info=True)
-        if e.status == 401:
-            return JSONResponse(
-                status_code=401,
-                content={"error": {"code": "AUTH_EXPIRED", "message": "Access token expired or invalid. Re-authentication required."}}
-            )
-        elif e.status == 403:
-            return JSONResponse(
-                status_code=403,
-                content={"error": {"code": "PERMISSION_DENIED", "message": "Insufficient permissions for this operation."}}
-            )
-        elif e.status == 404:
-            return JSONResponse(
-                status_code=404,
-                content={"error": {"code": "NOT_FOUND", "message": f"Resource not found: {e.message}"}}
-            )
-        elif e.status == 429:
-            return JSONResponse(
-                status_code=429,
-                content={"error": {"code": "RATE_LIMITED", "message": "API rate limit exceeded. Please retry later."}}
-            )
-        else:
-            return JSONResponse(
-                status_code=e.status,
-                content={"error": {"code": "API_ERROR", "message": str(e)}}
-            )
-    except HTTPException as e:
-        # FastAPI HTTP exceptions (pass through)
-        logger.error(f"HTTP error executing tool {tool_name}: {e.status_code} {e.detail}", exc_info=True)
-        return JSONResponse(
-            status_code=e.status_code,
-            content={"error": {"code": "HTTP_ERROR", "message": e.detail}}
-        )
-    except Exception as e:
-        # Check for auth-related keywords in generic exceptions
-        error_str = str(e).lower()
-        if "401" in error_str or "unauthorized" in error_str or "token expired" in error_str:
-            logger.error(f"Auth error executing tool {tool_name}: {e}", exc_info=True)
-            return JSONResponse(
-                status_code=401,
-                content={"error": {"code": "AUTH_EXPIRED", "message": "Authentication failed. Re-authentication required."}}
-            )
-        elif "403" in error_str or "forbidden" in error_str or "permission" in error_str:
-            logger.error(f"Permission error executing tool {tool_name}: {e}", exc_info=True)
-            return JSONResponse(
-                status_code=403,
-                content={"error": {"code": "PERMISSION_DENIED", "message": "Permission denied."}}
-            )
-
-        # General internal error
-        logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
-        return JSONResponse(
-            status_code=500,
-            content={"error": {"code": "INTERNAL_ERROR", "message": str(e)}}
-        )
+# Main entry point for STDIO protocol
+async def handle_stdio():
+    """Handle MCP protocol via stdin/stdout"""
+    server = StdioMCPServer()
+    await server.run()
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    asyncio.run(handle_stdio())
