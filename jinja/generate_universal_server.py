@@ -161,6 +161,13 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
     # Extract parameter types
     param_types = extract_param_types(registry)
 
+    # Create unique_services for compatibility with STDIO/STREAM templates
+    unique_services = {}
+    for service_name, service_info in services.items():
+        class_name = service_info['class_name']
+        if class_name not in unique_services:
+            unique_services[class_name] = service_info
+
     # Process tools with internal args and implementation info
     processed_tools = []
     for tool in tools:
@@ -287,6 +294,7 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         'server_title': f"{server_name.replace('_', ' ').title()} MCP Server",
         'protocol_type': protocol_type,  # Add protocol type to context
         'services': services,
+        'unique_services': unique_services,  # Add unique_services for STDIO/STREAM templates
         'tools': processed_tools,  # List of tools with implementation info for template iteration
         'tools_map': tools_map,    # Dict for quick lookup by name
         'param_types': param_types,
@@ -414,7 +422,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate MCP server from universal template")
     parser.add_argument("server_name", help="Server name (e.g., 'outlook', 'file_handler')")
     parser.add_argument("--protocol", help="Protocol type",
-                       choices=['rest', 'stdio', 'stream'], default='rest')
+                       choices=['rest', 'stdio', 'stream', 'all'], default='rest')
     parser.add_argument("--registry", help="Path to registry JSON file (auto-detected if not specified)")
     parser.add_argument("--tools", help="Path to tool definitions file (auto-detected if not specified)")
     parser.add_argument("--template", help="Path to Jinja2 template",
@@ -437,30 +445,70 @@ if __name__ == "__main__":
         print(f"   Searched in: mcp_editor/mcp_{args.server_name}/tool_definition_templates.py")
         sys.exit(1)
 
-    # Determine output path
-    if args.output:
-        output_path = args.output
+    # Generate all protocols or specific one
+    if args.protocol == 'all':
+        protocols_to_generate = ['rest', 'stdio', 'stream']
     else:
-        # Default: mcp_{server}/mcp_server/server_{protocol}.py
-        if args.protocol == 'rest':
-            filename = 'server.py'
-        else:
-            filename = f'server_{args.protocol}.py'
-        output_path = str(PROJECT_ROOT / f"mcp_{args.server_name}" / "mcp_server" / filename)
+        protocols_to_generate = [args.protocol]
 
-    # Generate server
-    try:
-        generate_server(
-            server_name=args.server_name,
-            registry_path=registry_path,
-            tools_path=tools_path,
-            template_path=args.template,
-            output_path=output_path,
-            protocol_type=args.protocol
-        )
-    except Exception as e:
-        print(f"❌ Error generating server: {e}")
-        import traceback
-        traceback.print_exc()
+    # Track success/failure
+    success_count = 0
+    failed_protocols = []
+
+    for protocol in protocols_to_generate:
+        # Determine template path for this protocol
+        if protocol == 'rest':
+            template_path = args.template or str(SCRIPT_DIR / "universal_server_template.jinja2")
+        else:
+            # Look for protocol-specific template
+            protocol_template = SCRIPT_DIR / f"server_{protocol}.jinja2"
+            if protocol_template.exists():
+                template_path = str(protocol_template)
+            else:
+                template_path = args.template or str(SCRIPT_DIR / "universal_server_template.jinja2")
+
+        # Determine output path
+        if args.output and len(protocols_to_generate) == 1:
+            output_path = args.output
+        else:
+            # Default: mcp_{server}/mcp_server/server_{protocol}.py
+            if protocol == 'rest':
+                filename = 'server.py'
+            else:
+                filename = f'server_{protocol}.py'
+            output_path = str(PROJECT_ROOT / f"mcp_{args.server_name}" / "mcp_server" / filename)
+
+        # Generate server
+        try:
+            print(f"\n{'='*60}")
+            print(f"🚀 Generating {protocol.upper()} server...")
+            print(f"{'='*60}")
+
+            generate_server(
+                server_name=args.server_name,
+                registry_path=registry_path,
+                tools_path=tools_path,
+                template_path=template_path,
+                output_path=output_path,
+                protocol_type=protocol
+            )
+            success_count += 1
+        except Exception as e:
+            print(f"❌ Error generating {protocol} server: {e}")
+            import traceback
+            traceback.print_exc()
+            failed_protocols.append(protocol)
+
+    # Print final summary
+    print(f"\n{'='*60}")
+    print(f"📋 GENERATION SUMMARY")
+    print(f"{'='*60}")
+    print(f"✅ Successfully generated: {success_count}/{len(protocols_to_generate)} servers")
+
+    if failed_protocols:
+        print(f"❌ Failed protocols: {', '.join(failed_protocols)}")
         sys.exit(1)
+    else:
+        print(f"🎉 All servers generated successfully!")
+        sys.exit(0)
 
