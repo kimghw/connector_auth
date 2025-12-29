@@ -792,28 +792,30 @@ def index():
     return render_template('tool_editor.html')
 
 
-@app.route('/debug')
-def debug():
-    """Debug test page"""
-    return render_template('debug_test.html')
-
-
-@app.route('/simple-test')
-def simple_test():
-    """Simple API test page"""
-    return render_template('simple_test.html')
-
-
-@app.route('/debug-editor')
-def debug_editor():
-    """Debug version of the main editor"""
-    return render_template('tool_editor_debug.html')
-
-
-@app.route('/debug-index')
-def debug_index():
-    """Debug tools index page"""
-    return render_template('debug_index.html')
+# Debug routes are disabled - templates moved to backup folder
+# Uncomment and update paths if debug pages are needed
+# @app.route('/debug')
+# def debug():
+#     """Debug test page"""
+#     return render_template('backup/debug_test.html')
+#
+#
+# @app.route('/simple-test')
+# def simple_test():
+#     """Simple API test page"""
+#     return render_template('backup/simple_test.html')
+#
+#
+# @app.route('/debug-editor')
+# def debug_editor():
+#     """Debug version of the main editor"""
+#     return render_template('backup/tool_editor_debug.html')
+#
+#
+# @app.route('/debug-index')
+# def debug_index():
+#     """Debug tools index page"""
+#     return render_template('backup/debug_index.html')
 
 
 @app.route('/api/tools', methods=['GET'])
