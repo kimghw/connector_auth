@@ -468,12 +468,33 @@ if __name__ == "__main__":
                 template_path = args.template or str(SCRIPT_DIR / "universal_server_template.jinja2")
 
         # Determine output path
-        if args.output and len(protocols_to_generate) == 1:
-            output_path = args.output
+        if args.output:
+            output_base = Path(args.output)
+            # Check if output is a directory or file
+            if output_base.suffix == '' or output_base.is_dir():
+                # Output is a directory - generate filename automatically
+                if protocol == 'rest':
+                    filename = 'server_rest.py'  # Changed for consistency
+                else:
+                    filename = f'server_{protocol}.py'
+                output_path = str(output_base / filename)
+            else:
+                # Output is a file path
+                if len(protocols_to_generate) == 1:
+                    output_path = args.output
+                else:
+                    # Multiple protocols but single file specified - append protocol
+                    base = output_base.stem
+                    ext = output_base.suffix
+                    if protocol == 'rest':
+                        filename = f'{base}_rest{ext}'
+                    else:
+                        filename = f'{base}_{protocol}{ext}'
+                    output_path = str(output_base.parent / filename)
         else:
             # Default: mcp_{server}/mcp_server/server_{protocol}.py
             if protocol == 'rest':
-                filename = 'server.py'
+                filename = 'server_rest.py'  # Changed for consistency
             else:
                 filename = f'server_{protocol}.py'
             output_path = str(PROJECT_ROOT / f"mcp_{args.server_name}" / "mcp_server" / filename)

@@ -93,6 +93,7 @@ import json
 import os
 import sys
 import pprint
+from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
 import importlib.util
@@ -307,7 +308,7 @@ def _default_generator_paths(profile_conf: dict, profile_name: str | None = None
     """Return default generator paths for the active profile"""
     resolved = resolve_paths(profile_conf)
     output_dir = os.path.dirname(resolved["tool_path"])
-    output_path = os.path.join(output_dir, 'server.py')
+    output_path = output_dir
     server_name = _guess_server_name(profile_conf, profile_name)
     template_path = _get_template_for_server(server_name)
 
@@ -356,7 +357,7 @@ def discover_mcp_modules(profile_conf: dict | None = None) -> list:
                 "mcp_dir": mcp_dir,
                 "tools_path": tools_path,
                 "template_path": template_path,
-                "output_path": os.path.join(mcp_dir, "server.py")
+                "output_path": mcp_dir
             })
             break
 
@@ -1776,14 +1777,52 @@ def generate_server_from_web():
         if not registry_path:
             return jsonify({"error": f"Registry file not found for server: {server_name}"}), 400
 
-        # Generate server using universal generator
-        generator_module.generate_server(
-            template_path=template_path,
-            output_path=output_path,
-            registry_path=registry_path,
-            tools_path=tools_path,
-            server_name=server_name
-        )
+        # Generate ALL server types by default
+        protocols_to_generate = ['rest', 'stdio', 'stream']
+        generated_files = []
+
+        for protocol in protocols_to_generate:
+            # Determine template for this protocol
+            if protocol == 'rest':
+                protocol_template_path = template_path
+            else:
+                # Look for protocol-specific template
+                template_dir = os.path.dirname(template_path)
+                protocol_template = os.path.join(template_dir, f"server_{protocol}.jinja2")
+                if os.path.exists(protocol_template):
+                    protocol_template_path = protocol_template
+                else:
+                    protocol_template_path = template_path
+
+            # Determine output file for this protocol
+            output_base = Path(output_path)
+            if output_base.suffix == '' or output_base.is_dir():
+                # Output is a directory
+                if protocol == 'rest':
+                    filename = 'server_rest.py'
+                else:
+                    filename = f'server_{protocol}.py'
+                protocol_output_path = str(output_base / filename)
+            else:
+                # Output is a file - generate protocol-specific files
+                base = output_base.stem
+                ext = output_base.suffix
+                if protocol == 'rest':
+                    filename = f'{base}_rest{ext}'
+                else:
+                    filename = f'{base}_{protocol}{ext}'
+                protocol_output_path = str(output_base.parent / filename)
+
+            # Generate this protocol's server
+            generator_module.generate_server(
+                template_path=protocol_template_path,
+                output_path=protocol_output_path,
+                registry_path=registry_path,
+                tools_path=tools_path,
+                server_name=server_name,
+                protocol_type=protocol
+            )
+            generated_files.append(protocol_output_path)
 
         # Count tools for response
         loaded_tools = generator_module.load_tool_definitions(tools_path)
@@ -1795,7 +1834,9 @@ def generate_server_from_web():
             "template_path": template_path,
             "output_path": output_path,
             "registry_path": registry_path,
-            "tool_count": len(loaded_tools)
+            "tool_count": len(loaded_tools),
+            "generated_files": generated_files,
+            "protocols": protocols_to_generate
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1902,6 +1943,7 @@ def browse_files():
         data = request.json or {}
         path = data.get('path', ROOT_DIR)
         extension = data.get('extension', '')
+        show_files = data.get('show_files', True)  # Default to showing files
 
         # Security: Ensure we're only browsing within the project root
         abs_path = os.path.abspath(path)
@@ -1913,13 +1955,12 @@ def browse_files():
         if not os.path.exists(abs_path):
             # If path doesn't exist, use parent directory
             abs_path = os.path.dirname(abs_path)
+        elif os.path.isfile(abs_path):
+            # If a file path is provided, browse its parent directory
+            abs_path = os.path.dirname(abs_path)
 
-        result = {
-            "current_path": abs_path,
-            "parent_path": os.path.dirname(abs_path) if abs_path != abs_root else None,
-            "dirs": [],
-            "files": []
-        }
+        # Build contents list for new format
+        contents = []
 
         # List directory contents
         try:
@@ -1928,13 +1969,30 @@ def browse_files():
                 if os.path.isdir(item_path):
                     # Skip hidden directories and __pycache__
                     if not item.startswith('.') and item != '__pycache__':
-                        result["dirs"].append(item)
-                elif os.path.isfile(item_path):
+                        contents.append({
+                            "name": item,
+                            "path": item_path,
+                            "type": "directory"
+                        })
+                elif os.path.isfile(item_path) and show_files:
                     # Filter by extension if specified
                     if not extension or item.endswith(extension):
-                        result["files"].append(item)
+                        contents.append({
+                            "name": item,
+                            "path": item_path,
+                            "type": "file"
+                        })
         except PermissionError:
             return jsonify({"error": "Permission denied"}), 403
+
+        result = {
+            "current_path": abs_path,
+            "parent_path": os.path.dirname(abs_path) if abs_path != abs_root else None,
+            "contents": contents,
+            # Keep old format for compatibility
+            "dirs": [c["name"] for c in contents if c["type"] == "directory"],
+            "files": [c["name"] for c in contents if c["type"] == "file"]
+        }
 
         return jsonify(result)
     except Exception as e:
