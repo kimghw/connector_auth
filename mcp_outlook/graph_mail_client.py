@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 
 from graph_mail_query import GraphMailQuery
+from graph_mail_id_batch import GraphMailIdBatch
 from mail_processing_options import MailProcessorHandler, ProcessingOptions, MailStorageOption, AttachmentOption, OutputFormat
 from attachment_handler import AttachmentHandler
 from outlook_types import FilterParams, ExcludeParams, SelectParams
@@ -18,6 +19,7 @@ class QueryMethod(Enum):
     FILTER = "filter"      # 필터 기반 쿼리
     SEARCH = "search"      # 검색어 기반 쿼리
     URL = "url"           # 직접 URL 제공
+    BATCH_ID = "batch_id"  # 메일 ID 배치 조회
 
 
 class ProcessingMode(Enum):
@@ -40,6 +42,7 @@ class GraphMailClient:
         초기화
         """
         self.mail_query: Optional[GraphMailQuery] = None
+        self.mail_batch: Optional[GraphMailIdBatch] = None
         self._initialized = False
 
     async def initialize(self) -> bool:
@@ -58,6 +61,13 @@ class GraphMailClient:
 
             if not await self.mail_query.initialize():
                 print("❌ Failed to initialize GraphMailQuery")
+                return False
+
+            # GraphMailIdBatch 초기화
+            self.mail_batch = GraphMailIdBatch()
+
+            if not await self.mail_batch.initialize():
+                print("❌ Failed to initialize GraphMailIdBatch")
                 return False
 
             self._initialized = True
@@ -428,6 +438,182 @@ class GraphMailClient:
             save_directory=f"attachments/{sender_email.split('@')[0]}"
         )
 
+    async def batch_and_fetch(
+        self,
+        user_email: str,
+        message_ids: List[str],
+        select_params: Optional[SelectParams] = None
+    ) -> Dict[str, Any]:
+        """
+        메일 ID 배치로 조회만 수행
+
+        Args:
+            user_email: 사용자 이메일
+            message_ids: 메일 ID 리스트
+            select_params: 선택할 필드
+
+        Returns:
+            조회 결과
+        """
+        self._ensure_initialized()
+
+        if not message_ids:
+            return {
+                "status": "success",
+                "value": [],
+                "total": 0,
+                "message": "No message IDs provided",
+                "query_method": QueryMethod.BATCH_ID.value
+            }
+
+        try:
+            # 배치 조회 실행
+            print(f"\n📧 Fetching {len(message_ids)} emails using batch method...")
+            result = await self.mail_batch.batch_fetch_by_ids(
+                user_email=user_email,
+                message_ids=message_ids,
+                select_params=select_params
+            )
+
+            # 결과 변환 (기존 형식과 일관성 유지)
+            if result.get('success'):
+                return {
+                    "status": "success",
+                    "value": result.get('value', []),
+                    "total": result.get('total', 0),
+                    "requested": result.get('requested', 0),
+                    "errors": result.get('errors'),
+                    "query_method": QueryMethod.BATCH_ID.value,
+                    "batches_processed": result.get('batches_processed', 0)
+                }
+            else:
+                return {
+                    "status": "error",
+                    "error": result.get('error', 'Batch fetch failed'),
+                    "value": result.get('value', []),
+                    "errors": result.get('errors'),
+                    "query_method": QueryMethod.BATCH_ID.value
+                }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "value": [],
+                "query_method": QueryMethod.BATCH_ID.value
+            }
+
+    async def batch_and_process(
+        self,
+        user_email: str,
+        message_ids: List[str],
+        select_params: Optional[SelectParams] = None,
+        # 처리 파라미터
+        processing_mode: ProcessingMode = ProcessingMode.FETCH_ONLY,
+        mail_storage: MailStorageOption = MailStorageOption.MEMORY,
+        attachment_handling: AttachmentOption = AttachmentOption.SKIP,
+        output_format: OutputFormat = OutputFormat.COMBINED,
+        save_directory: Optional[str] = None,
+        return_on_error: bool = True
+    ) -> Dict[str, Any]:
+        """
+        메일 ID 배치로 조회 + 처리
+
+        Args:
+            user_email: 사용자 이메일
+            message_ids: 메일 ID 리스트
+            select_params: 선택할 필드
+            processing_mode: 처리 모드
+            mail_storage: 메일 저장 방식
+            attachment_handling: 첨부파일 처리 방식
+            output_format: 출력 형식
+            save_directory: 저장 디렉토리
+            return_on_error: 에러 시 즉시 반환 여부
+
+        Returns:
+            처리된 결과
+        """
+        self._ensure_initialized()
+
+        # 1. 배치로 메일 가져오기
+        print(f"\n📧 Fetching {len(message_ids)} emails using batch method...")
+        result = await self.batch_and_fetch(
+            user_email=user_email,
+            message_ids=message_ids,
+            select_params=select_params
+        )
+
+        # 2. 에러 체크
+        if result.get('status') == 'error':
+            print(f"❌ Batch fetch failed: {result.get('error')}")
+            if return_on_error:
+                return result
+
+        # 3. 결과 확인
+        emails = result.get('value', [])
+        if not emails:
+            print("ℹ️  No emails found")
+            return {
+                "status": "success",
+                "message": "No emails found",
+                "value": [],
+                "processed_count": 0,
+                "query_method": QueryMethod.BATCH_ID.value
+            }
+
+        print(f"✅ Found {len(emails)} email(s)")
+
+        # 4. 처리 모드에 따라 처리
+        if processing_mode == ProcessingMode.FETCH_ONLY:
+            # 메일만 가져오기
+            return {
+                "status": "success",
+                "value": emails,
+                "total": len(emails),
+                "processed_count": len(emails),
+                "query_method": QueryMethod.BATCH_ID.value,
+                "processing_mode": processing_mode.value
+            }
+
+        # 5. 처리 옵션 준비
+        processing_options = ProcessingOptions(
+            mail_storage=mail_storage,
+            attachment_handling=attachment_handling,
+            output_format=output_format,
+            save_directory=save_directory
+        )
+
+        # 6. 메일 처리
+        processor = MailProcessorHandler(processing_options)
+        processed_results = []
+        errors = []
+
+        for email in emails:
+            try:
+                # 각 메일 처리
+                processed = await processor.process_mail(email)
+                processed_results.append(processed)
+            except Exception as e:
+                errors.append({
+                    "mail_id": email.get('id', 'unknown'),
+                    "subject": email.get('subject', 'unknown'),
+                    "error": str(e)
+                })
+
+        # 7. 결과 정리
+        return {
+            "status": "success" if processed_results else "error",
+            "value": processed_results,
+            "original_emails": emails,
+            "total": len(emails),
+            "processed_count": len(processed_results),
+            "errors": errors if errors else None,
+            "query_method": QueryMethod.BATCH_ID.value,
+            "processing_mode": processing_mode.value,
+            "mail_storage": mail_storage.value,
+            "attachment_handling": attachment_handling.value
+        }
+
     def format_results(self, results: Dict[str, Any], verbose: bool = False) -> str:
         """
         결과 포맷팅
@@ -484,3 +670,5 @@ class GraphMailClient:
         """리소스 정리"""
         if self.mail_query:
             await self.mail_query.close()
+        if self.mail_batch:
+            await self.mail_batch.close()
