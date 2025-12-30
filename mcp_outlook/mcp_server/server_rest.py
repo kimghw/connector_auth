@@ -49,15 +49,15 @@ SUPPORTED_PROTOCOLS = {"rest", "stdio", "stream"}
 TOOL_IMPLEMENTATIONS = {
     "mail_fetch_filter": {
         "service_class": "MailService",
-        "method": "fetch_filter"
+        "method": "query_mail_list"
     },
     "mail_fetch_search": {
         "service_class": "MailService",
-        "method": "fetch_search"
+        "method": "query_mail_list"
     },
     "mail_process_with_download": {
         "service_class": "MailService",
-        "method": "process_with_download"
+        "method": "query_mail_list"
     },
     "mail_list": {
         "service_class": "MailService",
@@ -65,7 +65,7 @@ TOOL_IMPLEMENTATIONS = {
     },
     "mail_query_url": {
         "service_class": "MailService",
-        "method": "fetch_url"
+        "method": "query_mail_list"
     },
 }
 
@@ -228,117 +228,78 @@ async def handle_mail_fetch_filter(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_fetch_filter tool call"""
 
     # Extract parameters from args
-    user_email = args["user_email"]
-    filter_params_raw = args.get("filter_params")
-    filter_params = filter_params_raw if filter_params_raw is not None else None
-    exclude_params_raw = args.get("exclude_params")
-    exclude_params = exclude_params_raw if exclude_params_raw is not None else None
-    select_params_raw = args.get("select_params")
-    select_params = select_params_raw if select_params_raw is not None else None
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 50
+    exclude_params = args.get("exclude_params")
+    filter_params = args.get("filter_params")
     # Internal overrides for object params
     exclude_params_internal_params = build_internal_param("mail_fetch_filter", "exclude_params_internal")
     exclude_params_internal_data = model_to_dict(exclude_params_internal_params)
 
     # Convert dicts to parameter objects where needed
-    filter_params_internal_data = {}
-    filter_params_raw = args.get("filter_params")
-    filter_params_data = merge_param_data(filter_params_internal_data, filter_params_raw)
-    if filter_params_data is not None:
-        filter_params_params = FilterParams(**filter_params_data)
-    else:
-        filter_params_params = None
     exclude_params_internal_data = exclude_params_internal_data
     exclude_params_raw = args.get("exclude_params")
     exclude_params_data = merge_param_data(exclude_params_internal_data, exclude_params_raw)
-    if exclude_params_data is not None:
-        exclude_params_params = ExcludeParams(**exclude_params_data)
-    else:
-        exclude_params_params = None
-    select_params_internal_data = {}
-    select_params_raw = args.get("select_params")
-    select_params_data = merge_param_data(select_params_internal_data, select_params_raw)
-    if select_params_data is not None:
-        select_params_params = SelectParams(**select_params_data)
-    else:
-        select_params_params = None
+    exclude_params_params = ExcludeParams(**exclude_params_data) if exclude_params_data is not None else None
+    filter_params_internal_data = {}
+    filter_params_raw = args.get("filter_params")
+    filter_params_data = merge_param_data(filter_params_internal_data, filter_params_raw)
+    filter_params_params = FilterParams(**filter_params_data) if filter_params_data is not None else None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
-    call_args["user_email"] = user_email
-    call_args["filter_params"] = filter_params_params
     call_args["exclude_params"] = exclude_params_params
-    call_args["select_params"] = select_params_params
-    call_args["top"] = top
+    call_args["filter_params"] = filter_params_params
     # Process internal args with targetParam mappings
 
-    return await mail_service.fetch_filter(**call_args)
+    return await mail_service.query_mail_list(**call_args)
 
 async def handle_mail_fetch_search(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_fetch_search tool call"""
 
     # Extract parameters from args
-    user_email = args["user_email"]
     search_term = args["search_term"]
-    select_params_raw = args.get("select_params")
-    select_params = select_params_raw if select_params_raw is not None else None
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 50
+    select_params = args.get("select_params")
+    top = args.get("top")
 
     # Convert dicts to parameter objects where needed
     select_params_internal_data = {}
     select_params_raw = args.get("select_params")
     select_params_data = merge_param_data(select_params_internal_data, select_params_raw)
-    if select_params_data is not None:
-        select_params_params = SelectParams(**select_params_data)
-    else:
-        select_params_params = None
+    select_params_params = SelectParams(**select_params_data) if select_params_data is not None else None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
-    call_args["user_email"] = user_email
     call_args["search_term"] = search_term
     call_args["select_params"] = select_params_params
     call_args["top"] = top
 
-    return await mail_service.fetch_search(**call_args)
+    return await mail_service.query_mail_list(**call_args)
 
 async def handle_mail_process_with_download(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_process_with_download tool call"""
 
     # Extract parameters from args
-    user_email = args["user_email"]
-    filter_params_raw = args.get("filter_params")
-    filter_params = filter_params_raw if filter_params_raw is not None else None
-    search_term_raw = args.get("search_term")
-    search_term = search_term_raw if search_term_raw is not None else None
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 50
-    save_directory_raw = args.get("save_directory")
-    save_directory = save_directory_raw if save_directory_raw is not None else None
+    filter_params = args.get("filter_params")
+    save_directory = args.get("save_directory")
+    search_term = args.get("search_term")
+    top = args.get("top")
 
     # Convert dicts to parameter objects where needed
     filter_params_internal_data = {}
     filter_params_raw = args.get("filter_params")
     filter_params_data = merge_param_data(filter_params_internal_data, filter_params_raw)
-    if filter_params_data is not None:
-        filter_params_params = FilterParams(**filter_params_data)
-    else:
-        filter_params_params = None
+    filter_params_params = FilterParams(**filter_params_data) if filter_params_data is not None else None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
-    call_args["user_email"] = user_email
     call_args["filter_params"] = filter_params_params
+    call_args["save_directory"] = save_directory
     call_args["search_term"] = search_term
     call_args["top"] = top
-    call_args["save_directory"] = save_directory
 
-    return await mail_service.process_with_download(**call_args)
+    return await mail_service.query_mail_list(**call_args)
 
 async def handle_mail_list(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_list tool call"""
@@ -386,8 +347,7 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     # Extract parameters from args
     filter_params = args.get("filter_params")
     select = args.get("select")
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 50
+    top = args.get("top")
     url = args["url"]
     user_email = args["user_email"]
 
@@ -410,7 +370,7 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     call_args["url"] = url
     call_args["user_email"] = user_email
 
-    return await mail_service.fetch_url(**call_args)
+    return await mail_service.query_mail_list(**call_args)
 # ============================================================
 # REST API Protocol Handlers for MCP
 # ============================================================
