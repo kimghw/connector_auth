@@ -926,7 +926,7 @@
                     <span class="material-icons">auto_fix_high</span> Generate Server
                 </button>
                 <button class="btn btn-primary btn-tooltip btn-expandable" data-debug-id="BTN_NEW_PROJECT" onclick="openCreateProjectModal()" data-tooltip="🚀 Create new MCP server project&#10;📁 Complete folder structure&#10;📝 Ready-to-use templates&#10;&#10;Create a new MCP service from scratch">
-                    <span class="material-icons">add_circle</span><span class="btn-text">New Project</span>
+                    <span class="material-icons">add_circle</span><span class="btn-text">New MCP</span>
                 </button>
             </div>
         </div>
@@ -957,7 +957,11 @@
                     <div class="mcp-controller" data-debug-id="AREA_MCP_CONTROLLER" style="margin-bottom: 20px; padding: 16px; background: white; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05);">
                         <div style="display: flex; align-items: center; margin-bottom: 16px;">
                             <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #0071e3, #00c6fb); display: flex; align-items: center; justify-content: center; margin-right: 12px; box-shadow: 0 4px 8px rgba(0,113,227,0.2);">
-                                <span class="material-icons" style="color: white; font-size: 24px;">dns</span>
+                                <!-- MCP Official Logo -->
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M15.688 2.343a2.588 2.588 0 00-3.61 0l-9.626 9.44a.863.863 0 01-1.203 0 .823.823 0 010-1.18l9.626-9.44a4.313 4.313 0 016.016 0 4.116 4.116 0 011.204 3.54 4.3 4.3 0 013.609 1.18l.05.05a4.115 4.115 0 010 5.9l-8.706 8.537a.274.274 0 000 .393l1.788 1.754a.823.823 0 010 1.18.863.863 0 01-1.203 0l-1.788-1.753a1.92 1.92 0 010-2.754l8.706-8.538a2.47 2.47 0 000-3.54l-.05-.049a2.588 2.588 0 00-3.607-.003l-7.172 7.034-.002.002-.098.097a.863.863 0 01-1.204 0 .823.823 0 010-1.18l7.273-7.133a2.47 2.47 0 00-.003-3.537z"/>
+                                    <path d="M14.485 4.703a.823.823 0 000-1.18.863.863 0 00-1.204 0l-7.119 6.982a4.115 4.115 0 000 5.9 4.314 4.314 0 006.016 0l7.12-6.982a.823.823 0 000-1.18.863.863 0 00-1.204 0l-7.119 6.982a2.588 2.588 0 01-3.61 0 2.47 2.47 0 010-3.54l7.12-6.982z"/>
+                                </svg>
                             </div>
                             <div style="flex: 1;">
                                 <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: #1d1d1f;">MCP Server</h3>
@@ -1151,117 +1155,167 @@
         </div>
     </div>
 
-    <!-- Server Generator Modal - Apple Style -->
+    <!-- Server Generator Modal - Apple Style Refined -->
     <div id="generatorModal" class="modal">
-        <div class="modal-content" style="max-width: 680px; border-radius: 20px; box-shadow: 0 30px 60px -12px rgba(50,50,93,0.25), 0 18px 36px -18px rgba(0,0,0,0.3);">
-            <div class="modal-header" style="background: linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); border-bottom: 1px solid rgba(0,0,0,0.08); padding: 24px 32px; border-radius: 20px 20px 0 0;">
-                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #5e5ce6, #bf5af2); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(94,92,230,0.3);">
-                            <span class="material-icons" style="color: white; font-size: 28px;">auto_fix_high</span>
-                        </div>
-                        <div>
-                            <h2 style="margin: 0; font-size: 22px; font-weight: 600; color: #1d1d1f; letter-spacing: -0.5px;">Generate MCP Server</h2>
-                            <p style="margin: 4px 0 0; font-size: 13px; color: #86868b;">Create server files from templates</p>
+        <div class="modal-content" style="max-width: 800px; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.2); background: #f5f5f7;">
+            <!-- Modal Header -->
+            <div class="modal-header" style="background: rgba(255,255,255,0.8); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 20px 24px; border-bottom: 1px solid rgba(0,0,0,0.1);">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #0071e3, #42a5f5); border-radius: 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,113,227,0.3);">
+                        <span class="material-icons" style="color: white; font-size: 24px;">auto_awesome</span>
+                    </div>
+                    <div>
+                        <h2 style="margin: 0; color: #1d1d1f; font-size: 20px; font-weight: 600;">Generate MCP Server</h2>
+                        <p style="margin: 2px 0 0; color: #86868b; font-size: 13px;">Create production-ready server files</p>
+                    </div>
+                </div>
+                <button class="btn btn-icon" data-debug-id="BTN_GENERATOR_CLOSE" onclick="closeModal('generatorModal')"
+                        style="width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,0.05); color: #1d1d1f; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                    <span class="material-icons" style="font-size: 20px;">close</span>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="modal-body" style="padding: 24px; overflow-y: auto; max-height: calc(85vh - 140px);">
+                
+                <!-- Module Selection Section -->
+                <div style="background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.05);">
+                    <label style="display: block; font-size: 13px; font-weight: 600; color: #86868b; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Target Module</label>
+                    <div style="display: flex; gap: 12px;">
+                        <div style="flex: 1;">
+                            <select id="generatorModule" class="form-control" data-debug-id="FIELD_GENERATOR_MODULE" onchange="handleGeneratorModuleChange()"
+                                    style="height: 44px; border-radius: 10px; border-color: #d2d2d7; font-size: 15px;">
+                                <option value="">Custom / Current Profile</option>
+                            </select>
                         </div>
                     </div>
-                    <button class="btn btn-icon" data-debug-id="BTN_GENERATOR_CLOSE" onclick="closeModal('generatorModal')" style="width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,0.05); border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
-                        <span class="material-icons" style="font-size: 20px; color: #86868b;">close</span>
-                    </button>
-                </div>
-            </div>
-            <div class="modal-body" style="padding: 32px; background: white; border-radius: 0 0 20px 20px;">
-                <!-- Module Selection -->
-                <div class="form-group" style="margin-bottom: 28px;">
-                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #1d1d1f; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">
-                        <span class="material-icons" style="font-size: 16px; color: #5e5ce6;">widgets</span>
-                        Module Selection
-                    </label>
-                    <select id="generatorModule" class="form-control" data-debug-id="FIELD_GENERATOR_MODULE" onchange="handleGeneratorModuleChange()" style="width: 100%; padding: 14px 16px; border: 1px solid #d2d2d7; border-radius: 12px; font-size: 15px; background: white; transition: all 0.2s; cursor: pointer;">
-                        <option value="">Custom / Current Profile</option>
-                    </select>
-                    <p style="margin-top: 8px; color: #86868b; font-size: 12px; line-height: 1.5;">
-                        Select a detected module to auto-populate configuration paths
+                    <p style="margin-top: 8px; color: #86868b; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+                        <span class="material-icons" style="font-size: 14px;">info</span>
+                        Auto-configures paths based on selected module structure
                     </p>
                 </div>
 
-                <!-- Path Configuration Section -->
-                <div style="background: #f5f5f7; border-radius: 16px; padding: 24px; margin-bottom: 24px;">
-                    <!-- Tools Path -->
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: #86868b; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <span class="material-icons" style="font-size: 14px;">code</span>
-                            Tools Definition
-                        </label>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <div style="flex: 1; position: relative;">
-                                <input id="generatorToolsPath" class="form-control" data-debug-id="FIELD_GENERATOR_TOOLS_PATH"
-                                       placeholder="Select tool_definition_templates.py"
-                                       style="width: 100%; padding: 12px 16px; padding-left: 40px; border: 1px solid #d2d2d7; border-radius: 10px; font-size: 14px; background: white; transition: all 0.2s;">
-                                <span class="material-icons" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 18px; color: #86868b;">description</span>
+                <!-- Protocol Selection Section -->
+                <div style="background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.05);">
+                    <label style="display: block; font-size: 13px; font-weight: 600; color: #86868b; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px;">Server Protocols</label>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                        <!-- REST API -->
+                        <label class="protocol-label" style="cursor: pointer; position: relative;">
+                            <input type="checkbox" id="genProtocolRest" checked style="position: absolute; opacity: 0;">
+                            <div class="protocol-card" style="border: 2px solid #e5e5e5; border-radius: 12px; padding: 16px; height: 100%; transition: all 0.2s;">
+                                <div style="width: 32px; height: 32px; background: #e3f2fd; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; color: #0071e3;">
+                                    <span class="material-icons" style="font-size: 20px;">api</span>
+                                </div>
+                                <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; color: #1d1d1f;">REST API</div>
+                                <div style="font-size: 11px; color: #86868b;">FastAPI endpoints</div>
+                                <div class="check-circle" style="position: absolute; top: 12px; right: 12px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #d2d2d7; transition: all 0.2s;"></div>
                             </div>
-                            <button class="btn btn-secondary" data-debug-id="BTN_GENERATOR_TOOLS_PICK" onclick="selectFilePath('generatorToolsPath', '.py')"
-                                    style="padding: 10px 14px; border-radius: 10px; background: white; border: 1px solid #d2d2d7; transition: all 0.2s;">
-                                <span class="material-icons" style="font-size: 20px; color: #5e5ce6;">folder_open</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Template Path -->
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: #86868b; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <span class="material-icons" style="font-size: 14px;">article</span>
-                            Template File
                         </label>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <div style="flex: 1; position: relative;">
+
+                        <!-- STDIO -->
+                        <label class="protocol-label" style="cursor: pointer; position: relative;">
+                            <input type="checkbox" id="genProtocolStdio" checked style="position: absolute; opacity: 0;">
+                            <div class="protocol-card" style="border: 2px solid #e5e5e5; border-radius: 12px; padding: 16px; height: 100%; transition: all 0.2s;">
+                                <div style="width: 32px; height: 32px; background: #e8f5e9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; color: #34c759;">
+                                    <span class="material-icons" style="font-size: 20px;">terminal</span>
+                                </div>
+                                <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; color: #1d1d1f;">STDIO</div>
+                                <div style="font-size: 11px; color: #86868b;">CLI integration</div>
+                                <div class="check-circle" style="position: absolute; top: 12px; right: 12px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #d2d2d7; transition: all 0.2s;"></div>
+                            </div>
+                        </label>
+
+                        <!-- Stream SSE -->
+                        <label class="protocol-label" style="cursor: pointer; position: relative;">
+                            <input type="checkbox" id="genProtocolStream" checked style="position: absolute; opacity: 0;">
+                            <div class="protocol-card" style="border: 2px solid #e5e5e5; border-radius: 12px; padding: 16px; height: 100%; transition: all 0.2s;">
+                                <div style="width: 32px; height: 32px; background: #fce4ec; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; color: #ff2d55;">
+                                    <span class="material-icons" style="font-size: 20px;">stream</span>
+                                </div>
+                                <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; color: #1d1d1f;">StreamableHTTP</div>
+                                <div style="font-size: 11px; color: #86868b;">Event streaming</div>
+                                <div class="check-circle" style="position: absolute; top: 12px; right: 12px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #d2d2d7; transition: all 0.2s;"></div>
+                            </div>
+                        </label>
+                    </div>
+                    <style>
+                        .protocol-label input:checked + .protocol-card {
+                            border-color: #0071e3;
+                            background: #f5f9ff;
+                        }
+                        .protocol-label input:checked + .protocol-card .check-circle {
+                            background: #0071e3;
+                            border-color: #0071e3;
+                            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white' width='14px' height='14px'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E");
+                            background-position: center;
+                            background-repeat: no-repeat;
+                        }
+                    </style>
+                </div>
+
+                <!-- Configuration Paths Section -->
+                <div style="background: white; border-radius: 16px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.05);">
+                    <label style="display: block; font-size: 13px; font-weight: 600; color: #86868b; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px;">Configuration Paths</label>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 16px;">
+                        <!-- Tools Path -->
+                        <div>
+                            <label style="font-size: 13px; font-weight: 500; color: #1d1d1f; margin-bottom: 6px; display: block;">Tools Definition File</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input id="generatorToolsPath" class="form-control" data-debug-id="FIELD_GENERATOR_TOOLS_PATH"
+                                       placeholder="/path/to/tool_definition_templates.py"
+                                       style="border-radius: 8px; font-size: 13px; font-family: monospace; background: #f5f5f7; border-color: #d2d2d7;">
+                                <button class="btn btn-secondary" onclick="selectFilePath('generatorToolsPath', '.py')"
+                                        style="border-radius: 8px; padding: 0 12px; background: #f5f5f7; border: 1px solid #d2d2d7;">
+                                    <span class="material-icons" style="font-size: 18px; color: #0071e3;">folder_open</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Template Path -->
+                        <div>
+                            <label style="font-size: 13px; font-weight: 500; color: #1d1d1f; margin-bottom: 6px; display: block;">Server Template</label>
+                            <div style="display: flex; gap: 8px;">
                                 <input id="generatorTemplatePath" class="form-control" data-debug-id="FIELD_GENERATOR_TEMPLATE_PATH"
                                        value="/home/kimghw/Connector_auth/jinja/universal_server_template.jinja2"
-                                       placeholder="Select server template"
-                                       style="width: 100%; padding: 12px 16px; padding-left: 40px; border: 1px solid #d2d2d7; border-radius: 10px; font-size: 14px; background: white; transition: all 0.2s;">
-                                <span class="material-icons" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 18px; color: #86868b;">text_snippet</span>
+                                       placeholder="/path/to/server_template.jinja2"
+                                       style="border-radius: 8px; font-size: 13px; font-family: monospace; background: #f5f5f7; border-color: #d2d2d7;">
+                                <button class="btn btn-secondary" onclick="selectFilePath('generatorTemplatePath', '.jinja2')"
+                                        style="border-radius: 8px; padding: 0 12px; background: #f5f5f7; border: 1px solid #d2d2d7;">
+                                    <span class="material-icons" style="font-size: 18px; color: #0071e3;">folder_open</span>
+                                </button>
                             </div>
-                            <button class="btn btn-secondary" data-debug-id="BTN_GENERATOR_TEMPLATE_PICK" onclick="selectFilePath('generatorTemplatePath', '.jinja2')"
-                                    style="padding: 10px 14px; border-radius: 10px; background: white; border: 1px solid #d2d2d7; transition: all 0.2s;">
-                                <span class="material-icons" style="font-size: 20px; color: #5e5ce6;">folder_open</span>
-                            </button>
                         </div>
-                    </div>
 
-                    <!-- Output Path -->
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: #86868b; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <span class="material-icons" style="font-size: 14px;">save</span>
-                            Output Location
-                        </label>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <div style="flex: 1; position: relative;">
+                        <!-- Output Path -->
+                        <div>
+                            <label style="font-size: 13px; font-weight: 500; color: #1d1d1f; margin-bottom: 6px; display: block;">Output Location</label>
+                            <div style="display: flex; gap: 8px;">
                                 <input id="generatorOutputPath" class="form-control" data-debug-id="FIELD_GENERATOR_OUTPUT_PATH"
-                                       placeholder="Specify output server.py location"
-                                       style="width: 100%; padding: 12px 16px; padding-left: 40px; border: 1px solid #d2d2d7; border-radius: 10px; font-size: 14px; background: white; transition: all 0.2s;">
-                                <span class="material-icons" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 18px; color: #86868b;">output</span>
+                                       placeholder="/path/to/server_generated.py"
+                                       style="border-radius: 8px; font-size: 13px; font-family: monospace; background: #f5f5f7; border-color: #d2d2d7;">
+                                <button class="btn btn-secondary" onclick="selectFilePath('generatorOutputPath', '.py')"
+                                        style="border-radius: 8px; padding: 0 12px; background: #f5f5f7; border: 1px solid #d2d2d7;">
+                                    <span class="material-icons" style="font-size: 18px; color: #0071e3;">folder_open</span>
+                                </button>
                             </div>
-                            <button class="btn btn-secondary" data-debug-id="BTN_GENERATOR_OUTPUT_PICK" onclick="selectFilePath('generatorOutputPath', '.py')"
-                                    style="padding: 10px 14px; border-radius: 10px; background: white; border: 1px solid #d2d2d7; transition: all 0.2s;">
-                                <span class="material-icons" style="font-size: 20px; color: #5e5ce6;">folder_open</span>
-                            </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Result Display -->
-                <div id="generatorResult" style="padding: 16px; background: #f5f5f7; border-radius: 12px; font-size: 13px; color: #86868b; text-align: center; min-height: 48px; display: flex; align-items: center; justify-content: center; border: 1px solid transparent; transition: all 0.3s;"></div>
+                <!-- Result Area -->
+                <div id="generatorResult" style="margin-top: 20px; padding: 16px; background: #f5f5f7; border-radius: 12px; font-size: 13px; color: #1d1d1f; display: none; border: 1px solid #e5e5e5;"></div>
             </div>
 
-            <!-- Footer with Actions -->
-            <div class="modal-footer" style="background: #f5f5f7; padding: 20px 32px; border-top: 1px solid rgba(0,0,0,0.08); border-radius: 0 0 20px 20px; display: flex; justify-content: space-between; align-items: center;">
+            <!-- Modal Footer -->
+            <div class="modal-footer" style="padding: 20px 24px; background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.1); display: flex; justify-content: flex-end; gap: 12px;">
                 <button class="btn btn-secondary" data-debug-id="BTN_GENERATOR_CLOSE_FOOTER" onclick="closeModal('generatorModal')"
-                        style="padding: 12px 24px; border-radius: 980px; font-size: 15px; font-weight: 500; background: rgba(0,0,0,0.05); color: #1d1d1f; border: none; transition: all 0.2s;">
+                        style="border-radius: 980px; padding: 8px 20px; font-weight: 500;">
                     Cancel
                 </button>
-                <button class="btn btn-important" data-debug-id="BTN_GENERATOR_RUN" onclick="runServerGeneration()"
-                        style="padding: 12px 32px; border-radius: 980px; font-size: 15px; font-weight: 600; background: linear-gradient(135deg, #5e5ce6, #bf5af2); color: white; border: none; display: flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(94,92,230,0.3);">
-                    <span class="material-icons" style="font-size: 20px;">auto_fix_high</span>
+                <button class="btn btn-primary" data-debug-id="BTN_GENERATOR_RUN" onclick="runServerGeneration()"
+                        style="border-radius: 980px; padding: 8px 24px; font-weight: 500; background: #0071e3; box-shadow: 0 2px 10px rgba(0,113,227,0.3);">
                     Generate Server
                 </button>
             </div>
@@ -2034,11 +2088,24 @@
 
         function runServerGeneration() {
             const profileQuery = profileParam();
+
+            // Get selected protocols
+            const protocols = [];
+            if (document.getElementById('genProtocolRest')?.checked) protocols.push('rest');
+            if (document.getElementById('genProtocolStdio')?.checked) protocols.push('stdio');
+            if (document.getElementById('genProtocolStream')?.checked) protocols.push('stream');
+
+            if (protocols.length === 0) {
+                showNotification('Please select at least one protocol to generate', 'warning');
+                return;
+            }
+
             const payload = {
                 module: document.getElementById('generatorModule')?.value || null,
                 tools_path: document.getElementById('generatorToolsPath')?.value || '',
                 template_path: document.getElementById('generatorTemplatePath')?.value || '',
-                output_path: document.getElementById('generatorOutputPath')?.value || ''
+                output_path: document.getElementById('generatorOutputPath')?.value || '',
+                protocols: protocols  // Add selected protocols
             };
 
             fetch(`/api/server-generator${profileQuery}`, {
@@ -2052,38 +2119,53 @@
             .then(({status, data}) => {
                 const resultEl = document.getElementById('generatorResult');
                 if (status >= 200 && status < 300 && data.success) {
-                    showNotification(`Generated server at ${data.output_path}`, 'success');
+                    // Success message with generated files
+                    const protocolNames = {
+                        'rest': 'REST API',
+                        'stdio': 'STDIO',
+                        'stream': 'StreamableHTTP'
+                    };
+
+                    const generatedFiles = protocols.map(p => `server_${p}.py`).join(', ');
+                    showNotification(`Successfully generated ${protocols.length} server(s): ${generatedFiles}`, 'success');
+
                     if (resultEl) {
-                        resultEl.textContent = `✅ Success: ${data.output_path} (${data.tool_count} tools)`;
-                        resultEl.style.color = '#34c759';
-                        resultEl.style.background = '#e8f5e9';
-                        resultEl.style.borderColor = '#34c759';
+                        resultEl.style.display = 'block';
+                        resultEl.style.background = '#d1fae5';
+                        resultEl.style.color = '#065f46';
+                        resultEl.innerHTML = `
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="material-icons" style="font-size: 18px;">check_circle</span>
+                                <div>
+                                    <strong>Generation Successful!</strong><br/>
+                                    <span style="font-size: 12px;">Generated ${protocols.length} server file(s) in ${data.output_path || 'mcp_server/'}</span><br/>
+                                    <span style="font-size: 11px;">Files: ${generatedFiles}</span>
+                                </div>
+                            </div>
+                        `;
                     }
-                    // 성공 시 1초 후 모달 자동 닫기
-                    setTimeout(() => {
-                        closeModal('generatorModal');
-                    }, 1000);
                 } else {
                     const message = data.error || 'Failed to generate server';
                     showNotification(message, 'error');
                     if (resultEl) {
-                        resultEl.textContent = `❌ Error: ${message}`;
-                        resultEl.style.color = '#ff3b30';
-                        resultEl.style.background = '#ffebee';
-                        resultEl.style.borderColor = '#ff3b30';
+                        resultEl.style.display = 'block';
+                        resultEl.style.background = '#fee2e2';
+                        resultEl.style.color = '#991b1b';
+                        resultEl.innerHTML = `
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="material-icons" style="font-size: 18px;">error</span>
+                                <div>
+                                    <strong>Generation Failed</strong><br/>
+                                    <span style="font-size: 12px;">${message}</span>
+                                </div>
+                            </div>
+                        `;
                     }
                 }
             })
             .catch(error => {
                 console.error('Error generating server:', error);
                 showNotification('Failed to generate server', 'error');
-                const resultEl = document.getElementById('generatorResult');
-                if (resultEl) {
-                    resultEl.textContent = `❌ Error: ${error.message}`;
-                    resultEl.style.color = '#ff3b30';
-                    resultEl.style.background = '#ffebee';
-                    resultEl.style.borderColor = '#ff3b30';
-                }
             });
         }
 
