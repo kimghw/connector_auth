@@ -1,7 +1,8 @@
 """
 Graph Mail Search - 메일 검색 기능
 """
-from typing import Optional, Dict, Any
+
+from typing import Optional
 
 
 class GraphMailSearch:
@@ -17,10 +18,7 @@ class GraphMailSearch:
         """
         self.access_token = access_token
         self.user_id = user_id
-        self.headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
-        }
+        self.headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
         self.base_url = f"https://graph.microsoft.com/v1.0/users/{user_id}/messages"
 
     def build_search_url(self, search_term: str, select_fields: Optional[list] = None) -> str:
@@ -35,7 +33,7 @@ class GraphMailSearch:
             Search URL
         """
         url = self.base_url
-        params = [f"$search=\"{search_term}\""]
+        params = [f'$search="{search_term}"']
 
         if select_fields:
             params.append(f"$select={','.join(select_fields)}")

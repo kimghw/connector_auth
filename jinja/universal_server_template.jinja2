@@ -261,7 +261,7 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     # Process internal args with targetParam mappings
     {%- for arg_name, arg_info in tool.internal_args.items() %}
     {%- if not arg_name.endswith("_internal") %}
-    {%- set target_param = arg_info.targetParam | default(arg_name) %}
+    {%- set target_param = arg_info.original_schema.targetParam | default(arg_info.targetParam) | default(arg_name) %}
 
     # Build internal arg: {{ arg_name }}
     {%- if arg_info.value is defined and arg_info.value is not none and arg_info.value != {} %}

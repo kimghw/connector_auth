@@ -151,8 +151,8 @@ async def call_tool(request: Request):
 
             # Process internal arguments
             for arg_name, arg_info in tool_internal_args.items():
-                # Check if this internal arg has a targetParam
-                target_param = arg_info.get("targetParam", arg_name)
+                # Check if this internal arg has a targetParam (may be in original_schema)
+                target_param = arg_info.get("original_schema", {}).get("targetParam") or arg_info.get("targetParam", arg_name)
 
                 # Build internal parameter
                 internal_value = build_internal_param(tool_name, arg_name)

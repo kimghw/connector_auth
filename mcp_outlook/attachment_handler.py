@@ -10,8 +10,7 @@ from typing import List, Dict, Optional, Any, Union
 from pathlib import Path
 import aiohttp
 import asyncio
-from datetime import datetime
-import json
+
 
 class AttachmentHandler:
     """메일 첨부 파일 다운로드 핸들러"""
@@ -23,10 +22,7 @@ class AttachmentHandler:
         """
         self.access_token = access_token
         self.base_url = "https://graph.microsoft.com/v1.0"
-        self.headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
-        }
+        self.headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
 
     async def list_attachments(self, message_id: str, user_id: str = "me") -> List[Dict[str, Any]]:
         """
@@ -56,7 +52,7 @@ class AttachmentHandler:
                             "contentType": attachment.get("contentType"),
                             "size": attachment.get("size"),
                             "isInline": attachment.get("isInline", False),
-                            "@odata.type": attachment.get("@odata.type")
+                            "@odata.type": attachment.get("@odata.type"),
                         }
 
                         # 파일 첨부인 경우 추가 정보
@@ -94,11 +90,7 @@ class AttachmentHandler:
                     raise Exception(f"Failed to get attachment: {response.status} - {error_text}")
 
     async def download_attachment(
-        self,
-        message_id: str,
-        attachment_id: str,
-        save_path: Optional[str] = None,
-        user_id: str = "me"
+        self, message_id: str, attachment_id: str, save_path: Optional[str] = None, user_id: str = "me"
     ) -> str:
         """
         첨부 파일 다운로드 및 저장
@@ -151,10 +143,7 @@ class AttachmentHandler:
             raise ValueError(f"Unsupported attachment type: {attachment.get('@odata.type')}")
 
     async def download_all_attachments(
-        self,
-        message_id: str,
-        save_dir: Optional[str] = None,
-        user_id: str = "me"
+        self, message_id: str, save_dir: Optional[str] = None, user_id: str = "me"
     ) -> List[str]:
         """
         메일의 모든 첨부 파일 다운로드
@@ -190,12 +179,7 @@ class AttachmentHandler:
             print(f"\n[{i}/{len(attachments)}] Downloading: {att['name']} ({att['size']:,} bytes)")
 
             try:
-                file_path = await self.download_attachment(
-                    message_id,
-                    att['id'],
-                    str(base_dir / att['name']),
-                    user_id
-                )
+                file_path = await self.download_attachment(message_id, att["id"], str(base_dir / att["name"]), user_id)
                 downloaded_files.append(file_path)
             except Exception as e:
                 print(f"Failed to download {att['name']}: {e}")
@@ -206,7 +190,7 @@ class AttachmentHandler:
         self,
         mail_data: Union[Dict[str, Any], List[Dict[str, Any]]],
         download: bool = True,
-        save_dir: Optional[str] = None
+        save_dir: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         메일 조회 결과에서 첨부 파일 처리
@@ -219,12 +203,7 @@ class AttachmentHandler:
         Returns:
             처리 결과 요약
         """
-        results = {
-            "processed_mails": 0,
-            "total_attachments": 0,
-            "downloaded_files": [],
-            "errors": []
-        }
+        results = {"processed_mails": 0, "total_attachments": 0, "downloaded_files": [], "errors": []}
 
         # 메일 목록으로 정규화
         if isinstance(mail_data, dict):
@@ -267,8 +246,7 @@ class AttachmentHandler:
                                 mail_save_dir = Path(save_dir) / mail_id[:8]
 
                             downloaded = await self.download_all_attachments(
-                                mail_id,
-                                str(mail_save_dir) if mail_save_dir else None
+                                mail_id, str(mail_save_dir) if mail_save_dir else None
                             )
                             results["downloaded_files"].extend(downloaded)
 
@@ -278,12 +256,12 @@ class AttachmentHandler:
                     results["errors"].append(error_msg)
 
         # 결과 요약
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("📊 Processing Summary:")
         print(f"   - Processed mails: {results['processed_mails']}")
         print(f"   - Total attachments: {results['total_attachments']}")
         print(f"   - Downloaded files: {len(results['downloaded_files'])}")
-        if results['errors']:
+        if results["errors"]:
             print(f"   - Errors: {len(results['errors'])}")
 
         return results
@@ -297,7 +275,7 @@ async def main():
         print("Please set GRAPH_ACCESS_TOKEN environment variable")
         return
 
-    handler = GraphMailAttachmentHandler(access_token)
+    handler = AttachmentHandler(access_token)
 
     # 테스트할 메일 ID (실제 메일 ID로 교체 필요)
     test_message_id = "YOUR_MESSAGE_ID_HERE"

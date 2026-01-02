@@ -2,21 +2,24 @@
 Graph Mail Query - Entry point for mail operations
 Combines filter helpers, filter builder, and mail search functionality
 """
+
 import asyncio
 import aiohttp
 import sys
 import os
-from pathlib import Path
-from typing import Dict, Any, List, Optional, Union
-from datetime import datetime, timedelta
-import json
+from typing import Dict, Any, List, Optional
+from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session.auth_manager import AuthManager
 from outlook_types import (
-    FilterParams, ExcludeParams, SelectParams,
-    build_filter_query, build_exclude_query, build_select_query
+    FilterParams,
+    ExcludeParams,
+    SelectParams,
+    build_filter_query,
+    build_exclude_query,
+    build_select_query,
 )
 
 
@@ -63,11 +66,13 @@ class GraphMailQuery:
             print(f"Token retrieval error for {user_email}: {str(e)}")
             return None
 
-    def _build_query_url(self,
-                         user_email: str,
-                         filter_query: Optional[str] = None,
-                         select_fields: Optional[List[str]] = None,
-                         order_by: Optional[str] = None) -> str:
+    def _build_query_url(
+        self,
+        user_email: str,
+        filter_query: Optional[str] = None,
+        select_fields: Optional[List[str]] = None,
+        order_by: Optional[str] = None,
+    ) -> str:
         """
         Build complete query URL with parameters
 
@@ -96,15 +101,17 @@ class GraphMailQuery:
             base_url += "?" + "&".join(params)
 
         return base_url
-       
-    async def query_filter(self,
-                          user_email: str,
-                          filter: FilterParams,
-                          exclude: Optional[ExcludeParams] = None,
-                          select: Optional[SelectParams] = None,
-                          client_filter: Optional[ExcludeParams] = None,
-                          top: int = 450,
-                          orderby: Optional[str] = None) -> Dict[str, Any]:
+
+    async def query_filter(
+        self,
+        user_email: str,
+        filter: FilterParams,
+        exclude: Optional[ExcludeParams] = None,
+        select: Optional[SelectParams] = None,
+        client_filter: Optional[ExcludeParams] = None,
+        top: int = 450,
+        orderby: Optional[str] = None,
+    ) -> Dict[str, Any]:
 
         # Get access token for the user
         access_token = await self._get_access_token(user_email)
@@ -137,17 +144,14 @@ class GraphMailQuery:
             elif isinstance(select, dict):
                 # Dict인 경우 build_select_query 사용
                 select_query = build_select_query(select)
-                select_fields = select_query.split(',') if select_query else None
+                select_fields = select_query.split(",") if select_query else None
             elif isinstance(select, list):
                 # 리스트 형태는 그대로 사용 (이미 필드명이 들어 있다고 가정)
                 select_fields = select
 
         # Build final URL
         base_url = self._build_query_url(
-            user_email=user_email,
-            filter_query=combined_filter,
-            select_fields=select_fields,
-            order_by=orderby
+            user_email=user_email, filter_query=combined_filter, select_fields=select_fields, order_by=orderby
         )
 
         # Fetch data with immediate filtering if client_filter is provided
@@ -170,25 +174,25 @@ class GraphMailQuery:
             should_include = True
 
             # Check each exclude condition
-            if exclude.get('exclude_from_address'):
-                if email.get('from', {}).get('emailAddress', {}).get('address') == exclude['exclude_from_address']:
+            if exclude.get("exclude_from_address"):
+                if email.get("from", {}).get("emailAddress", {}).get("address") == exclude["exclude_from_address"]:
                     should_include = False
                     continue
 
-            if exclude.get('exclude_subject_keywords'):
-                subject = email.get('subject', '').lower()
-                for keyword in exclude['exclude_subject_keywords']:
+            if exclude.get("exclude_subject_keywords"):
+                subject = email.get("subject", "").lower()
+                for keyword in exclude["exclude_subject_keywords"]:
                     if keyword.lower() in subject:
                         should_include = False
                         break
 
-            if exclude.get('exclude_importance'):
-                if email.get('importance') == exclude['exclude_importance']:
+            if exclude.get("exclude_importance"):
+                if email.get("importance") == exclude["exclude_importance"]:
                     should_include = False
                     continue
 
-            if exclude.get('exclude_read_status') is not None:
-                if email.get('isRead') == exclude['exclude_read_status']:
+            if exclude.get("exclude_read_status") is not None:
+                if email.get("isRead") == exclude["exclude_read_status"]:
                     should_include = False
                     continue
 
@@ -199,11 +203,9 @@ class GraphMailQuery:
 
         return filtered_emails
 
-    async def query_url(self,
-                        user_email: str,
-                        url: str,
-                        top: int = 450,
-                        client_filter: Optional[ExcludeParams] = None) -> Dict[str, Any]:
+    async def query_url(
+        self, user_email: str, url: str, top: int = 450, client_filter: Optional[ExcludeParams] = None
+    ) -> Dict[str, Any]:
         """
         Query with pre-built URL
 
@@ -227,14 +229,16 @@ class GraphMailQuery:
 
         # Fetch data with the provided URL and apply filtering immediately
         return await self._fetch_parallel_with_url(user_email, access_token, url, top, client_filter)
-    
-    async def query_search(self,
-                           user_email: str,
-                           search: str,
-                           client_filter: Optional[ExcludeParams] = None,
-                           select: Optional[SelectParams] = None,
-                           top: int = 250,
-                           orderby: Optional[str] = None) -> Dict[str, Any]:
+
+    async def query_search(
+        self,
+        user_email: str,
+        search: str,
+        client_filter: Optional[ExcludeParams] = None,
+        select: Optional[SelectParams] = None,
+        top: int = 250,
+        orderby: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Query with keyword search ($search parameter)
 
@@ -286,7 +290,7 @@ class GraphMailQuery:
             elif isinstance(select, dict):
                 # Dict인 경우 build_select_query 사용
                 select_query_str = build_select_query(select)
-                select_fields = select_query_str.split(',') if select_query_str else None
+                select_fields = select_query_str.split(",") if select_query_str else None
             elif isinstance(select, list):
                 # 리스트 형태는 그대로 사용 (이미 필드명이 들어 있다고 가정)
                 select_fields = select
@@ -315,43 +319,44 @@ class GraphMailQuery:
         # 직접 호출 (페이지네이션 없이)
         try:
             import aiohttp
+
             async with aiohttp.ClientSession() as session:
-                headers = {
-                    "Authorization": f"Bearer {access_token}",
-                    "Content-Type": "application/json"
-                }
+                headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
                 async with session.get(base_url, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
-                        emails = data.get('value', [])
+                        emails = data.get("value", [])
 
                         # Apply client-side filtering if provided
                         if client_filter and emails:
                             filtered_emails = self._apply_client_side_filter(emails, client_filter)
-                            data['value'] = filtered_emails
+                            data["value"] = filtered_emails
 
                         return {
-                            "value": data.get('value', []),
-                            "total": len(data.get('value', [])),
-                            "@odata.count": len(data.get('value', [])),
+                            "value": data.get("value", []),
+                            "total": len(data.get("value", [])),
+                            "@odata.count": len(data.get("value", [])),
                             "request_url": base_url,
-                            "search_term": search
+                            "search_term": search,
                         }
                     else:
                         error_text = await response.text()
                         return {
                             "value": [],
                             "error": f"Search failed with status {response.status}: {error_text[:200]}",
-                            "status": "error"
+                            "status": "error",
                         }
         except Exception as e:
-            return {
-                "value": [],
-                "error": str(e),
-                "status": "error"
-            }
+            return {"value": [], "error": str(e), "status": "error"}
 
-    async def _fetch_parallel_with_url(self, user_email: str, access_token: str, base_url: str, total_items: int, client_filter: Optional[ExcludeParams] = None) -> Dict[str, Any]:
+    async def _fetch_parallel_with_url(
+        self,
+        user_email: str,
+        access_token: str,
+        base_url: str,
+        total_items: int,
+        client_filter: Optional[ExcludeParams] = None,
+    ) -> Dict[str, Any]:
         """
         Internal method to fetch with parallel pagination
         Always fetches in pages of 150 items
@@ -383,10 +388,7 @@ class GraphMailQuery:
         semaphore = asyncio.Semaphore(max_concurrent)
 
         # Create headers with the provided access token
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
-        }
+        headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
 
         async def fetch_page(session, url, page_num):
             async with semaphore:
@@ -394,13 +396,15 @@ class GraphMailQuery:
                     async with session.get(url, headers=headers) as response:
                         if response.status == 200:
                             data = await response.json()
-                            emails = data.get('value', [])
+                            emails = data.get("value", [])
 
                             # Apply client-side filtering immediately if provided
                             if client_filter and emails:
                                 filtered_emails = self._apply_client_side_filter(emails, client_filter)
-                                data['value'] = filtered_emails
-                                print(f"  ✓ Page {page_num}: Retrieved {len(emails)} emails, kept {len(filtered_emails)} after filtering")
+                                data["value"] = filtered_emails
+                                print(
+                                    f"  ✓ Page {page_num}: Retrieved {len(emails)} emails, kept {len(filtered_emails)} after filtering"
+                                )
                             else:
                                 print(f"  ✓ Page {page_num}: Retrieved {len(emails)} emails")
 
@@ -447,7 +451,7 @@ class GraphMailQuery:
             "@odata.count": len(all_emails),
             "request_url": base_url,  # Include the built URL
             "pages_requested": num_pages,
-            "fetch_time": elapsed
+            "fetch_time": elapsed,
         }
 
         # Include error information if any errors occurred
@@ -468,7 +472,7 @@ class GraphMailQuery:
         Returns:
             Formatted string
         """
-        emails = results.get('value', [])
+        emails = results.get("value", [])
 
         if not emails:
             return "No emails found."
@@ -480,34 +484,34 @@ class GraphMailQuery:
 
         for idx, email in enumerate(emails, 1):
             # Parse datetime
-            received_dt = email.get('receivedDateTime', 'Unknown')
-            if received_dt != 'Unknown':
+            received_dt = email.get("receivedDateTime", "Unknown")
+            if received_dt != "Unknown":
                 try:
-                    dt = datetime.fromisoformat(received_dt.replace('Z', '+00:00'))
-                    received_dt = dt.strftime('%Y-%m-%d %H:%M')
-                except:
+                    dt = datetime.fromisoformat(received_dt.replace("Z", "+00:00"))
+                    received_dt = dt.strftime("%Y-%m-%d %H:%M")
+                except Exception:
                     pass
 
             # Get info
-            subject = email.get('subject', 'No Subject')
-            from_info = email.get('from', {})
-            sender_name = from_info.get('emailAddress', {}).get('name', 'Unknown')
-            sender_email = from_info.get('emailAddress', {}).get('address', 'Unknown')
-            is_read = email.get('isRead', False)
-            has_attachments = email.get('hasAttachments', False)
-            importance = email.get('importance', 'normal')
+            subject = email.get("subject", "No Subject")
+            from_info = email.get("from", {})
+            sender_name = from_info.get("emailAddress", {}).get("name", "Unknown")
+            sender_email = from_info.get("emailAddress", {}).get("address", "Unknown")
+            is_read = email.get("isRead", False)
+            has_attachments = email.get("hasAttachments", False)
+            importance = email.get("importance", "normal")
 
             # Format
             read_status = "[READ]" if is_read else "[UNREAD]"
             attach_icon = "📎" if has_attachments else ""
-            imp_icon = "❗" if importance == 'high' else ""
+            imp_icon = "❗" if importance == "high" else ""
 
             output.append(f"[{idx}] {read_status} {imp_icon}{attach_icon} {subject}")
             output.append(f"    From: {sender_name} <{sender_email}>")
             output.append(f"    Date: {received_dt}")
 
-            if verbose and email.get('bodyPreview'):
-                preview = email.get('bodyPreview', '')[:150]
+            if verbose and email.get("bodyPreview"):
+                preview = email.get("bodyPreview", "")[:150]
                 output.append(f"    Preview: {preview}...")
 
             output.append("")
@@ -521,7 +525,7 @@ class GraphMailQuery:
         mail_storage: str = "memory",
         attachment_handling: str = "skip",
         output_format: str = "combined",
-        save_directory: Optional[str] = None
+        save_directory: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         메일 데이터를 받아서 처리 옵션에 따라 처리
@@ -537,27 +541,33 @@ class GraphMailQuery:
         Returns:
             처리된 결과
         """
-        from mail_processing_options import MailProcessorHandler, ProcessingOptions, MailStorageOption, AttachmentOption, OutputFormat
+        from mail_processing_options import (
+            MailProcessorHandler,
+            ProcessingOptions,
+            MailStorageOption,
+            AttachmentOption,
+            OutputFormat,
+        )
 
         # 옵션 매핑
         storage_map = {
             "memory": MailStorageOption.MEMORY,
             "text": MailStorageOption.TEXT_FILE,
             "json": MailStorageOption.JSON_FILE,
-            "database": MailStorageOption.DATABASE
+            "database": MailStorageOption.DATABASE,
         }
 
         attachment_map = {
             "skip": AttachmentOption.SKIP,
             "download": AttachmentOption.DOWNLOAD_ONLY,
             "convert": AttachmentOption.DOWNLOAD_CONVERT,
-            "convert_delete": AttachmentOption.CONVERT_DELETE
+            "convert_delete": AttachmentOption.CONVERT_DELETE,
         }
 
         format_map = {
             "combined": OutputFormat.COMBINED,
             "separated": OutputFormat.SEPARATED,
-            "structured": OutputFormat.STRUCTURED
+            "structured": OutputFormat.STRUCTURED,
         }
 
         # Get access token for the user
@@ -573,7 +583,7 @@ class GraphMailQuery:
             mail_storage=storage_map.get(mail_storage, MailStorageOption.MEMORY),
             attachment_handling=attachment_map.get(attachment_handling, AttachmentOption.SKIP),
             output_format=format_map.get(output_format, OutputFormat.COMBINED),
-            save_directory=save_directory
+            save_directory=save_directory,
         )
 
         try:
@@ -586,12 +596,15 @@ class GraphMailQuery:
         if self.auth_manager:
             await self.auth_manager.close()
 
+
 # Convenience function for quick queries
-async def query_emails(user_email: str,
-                       filter_params: Optional[Dict[str, Any]] = None,
-                       search_term: Optional[str] = None,
-                       url: Optional[str] = None,
-                       top: int = 450) -> Dict[str, Any]:
+async def query_emails(
+    user_email: str,
+    filter_params: Optional[Dict[str, Any]] = None,
+    search_term: Optional[str] = None,
+    url: Optional[str] = None,
+    top: int = 450,
+) -> Dict[str, Any]:
     """
     Quick function to query emails
 
@@ -608,25 +621,10 @@ async def query_emails(user_email: str,
     query = GraphMailQuery()
 
     if url:
-        return await query.query_url(
-            user_email=user_email,
-            url=url,
-            top=top
-        )
+        return await query.query_url(user_email=user_email, url=url, top=top)
     elif search_term:
-        return await query.query_search(
-            user_email=user_email,
-            search=search_term,
-            top=top
-        )
+        return await query.query_search(user_email=user_email, search=search_term, top=top)
     elif filter_params:
-        return await query.query_filter(
-            user_email=user_email,
-            filter=FilterParams(**filter_params),
-            top=top
-        )
+        return await query.query_filter(user_email=user_email, filter=FilterParams(**filter_params), top=top)
     else:
-        return {
-            "status": "error",
-            "error": "Must provide either url, search_term, or filter_params"
-        }
+        return {"status": "error", "error": "Must provide either url, search_term, or filter_params"}

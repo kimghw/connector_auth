@@ -5,12 +5,11 @@ Microsoft Graph API의 $batch 기능을 활용하여 여러 메일을 효율적�
 
 import asyncio
 import aiohttp
-from typing import Dict, Any, List, Optional, Union
-import json
-from datetime import datetime
+from typing import Dict, Any, List, Optional
 
 import sys
 import os
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session.auth_manager import AuthManager
@@ -73,7 +72,7 @@ class GraphMailIdBatch:
         Returns:
             배치 리스트
         """
-        return [items[i:i + batch_size] for i in range(0, len(items), batch_size)]
+        return [items[i : i + batch_size] for i in range(0, len(items), batch_size)]
 
     def _build_select_fields(self, select_params: Optional[SelectParams]) -> Optional[str]:
         """
@@ -91,16 +90,13 @@ class GraphMailIdBatch:
         # SelectParams가 딕셔너리인 경우
         if isinstance(select_params, dict):
             fields = [field for field, include in select_params.items() if include]
-            return ','.join(fields) if fields else None
+            return ",".join(fields) if fields else None
 
         # SelectParams가 객체인 경우 (build_select_query 사용)
         return build_select_query(select_params)
 
     async def fetch_single_by_id(
-        self,
-        user_email: str,
-        message_id: str,
-        select_params: Optional[SelectParams] = None
+        self, user_email: str, message_id: str, select_params: Optional[SelectParams] = None
     ) -> Dict[str, Any]:
         """
         단일 메일 ID로 조회
@@ -116,10 +112,7 @@ class GraphMailIdBatch:
         # 액세스 토큰 획득
         access_token = await self._get_access_token(user_email)
         if not access_token:
-            return {
-                "success": False,
-                "error": f"Failed to get access token for {user_email}"
-            }
+            return {"success": False, "error": f"Failed to get access token for {user_email}"}
 
         # URL 구성
         url = f"https://graph.microsoft.com/v1.0/users/{user_email}/messages/{message_id}"
@@ -129,39 +122,27 @@ class GraphMailIdBatch:
         if select_fields:
             url += f"?$select={select_fields}"
 
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json'
-        }
+        headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
 
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
-                        return {
-                            "success": True,
-                            "mail": data
-                        }
+                        return {"success": True, "mail": data}
                     else:
                         error_text = await response.text()
                         return {
                             "success": False,
                             "error": f"Failed to fetch mail: {response.status}",
-                            "details": error_text[:500]
+                            "details": error_text[:500],
                         }
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"Request failed: {str(e)}"
-            }
+            return {"success": False, "error": f"Request failed: {str(e)}"}
 
     async def batch_fetch_by_ids(
-        self,
-        user_email: str,
-        message_ids: List[str],
-        select_params: Optional[SelectParams] = None
+        self, user_email: str, message_ids: List[str], select_params: Optional[SelectParams] = None
     ) -> Dict[str, Any]:
         """
         여러 메일 ID로 배치 조회
@@ -175,21 +156,12 @@ class GraphMailIdBatch:
             배치 조회 결과
         """
         if not message_ids:
-            return {
-                "success": True,
-                "value": [],
-                "total": 0,
-                "message": "No message IDs provided"
-            }
+            return {"success": True, "value": [], "total": 0, "message": "No message IDs provided"}
 
         # 액세스 토큰 획득
         access_token = await self._get_access_token(user_email)
         if not access_token:
-            return {
-                "success": False,
-                "error": f"Failed to get access token for {user_email}",
-                "value": []
-            }
+            return {"success": False, "error": f"Failed to get access token for {user_email}", "value": []}
 
         # 20개씩 배치로 분할
         batches = self._split_into_batches(message_ids, self.max_batch_size)
@@ -203,10 +175,7 @@ class GraphMailIdBatch:
         all_results = []
         errors = []
 
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json'
-        }
+        headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
 
         # 각 배치 처리
         async with aiohttp.ClientSession() as session:
@@ -216,58 +185,53 @@ class GraphMailIdBatch:
                 # 배치 요청 본문 생성
                 requests = []
                 for i, mail_id in enumerate(batch_ids):
-                    requests.append({
-                        "id": str(i + 1),
-                        "method": "GET",
-                        "url": f"/users/{user_email}/messages/{mail_id}{select_query}"
-                    })
+                    requests.append(
+                        {
+                            "id": str(i + 1),
+                            "method": "GET",
+                            "url": f"/users/{user_email}/messages/{mail_id}{select_query}",
+                        }
+                    )
 
                 batch_body = {"requests": requests}
 
                 try:
                     # $batch API 호출
-                    async with session.post(
-                        self.batch_url,
-                        headers=headers,
-                        json=batch_body
-                    ) as response:
+                    async with session.post(self.batch_url, headers=headers, json=batch_body) as response:
                         if response.status == 200:
                             batch_data = await response.json()
-                            responses = batch_data.get('responses', [])
+                            responses = batch_data.get("responses", [])
 
                             # 각 응답 처리
                             for resp in responses:
-                                if resp.get('status') == 200:
-                                    mail_data = resp.get('body', {})
+                                if resp.get("status") == 200:
+                                    mail_data = resp.get("body", {})
                                     all_results.append(mail_data)
                                 else:
                                     # 에러 처리
-                                    req_id = resp.get('id')
-                                    mail_id = batch_ids[int(req_id) - 1] if req_id else 'unknown'
-                                    errors.append({
-                                        "mail_id": mail_id,
-                                        "status": resp.get('status'),
-                                        "error": resp.get('body', {}).get('error', {}).get('message', 'Unknown error')
-                                    })
+                                    req_id = resp.get("id")
+                                    mail_id = batch_ids[int(req_id) - 1] if req_id else "unknown"
+                                    errors.append(
+                                        {
+                                            "mail_id": mail_id,
+                                            "status": resp.get("status"),
+                                            "error": resp.get("body", {})
+                                            .get("error", {})
+                                            .get("message", "Unknown error"),
+                                        }
+                                    )
 
-                            success_count = len([r for r in responses if r.get('status') == 200])
-                            fail_count = len([r for r in responses if r.get('status') != 200])
+                            success_count = len([r for r in responses if r.get("status") == 200])
+                            fail_count = len([r for r in responses if r.get("status") != 200])
                             print(f"    Batch {batch_num}: {success_count} successful, {fail_count} failed")
                         else:
                             error_text = await response.text()
                             print(f"    Batch {batch_num}: Request failed with status {response.status}")
-                            errors.append({
-                                "batch": batch_num,
-                                "status": response.status,
-                                "error": error_text[:500]
-                            })
+                            errors.append({"batch": batch_num, "status": response.status, "error": error_text[:500]})
 
                 except Exception as e:
                     print(f"    Batch {batch_num}: Exception - {str(e)}")
-                    errors.append({
-                        "batch": batch_num,
-                        "error": str(e)
-                    })
+                    errors.append({"batch": batch_num, "error": str(e)})
 
         # 결과 정리
         success_count = len(all_results)
@@ -282,15 +246,11 @@ class GraphMailIdBatch:
             "requested": total_count,
             "errors": errors if errors else None,
             "query_method": "batch_id",
-            "batches_processed": len(batches)
+            "batches_processed": len(batches),
         }
 
     async def batch_fetch_with_details(
-        self,
-        user_email: str,
-        message_ids: List[str],
-        include_attachments: bool = False,
-        include_headers: bool = False
+        self, user_email: str, message_ids: List[str], include_attachments: bool = False, include_headers: bool = False
     ) -> Dict[str, Any]:
         """
         상세 정보를 포함한 배치 조회
@@ -321,7 +281,7 @@ class GraphMailIdBatch:
             isRead=True,
             isDraft=True,
             conversationId=True,
-            categories=True
+            categories=True,
         )
 
         # 추가 필드
@@ -332,13 +292,13 @@ class GraphMailIdBatch:
         result = await self.batch_fetch_by_ids(user_email, message_ids, select_params)
 
         # 첨부파일 정보 추가 조회 (필요시)
-        if include_attachments and result.get('success'):
-            mails = result.get('value', [])
+        if include_attachments and result.get("success"):
+            mails = result.get("value", [])
 
             for mail in mails:
-                if mail.get('hasAttachments'):
+                if mail.get("hasAttachments"):
                     # 첨부파일 정보는 별도 조회 필요
-                    mail['attachments_info'] = "Use attachment handler for details"
+                    mail["attachments_info"] = "Use attachment handler for details"
 
         return result
 
@@ -349,6 +309,7 @@ class GraphMailIdBatch:
 
 # 테스트 코드
 if __name__ == "__main__":
+
     async def test_batch():
         batch_client = GraphMailIdBatch()
 
@@ -362,7 +323,7 @@ if __name__ == "__main__":
         # 테스트용 메일 ID (실제 테스트시 실제 ID로 변경 필요)
         test_ids = [
             "AAMkADU2MGM5YzRjLTE4NmItNDE4NC1hMGI3LTk1NDkwZjY2NGY4ZQBGAAAA...",
-            "AAMkADU2MGM5YzRjLTE4NmItNDE4NC1hMGI3LTk1NDkwZjY2NGY4ZQBGAAAA..."
+            "AAMkADU2MGM5YzRjLTE4NmItNDE4NC1hMGI3LTk1NDkwZjY2NGY4ZQBGAAAA...",
         ]
 
         # 배치 조회 테스트
@@ -370,16 +331,12 @@ if __name__ == "__main__":
         result = await batch_client.batch_fetch_by_ids(
             user_email=user_email,
             message_ids=test_ids,
-            select_params=SelectParams(
-                subject=True,
-                from_=True,
-                receivedDateTime=True
-            )
+            select_params=SelectParams(subject=True, from_=True, receivedDateTime=True),
         )
 
-        if result.get('success'):
+        if result.get("success"):
             print(f"Success! Fetched {result.get('total')} mails")
-            for mail in result.get('value', [])[:3]:
+            for mail in result.get("value", [])[:3]:
                 print(f"  - {mail.get('subject', 'No subject')}")
         else:
             print(f"Failed: {result.get('error')}")

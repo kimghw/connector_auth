@@ -231,12 +231,15 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                     }
 
                 # Build call_params (how to pass to service method)
+                # Get targetParam from mcp_service parameter or default to param_name
+                target_param = param.get('targetParam', param_name)
+
                 if param_name in tool_internal_args:
-                    call_params[param_name] = {'value': f'{param_name}_params'}
+                    call_params[target_param] = {'value': f'{param_name}_params', 'source_param': param_name}
                 elif param_name in object_params:
-                    call_params[param_name] = {'value': f'{param_name}_params'}
+                    call_params[target_param] = {'value': f'{param_name}_params', 'source_param': param_name}
                 else:
-                    call_params[param_name] = {'value': param_name}
+                    call_params[target_param] = {'value': param_name, 'source_param': param_name}
 
         # Fallback: extract from inputSchema if no mcp_service parameters
         if not params:
@@ -266,10 +269,13 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                         'default_json': json.dumps(default) if default is not None else None
                     }
 
-                call_params[prop_name] = {'value': f'{prop_name}_params' if prop_name in object_params else prop_name}
+                # Get targetParam from inputSchema property or default to prop_name
+                target_param = prop_def.get('targetParam', prop_name)
+                call_params[target_param] = {'value': f'{prop_name}_params' if prop_name in object_params else prop_name, 'source_param': prop_name}
 
         # Internal args are handled separately with targetParam mappings
-        # They should not be added to call_params as they're processed in the template
+        # They are processed in the template itself (lines 260-291 in universal_server_template.jinja2)
+        # Do NOT add them to call_params here as they need to be built at runtime
 
         tool_with_internal['params'] = params
         tool_with_internal['object_params'] = object_params

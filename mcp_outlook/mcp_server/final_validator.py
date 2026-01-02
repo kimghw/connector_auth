@@ -6,14 +6,14 @@ Final validation script to ensure tool definitions are consistent
 import json
 import sys
 import re
-from typing import Dict, List, Set
+
 
 def validate_tools():
     """Validate that server.py properly uses tool_definitions.py"""
 
-    print("="*60)
+    print("=" * 60)
     print("MCP TOOL VALIDATION REPORT")
-    print("="*60)
+    print("=" * 60)
 
     # 1. Check that server.py imports from tool_definitions
     print("\n1. Checking imports in server.py...")
@@ -28,7 +28,7 @@ def validate_tools():
 
     # 2. Check that server.py doesn't have its own MCP_TOOLS definition
     print("\n2. Checking for duplicate MCP_TOOLS definitions...")
-    if re.search(r'^MCP_TOOLS\s*=\s*\[', server_content, re.MULTILINE):
+    if re.search(r"^MCP_TOOLS\s*=\s*\[", server_content, re.MULTILINE):
         print("   ❌ server.py has its own MCP_TOOLS definition (should use import only)")
         return False
     else:
@@ -37,6 +37,7 @@ def validate_tools():
     # 3. Load tools from tool_definitions.py
     print("\n3. Loading tools from tool_definitions.py...")
     from tool_definitions import MCP_TOOLS
+
     print(f"   ✅ Loaded {len(MCP_TOOLS)} tools")
 
     tool_names = [tool["name"] for tool in MCP_TOOLS]
@@ -46,10 +47,7 @@ def validate_tools():
     print("\n4. Checking tool handlers in server.py...")
 
     # Find all handler patterns
-    handler_patterns = [
-        r'if\s+tool_name\s*==\s*["\']([^"\']+)["\']:',
-        r'elif\s+tool_name\s*==\s*["\']([^"\']+)["\']:'
-    ]
+    handler_patterns = [r'if\s+tool_name\s*==\s*["\']([^"\']+)["\']:', r'elif\s+tool_name\s*==\s*["\']([^"\']+)["\']:']
 
     handlers_found = set()
     for pattern in handler_patterns:
@@ -111,15 +109,25 @@ def validate_tools():
         print("   ✅ All tools have valid structure")
 
     # Final summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("VALIDATION SUMMARY")
-    print("="*60)
+    print("=" * 60)
 
     # Check for problematic strings that might be rejected by AI providers
     print("\n7. Checking for potentially problematic content...")
     problematic_keywords = [
-        "hack", "exploit", "injection", "malware", "virus", "trojan",
-        "phishing", "spam", "steal", "breach", "crack", "bypass"
+        "hack",
+        "exploit",
+        "injection",
+        "malware",
+        "virus",
+        "trojan",
+        "phishing",
+        "spam",
+        "steal",
+        "breach",
+        "crack",
+        "bypass",
     ]
 
     issues_found = False
@@ -134,7 +142,7 @@ def validate_tools():
         print("   ✅ No problematic keywords found")
 
     # Final result
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     if all_valid and not missing_handlers and not issues_found:
         print("✅ VALIDATION PASSED: All checks successful!")
         print("   - Tools properly imported from tool_definitions.py")
@@ -147,6 +155,7 @@ def validate_tools():
         print("❌ VALIDATION FAILED: Issues detected")
         return False
 
+
 if __name__ == "__main__":
     try:
         result = validate_tools()
@@ -154,5 +163,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ Error during validation: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

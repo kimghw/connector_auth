@@ -1,7 +1,8 @@
 """
 Graph Mail Filter - 메일 필터링 URL 빌더
 """
-from typing import Optional, List, Dict, Any
+
+from typing import Optional, List
 
 
 class GraphMailFilter:
@@ -27,51 +28,54 @@ class GraphMailFilter:
         filters = []
 
         # Handle various filter conditions
-        if kwargs.get('unread') is not None:
+        if kwargs.get("unread") is not None:
             filters.append(f"isRead eq {str(not kwargs['unread']).lower()}")
 
-        if kwargs.get('has_attachments') is not None:
+        if kwargs.get("has_attachments") is not None:
             filters.append(f"hasAttachments eq {str(kwargs['has_attachments']).lower()}")
 
-        if kwargs.get('importance'):
+        if kwargs.get("importance"):
             filters.append(f"importance eq '{kwargs['importance']}'")
 
-        if kwargs.get('from_sender'):
+        if kwargs.get("from_sender"):
             filters.append(f"from/emailAddress/address eq '{kwargs['from_sender']}'")
 
-        if kwargs.get('from_any'):
-            sender_filters = [f"from/emailAddress/address eq '{sender}'" for sender in kwargs['from_any']]
+        if kwargs.get("from_any"):
+            sender_filters = [f"from/emailAddress/address eq '{sender}'" for sender in kwargs["from_any"]]
             if sender_filters:
                 filters.append(f"({' or '.join(sender_filters)})")
 
-        if kwargs.get('subject'):
+        if kwargs.get("subject"):
             filters.append(f"contains(subject, '{kwargs['subject']}')")
 
-        if kwargs.get('subject_any'):
-            subject_filters = [f"contains(subject, '{subj}')" for subj in kwargs['subject_any']]
+        if kwargs.get("subject_any"):
+            subject_filters = [f"contains(subject, '{subj}')" for subj in kwargs["subject_any"]]
             if subject_filters:
                 filters.append(f"({' or '.join(subject_filters)})")
 
-        if kwargs.get('days_back'):
+        if kwargs.get("days_back"):
             from datetime import datetime, timedelta, timezone
-            date_from = datetime.now(timezone.utc) - timedelta(days=kwargs['days_back'])
+
+            date_from = datetime.now(timezone.utc) - timedelta(days=kwargs["days_back"])
             filters.append(f"receivedDateTime ge {date_from.strftime('%Y-%m-%dT%H:%M:%SZ')}")
 
         # Exclusions
-        if kwargs.get('exclude_senders'):
-            for sender in kwargs['exclude_senders']:
+        if kwargs.get("exclude_senders"):
+            for sender in kwargs["exclude_senders"]:
                 filters.append(f"from/emailAddress/address ne '{sender}'")
 
-        if kwargs.get('exclude_subjects'):
-            for subject in kwargs['exclude_subjects']:
+        if kwargs.get("exclude_subjects"):
+            for subject in kwargs["exclude_subjects"]:
                 filters.append(f"not contains(subject, '{subject}')")
 
         return " and ".join(filters) if filters else ""
 
-    def build_query_url(self,
-                        filter_query: Optional[str] = None,
-                        select_fields: Optional[List[str]] = None,
-                        order_by: Optional[str] = None) -> str:
+    def build_query_url(
+        self,
+        filter_query: Optional[str] = None,
+        select_fields: Optional[List[str]] = None,
+        order_by: Optional[str] = None,
+    ) -> str:
         """
         Build complete query URL
 

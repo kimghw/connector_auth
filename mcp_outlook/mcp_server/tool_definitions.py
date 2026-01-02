@@ -133,9 +133,9 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
         "inputSchema": {
             "type": "object",
             "properties": {
-                "filter_params": {
+                "DatePeriodFilter": {
                     "type": "object",
-                    "description": "FilterParams parameters",
+                    "description": "에이전트는 는 사용자의 질의에 따라 검색 범위의 날짜를 추출한다.",
                     "properties": {
                         "received_date_from": {
                             "type": "string",
@@ -155,10 +155,12 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
                 },
                 "user_email": {
                     "type": "string",
-                    "description": ""
+                    "description": "이메일 주소를 입력하고 입력하지 않을 경우 내부에서 연결정보를 메일 주소를 추정함"
                 }
             },
-            "required": []
+            "required": [
+                "DatePeriodFilter"
+            ]
         }
     },
     {

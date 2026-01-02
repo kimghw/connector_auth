@@ -86,30 +86,35 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                                         'Optional[SelectParams] = None, top: int = 50'},
         'mcp_service_factors': {   'exclude_params_internal': {   'baseModel': 'ExcludeParams',
                                                                   'description': 'ExcludeParams parameters',
-                                                                  'parameters': {   'exclude_body_keywords': {   'description': '본문에서 '
+                                                                  'parameters': {   'exclude_body_keywords': {   'default': None,
+                                                                                                                 'description': '본문에서 '
                                                                                                                                 '제외할 '
                                                                                                                                 '키워드 '
                                                                                                                                 '목록',
                                                                                                                  'type': 'string'},
-                                                                                    'exclude_from_address': {   'description': '제외할 '
+                                                                                    'exclude_from_address': {   'default': None,
+                                                                                                                'description': '제외할 '
                                                                                                                                '발신자 '
                                                                                                                                '주소 '
                                                                                                                                '(from '
                                                                                                                                '필드)',
                                                                                                                 'type': 'string'},
-                                                                                    'exclude_preview_keywords': {   'description': '미리보기에서 '
+                                                                                    'exclude_preview_keywords': {   'default': None,
+                                                                                                                    'description': '미리보기에서 '
                                                                                                                                    '제외할 '
                                                                                                                                    '키워드 '
                                                                                                                                    '목록',
                                                                                                                     'type': 'string'},
-                                                                                    'exclude_sender_address': {   'description': '제외할 '
+                                                                                    'exclude_sender_address': {   'default': None,
+                                                                                                                  'description': '제외할 '
                                                                                                                                  '실제 '
                                                                                                                                  '발신자 '
                                                                                                                                  '주소 '
                                                                                                                                  '(sender '
                                                                                                                                  '필드)',
                                                                                                                   'type': 'string'},
-                                                                                    'exclude_subject_keywords': {   'description': '제목에서 '
+                                                                                    'exclude_subject_keywords': {   'default': None,
+                                                                                                                    'description': '제목에서 '
                                                                                                                                    '제외할 '
                                                                                                                                    '키워드 '
                                                                                                                                    '목록',
@@ -235,16 +240,36 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                            'required': ['DatePeriodFilter'],
                            'type': 'object'},
         'mcp_service': 'query_mail_list',
-        'mcp_service_factors': {   'client_filter': {   'baseModel': 'ExcludeParams',
-                                                        'description': 'ExcludeParams parameters',
-                                                        'parameters': {   'exclude_from_address': {   'default': 'block@krs.co.kr',
-                                                                                                      'description': '제외할 '
-                                                                                                                     '발신자 '
-                                                                                                                     '주소 '
-                                                                                                                     '(from '
-                                                                                                                     '필드)',
-                                                                                                      'type': 'string'}},
-                                                        'source': 'internal'}},
+        'mcp_service_factors': {   'select': {   'baseModel': 'SelectParams',
+                                                 'description': 'SelectParams parameters',
+                                                 'parameters': {   'body_preview': {   'default': True,
+                                                                                       'description': '메시지 본문의 처음 255자 '
+                                                                                                      '(텍스트 형식)',
+                                                                                       'type': 'boolean'},
+                                                                   'has_attachments': {   'default': True,
+                                                                                          'description': '첨부파일 포함 여부',
+                                                                                          'type': 'boolean'},
+                                                                   'id': {   'default': True,
+                                                                             'description': '메시지 고유 식별자 (읽기 전용)',
+                                                                             'type': 'boolean'},
+                                                                   'internet_message_id': {   'default': True,
+                                                                                              'description': 'RFC2822 '
+                                                                                                             '형식의 메시지 '
+                                                                                                             'ID',
+                                                                                              'type': 'boolean'},
+                                                                   'received_date_time': {   'default': True,
+                                                                                             'description': '메시지 수신 '
+                                                                                                            '날짜/시간 '
+                                                                                                            '(ISO 8601 '
+                                                                                                            '형식, UTC)',
+                                                                                             'type': 'boolean'},
+                                                                   'sender': {   'default': True,
+                                                                                 'description': '메시지를 생성하는 데 사용된 계정',
+                                                                                 'type': 'boolean'},
+                                                                   'subject': {   'default': True,
+                                                                                  'description': '메시지 제목',
+                                                                                  'type': 'boolean'}},
+                                                 'source': 'internal'}},
         'name': 'mail_list'},
     {   'description': 'URL 방식 메일 조회 기능 - $filter 와 $select를 설정 가능',
         'inputSchema': {   'properties': {   'filter_params': {   'baseModel': 'FilterParams',

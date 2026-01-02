@@ -2,19 +2,11 @@
 Mail Service - GraphMailClient Facade
 인자를 그대로 위임하고, 필요시 일부 값만 조정하는 서비스 레이어
 """
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
 
-from graph_mail_client import (
-    GraphMailClient,
-    QueryMethod,
-    ProcessingMode
-)
-from mail_processing_options import (
-    MailStorageOption,
-    AttachmentOption,
-    OutputFormat
-)
+from typing import Dict, Any, Optional, List
+
+from graph_mail_client import GraphMailClient, QueryMethod, ProcessingMode
+from mail_processing_options import MailStorageOption, AttachmentOption, OutputFormat
 from outlook_types import FilterParams, ExcludeParams, SelectParams, build_filter_query, build_select_query
 
 # mcp_service decorator is only needed for registry scanning, not runtime
@@ -25,6 +17,7 @@ except ImportError:
     def mcp_service(**kwargs):
         def decorator(func):
             return func
+
         return decorator
 
 
@@ -58,13 +51,13 @@ class MailService:
             raise RuntimeError("MailService not initialized. Call initialize() first.")
 
     @mcp_service(
-        tool_name="handler_mail_list",      # 필수: MCP Tool 이름
-        server_name="outlook",                # 필수: 서버 식별자
-        service_name="query_mail_list",       # 필수: 메서드명
-        category="outlook_mail",              # 권장: 카테고리
-        tags=["query", "search"],             # 권장: 태그
-        priority=5,                           # 선택: 우선순위 (1-10)
-        description="메일 리스트 조회 기능"           # 필수: 기능 설명
+        tool_name="handler_mail_list",  # 필수: MCP Tool 이름
+        server_name="outlook",  # 필수: 서버 식별자
+        service_name="query_mail_list",  # 필수: 메서드명
+        category="outlook_mail",  # 권장: 카테고리
+        tags=["query", "search"],  # 권장: 태그
+        priority=5,  # 선택: 우선순위 (1-10)
+        description="메일 리스트 조회 기능",  # 필수: 기능 설명
     )
     async def query_mail_list(
         self,
@@ -77,7 +70,7 @@ class MailService:
         search_term: Optional[str] = None,
         url: Optional[str] = None,
         top: int = 50,
-        order_by: Optional[str] = None
+        order_by: Optional[str] = None,
     ) -> Dict[str, Any]:
         """메일 조회 - GraphMailClient.build_and_fetch 위임"""
         self._ensure_initialized()
@@ -96,17 +89,17 @@ class MailService:
             search_term=search_term,
             url=url,
             top=top,
-            order_by=order_by
+            order_by=order_by,
         )
 
     @mcp_service(
-        tool_name="handler_mail_fetch_and_process",      # 필수: MCP Tool 이름
-        server_name="outlook",                            # 필수: 서버 식별자
-        service_name="fetch_and_process",                 # 필수: 메서드명
-        category="outlook_mail",                          # 권장: 카테고리
-        tags=["query", "process", "download", "convert"], # 권장: 태그
-        priority=5,                                       # 선택: 우선순위 (1-10)
-        description="메일 조회 및 처리 기능"                  # 필수: 기능 설명
+        tool_name="handler_mail_fetch_and_process",  # 필수: MCP Tool 이름
+        server_name="outlook",  # 필수: 서버 식별자
+        service_name="fetch_and_process",  # 필수: 메서드명
+        category="outlook_mail",  # 권장: 카테고리
+        tags=["query", "process", "download", "convert"],  # 권장: 태그
+        priority=5,  # 선택: 우선순위 (1-10)
+        description="메일 조회 및 처리 기능",  # 필수: 기능 설명
     )
     async def fetch_and_process(
         self,
@@ -125,7 +118,7 @@ class MailService:
         attachment_handling: AttachmentOption = AttachmentOption.SKIP,
         output_format: OutputFormat = OutputFormat.COMBINED,
         save_directory: Optional[str] = None,
-        return_on_error: bool = True
+        return_on_error: bool = True,
     ) -> Dict[str, Any]:
         """메일 조회 및 처리 - GraphMailClient.fetch_and_process 위임"""
         self._ensure_initialized()
@@ -150,16 +143,17 @@ class MailService:
             attachment_handling=attachment_handling,
             output_format=output_format,
             save_directory=save_directory,
-            return_on_error=return_on_error
+            return_on_error=return_on_error,
         )
+
     @mcp_service(
-        tool_name="handler_mail_fetch_filter",       # 필수: MCP Tool 이름
-        server_name="outlook",                       # 필수: 서버 식별자
-        service_name="fetch_filter",                 # 필수: 메서드명
-        category="outlook_mail",                     # 권장: 카테고리
-        tags=["query", "filter"],                    # 권장: 태그
-        priority=5,                                  # 선택: 우선순위 (1-10)
-        description="필터 방식 메일 조회 기능"           # 필수: 기능 설명
+        tool_name="handler_mail_fetch_filter",  # 필수: MCP Tool 이름
+        server_name="outlook",  # 필수: 서버 식별자
+        service_name="fetch_filter",  # 필수: 메서드명
+        category="outlook_mail",  # 권장: 카테고리
+        tags=["query", "filter"],  # 권장: 태그
+        priority=5,  # 선택: 우선순위 (1-10)
+        description="필터 방식 메일 조회 기능",  # 필수: 기능 설명
     )
     async def fetch_filter(
         self,
@@ -167,7 +161,7 @@ class MailService:
         filter_params: Optional[FilterParams] = None,
         exclude_params: Optional[ExcludeParams] = None,
         select_params: Optional[SelectParams] = None,
-        top: int = 50
+        top: int = 50,
     ) -> Dict[str, Any]:
         """필터 방식 메일 조회 - query_method 고정"""
         self._ensure_initialized()
@@ -177,23 +171,20 @@ class MailService:
             filter_params=filter_params,
             exclude_params=exclude_params,
             select_params=select_params,
-            top=top
+            top=top,
         )
+
     @mcp_service(
-        tool_name="handler_mail_fetch_search",       # 필수: MCP Tool 이름
-        server_name="outlook",                       # 필수: 서버 식별자
-        service_name="fetch_search",                 # 필수: 메서드명
-        category="outlook_mail",                     # 권장: 카테고리
-        tags=["query", "search"],                    # 권장: 태그
-        priority=5,                                  # 선택: 우선순위 (1-10)
-        description="검색 방식 메일 조회 기능"           # 필수: 기능 설명
+        tool_name="handler_mail_fetch_search",  # 필수: MCP Tool 이름
+        server_name="outlook",  # 필수: 서버 식별자
+        service_name="fetch_search",  # 필수: 메서드명
+        category="outlook_mail",  # 권장: 카테고리
+        tags=["query", "search"],  # 권장: 태그
+        priority=5,  # 선택: 우선순위 (1-10)
+        description="검색 방식 메일 조회 기능",  # 필수: 기능 설명
     )
     async def fetch_search(
-        self,
-        user_email: str,
-        search_term: str,
-        select_params: Optional[SelectParams] = None,
-        top: int = 50
+        self, user_email: str, search_term: str, select_params: Optional[SelectParams] = None, top: int = 50
     ) -> Dict[str, Any]:
         """검색 방식 메일 조회 - query_method 고정"""
         self._ensure_initialized()
@@ -202,17 +193,17 @@ class MailService:
             query_method=QueryMethod.SEARCH,
             search_term=search_term,
             select_params=select_params,
-            top=top
+            top=top,
         )
 
     @mcp_service(
-        tool_name="handler_mail_fetch_url",          # 필수: MCP Tool 이름
-        server_name="outlook",                        # 필수: 서버 식별자
-        service_name="fetch_url",                     # 필수: 메서드명
-        category="outlook_mail",                      # 권장: 카테고리
-        tags=["query", "url"],                        # 권장: 태그
-        priority=5,                                   # 선택: 우선순위 (1-10)
-        description="URL 방식 메일 조회 기능"            # 필수: 기능 설명
+        tool_name="handler_mail_fetch_url",  # 필수: MCP Tool 이름
+        server_name="outlook",  # 필수: 서버 식별자
+        service_name="fetch_url",  # 필수: 메서드명
+        category="outlook_mail",  # 권장: 카테고리
+        tags=["query", "url"],  # 권장: 태그
+        priority=5,  # 선택: 우선순위 (1-10)
+        description="URL 방식 메일 조회 기능",  # 필수: 기능 설명
     )
     async def fetch_url(
         self,
@@ -221,7 +212,7 @@ class MailService:
         filter_params: Optional[FilterParams] = None,
         select_params: Optional[SelectParams] = None,
         client_filter: Optional[ExcludeParams] = None,
-        top: int = 50
+        top: int = 50,
     ) -> Dict[str, Any]:
         """URL 방식 메일 조회 - query_method 고정"""
         self._ensure_initialized()
@@ -243,21 +234,17 @@ class MailService:
                 final_url = f"{final_url}{separator}$select={select_query}"
 
         return await self._client.build_and_fetch(
-            user_email=user_email,
-            query_method=QueryMethod.URL,
-            url=final_url,
-            client_filter=client_filter,
-            top=top
+            user_email=user_email, query_method=QueryMethod.URL, url=final_url, client_filter=client_filter, top=top
         )
 
     @mcp_service(
         tool_name="handler_mail_process_with_download",  # 필수: MCP Tool 이름
-        server_name="outlook",                            # 필수: 서버 식별자
-        service_name="process_with_download",             # 필수: 메서드명
-        category="outlook_mail",                          # 권장: 카테고리
-        tags=["query", "process", "download"],            # 권장: 태그
-        priority=5,                                       # 선택: 우선순위 (1-10)
-        description="첨부파일 다운로드 포함 메일 처리 기능"     # 필수: 기능 설명
+        server_name="outlook",  # 필수: 서버 식별자
+        service_name="process_with_download",  # 필수: 메서드명
+        category="outlook_mail",  # 권장: 카테고리
+        tags=["query", "process", "download"],  # 권장: 태그
+        priority=5,  # 선택: 우선순위 (1-10)
+        description="첨부파일 다운로드 포함 메일 처리 기능",  # 필수: 기능 설명
     )
     async def process_with_download(
         self,
@@ -265,7 +252,7 @@ class MailService:
         filter_params: Optional[FilterParams] = None,
         search_term: Optional[str] = None,
         top: int = 50,
-        save_directory: Optional[str] = None
+        save_directory: Optional[str] = None,
     ) -> Dict[str, Any]:
         """첨부파일 다운로드 포함 처리 - processing_mode, attachment_handling 고정"""
         query_method = QueryMethod.SEARCH if search_term else QueryMethod.FILTER
@@ -278,17 +265,17 @@ class MailService:
             top=top,
             processing_mode=ProcessingMode.FETCH_AND_DOWNLOAD,
             attachment_handling=AttachmentOption.DOWNLOAD_ONLY,
-            save_directory=save_directory
+            save_directory=save_directory,
         )
 
     @mcp_service(
-        tool_name="handler_mail_process_with_convert",    # 필수: MCP Tool 이름
-        server_name="outlook",                            # 필수: 서버 식별자
-        service_name="process_with_convert",              # 필수: 메서드명
-        category="outlook_mail",                          # 권장: 카테고리
-        tags=["query", "process", "convert"],             # 권장: 태그
-        priority=5,                                       # 선택: 우선순위 (1-10)
-        description="첨부파일 변환 포함 메일 처리 기능"        # 필수: 기능 설명
+        tool_name="handler_mail_process_with_convert",  # 필수: MCP Tool 이름
+        server_name="outlook",  # 필수: 서버 식별자
+        service_name="process_with_convert",  # 필수: 메서드명
+        category="outlook_mail",  # 권장: 카테고리
+        tags=["query", "process", "convert"],  # 권장: 태그
+        priority=5,  # 선택: 우선순위 (1-10)
+        description="첨부파일 변환 포함 메일 처리 기능",  # 필수: 기능 설명
     )
     async def process_with_convert(
         self,
@@ -296,7 +283,7 @@ class MailService:
         filter_params: Optional[FilterParams] = None,
         search_term: Optional[str] = None,
         top: int = 50,
-        save_directory: Optional[str] = None
+        save_directory: Optional[str] = None,
     ) -> Dict[str, Any]:
         """첨부파일 변환 포함 처리 - processing_mode, attachment_handling 고정"""
         query_method = QueryMethod.SEARCH if search_term else QueryMethod.FILTER
@@ -309,17 +296,17 @@ class MailService:
             top=top,
             processing_mode=ProcessingMode.FETCH_AND_CONVERT,
             attachment_handling=AttachmentOption.DOWNLOAD_CONVERT,
-            save_directory=save_directory
+            save_directory=save_directory,
         )
 
     @mcp_service(
         tool_name="handler_mail_batch_and_process",  # 필수: MCP Tool 이름
-        server_name="outlook",                        # 필수: 서버 식별자
-        service_name="batch_and_process",             # 필수: 메서드명
-        category="outlook_mail",                      # 권장: 카테고리
-        tags=["batch", "process", "id"],              # 권장: 태그
-        priority=5,                                   # 선택: 우선순위 (1-10)
-        description="메일 ID 배치 조회 및 처리 기능"        # 필수: 기능 설명
+        server_name="outlook",  # 필수: 서버 식별자
+        service_name="batch_and_process",  # 필수: 메서드명
+        category="outlook_mail",  # 권장: 카테고리
+        tags=["batch", "process", "id"],  # 권장: 태그
+        priority=5,  # 선택: 우선순위 (1-10)
+        description="메일 ID 배치 조회 및 처리 기능",  # 필수: 기능 설명
     )
     async def batch_and_process(
         self,
@@ -331,7 +318,7 @@ class MailService:
         attachment_handling: AttachmentOption = AttachmentOption.SKIP,
         output_format: OutputFormat = OutputFormat.COMBINED,
         save_directory: Optional[str] = None,
-        return_on_error: bool = True
+        return_on_error: bool = True,
     ) -> Dict[str, Any]:
         """
         메일 ID 배치로 조회 + 처리 - GraphMailClient.batch_and_process 위임
@@ -361,23 +348,20 @@ class MailService:
             attachment_handling=attachment_handling,
             output_format=output_format,
             save_directory=save_directory,
-            return_on_error=return_on_error
+            return_on_error=return_on_error,
         )
 
     @mcp_service(
-        tool_name="handler_mail_batch_fetch",         # 필수: MCP Tool 이름
-        server_name="outlook",                        # 필수: 서버 식별자
-        service_name="batch_and_fetch",               # 필수: 메서드명
-        category="outlook_mail",                      # 권장: 카테고리
-        tags=["batch", "query", "id"],                # 권장: 태그
-        priority=5,                                   # 선택: 우선순위 (1-10)
-        description="메일 ID 배치 조회 기능"             # 필수: 기능 설명
+        tool_name="handler_mail_batch_fetch",  # 필수: MCP Tool 이름
+        server_name="outlook",  # 필수: 서버 식별자
+        service_name="batch_and_fetch",  # 필수: 메서드명
+        category="outlook_mail",  # 권장: 카테고리
+        tags=["batch", "query", "id"],  # 권장: 태그
+        priority=5,  # 선택: 우선순위 (1-10)
+        description="메일 ID 배치 조회 기능",  # 필수: 기능 설명
     )
     async def batch_and_fetch(
-        self,
-        user_email: str,
-        message_ids: List[str],
-        select_params: Optional[SelectParams] = None
+        self, user_email: str, message_ids: List[str], select_params: Optional[SelectParams] = None
     ) -> Dict[str, Any]:
         """
         메일 ID 배치로 조회만 수행 - GraphMailClient.batch_and_fetch 위임
@@ -393,9 +377,7 @@ class MailService:
         self._ensure_initialized()
 
         return await self._client.batch_and_fetch(
-            user_email=user_email,
-            message_ids=message_ids,
-            select_params=select_params
+            user_email=user_email, message_ids=message_ids, select_params=select_params
         )
 
     def format_results(self, results: Dict[str, Any], verbose: bool = False) -> str:
@@ -408,5 +390,3 @@ class MailService:
         if self._client:
             await self._client.close()
         self._initialized = False
-
-

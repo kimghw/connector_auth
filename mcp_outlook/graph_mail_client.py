@@ -2,32 +2,39 @@
 Graph Mail Client - 통합 메일 처리 클라이언트
 쿼리, 메일 처리, 첨부파일 관리를 통합하는 상위 클래스
 """
-import asyncio
-from typing import Dict, Any, List, Optional, Union
+
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from enum import Enum
 
 from graph_mail_query import GraphMailQuery
 from graph_mail_id_batch import GraphMailIdBatch
-from mail_processing_options import MailProcessorHandler, ProcessingOptions, MailStorageOption, AttachmentOption, OutputFormat
-from attachment_handler import AttachmentHandler
+from mail_processing_options import (
+    MailProcessorHandler,
+    ProcessingOptions,
+    MailStorageOption,
+    AttachmentOption,
+    OutputFormat,
+)
 from outlook_types import FilterParams, ExcludeParams, SelectParams
 
 
 class QueryMethod(Enum):
     """쿼리 방법 열거형"""
-    FILTER = "filter"      # 필터 기반 쿼리
-    SEARCH = "search"      # 검색어 기반 쿼리
-    URL = "url"           # 직접 URL 제공
+
+    FILTER = "filter"  # 필터 기반 쿼리
+    SEARCH = "search"  # 검색어 기반 쿼리
+    URL = "url"  # 직접 URL 제공
     BATCH_ID = "batch_id"  # 메일 ID 배치 조회
 
 
 class ProcessingMode(Enum):
     """처리 모드 열거형"""
-    FETCH_ONLY = "fetch_only"              # 메일만 가져오기
-    FETCH_AND_DOWNLOAD = "fetch_download"   # 메일 + 첨부파일 다운로드
-    FETCH_AND_CONVERT = "fetch_convert"     # 메일 + 첨부파일 변환
-    FULL_PROCESS = "full_process"          # 전체 처리 (저장, 변환 등)
+
+    FETCH_ONLY = "fetch_only"  # 메일만 가져오기
+    FETCH_AND_DOWNLOAD = "fetch_download"  # 메일 + 첨부파일 다운로드
+    FETCH_AND_CONVERT = "fetch_convert"  # 메일 + 첨부파일 변환
+    FULL_PROCESS = "full_process"  # 전체 처리 (저장, 변환 등)
 
 
 class GraphMailClient:
@@ -82,21 +89,23 @@ class GraphMailClient:
         if not self._initialized:
             raise Exception("GraphMailClient not initialized. Call initialize() first.")
 
-    async def build_and_fetch(self,
-                             user_email: str,
-                             query_method: QueryMethod = QueryMethod.FILTER,
-                             # Filter 방식 파라미터
-                             filter_params: Optional[FilterParams] = None,
-                             exclude_params: Optional[ExcludeParams] = None,
-                             select_params: Optional[SelectParams] = None,
-                             client_filter: Optional[ExcludeParams] = None,
-                             # Search 방식 파라미터
-                             search_term: Optional[str] = None,
-                             # URL 방식 파라미터
-                             url: Optional[str] = None,
-                             # 공통 파라미터
-                             top: int = 50,
-                             order_by: Optional[str] = None) -> Dict[str, Any]:
+    async def build_and_fetch(
+        self,
+        user_email: str,
+        query_method: QueryMethod = QueryMethod.FILTER,
+        # Filter 방식 파라미터
+        filter_params: Optional[FilterParams] = None,
+        exclude_params: Optional[ExcludeParams] = None,
+        select_params: Optional[SelectParams] = None,
+        client_filter: Optional[ExcludeParams] = None,
+        # Search 방식 파라미터
+        search_term: Optional[str] = None,
+        # URL 방식 파라미터
+        url: Optional[str] = None,
+        # 공통 파라미터
+        top: int = 50,
+        order_by: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         쿼리를 빌드하고 메일을 가져오기
 
@@ -121,11 +130,7 @@ class GraphMailClient:
             # 쿼리 방법에 따라 실행
             if query_method == QueryMethod.FILTER:
                 if not filter_params and not exclude_params:
-                    return {
-                        "error": "No filter or exclude parameters provided",
-                        "status": "error",
-                        "value": []
-                    }
+                    return {"error": "No filter or exclude parameters provided", "status": "error", "value": []}
 
                 result = await self.mail_query.query_filter(
                     user_email=user_email,
@@ -134,16 +139,12 @@ class GraphMailClient:
                     select=select_params,
                     client_filter=client_filter,
                     top=top,
-                    orderby=order_by
+                    orderby=order_by,
                 )
 
             elif query_method == QueryMethod.SEARCH:
                 if not search_term:
-                    return {
-                        "error": "No search term provided",
-                        "status": "error",
-                        "value": []
-                    }
+                    return {"error": "No search term provided", "status": "error", "value": []}
 
                 result = await self.mail_query.query_search(
                     user_email=user_email,
@@ -151,63 +152,49 @@ class GraphMailClient:
                     client_filter=client_filter,
                     select=select_params,
                     top=top,
-                    orderby=order_by
+                    orderby=order_by,
                 )
 
             elif query_method == QueryMethod.URL:
                 if not url:
-                    return {
-                        "error": "No URL provided",
-                        "status": "error",
-                        "value": []
-                    }
+                    return {"error": "No URL provided", "status": "error", "value": []}
 
                 result = await self.mail_query.query_url(
-                    user_email=user_email,
-                    url=url,
-                    top=top,
-                    client_filter=client_filter
+                    user_email=user_email, url=url, top=top, client_filter=client_filter
                 )
 
             else:
-                return {
-                    "error": f"Unknown query method: {query_method}",
-                    "status": "error",
-                    "value": []
-                }
+                return {"error": f"Unknown query method: {query_method}", "status": "error", "value": []}
 
             # 결과에 쿼리 방법 추가
-            result['query_method'] = query_method.value
+            result["query_method"] = query_method.value
             return result
 
         except Exception as e:
-            return {
-                "error": str(e),
-                "status": "error",
-                "value": [],
-                "query_method": query_method.value
-            }
+            return {"error": str(e), "status": "error", "value": [], "query_method": query_method.value}
 
-    async def fetch_and_process(self,
-                               user_email: str,
-                               # 쿼리 파라미터
-                               query_method: QueryMethod = QueryMethod.FILTER,
-                               filter_params: Optional[FilterParams] = None,
-                               exclude_params: Optional[ExcludeParams] = None,
-                               select_params: Optional[SelectParams] = None,
-                               client_filter: Optional[ExcludeParams] = None,
-                               search_term: Optional[str] = None,
-                               url: Optional[str] = None,
-                               top: int = 50,
-                               order_by: Optional[str] = None,
-                               # 처리 파라미터
-                               processing_mode: ProcessingMode = ProcessingMode.FETCH_ONLY,
-                               mail_storage: MailStorageOption = MailStorageOption.MEMORY,
-                               attachment_handling: AttachmentOption = AttachmentOption.SKIP,
-                               output_format: OutputFormat = OutputFormat.COMBINED,
-                               save_directory: Optional[str] = None,
-                               # 추가 옵션
-                               return_on_error: bool = True) -> Dict[str, Any]:
+    async def fetch_and_process(
+        self,
+        user_email: str,
+        # 쿼리 파라미터
+        query_method: QueryMethod = QueryMethod.FILTER,
+        filter_params: Optional[FilterParams] = None,
+        exclude_params: Optional[ExcludeParams] = None,
+        select_params: Optional[SelectParams] = None,
+        client_filter: Optional[ExcludeParams] = None,
+        search_term: Optional[str] = None,
+        url: Optional[str] = None,
+        top: int = 50,
+        order_by: Optional[str] = None,
+        # 처리 파라미터
+        processing_mode: ProcessingMode = ProcessingMode.FETCH_ONLY,
+        mail_storage: MailStorageOption = MailStorageOption.MEMORY,
+        attachment_handling: AttachmentOption = AttachmentOption.SKIP,
+        output_format: OutputFormat = OutputFormat.COMBINED,
+        save_directory: Optional[str] = None,
+        # 추가 옵션
+        return_on_error: bool = True,
+    ) -> Dict[str, Any]:
         """
         메일을 가져오고 처리하는 통합 메서드
 
@@ -238,27 +225,27 @@ class GraphMailClient:
             search_term=search_term,
             url=url,
             top=top,
-            order_by=order_by
+            order_by=order_by,
         )
 
         # 2. 에러 체크
-        if result.get('has_errors'):
+        if result.get("has_errors"):
             print(f"⚠️  Query completed with errors: {len(result.get('errors', []))} errors")
             if return_on_error:
                 return {
                     "status": "error",
                     "error": "Query failed with errors",
-                    "errors": result.get('errors', []),
-                    "partial_results": result.get('value', []),
-                    "query_method": query_method.value
+                    "errors": result.get("errors", []),
+                    "partial_results": result.get("value", []),
+                    "query_method": query_method.value,
                 }
 
-        if result.get('error'):
+        if result.get("error"):
             print(f"❌ Query failed: {result['error']}")
             return result
 
         # 3. 결과 확인
-        emails = result.get('value', [])
+        emails = result.get("value", [])
         if not emails:
             print("ℹ️  No emails found")
             return {
@@ -266,7 +253,7 @@ class GraphMailClient:
                 "message": "No emails found",
                 "value": [],
                 "processed_count": 0,
-                "query_method": query_method.value
+                "query_method": query_method.value,
             }
 
         print(f"✅ Found {len(emails)} email(s)")
@@ -279,7 +266,7 @@ class GraphMailClient:
                 "value": emails,
                 "total": len(emails),
                 "processing_mode": processing_mode.value,
-                "query_method": query_method.value
+                "query_method": query_method.value,
             }
 
         # 5. 추가 처리가 필요한 경우
@@ -293,7 +280,7 @@ class GraphMailClient:
                 "error": f"Failed to get access token for {user_email}",
                 "value": emails,
                 "processing_mode": processing_mode.value,
-                "query_method": query_method.value
+                "query_method": query_method.value,
             }
 
         # ProcessingOptions 생성
@@ -301,7 +288,7 @@ class GraphMailClient:
             mail_storage=mail_storage,
             attachment_handling=attachment_handling,
             output_format=output_format,
-            save_directory=save_directory
+            save_directory=save_directory,
         )
 
         # Create MailProcessorHandler for this request
@@ -312,40 +299,37 @@ class GraphMailClient:
             # Clean up on initialization failure
             try:
                 await mail_processor.close()
-            except:
+            except Exception:
                 pass
             return {
                 "status": "error",
                 "error": f"Failed to initialize MailProcessorHandler: {str(e)}",
                 "value": emails,
                 "processing_mode": processing_mode.value,
-                "query_method": query_method.value
+                "query_method": query_method.value,
             }
 
         # 처리 실행
         try:
-            processed_result = await mail_processor.process_mail(
-                mail_data=result,
-                options=processing_options
-            )
+            processed_result = await mail_processor.process_mail(mail_data=result, options=processing_options)
 
             # 처리 정보 추가
-            processed_result['processing_mode'] = processing_mode.value
-            processed_result['query_method'] = query_method.value
-            processed_result['original_count'] = len(emails)
+            processed_result["processing_mode"] = processing_mode.value
+            processed_result["query_method"] = query_method.value
+            processed_result["original_count"] = len(emails)
 
             # 처리 모드별 추가 정보
             if processing_mode == ProcessingMode.FETCH_AND_DOWNLOAD:
-                if processed_result.get('attachments'):
-                    processed_result['downloaded_count'] = len(processed_result['attachments'])
+                if processed_result.get("attachments"):
+                    processed_result["downloaded_count"] = len(processed_result["attachments"])
                     print(f"📎 Downloaded {processed_result['downloaded_count']} attachments")
 
             elif processing_mode == ProcessingMode.FETCH_AND_CONVERT:
-                if processed_result.get('converted_files'):
-                    processed_result['converted_count'] = len(processed_result['converted_files'])
+                if processed_result.get("converted_files"):
+                    processed_result["converted_count"] = len(processed_result["converted_files"])
                     print(f"🔄 Converted {processed_result['converted_count']} files")
 
-            print(f"✅ Processing completed successfully")
+            print("✅ Processing completed successfully")
             return processed_result
 
         except Exception as e:
@@ -355,17 +339,15 @@ class GraphMailClient:
                 "error": str(e),
                 "value": emails,  # 원본 메일은 반환
                 "processing_mode": processing_mode.value,
-                "query_method": query_method.value
+                "query_method": query_method.value,
             }
         finally:
             # Clean up processor
             await mail_processor.close()
 
-    async def quick_search(self,
-                          user_email: str,
-                          keyword: str,
-                          max_results: int = 50,
-                          process_attachments: bool = False) -> Dict[str, Any]:
+    async def quick_search(
+        self, user_email: str, keyword: str, max_results: int = 50, process_attachments: bool = False
+    ) -> Dict[str, Any]:
         """
         빠른 검색 헬퍼 메서드
 
@@ -387,15 +369,12 @@ class GraphMailClient:
             search_term=keyword,
             top=max_results,
             processing_mode=processing_mode,
-            attachment_handling=attachment_handling
+            attachment_handling=attachment_handling,
         )
 
-    async def get_attachments_from_sender(self,
-                                         user_email: str,
-                                         sender_email: str,
-                                         days_back: int = 30,
-                                         download: bool = True,
-                                         convert: bool = False) -> Dict[str, Any]:
+    async def get_attachments_from_sender(
+        self, user_email: str, sender_email: str, days_back: int = 30, download: bool = True, convert: bool = False
+    ) -> Dict[str, Any]:
         """
         특정 발신자의 첨부파일 가져오기
 
@@ -411,9 +390,9 @@ class GraphMailClient:
         """
         # 필터 설정
         filter_params: FilterParams = {
-            'from_address': sender_email,
-            'has_attachments': True,
-            'received_date_from': (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%dT00:00:00Z")
+            "from_address": sender_email,
+            "has_attachments": True,
+            "received_date_from": (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%dT00:00:00Z"),
         }
 
         # 처리 모드 설정
@@ -435,14 +414,11 @@ class GraphMailClient:
             order_by="receivedDateTime desc",
             processing_mode=processing_mode,
             attachment_handling=attachment_handling,
-            save_directory=f"attachments/{sender_email.split('@')[0]}"
+            save_directory=f"attachments/{sender_email.split('@')[0]}",
         )
 
     async def batch_and_fetch(
-        self,
-        user_email: str,
-        message_ids: List[str],
-        select_params: Optional[SelectParams] = None
+        self, user_email: str, message_ids: List[str], select_params: Optional[SelectParams] = None
     ) -> Dict[str, Any]:
         """
         메일 ID 배치로 조회만 수행
@@ -463,45 +439,38 @@ class GraphMailClient:
                 "value": [],
                 "total": 0,
                 "message": "No message IDs provided",
-                "query_method": QueryMethod.BATCH_ID.value
+                "query_method": QueryMethod.BATCH_ID.value,
             }
 
         try:
             # 배치 조회 실행
             print(f"\n📧 Fetching {len(message_ids)} emails using batch method...")
             result = await self.mail_batch.batch_fetch_by_ids(
-                user_email=user_email,
-                message_ids=message_ids,
-                select_params=select_params
+                user_email=user_email, message_ids=message_ids, select_params=select_params
             )
 
             # 결과 변환 (기존 형식과 일관성 유지)
-            if result.get('success'):
+            if result.get("success"):
                 return {
                     "status": "success",
-                    "value": result.get('value', []),
-                    "total": result.get('total', 0),
-                    "requested": result.get('requested', 0),
-                    "errors": result.get('errors'),
+                    "value": result.get("value", []),
+                    "total": result.get("total", 0),
+                    "requested": result.get("requested", 0),
+                    "errors": result.get("errors"),
                     "query_method": QueryMethod.BATCH_ID.value,
-                    "batches_processed": result.get('batches_processed', 0)
+                    "batches_processed": result.get("batches_processed", 0),
                 }
             else:
                 return {
                     "status": "error",
-                    "error": result.get('error', 'Batch fetch failed'),
-                    "value": result.get('value', []),
-                    "errors": result.get('errors'),
-                    "query_method": QueryMethod.BATCH_ID.value
+                    "error": result.get("error", "Batch fetch failed"),
+                    "value": result.get("value", []),
+                    "errors": result.get("errors"),
+                    "query_method": QueryMethod.BATCH_ID.value,
                 }
 
         except Exception as e:
-            return {
-                "status": "error",
-                "error": str(e),
-                "value": [],
-                "query_method": QueryMethod.BATCH_ID.value
-            }
+            return {"status": "error", "error": str(e), "value": [], "query_method": QueryMethod.BATCH_ID.value}
 
     async def batch_and_process(
         self,
@@ -514,7 +483,7 @@ class GraphMailClient:
         attachment_handling: AttachmentOption = AttachmentOption.SKIP,
         output_format: OutputFormat = OutputFormat.COMBINED,
         save_directory: Optional[str] = None,
-        return_on_error: bool = True
+        return_on_error: bool = True,
     ) -> Dict[str, Any]:
         """
         메일 ID 배치로 조회 + 처리
@@ -537,20 +506,16 @@ class GraphMailClient:
 
         # 1. 배치로 메일 가져오기
         print(f"\n📧 Fetching {len(message_ids)} emails using batch method...")
-        result = await self.batch_and_fetch(
-            user_email=user_email,
-            message_ids=message_ids,
-            select_params=select_params
-        )
+        result = await self.batch_and_fetch(user_email=user_email, message_ids=message_ids, select_params=select_params)
 
         # 2. 에러 체크
-        if result.get('status') == 'error':
+        if result.get("status") == "error":
             print(f"❌ Batch fetch failed: {result.get('error')}")
             if return_on_error:
                 return result
 
         # 3. 결과 확인
-        emails = result.get('value', [])
+        emails = result.get("value", [])
         if not emails:
             print("ℹ️  No emails found")
             return {
@@ -558,7 +523,7 @@ class GraphMailClient:
                 "message": "No emails found",
                 "value": [],
                 "processed_count": 0,
-                "query_method": QueryMethod.BATCH_ID.value
+                "query_method": QueryMethod.BATCH_ID.value,
             }
 
         print(f"✅ Found {len(emails)} email(s)")
@@ -572,7 +537,7 @@ class GraphMailClient:
                 "total": len(emails),
                 "processed_count": len(emails),
                 "query_method": QueryMethod.BATCH_ID.value,
-                "processing_mode": processing_mode.value
+                "processing_mode": processing_mode.value,
             }
 
         # 5. 처리 옵션 준비
@@ -580,7 +545,7 @@ class GraphMailClient:
             mail_storage=mail_storage,
             attachment_handling=attachment_handling,
             output_format=output_format,
-            save_directory=save_directory
+            save_directory=save_directory,
         )
 
         # 6. 메일 처리
@@ -594,11 +559,9 @@ class GraphMailClient:
                 processed = await processor.process_mail(email)
                 processed_results.append(processed)
             except Exception as e:
-                errors.append({
-                    "mail_id": email.get('id', 'unknown'),
-                    "subject": email.get('subject', 'unknown'),
-                    "error": str(e)
-                })
+                errors.append(
+                    {"mail_id": email.get("id", "unknown"), "subject": email.get("subject", "unknown"), "error": str(e)}
+                )
 
         # 7. 결과 정리
         return {
@@ -611,7 +574,7 @@ class GraphMailClient:
             "query_method": QueryMethod.BATCH_ID.value,
             "processing_mode": processing_mode.value,
             "mail_storage": mail_storage.value,
-            "attachment_handling": attachment_handling.value
+            "attachment_handling": attachment_handling.value,
         }
 
     def format_results(self, results: Dict[str, Any], verbose: bool = False) -> str:
@@ -626,44 +589,44 @@ class GraphMailClient:
             포맷된 문자열
         """
         output = []
-        output.append("\n" + "="*80)
+        output.append("\n" + "=" * 80)
 
         # 상태 확인
-        status = results.get('status', 'unknown')
-        if status == 'error':
+        status = results.get("status", "unknown")
+        if status == "error":
             output.append(f"❌ Error: {results.get('error', 'Unknown error')}")
-            if results.get('errors'):
+            if results.get("errors"):
                 output.append(f"   Details: {len(results['errors'])} errors occurred")
             return "\n".join(output)
 
         # 메일 정보
-        emails = results.get('value', [])
+        emails = results.get("value", [])
         output.append(f"📧 Emails: {len(emails)}")
 
         # 처리 정보
-        if results.get('processing_mode'):
+        if results.get("processing_mode"):
             output.append(f"🔧 Processing Mode: {results['processing_mode']}")
 
         # 첨부파일 정보
-        if results.get('downloaded_count'):
+        if results.get("downloaded_count"):
             output.append(f"📎 Downloaded Attachments: {results['downloaded_count']}")
-        if results.get('converted_count'):
+        if results.get("converted_count"):
             output.append(f"🔄 Converted Files: {results['converted_count']}")
 
         # 필터링 정보
-        if results.get('client_filtered'):
+        if results.get("client_filtered"):
             output.append(f"🔍 Client Filtered: {results.get('filtered_count', 0)} items")
 
         # 메일 목록 (verbose 모드)
         if verbose and emails:
-            output.append("\n" + "-"*40)
+            output.append("\n" + "-" * 40)
             for idx, email in enumerate(emails[:10], 1):  # 최대 10개만
-                subject = email.get('subject', 'No Subject')
-                from_addr = email.get('from', {}).get('emailAddress', {}).get('address', 'Unknown')
+                subject = email.get("subject", "No Subject")
+                from_addr = email.get("from", {}).get("emailAddress", {}).get("address", "Unknown")
                 output.append(f"{idx}. {subject[:50]}")
                 output.append(f"   From: {from_addr}")
 
-        output.append("="*80)
+        output.append("=" * 80)
         return "\n".join(output)
 
     async def close(self):

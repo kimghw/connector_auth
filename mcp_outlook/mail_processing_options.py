@@ -5,7 +5,6 @@ Mail Processor Handler - 메일 처리 인터페이스
 """
 
 import json
-import asyncio
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
@@ -17,29 +16,33 @@ from mail_to_text_converter import MailTextProcessor
 
 class MailStorageOption(str, Enum):
     """메일 저장 옵션"""
-    MEMORY = "memory"          # 메모리에만 보관 (기본값)
-    TEXT_FILE = "text"         # 텍스트 파일로 저장
-    JSON_FILE = "json"         # JSON 파일로 저장
-    DATABASE = "database"      # 데이터베이스에 저장
+
+    MEMORY = "memory"  # 메모리에만 보관 (기본값)
+    TEXT_FILE = "text"  # 텍스트 파일로 저장
+    JSON_FILE = "json"  # JSON 파일로 저장
+    DATABASE = "database"  # 데이터베이스에 저장
 
 
 class AttachmentOption(str, Enum):
     """첨부파일 처리 옵션"""
-    SKIP = "skip"                        # 첨부파일 무시
-    DOWNLOAD_ONLY = "download"           # 다운로드만
-    DOWNLOAD_CONVERT = "convert"         # 다운로드 + 텍스트 변환
-    CONVERT_DELETE = "convert_delete"    # 변환 후 원본 삭제
+
+    SKIP = "skip"  # 첨부파일 무시
+    DOWNLOAD_ONLY = "download"  # 다운로드만
+    DOWNLOAD_CONVERT = "convert"  # 다운로드 + 텍스트 변환
+    CONVERT_DELETE = "convert_delete"  # 변환 후 원본 삭제
 
 
 class OutputFormat(str, Enum):
     """출력 형식"""
-    COMBINED = "combined"      # 통합 형식
-    SEPARATED = "separated"    # 분리 형식
+
+    COMBINED = "combined"  # 통합 형식
+    SEPARATED = "separated"  # 분리 형식
     STRUCTURED = "structured"  # 구조화 형식
 
 
 class ProcessingOptions:
     """메일 처리 옵션"""
+
     def __init__(
         self,
         mail_storage: MailStorageOption = MailStorageOption.MEMORY,
@@ -49,7 +52,7 @@ class ProcessingOptions:
         keep_structure: bool = True,
         cleanup_after: bool = False,
         include_metadata: bool = True,
-        db_config: Optional[Dict] = None
+        db_config: Optional[Dict] = None,
     ):
         self.mail_storage = mail_storage
         self.attachment_handling = attachment_handling
@@ -87,11 +90,12 @@ class StorageInterface(ABC):
 
 class MemoryStorage(StorageInterface):
     """메모리 저장소"""
+
     def __init__(self):
         self.storage = {}
 
     async def save_mail(self, mail_data: Dict[str, Any]) -> bool:
-        mail_id = mail_data.get('id') or mail_data.get('mail_id')
+        mail_id = mail_data.get("id") or mail_data.get("mail_id")
         self.storage[mail_id] = mail_data
         return True
 
@@ -108,22 +112,23 @@ class MemoryStorage(StorageInterface):
 
 class FileStorage(StorageInterface):
     """파일 저장소"""
+
     def __init__(self, base_directory: Path, format_type: str = "json"):
         self.base_directory = base_directory
         self.base_directory.mkdir(parents=True, exist_ok=True)
         self.format_type = format_type
 
     async def save_mail(self, mail_data: Dict[str, Any]) -> bool:
-        mail_id = mail_data.get('id') or mail_data.get('mail_id')
+        mail_id = mail_data.get("id") or mail_data.get("mail_id")
         mail_id_short = mail_id[:8] if mail_id else "unknown"
 
         if self.format_type == "json":
             file_path = self.base_directory / f"mail_{mail_id_short}.json"
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(mail_data, f, ensure_ascii=False, indent=2)
         else:  # text
             file_path = self.base_directory / f"mail_{mail_id_short}.txt"
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(self._format_as_text(mail_data))
 
         return True
@@ -141,7 +146,7 @@ class FileStorage(StorageInterface):
         if self.format_type == "json":
             file_path = self.base_directory / f"mail_{mail_id_short}.json"
             if file_path.exists():
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     return json.load(f)
 
         return None
@@ -157,12 +162,12 @@ class FileStorage(StorageInterface):
         lines.append(f"Date: {mail_data.get('receivedDateTime', 'Unknown')}")
         lines.append(f"ID: {mail_data.get('id', 'Unknown')}")
         lines.append("-" * 60)
-        lines.append(mail_data.get('body', {}).get('content', ''))
+        lines.append(mail_data.get("body", {}).get("content", ""))
 
-        if mail_data.get('attachments'):
+        if mail_data.get("attachments"):
             lines.append("\n" + "=" * 60)
             lines.append("Attachments:")
-            for att in mail_data.get('attachments', []):
+            for att in mail_data.get("attachments", []):
                 lines.append(f"  - {att.get('name', 'Unknown')}")
 
         return "\n".join(lines)
@@ -170,6 +175,7 @@ class FileStorage(StorageInterface):
 
 class DatabaseStorage(StorageInterface):
     """데이터베이스 저장소 인터페이스"""
+
     def __init__(self, db_config: Dict[str, Any]):
         self.db_config = db_config
         # 실제 구현은 나중에
@@ -232,9 +238,7 @@ class MailProcessorHandler:
             self.storage = DatabaseStorage(options.db_config)
 
     async def process_mail(
-        self,
-        mail_data: Union[Dict[str, Any], List[Dict[str, Any]]],
-        options: Optional[ProcessingOptions] = None
+        self, mail_data: Union[Dict[str, Any], List[Dict[str, Any]]], options: Optional[ProcessingOptions] = None
     ) -> Dict[str, Any]:
         """
         메일 처리 인터페이스 - 옵션에 따라 적절한 처리 방식 선택
@@ -269,7 +273,7 @@ class MailProcessorHandler:
         processed_results = []
 
         for mail in mails:
-            mail_id = mail.get('id', '')
+            mail_id = mail.get("id", "")
 
             try:
                 # OutputFormat에 따른 처리 방식 선택
@@ -291,11 +295,7 @@ class MailProcessorHandler:
                 processed_results.append(result)
 
             except Exception as e:
-                processed_results.append({
-                    "mail_id": mail_id,
-                    "status": "error",
-                    "error": str(e)
-                })
+                processed_results.append({"mail_id": mail_id, "status": "error", "error": str(e)})
 
         # 최종 결과 구성
         final_result = {
@@ -304,11 +304,11 @@ class MailProcessorHandler:
             "options": {
                 "mail_storage": self.options.mail_storage.value,
                 "attachment_handling": self.options.attachment_handling.value,
-                "output_format": self.options.output_format.value
+                "output_format": self.options.output_format.value,
             },
             "total_processed": len(processed_results),
             "successful": len([r for r in processed_results if r.get("status") != "error"]),
-            "results": processed_results
+            "results": processed_results,
         }
 
         if self.options.cleanup_after:
@@ -336,7 +336,7 @@ async def process_fetched_mails(
     mail_storage: MailStorageOption = MailStorageOption.MEMORY,
     attachment_handling: AttachmentOption = AttachmentOption.SKIP,
     output_format: OutputFormat = OutputFormat.COMBINED,
-    save_directory: Optional[str] = None
+    save_directory: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     GraphMailQuery에서 받은 메일을 처리하는 편의 함수
@@ -363,7 +363,7 @@ async def process_fetched_mails(
         mail_storage=mail_storage,
         attachment_handling=attachment_handling,
         output_format=output_format,
-        save_directory=save_directory
+        save_directory=save_directory,
     )
 
     try:

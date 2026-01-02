@@ -7,7 +7,6 @@ Initializes SessionManager if available
 import uvicorn
 import sys
 import os
-import asyncio
 import logging
 
 # Add paths for imports
@@ -16,7 +15,7 @@ parent_dir = os.path.dirname(current_dir)
 grandparent_dir = os.path.dirname(parent_dir)
 
 sys.path.insert(0, current_dir)  # For server module
-sys.path.insert(0, parent_dir)   # For mcp_outlook modules
+sys.path.insert(0, parent_dir)  # For mcp_outlook modules
 sys.path.insert(0, grandparent_dir)  # For root modules (session_manager)
 
 # Configure logging
@@ -32,6 +31,7 @@ def setup_session_manager():
     try:
         # Try to import SessionManager from project root
         from session.session_manager import SessionManager
+
         session_manager = SessionManager()
 
         # Create the SessionManager instance if not already created
@@ -56,7 +56,7 @@ def main():
 
     print("Server Configuration:")
     print(f"  - Mode: {'Multi-user (SessionManager)' if has_session_manager else 'Legacy (Single-instance)'}")
-    print(f"  - URL: http://localhost:3000")
+    print("  - URL: http://localhost:3000")
     print("  - MCP Protocol Endpoints:")
     print("    • POST / (initialize, tools/list, tools/call)")
     if has_session_manager:
@@ -64,13 +64,7 @@ def main():
     print("=" * 60)
 
     # Run the server
-    uvicorn.run(
-        "server:app",
-        host="0.0.0.0",
-        port=3000,
-        reload=True,
-        log_level="info"
-    )
+    uvicorn.run("server:app", host="0.0.0.0", port=3000, reload=True, log_level="info")
 
 
 if __name__ == "__main__":

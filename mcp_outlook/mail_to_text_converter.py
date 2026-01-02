@@ -12,7 +12,7 @@ import shutil
 import asyncio
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 import hashlib
 
@@ -21,7 +21,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from mcp_outlook.graph_mail_query import GraphMailQuery
 from mcp_outlook.attachment_handler import AttachmentHandler
-from mcp_file_handler.attachment_converter import AttachmentAPI, UnifiedAttachmentConverter
+from mcp_file_handler.attachment_converter import AttachmentAPI
 
 
 class MailTextProcessor:
@@ -103,7 +103,7 @@ class MailTextProcessor:
             "version": "v1_simple",
             "mail_id": mail_id,
             "timestamp": datetime.now().isoformat(),
-            "status": "processing"
+            "status": "processing",
         }
 
         try:
@@ -112,31 +112,33 @@ class MailTextProcessor:
             mail_url = f"https://graph.microsoft.com/v1.0/users/me/messages/{mail_id}"
             mail_data = await self.mail_query._fetch_parallel_with_url(mail_url, 1)
 
-            if not mail_data or not mail_data.get('value'):
+            if not mail_data or not mail_data.get("value"):
                 raise Exception("메일을 찾을 수 없습니다")
 
-            mail = mail_data['value'][0] if isinstance(mail_data['value'], list) else mail_data['value']
+            mail = mail_data["value"][0] if isinstance(mail_data["value"], list) else mail_data["value"]
 
-            result.update({
-                "subject": mail.get('subject', 'No Subject'),
-                "from": mail.get('from', {}).get('emailAddress', {}).get('address', ''),
-                "received": mail.get('receivedDateTime', ''),
-                "body": mail.get('body', {}).get('content', ''),
-                "body_type": mail.get('body', {}).get('contentType', 'text'),
-                "has_attachments": mail.get('hasAttachments', False)
-            })
+            result.update(
+                {
+                    "subject": mail.get("subject", "No Subject"),
+                    "from": mail.get("from", {}).get("emailAddress", {}).get("address", ""),
+                    "received": mail.get("receivedDateTime", ""),
+                    "body": mail.get("body", {}).get("content", ""),
+                    "body_type": mail.get("body", {}).get("contentType", "text"),
+                    "has_attachments": mail.get("hasAttachments", False),
+                }
+            )
 
             # 2. 첨부파일 처리
-            combined_texts = [result['body']]  # 메일 본문부터 시작
+            combined_texts = [result["body"]]  # 메일 본문부터 시작
 
-            if result['has_attachments']:
+            if result["has_attachments"]:
                 print("  2️⃣ 첨부파일 처리 중...")
 
                 # 첨부파일 목록 조회
                 attachments = await self.attachment_handler.list_attachments(mail_id)
                 print(f"     발견: {len(attachments)}개 첨부파일")
 
-                result['attachments'] = []
+                result["attachments"] = []
                 temp_dir = self._get_temp_dir(mail_id)
 
                 for idx, att in enumerate(attachments, 1):
@@ -145,42 +147,39 @@ class MailTextProcessor:
                     try:
                         # 다운로드
                         file_path = await self.attachment_handler.download_attachment(
-                            mail_id,
-                            att['id'],
-                            str(temp_dir / att['name'])
+                            mail_id, att["id"], str(temp_dir / att["name"])
                         )
 
                         # 텍스트 변환
                         converted_text = self.attachment_converter.convert_to_text(file_path)
 
                         # 결과 저장
-                        result['attachments'].append({
-                            "name": att['name'],
-                            "size": att['size'],
-                            "type": att['contentType'],
-                            "text_length": len(converted_text)
-                        })
+                        result["attachments"].append(
+                            {
+                                "name": att["name"],
+                                "size": att["size"],
+                                "type": att["contentType"],
+                                "text_length": len(converted_text),
+                            }
+                        )
 
                         # 통합 텍스트에 추가
                         combined_texts.append(f"\n\n--- 첨부파일: {att['name']} ---\n{converted_text}")
 
                     except Exception as e:
                         print(f"     ⚠️ 처리 실패: {e}")
-                        result['attachments'].append({
-                            "name": att['name'],
-                            "error": str(e)
-                        })
+                        result["attachments"].append({"name": att["name"], "error": str(e)})
 
             # 3. 텍스트 통합
-            result['combined_text'] = "\n".join(combined_texts)
-            result['total_length'] = len(result['combined_text'])
-            result['status'] = "success"
+            result["combined_text"] = "\n".join(combined_texts)
+            result["total_length"] = len(result["combined_text"])
+            result["status"] = "success"
 
             print(f"  ✅ 처리 완료: {result['total_length']:,} 문자")
 
         except Exception as e:
-            result['status'] = "error"
-            result['error'] = str(e)
+            result["status"] = "error"
+            result["error"] = str(e)
             print(f"  ❌ 오류: {e}")
 
         finally:
@@ -215,92 +214,91 @@ class MailTextProcessor:
             "mail": {},
             "attachments": [],
             "search_index": "",
-            "summary": {}
+            "summary": {},
         }
 
         try:
             # 1. 메일 상세 정보
             mail_url = f"https://graph.microsoft.com/v1.0/users/me/messages/{mail_id}?$select=id,subject,from,toRecipients,receivedDateTime,body,hasAttachments,importance,categories"
             mail_data = await self.mail_query._fetch_parallel_with_url(mail_url, 1)
-            mail = mail_data['value'][0] if isinstance(mail_data['value'], list) else mail_data['value']
+            mail = mail_data["value"][0] if isinstance(mail_data["value"], list) else mail_data["value"]
 
-            result['mail'] = {
-                "id": mail.get('id'),
-                "subject": mail.get('subject'),
-                "from": mail.get('from', {}).get('emailAddress', {}),
-                "to": mail.get('toRecipients', []),
-                "received": mail.get('receivedDateTime'),
-                "body_text": mail.get('body', {}).get('content', ''),
-                "body_type": mail.get('body', {}).get('contentType'),
-                "importance": mail.get('importance'),
-                "categories": mail.get('categories', [])
+            result["mail"] = {
+                "id": mail.get("id"),
+                "subject": mail.get("subject"),
+                "from": mail.get("from", {}).get("emailAddress", {}),
+                "to": mail.get("toRecipients", []),
+                "received": mail.get("receivedDateTime"),
+                "body_text": mail.get("body", {}).get("content", ""),
+                "body_type": mail.get("body", {}).get("contentType"),
+                "importance": mail.get("importance"),
+                "categories": mail.get("categories", []),
             }
 
             # 검색 인덱스 시작
-            search_texts = [result['mail']['subject'], result['mail']['body_text']]
+            search_texts = [result["mail"]["subject"], result["mail"]["body_text"]]
 
             # 2. 첨부파일 상세 처리
-            if mail.get('hasAttachments'):
+            if mail.get("hasAttachments"):
                 attachments = await self.attachment_handler.list_attachments(mail_id)
                 temp_dir = self._get_temp_dir(mail_id)
 
                 for att in attachments:
                     att_result = {
-                        "id": att['id'],
-                        "name": att['name'],
-                        "size": att['size'],
-                        "type": att['contentType'],
-                        "processing": {}
+                        "id": att["id"],
+                        "name": att["name"],
+                        "size": att["size"],
+                        "type": att["contentType"],
+                        "processing": {},
                     }
 
                     try:
                         # 다운로드
                         file_path = await self.attachment_handler.download_attachment(
-                            mail_id, att['id'], str(temp_dir / att['name'])
+                            mail_id, att["id"], str(temp_dir / att["name"])
                         )
 
                         # 상세 변환 (메타데이터 포함)
                         conversion = self.attachment_converter.convert_with_metadata(file_path)
 
-                        att_result.update({
-                            "text": conversion['text'],
-                            "metadata": conversion.get('metadata', {}),
-                            "method": conversion.get('method'),
-                            "processing": {
-                                "status": "success",
-                                "text_length": len(conversion['text']),
-                                "extraction_method": conversion.get('method')
+                        att_result.update(
+                            {
+                                "text": conversion["text"],
+                                "metadata": conversion.get("metadata", {}),
+                                "method": conversion.get("method"),
+                                "processing": {
+                                    "status": "success",
+                                    "text_length": len(conversion["text"]),
+                                    "extraction_method": conversion.get("method"),
+                                },
                             }
-                        })
+                        )
 
-                        search_texts.append(conversion['text'])
+                        search_texts.append(conversion["text"])
 
                     except Exception as e:
-                        att_result['processing'] = {
-                            "status": "error",
-                            "error": str(e)
-                        }
+                        att_result["processing"] = {"status": "error", "error": str(e)}
 
-                    result['attachments'].append(att_result)
+                    result["attachments"].append(att_result)
 
             # 3. 검색 인덱스 생성
-            result['search_index'] = "\n".join(search_texts)
+            result["search_index"] = "\n".join(search_texts)
 
             # 4. 요약 정보
-            result['summary'] = {
-                "total_attachments": len(result['attachments']),
-                "successful_conversions": len([a for a in result['attachments']
-                                              if a.get('processing', {}).get('status') == 'success']),
-                "total_text_length": len(result['search_index']),
-                "mail_text_length": len(result['mail']['body_text']),
-                "attachment_text_length": sum([len(a.get('text', ''))
-                                              for a in result['attachments']])
+            result["summary"] = {
+                "total_attachments": len(result["attachments"]),
+                "successful_conversions": len(
+                    [a for a in result["attachments"] if a.get("processing", {}).get("status") == "success"]
+                ),
+                "total_text_length": len(result["search_index"]),
+                "mail_text_length": len(result["mail"]["body_text"]),
+                "attachment_text_length": sum([len(a.get("text", "")) for a in result["attachments"]]),
             }
 
             print(f"  ✅ 구조화 완료: {result['summary']}")
 
         except Exception as e:
-            result['error'] = str(e)
+            result["error"] = str(e)
             print(f"  ❌ 오류: {e}")
 
         return result
@@ -330,50 +328,50 @@ class MailTextProcessor:
             "mail_id": mail_id,
             "timestamp": datetime.now().isoformat(),
             "temp_directory": str(temp_dir),
-            "files": {}
+            "files": {},
         }
 
         try:
             # 1. 메일 정보 저장
             mail_url = f"https://graph.microsoft.com/v1.0/users/me/messages/{mail_id}"
             mail_data = await self.mail_query._fetch_parallel_with_url(mail_url, 1)
-            mail = mail_data['value'][0] if isinstance(mail_data['value'], list) else mail_data['value']
+            mail = mail_data["value"][0] if isinstance(mail_data["value"], list) else mail_data["value"]
 
             mail_file = temp_dir / f"mail_{mail_id[:8]}.json"
-            with open(mail_file, 'w', encoding='utf-8') as f:
+            with open(mail_file, "w", encoding="utf-8") as f:
                 json.dump(mail, f, ensure_ascii=False, indent=2)
 
-            result['files']['mail'] = str(mail_file)
+            result["files"]["mail"] = str(mail_file)
             print(f"  📄 메일 저장: {mail_file.name}")
 
             # 2. 첨부파일 개별 처리
-            if mail.get('hasAttachments'):
+            if mail.get("hasAttachments"):
                 attachments = await self.attachment_handler.list_attachments(mail_id)
-                result['files']['attachments'] = []
+                result["files"]["attachments"] = []
 
                 att_dir = temp_dir / "attachments"
                 att_dir.mkdir(exist_ok=True)
 
                 for idx, att in enumerate(attachments):
                     # 원본 다운로드
-                    original_path = att_dir / att['name']
-                    await self.attachment_handler.download_attachment(
-                        mail_id, att['id'], str(original_path)
-                    )
+                    original_path = att_dir / att["name"]
+                    await self.attachment_handler.download_attachment(mail_id, att["id"], str(original_path))
 
                     # 텍스트 변환 및 저장
                     try:
                         text = self.attachment_converter.convert_to_text(str(original_path))
                         text_file = att_dir / f"{att['name']}.txt"
-                        with open(text_file, 'w', encoding='utf-8') as f:
+                        with open(text_file, "w", encoding="utf-8") as f:
                             f.write(text)
 
-                        result['files']['attachments'].append({
-                            "original": str(original_path),
-                            "text": str(text_file),
-                            "name": att['name'],
-                            "size": att['size']
-                        })
+                        result["files"]["attachments"].append(
+                            {
+                                "original": str(original_path),
+                                "text": str(text_file),
+                                "name": att["name"],
+                                "size": att["size"],
+                            }
+                        )
 
                         print(f"  📎 첨부 {idx+1}: {att['name']} → {text_file.name}")
 
@@ -382,30 +380,27 @@ class MailTextProcessor:
 
             # 3. 인덱스 파일 생성
             index_file = temp_dir / f"index_{mail_id[:8]}.json"
-            with open(index_file, 'w', encoding='utf-8') as f:
+            with open(index_file, "w", encoding="utf-8") as f:
                 json.dump(result, f, ensure_ascii=False, indent=2)
 
-            result['files']['index'] = str(index_file)
+            result["files"]["index"] = str(index_file)
             print(f"  📑 인덱스 저장: {index_file.name}")
 
             # 4. 파일 정리 (선택적)
             if not keep_files:
-                result['cleanup_scheduled'] = True
+                result["cleanup_scheduled"] = True
                 # 실제 정리는 나중에 수행
             else:
-                result['cleanup_scheduled'] = False
+                result["cleanup_scheduled"] = False
 
         except Exception as e:
-            result['error'] = str(e)
+            result["error"] = str(e)
             print(f"  ❌ 오류: {e}")
 
         return result
 
     async def process_mail_batch(
-        self,
-        mail_ids: List[str],
-        version: str = "v1",
-        parallel: bool = True
+        self, mail_ids: List[str], version: str = "v1", parallel: bool = True
     ) -> List[Dict[str, Any]]:
         """
         여러 메일 일괄 처리
@@ -424,7 +419,7 @@ class MailTextProcessor:
         process_func = {
             "v1": self.process_mail_v1_simple,
             "v2": self.process_mail_v2_structured,
-            "v3": self.process_mail_v3_separated
+            "v3": self.process_mail_v3_separated,
         }.get(version, self.process_mail_v1_simple)
 
         if parallel:
@@ -439,15 +434,13 @@ class MailTextProcessor:
                 results.append(result)
 
         # 결과 요약
-        success_count = len([r for r in results if isinstance(r, dict) and r.get('status') != 'error'])
+        success_count = len([r for r in results if isinstance(r, dict) and r.get("status") != "error"])
         print(f"\n✅ 완료: {success_count}/{len(mail_ids)} 성공")
 
         return results
 
     async def search_in_processed_mails(
-        self,
-        keyword: str,
-        processed_mails: List[Dict[str, Any]]
+        self, keyword: str, processed_mails: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         처리된 메일에서 키워드 검색
@@ -466,38 +459,43 @@ class MailTextProcessor:
             matches = []
 
             # V1 형식
-            if 'combined_text' in mail_data:
-                if keyword_lower in mail_data['combined_text'].lower():
-                    matches.append({
-                        "type": "combined",
-                        "context": self._extract_context(mail_data['combined_text'], keyword)
-                    })
+            if "combined_text" in mail_data:
+                if keyword_lower in mail_data["combined_text"].lower():
+                    matches.append(
+                        {"type": "combined", "context": self._extract_context(mail_data["combined_text"], keyword)}
+                    )
 
             # V2 형식
-            elif 'search_index' in mail_data:
-                if keyword_lower in mail_data['search_index'].lower():
+            elif "search_index" in mail_data:
+                if keyword_lower in mail_data["search_index"].lower():
                     # 메일 본문에서 찾기
-                    if keyword_lower in mail_data.get('mail', {}).get('body_text', '').lower():
-                        matches.append({
-                            "type": "mail_body",
-                            "context": self._extract_context(mail_data['mail']['body_text'], keyword)
-                        })
+                    if keyword_lower in mail_data.get("mail", {}).get("body_text", "").lower():
+                        matches.append(
+                            {
+                                "type": "mail_body",
+                                "context": self._extract_context(mail_data["mail"]["body_text"], keyword),
+                            }
+                        )
 
                     # 첨부파일에서 찾기
-                    for att in mail_data.get('attachments', []):
-                        if keyword_lower in att.get('text', '').lower():
-                            matches.append({
-                                "type": "attachment",
-                                "name": att['name'],
-                                "context": self._extract_context(att['text'], keyword)
-                            })
+                    for att in mail_data.get("attachments", []):
+                        if keyword_lower in att.get("text", "").lower():
+                            matches.append(
+                                {
+                                    "type": "attachment",
+                                    "name": att["name"],
+                                    "context": self._extract_context(att["text"], keyword),
+                                }
+                            )
 
             if matches:
-                results.append({
-                    "mail_id": mail_data.get('mail_id'),
-                    "subject": mail_data.get('subject') or mail_data.get('mail', {}).get('subject'),
-                    "matches": matches
-                })
+                results.append(
+                    {
+                        "mail_id": mail_data.get("mail_id"),
+                        "subject": mail_data.get("subject") or mail_data.get("mail", {}).get("subject"),
+                        "matches": matches,
+                    }
+                )
 
         return results
 
@@ -527,21 +525,19 @@ class MailTextProcessor:
             "base_directory": str(self.temp_base),
             "exists": self.temp_base.exists(),
             "mail_folders": [],
-            "total_size": 0
+            "total_size": 0,
         }
 
         if self.temp_base.exists():
             for folder in self.temp_base.iterdir():
                 if folder.is_dir():
-                    folder_size = sum(f.stat().st_size for f in folder.rglob('*') if f.is_file())
-                    stats['mail_folders'].append({
-                        "name": folder.name,
-                        "files": len(list(folder.rglob('*'))),
-                        "size": folder_size
-                    })
-                    stats['total_size'] += folder_size
+                    folder_size = sum(f.stat().st_size for f in folder.rglob("*") if f.is_file())
+                    stats["mail_folders"].append(
+                        {"name": folder.name, "files": len(list(folder.rglob("*"))), "size": folder_size}
+                    )
+                    stats["total_size"] += folder_size
 
-        stats['total_folders'] = len(stats['mail_folders'])
+        stats["total_folders"] = len(stats["mail_folders"])
         return stats
 
     def cleanup_all_temp(self):
