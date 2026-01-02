@@ -202,34 +202,37 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                                         'Optional[str] = None, top: int = 50, save_directory: Optional[str] = None'},
         'name': 'mail_process_with_download'},
     {   'description': '특정 기간 동안 메일조회하고 body를 제외하고 대략적인 내용만 추출할 수 있는 데이터만 수신하여 테이블로 정리하는 도구 입니다. ',
-        'inputSchema': {   'properties': {   'filter_params': {   'baseModel': 'FilterParams',
-                                                                  'description': 'FilterParams parameters',
-                                                                  'properties': {   'received_date_from': {   'description': '메일 '
-                                                                                                                             '수신 '
-                                                                                                                             '시작 '
-                                                                                                                             '날짜 '
-                                                                                                                             '(포함, '
-                                                                                                                             'receivedDateTime '
-                                                                                                                             '>= '
-                                                                                                                             '이 '
-                                                                                                                             '값)',
-                                                                                                              'type': 'string'},
-                                                                                    'received_date_to': {   'description': '메일 '
-                                                                                                                           '수신 '
-                                                                                                                           '종료 '
-                                                                                                                           '날짜 '
-                                                                                                                           '(포함, '
-                                                                                                                           'receivedDateTime '
-                                                                                                                           '<= '
-                                                                                                                           '이 '
-                                                                                                                           '값)',
-                                                                                                            'type': 'string'}},
-                                                                  'required': [   'received_date_from',
-                                                                                  'received_date_to'],
-                                                                  'targetParam': 'filter_params',
-                                                                  'type': 'object'},
-                                             'user_email': {'description': '', 'type': 'string'}},
-                           'required': [],
+        'inputSchema': {   'properties': {   'DatePeriodFilter': {   'baseModel': 'FilterParams',
+                                                                     'description': '에이전트는 는 사용자의 질의에 따라 검색 범위의 날짜를 '
+                                                                                    '추출한다. ',
+                                                                     'properties': {   'received_date_from': {   'description': '메일 '
+                                                                                                                                '수신 '
+                                                                                                                                '시작 '
+                                                                                                                                '날짜 '
+                                                                                                                                '(포함, '
+                                                                                                                                'receivedDateTime '
+                                                                                                                                '>= '
+                                                                                                                                '이 '
+                                                                                                                                '값)',
+                                                                                                                 'type': 'string'},
+                                                                                       'received_date_to': {   'description': '메일 '
+                                                                                                                              '수신 '
+                                                                                                                              '종료 '
+                                                                                                                              '날짜 '
+                                                                                                                              '(포함, '
+                                                                                                                              'receivedDateTime '
+                                                                                                                              '<= '
+                                                                                                                              '이 '
+                                                                                                                              '값)',
+                                                                                                               'type': 'string'}},
+                                                                     'required': [   'received_date_from',
+                                                                                     'received_date_to'],
+                                                                     'targetParam': 'filter_params',
+                                                                     'type': 'object'},
+                                             'user_email': {   'description': '이메일 주소를 입력하고 입력하지 않을 경우 내부에서 연결정보를 메일 '
+                                                                              '주소를 추정함',
+                                                               'type': 'string'}},
+                           'required': ['DatePeriodFilter'],
                            'type': 'object'},
         'mcp_service': 'query_mail_list',
         'mcp_service_factors': {   'client_filter': {   'baseModel': 'ExcludeParams',

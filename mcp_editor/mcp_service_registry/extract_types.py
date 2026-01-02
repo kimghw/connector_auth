@@ -7,7 +7,6 @@ for the MCP tool editor.
 import ast
 import json
 import os
-import sys
 from typing import Dict, List, Any, Optional
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -80,7 +79,7 @@ def extract_type_from_annotation(annotation) -> str:
 
     # Handle Optional[T]
     if isinstance(annotation, ast.Subscript):
-        if hasattr(annotation.value, 'id') and annotation.value.id == 'Optional':
+        if hasattr(annotation.value, "id") and annotation.value.id == "Optional":
             if isinstance(annotation.slice, ast.Name):
                 inner_type = annotation.slice.id
             else:
@@ -88,20 +87,20 @@ def extract_type_from_annotation(annotation) -> str:
             return map_python_to_json_type(inner_type)
 
         # Handle List[T]
-        elif hasattr(annotation.value, 'id') and annotation.value.id == 'List':
+        elif hasattr(annotation.value, "id") and annotation.value.id == "List":
             return "array"
 
         # Handle Union types
-        elif hasattr(annotation.value, 'id') and annotation.value.id == 'Union':
+        elif hasattr(annotation.value, "id") and annotation.value.id == "Union":
             # For Union, we'll just use the first non-None type
             if isinstance(annotation.slice, ast.Tuple):
                 for elt in annotation.slice.elts:
-                    if isinstance(elt, ast.Name) and elt.id != 'None':
+                    if isinstance(elt, ast.Name) and elt.id != "None":
                         return map_python_to_json_type(elt.id)
             return "any"
 
         # Handle Literal types
-        elif hasattr(annotation.value, 'id') and annotation.value.id == 'Literal':
+        elif hasattr(annotation.value, "id") and annotation.value.id == "Literal":
             return "string"  # Literals are typically string enums
 
     # Handle simple types
@@ -117,22 +116,22 @@ def extract_type_from_annotation(annotation) -> str:
 def map_python_to_json_type(python_type: str) -> str:
     """Map Python type to JSON Schema type"""
     type_mapping = {
-        'str': 'string',
-        'int': 'integer',
-        'float': 'number',
-        'bool': 'boolean',
-        'list': 'array',
-        'dict': 'object',
-        'List': 'array',
-        'Dict': 'object',
-        'Any': 'any',
-        'None': 'null',
-        'Optional': 'any',
-        'FilterParams': 'object',
-        'ExcludeParams': 'object',
-        'SelectParams': 'object'
+        "str": "string",
+        "int": "integer",
+        "float": "number",
+        "bool": "boolean",
+        "list": "array",
+        "dict": "object",
+        "List": "array",
+        "Dict": "object",
+        "Any": "any",
+        "None": "null",
+        "Optional": "any",
+        "FilterParams": "object",
+        "ExcludeParams": "object",
+        "SelectParams": "object",
     }
-    return type_mapping.get(python_type, 'string')
+    return type_mapping.get(python_type, "string")
 
 
 def extract_field_info(node: ast.AnnAssign, class_name: str) -> Optional[Dict[str, Any]]:
@@ -142,28 +141,28 @@ def extract_field_info(node: ast.AnnAssign, class_name: str) -> Optional[Dict[st
 
     field_name = node.target.id
     field_info = {
-        'name': field_name,
-        'type': extract_type_from_annotation(node.annotation),
-        'description': '',
-        'examples': [],
-        'default': None,
-        'class': class_name
+        "name": field_name,
+        "type": extract_type_from_annotation(node.annotation),
+        "description": "",
+        "examples": [],
+        "default": None,
+        "class": class_name,
     }
 
     # Extract Field() parameters
     if isinstance(node.value, ast.Call):
-        if hasattr(node.value.func, 'id') and node.value.func.id == 'Field':
+        if hasattr(node.value.func, "id") and node.value.func.id == "Field":
             # Process Field arguments
             for i, arg in enumerate(node.value.args):
                 if i == 0:  # First positional arg is default value
                     if isinstance(arg, ast.Constant):
-                        field_info['default'] = arg.value
+                        field_info["default"] = arg.value
 
             # Process keyword arguments
             for keyword in node.value.keywords:
-                if keyword.arg == 'description' and isinstance(keyword.value, ast.Constant):
-                    field_info['description'] = keyword.value.value
-                elif keyword.arg == 'examples' and isinstance(keyword.value, ast.List):
+                if keyword.arg == "description" and isinstance(keyword.value, ast.Constant):
+                    field_info["description"] = keyword.value.value
+                elif keyword.arg == "examples" and isinstance(keyword.value, ast.List):
                     examples = []
                     for elt in keyword.value.elts:
                         if isinstance(elt, ast.Constant):
@@ -176,16 +175,16 @@ def extract_field_info(node: ast.AnnAssign, class_name: str) -> Optional[Dict[st
                                     inner_list.append(inner_elt.value)
                             if inner_list:
                                 examples.append(inner_list)
-                    field_info['examples'] = examples
-                elif keyword.arg == 'default' and isinstance(keyword.value, ast.Constant):
-                    field_info['default'] = keyword.value.value
+                    field_info["examples"] = examples
+                elif keyword.arg == "default" and isinstance(keyword.value, ast.Constant):
+                    field_info["default"] = keyword.value.value
 
     return field_info
 
 
 def extract_class_properties(file_path: str) -> Dict[str, List[Dict[str, Any]]]:
     """Extract properties from Pydantic model classes"""
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, "r", encoding="utf-8") as f:
         tree = ast.parse(f.read())
 
     classes_info = {}
@@ -195,7 +194,7 @@ def extract_class_properties(file_path: str) -> Dict[str, List[Dict[str, Any]]]:
             # Check if it's a BaseModel subclass
             is_base_model = False
             for base in node.bases:
-                if isinstance(base, ast.Name) and base.id == 'BaseModel':
+                if isinstance(base, ast.Name) and base.id == "BaseModel":
                     is_base_model = True
                     break
 
@@ -206,7 +205,7 @@ def extract_class_properties(file_path: str) -> Dict[str, List[Dict[str, Any]]]:
                 for item in node.body:
                     if isinstance(item, ast.AnnAssign):
                         field_info = extract_field_info(item, node.name)
-                        if field_info and not field_info['name'].startswith('_'):
+                        if field_info and not field_info["name"].startswith("_"):
                             # Skip private/internal fields
                             class_properties.append(field_info)
 
@@ -219,15 +218,13 @@ def _infer_server_name_from_paths(paths: List[str]) -> Optional[str]:
     if not paths:
         return None
     base_dir = os.path.basename(os.path.dirname(paths[0]))
-    if base_dir.startswith('mcp_'):
+    if base_dir.startswith("mcp_"):
         base_dir = base_dir[4:]
     return base_dir or None
 
 
 def main(
-    server_name: Optional[str] = None,
-    output_dir: Optional[str] = None,
-    graph_type_paths: Optional[List[str]] = None
+    server_name: Optional[str] = None, output_dir: Optional[str] = None, graph_type_paths: Optional[List[str]] = None
 ):
     """
     Extract types and save to JSON file
@@ -261,33 +258,28 @@ def main(
             if class_name not in merged_properties:
                 merged_properties[class_name] = []
             # Merge properties, prefer first occurrence if duplicates by name
-            existing_names = {p['name'] for p in merged_properties[class_name]}
+            existing_names = {p["name"] for p in merged_properties[class_name]}
             for prop in class_props:
-                if prop['name'] in existing_names:
+                if prop["name"] in existing_names:
                     continue
                 merged_properties[class_name].append(prop)
 
     # Create structured output
-    output = {
-        'classes': [],
-        'properties_by_class': merged_properties,
-        'all_properties': []
-    }
+    output = {"classes": [], "properties_by_class": merged_properties, "all_properties": []}
 
     for class_name, props in merged_properties.items():
-        output['classes'].append({
-            'name': class_name,
-            'property_count': len(props)
-        })
+        output["classes"].append({"name": class_name, "property_count": len(props)})
         for prop in props:
-            output['all_properties'].append({
-                'name': prop['name'],
-                'type': prop['type'],
-                'description': prop['description'],
-                'class': class_name,
-                'full_path': f"{class_name}.{prop['name']}",
-                'examples': prop.get('examples', [])
-            })
+            output["all_properties"].append(
+                {
+                    "name": prop["name"],
+                    "type": prop["type"],
+                    "description": prop["description"],
+                    "class": class_name,
+                    "full_path": f"{class_name}.{prop['name']}",
+                    "examples": prop.get("examples", []),
+                }
+            )
 
     # Determine output path
     if output_dir:
@@ -301,7 +293,7 @@ def main(
     output_path = os.path.join(base_dir, filename)
 
     # Save to JSON file
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
 
     print(f"Extracted {len(output['all_properties'])} properties from {len(output['classes'])} classes")
@@ -309,25 +301,15 @@ def main(
     print(f"Saved to: {output_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Extract Pydantic types to JSON")
     parser.add_argument(
-        "--server-name",
-        type=str,
-        help="Server name for output file (default: from config or 'default')"
+        "--server-name", type=str, help="Server name for output file (default: from config or 'default')"
     )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        help="Output directory (default: MCPMetaRegistry folder)"
-    )
-    parser.add_argument(
-        "types_files",
-        nargs="*",
-        help="Optional types files to parse (overrides config)"
-    )
+    parser.add_argument("--output-dir", type=str, help="Output directory (default: MCPMetaRegistry folder)")
+    parser.add_argument("types_files", nargs="*", help="Optional types files to parse (overrides config)")
 
     args = parser.parse_args()
     graph_type_paths = args.types_files if args.types_files else None

@@ -88,7 +88,12 @@ def _extract_parameters(func_node: ast.FunctionDef | ast.AsyncFunctionDef) -> Li
                 "type": _annotation_to_str(arg.annotation),
                 "default": default_val,
                 "has_default": has_default,
-                "is_required": not has_default and not (arg.annotation and _annotation_to_str(arg.annotation) and "Optional" in _annotation_to_str(arg.annotation)),  # noqa: E501
+                "is_required": not has_default
+                and not (
+                    arg.annotation
+                    and _annotation_to_str(arg.annotation)
+                    and "Optional" in _annotation_to_str(arg.annotation)
+                ),  # noqa: E501
             }
         )
 
@@ -136,7 +141,12 @@ def signature_from_parameters(params: List[Dict[str, Any]]) -> str:
             param_str += f": {type_str}"
 
         if has_default:
-            if isinstance(default, str) and not default.startswith(("'", '"')) and " " not in default and not default.startswith("["):  # noqa: E501
+            if (
+                isinstance(default, str)
+                and not default.startswith(("'", '"'))
+                and " " not in default
+                and not default.startswith("[")
+            ):  # noqa: E501
                 param_str += f' = "{default}"'
             elif default is not None:
                 param_str += f" = {default}"
@@ -181,7 +191,11 @@ class MCPServiceExtractor(ast.NodeVisitor):
 
             if isinstance(decorator, ast.Name) and decorator.id == "mcp_service":
                 is_mcp_service = True
-            elif isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name) and decorator.func.id == "mcp_service":
+            elif (
+                isinstance(decorator, ast.Call)
+                and isinstance(decorator.func, ast.Name)
+                and decorator.func.id == "mcp_service"
+            ):
                 is_mcp_service = True
                 metadata = extract_decorator_metadata(decorator)
 
@@ -215,8 +229,9 @@ class MCPServiceExtractor(ast.NodeVisitor):
     def _to_snake_case(self, name: str) -> str:
         """Convert CamelCase to snake_case."""
         import re
-        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
+        s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+        return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
 def find_mcp_services_in_file(file_path: str) -> Dict[str, Dict[str, Any]]:
@@ -253,9 +268,7 @@ def scan_codebase_for_mcp_services(
 
         if server_name:
             services = {
-                name: info
-                for name, info in services.items()
-                if info["metadata"].get("server_name") == server_name
+                name: info for name, info in services.items() if info["metadata"].get("server_name") == server_name
             }
 
         all_services.update(services)
@@ -283,10 +296,7 @@ def export_services_to_json(base_dir: str, server_name: str, output_dir: str) ->
     services = scan_codebase_for_mcp_services(base_dir, server_name)
     services_items = sorted(services.items(), key=lambda item: (item[1]["file"], item[1]["line"]))
 
-    function_names = [
-        service["metadata"].get("tool_name") or name
-        for name, service in services_items
-    ]
+    function_names = [service["metadata"].get("tool_name") or name for name, service in services_items]
     # Build services_with_signatures with richer data
     services_with_signatures = []
     for name, service in services_items:

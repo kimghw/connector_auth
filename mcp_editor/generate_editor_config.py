@@ -12,7 +12,7 @@ import ast
 import os
 import json
 from pathlib import Path
-from typing import List, Dict, Any, Set
+from typing import Dict, Any, Set
 
 
 def extract_server_name_from_file(file_path: str) -> Set[str]:
@@ -20,7 +20,7 @@ def extract_server_name_from_file(file_path: str) -> Set[str]:
     server_names = set()
 
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         tree = ast.parse(content)
@@ -39,11 +39,11 @@ def extract_server_name_from_file(file_path: str) -> Set[str]:
                         if isinstance(decorator.func, ast.Name):
                             decorator_name = decorator.func.id
 
-                    if decorator_name == 'mcp_service':
+                    if decorator_name == "mcp_service":
                         # Extract server_name from decorator arguments
                         if isinstance(decorator, ast.Call):
                             for keyword in decorator.keywords:
-                                if keyword.arg == 'server_name' and isinstance(keyword.value, ast.Constant):
+                                if keyword.arg == "server_name" and isinstance(keyword.value, ast.Constant):
                                     server_name = keyword.value.value
                                     if server_name:
                                         server_names.add(server_name)
@@ -63,7 +63,7 @@ def scan_codebase_for_servers(base_dir: str) -> Set[str]:
 
     for py_file in Path(base_dir).rglob("*.py"):
         # Skip venv, __pycache__, and other non-source directories
-        if any(part in str(py_file) for part in ['venv', '__pycache__', '.git', 'node_modules', 'backups']):
+        if any(part in str(py_file) for part in ["venv", "__pycache__", ".git", "node_modules", "backups"]):
             continue
 
         server_names = extract_server_name_from_file(str(py_file))
@@ -80,15 +80,15 @@ def scan_mcp_directories(base_dir: str) -> Set[str]:
         item_path = os.path.join(base_dir, item)
 
         # Check if it's a directory starting with mcp_
-        if os.path.isdir(item_path) and item.startswith('mcp_'):
-            mcp_server_path = os.path.join(item_path, 'mcp_server')
+        if os.path.isdir(item_path) and item.startswith("mcp_"):
+            mcp_server_path = os.path.join(item_path, "mcp_server")
 
             # Check if it has mcp_server subdirectory with server.py
             if os.path.isdir(mcp_server_path):
-                server_py = os.path.join(mcp_server_path, 'server.py')
+                server_py = os.path.join(mcp_server_path, "server.py")
                 if os.path.exists(server_py):
                     # Extract server name from directory name (mcp_XXX -> XXX)
-                    server_name = item.replace('mcp_', '')
+                    server_name = item.replace("mcp_", "")
                     server_names.add(server_name)
                     print(f"  Found MCP directory: {item} -> server: {server_name}")
 
@@ -105,12 +105,7 @@ def detect_module_paths(server_name: str, base_dir: str) -> Dict[str, Any]:
     - mcp{server_name}/
     """
     # Normalize server name for directory patterns
-    possible_patterns = [
-        f"mcp_{server_name}",
-        f"{server_name}_mcp",
-        f"mcp{server_name}",
-        server_name
-    ]
+    possible_patterns = [f"mcp_{server_name}", f"{server_name}_mcp", f"mcp{server_name}", server_name]
 
     # Find matching directory
     module_dir = None
@@ -159,7 +154,7 @@ def detect_module_paths(server_name: str, base_dir: str) -> Dict[str, Any]:
         "backup_dir": f"{editor_profile_dir}/backups",
         "types_files": types_files,
         "host": "0.0.0.0",
-        "port": 8091
+        "port": 8091,
     }
 
 
@@ -185,7 +180,7 @@ def generate_editor_config_json(server_names: Set[str], base_dir: str, output_pa
         config[profile_key] = server_config
 
     # Write config file
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
     print(f"\n✓ Generated {output_path}")
@@ -229,6 +224,7 @@ def main():
     if os.path.exists(config_output_path):
         backup_path = config_output_path + ".backup"
         import shutil
+
         shutil.copy2(config_output_path, backup_path)
         print(f"\n📦 Backed up existing config to: {backup_path}")
 

@@ -89,6 +89,7 @@ Web interface for editing MCP Tool Definitions
 
 === END OF UI DOCUMENTATION ===
 """
+
 import json
 import os
 import sys
@@ -108,14 +109,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pydantic_to_schema import (
     generate_mcp_schemas_from_graph_types,
     update_tool_with_basemodel_schema,
-    load_graph_types_models
+    load_graph_types_models,
 )
 
 # Import server name mappings
-from tool_editor_web_server_mappings import (
-    get_server_name_from_profile,
-    get_server_name_from_path
-)
+from tool_editor_web_server_mappings import get_server_name_from_profile, get_server_name_from_path
 
 # Import MCP service scanner from registry
 from mcp_service_registry.mcp_service_scanner import get_services_map
@@ -126,17 +124,17 @@ CORS(app)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
-CONFIG_PATH = os.path.join(BASE_DIR, 'editor_config.json')
+CONFIG_PATH = os.path.join(BASE_DIR, "editor_config.json")
 DEFAULT_PROFILE = {
     "template_definitions_path": "tool_definition_templates.py",
     "tool_definitions_path": "../mcp_outlook/mcp_server/tool_definitions.py",
     "backup_dir": "backups",
     "types_files": ["../mcp_outlook/outlook_types.py"],
     "host": "127.0.0.1",
-    "port": 8091
+    "port": 8091,
 }
 
-JINJA_DIR = os.path.join(ROOT_DIR, 'jinja')
+JINJA_DIR = os.path.join(ROOT_DIR, "jinja")
 SERVER_TEMPLATES = {
     "outlook": os.path.join(JINJA_DIR, "universal_server_template.jinja2"),
     "file_handler": os.path.join(JINJA_DIR, "universal_server_template.jinja2"),
@@ -144,9 +142,9 @@ SERVER_TEMPLATES = {
     "universal": os.path.join(JINJA_DIR, "universal_server_template.jinja2"),
 }
 DEFAULT_SERVER_TEMPLATE = SERVER_TEMPLATES["outlook"]
-GENERATOR_SCRIPT_PATH = os.path.join(JINJA_DIR, 'generate_universal_server.py')
-EDITOR_CONFIG_TEMPLATE = os.path.join(JINJA_DIR, 'editor_config_template.jinja2')
-EDITOR_CONFIG_GENERATOR = os.path.join(JINJA_DIR, 'generate_editor_config.py')
+GENERATOR_SCRIPT_PATH = os.path.join(JINJA_DIR, "generate_universal_server.py")
+EDITOR_CONFIG_TEMPLATE = os.path.join(JINJA_DIR, "editor_config_template.jinja2")
+EDITOR_CONFIG_GENERATOR = os.path.join(JINJA_DIR, "generate_editor_config.py")
 
 
 def _resolve_path(path: str) -> str:
@@ -215,7 +213,7 @@ def _generate_config_from_template(config_path: str) -> dict | None:
             server_names = {fallback}
 
         module.generate_editor_config(server_names, ROOT_DIR, config_path, EDITOR_CONFIG_TEMPLATE)
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:  # pragma: no cover - best effort
         print(f"Warning: Could not generate editor_config.json from template: {e}")
@@ -226,7 +224,7 @@ def _load_config_file():
     config_path = _get_config_path()
     if os.path.exists(config_path):
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             print(f"Warning: Could not load editor_config.json: {e}")
@@ -238,7 +236,7 @@ def _load_config_file():
         if generated:
             return generated
         try:
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump({"_default": DEFAULT_PROFILE}, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Warning: Could not write default editor_config.json: {e}")
@@ -298,9 +296,11 @@ def resolve_paths(profile_conf: dict) -> dict:
         "tool_path": _resolve_path(profile_conf["tool_definitions_path"]),
         "internal_args_path": internal_args_path,
         "backup_dir": _resolve_path(profile_conf["backup_dir"]),
-        "types_files": profile_conf.get("types_files", profile_conf.get("graph_types_files", ["../mcp_outlook/outlook_types.py"])),
+        "types_files": profile_conf.get(
+            "types_files", profile_conf.get("graph_types_files", ["../mcp_outlook/outlook_types.py"])
+        ),
         "host": profile_conf.get("host", "127.0.0.1"),
-        "port": profile_conf.get("port", 8091)
+        "port": profile_conf.get("port", 8091),
     }
 
 
@@ -312,11 +312,7 @@ def _default_generator_paths(profile_conf: dict, profile_name: str | None = None
     server_name = _guess_server_name(profile_conf, profile_name)
     template_path = _get_template_for_server(server_name)
 
-    return {
-        "tools_path": resolved["template_path"],
-        "template_path": template_path,
-        "output_path": output_path
-    }
+    return {"tools_path": resolved["template_path"], "template_path": template_path, "output_path": output_path}
 
 
 def discover_mcp_modules(profile_conf: dict | None = None) -> list:
@@ -347,18 +343,20 @@ def discover_mcp_modules(profile_conf: dict | None = None) -> list:
             tools_candidates = [
                 os.path.join(mcp_dir, "tool_definition_templates.py"),
                 os.path.join(mcp_dir, "tool_definitions.py"),
-                fallback["tools_path"]
+                fallback["tools_path"],
             ]
             tools_path = next((p for p in tools_candidates if p and os.path.exists(p)), fallback["tools_path"])
 
-            modules.append({
-                "name": entry,
-                "server_name": server_name,
-                "mcp_dir": mcp_dir,
-                "tools_path": tools_path,
-                "template_path": template_path,
-                "output_path": mcp_dir
-            })
+            modules.append(
+                {
+                    "name": entry,
+                    "server_name": server_name,
+                    "mcp_dir": mcp_dir,
+                    "tools_path": tools_path,
+                    "template_path": template_path,
+                    "output_path": mcp_dir,
+                }
+            )
             break
 
     modules.sort(key=lambda x: x["name"].lower())
@@ -411,7 +409,7 @@ def load_internal_args(paths: dict) -> dict:
     if not internal_args_path or not os.path.exists(internal_args_path):
         return {}
     try:
-        with open(internal_args_path, 'r', encoding='utf-8') as f:
+        with open(internal_args_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         print(f"Warning: Failed to load internal_args from {internal_args_path}: {e}")
@@ -423,11 +421,7 @@ def get_file_mtimes(paths: dict) -> dict:
     Collect file modification times for conflict detection
     """
     mtimes = {}
-    path_keys = [
-        ("tool_path", "definitions"),
-        ("template_path", "templates"),
-        ("internal_args_path", "internal_args")
-    ]
+    path_keys = [("tool_path", "definitions"), ("template_path", "templates"), ("internal_args_path", "internal_args")]
     for path_key, mtime_key in path_keys:
         path = paths.get(path_key)
         if path and os.path.exists(path):
@@ -443,39 +437,39 @@ def order_schema_fields(schema):
     ordered = {}
 
     # Add type first
-    if 'type' in schema:
-        ordered['type'] = schema['type']
+    if "type" in schema:
+        ordered["type"] = schema["type"]
 
     # Add description second
-    if 'description' in schema:
-        ordered['description'] = schema['description']
+    if "description" in schema:
+        ordered["description"] = schema["description"]
 
     # Add enum if present
-    if 'enum' in schema:
-        ordered['enum'] = schema['enum']
+    if "enum" in schema:
+        ordered["enum"] = schema["enum"]
 
     # Add format if present
-    if 'format' in schema:
-        ordered['format'] = schema['format']
+    if "format" in schema:
+        ordered["format"] = schema["format"]
 
     # Process properties recursively
-    if 'properties' in schema:
+    if "properties" in schema:
         ordered_props = {}
-        for prop_name, prop_value in schema['properties'].items():
+        for prop_name, prop_value in schema["properties"].items():
             ordered_props[prop_name] = order_schema_fields(prop_value)
-        ordered['properties'] = ordered_props
+        ordered["properties"] = ordered_props
 
     # Add items for arrays
-    if 'items' in schema:
-        ordered['items'] = order_schema_fields(schema['items'])
+    if "items" in schema:
+        ordered["items"] = order_schema_fields(schema["items"])
 
     # Add required
-    if 'required' in schema:
-        ordered['required'] = schema['required']
+    if "required" in schema:
+        ordered["required"] = schema["required"]
 
     # Add any other fields
     for k, v in schema.items():
-        if k not in ['type', 'description', 'enum', 'format', 'properties', 'items', 'required']:
+        if k not in ["type", "description", "enum", "format", "properties", "items", "required"]:
             ordered[k] = v
 
     return ordered
@@ -484,13 +478,13 @@ def order_schema_fields(schema):
 def remove_defaults(schema):
     """Recursively remove 'default' keys from schema"""
     if isinstance(schema, dict):
-        schema = {k: remove_defaults(v) for k, v in schema.items() if k != 'default'}
+        schema = {k: remove_defaults(v) for k, v in schema.items() if k != "default"}
         # Handle properties
-        if 'properties' in schema and isinstance(schema['properties'], dict):
-            schema['properties'] = {k: remove_defaults(v) for k, v in schema['properties'].items()}
+        if "properties" in schema and isinstance(schema["properties"], dict):
+            schema["properties"] = {k: remove_defaults(v) for k, v in schema["properties"].items()}
         # Handle items
-        if 'items' in schema:
-            schema['items'] = remove_defaults(schema['items'])
+        if "items" in schema:
+            schema["items"] = remove_defaults(schema["items"])
     elif isinstance(schema, list):
         schema = [remove_defaults(item) for item in schema]
     return schema
@@ -503,13 +497,13 @@ def clean_newlines_from_schema(schema):
         cleaned = {}
         for key, value in schema.items():
             # Skip internal metadata fields
-            if key == '_source':
+            if key == "_source":
                 continue
-            if key == 'description' and isinstance(value, str):
+            if key == "description" and isinstance(value, str):
                 # Remove newline and carriage return characters
-                cleaned_value = value.replace('\n', ' ').replace('\r', ' ')
+                cleaned_value = value.replace("\n", " ").replace("\r", " ")
                 # Remove multiple spaces that might result from the replacement
-                cleaned[key] = ' '.join(cleaned_value.split())
+                cleaned[key] = " ".join(cleaned_value.split())
             else:
                 cleaned[key] = clean_newlines_from_schema(value)
         return cleaned
@@ -560,10 +554,10 @@ def _load_services_for_server(server_name: str | None, scan_dir: str | None, for
         return {}
 
     # Convert server_name to registry format (mcp_outlook -> outlook, mcp_file_handler -> file_handler)
-    registry_name = server_name.replace('mcp_', '') if server_name and server_name.startswith('mcp_') else server_name
+    registry_name = server_name.replace("mcp_", "") if server_name and server_name.startswith("mcp_") else server_name
 
     # Try to load from registry JSON first (faster and more reliable)
-    registry_path = os.path.join(BASE_DIR, 'mcp_service_registry', f'registry_{registry_name}.json')
+    registry_path = os.path.join(BASE_DIR, "mcp_service_registry", f"registry_{registry_name}.json")
 
     # Check if registry file exists, if not log error and raise exception
     if not os.path.exists(registry_path):
@@ -573,14 +567,14 @@ def _load_services_for_server(server_name: str | None, scan_dir: str | None, for
 
     if not force_rescan:
         try:
-            with open(registry_path, 'r', encoding='utf-8') as f:
+            with open(registry_path, "r", encoding="utf-8") as f:
                 registry_data = json.load(f)
                 services = {}
-                for service_name, service_info in registry_data.get('services', {}).items():
+                for service_name, service_info in registry_data.get("services", {}).items():
                     services[service_name] = {
-                        'signature': service_info.get('signature', ''),
-                        'parameters': service_info.get('parameters', []),
-                        'metadata': service_info.get('metadata', {})
+                        "signature": service_info.get("signature", ""),
+                        "parameters": service_info.get("parameters", []),
+                        "metadata": service_info.get("metadata", {}),
                     }
                 print(f"Loaded {len(services)} services from registry_{registry_name}.json")
                 return services
@@ -629,29 +623,31 @@ def save_tool_definitions(tools_data, paths: dict, force_rescan: bool = False, s
             # Create cleaned tool with specific field order
             cleaned_tool = {}
             # Add fields in desired order
-            if 'name' in tool:
-                cleaned_tool['name'] = tool['name']
-            if 'description' in tool:
+            if "name" in tool:
+                cleaned_tool["name"] = tool["name"]
+            if "description" in tool:
                 # Remove newline characters from description to prevent JSON parsing errors
-                cleaned_description = tool['description'].replace('\n', ' ').replace('\r', ' ')
+                cleaned_description = tool["description"].replace("\n", " ").replace("\r", " ")
                 # Also remove multiple spaces that might result from the replacement
-                cleaned_description = ' '.join(cleaned_description.split())
-                cleaned_tool['description'] = cleaned_description
-            if 'inputSchema' in tool:
+                cleaned_description = " ".join(cleaned_description.split())
+                cleaned_tool["description"] = cleaned_description
+            if "inputSchema" in tool:
                 # Remove defaults for the public definitions and order schema
-                cleaned_input = copy.deepcopy(tool['inputSchema'])
+                cleaned_input = copy.deepcopy(tool["inputSchema"])
                 cleaned_input = remove_defaults(cleaned_input)
                 # Recursively clean newlines from all descriptions in inputSchema
                 cleaned_input = clean_newlines_from_schema(cleaned_input)
-                cleaned_tool['inputSchema'] = order_schema_fields(cleaned_input)
+                cleaned_tool["inputSchema"] = order_schema_fields(cleaned_input)
             # Add any other fields except mcp_service and mcp_service_factors
             for k, v in tool.items():
-                if k not in ['name', 'description', 'inputSchema', 'mcp_service', 'mcp_service_factors']:
+                if k not in ["name", "description", "inputSchema", "mcp_service", "mcp_service_factors"]:
                     cleaned_tool[k] = v
             cleaned_tools.append(cleaned_tool)
 
         # Generate tool_definitions.py content
-        server_name = get_server_name_from_path(paths.get("tool_path", "")) or get_server_name_from_path(paths.get("template_path", ""))
+        server_name = get_server_name_from_path(paths.get("tool_path", "")) or get_server_name_from_path(
+            paths.get("template_path", "")
+        )
         server_label = (server_name or "MCP").replace("_", " ").title()
         content = f'''"""
 MCP Tool Definitions for {server_label} Server - AUTO-GENERATED FILE
@@ -695,7 +691,7 @@ def get_tool_names() -> List[str]:
 '''
 
         # Write tool_definitions.py
-        with open(paths["tool_path"], 'w', encoding='utf-8') as f:
+        with open(paths["tool_path"], "w", encoding="utf-8") as f:
             f.write(content)
 
         # 2. Save tool_definition_templates.py (with AST-extracted metadata)
@@ -703,8 +699,8 @@ def get_tool_names() -> List[str]:
         services_by_name = {}
         if server_name:
             module_patterns = [
-                os.path.join(ROOT_DIR, f'mcp_{server_name}'),
-                os.path.join(ROOT_DIR, f'{server_name}_mcp'),
+                os.path.join(ROOT_DIR, f"mcp_{server_name}"),
+                os.path.join(ROOT_DIR, f"{server_name}_mcp"),
             ]
             scan_dir = next((p for p in module_patterns if os.path.isdir(p)), None)
 
@@ -724,41 +720,41 @@ def get_tool_names() -> List[str]:
 
         for tool in tools_data:
             template_tool = {k: v for k, v in tool.items()}
-            if 'inputSchema' in template_tool:
-                template_tool['inputSchema'] = order_schema_fields(template_tool['inputSchema'])
+            if "inputSchema" in template_tool:
+                template_tool["inputSchema"] = order_schema_fields(template_tool["inputSchema"])
 
             # Add signature if available
-            if 'mcp_service' in template_tool and isinstance(template_tool['mcp_service'], dict):
-                service_name = template_tool['mcp_service'].get('name')
+            if "mcp_service" in template_tool and isinstance(template_tool["mcp_service"], dict):
+                service_name = template_tool["mcp_service"].get("name")
                 if service_name and service_name in services_by_name:
                     service_info = services_by_name[service_name]
-                    template_tool['mcp_service']['signature'] = service_info.get('signature')
-                    if service_info.get('parameters'):
-                        template_tool['mcp_service']['parameters'] = service_info['parameters']
+                    template_tool["mcp_service"]["signature"] = service_info.get("signature")
+                    if service_info.get("parameters"):
+                        template_tool["mcp_service"]["parameters"] = service_info["parameters"]
 
             # Add mcp_service_factors for internal parameters
             # These are service method parameters that are internally configured
-            tool_name = tool.get('name')
+            tool_name = tool.get("name")
             if tool_name and tool_name in internal_args:
                 service_factors = {}
                 for param_name, param_info in internal_args[tool_name].items():
                     # Each key is the actual service method parameter name
                     # Store essential information for internal parameters
                     factor_data = {
-                        'source': 'internal',
-                        'baseModel': param_info.get('original_schema', {}).get('baseModel') or param_info.get('type'),
-                        'description': param_info.get('description', '')
+                        "source": "internal",
+                        "baseModel": param_info.get("original_schema", {}).get("baseModel") or param_info.get("type"),
+                        "description": param_info.get("description", ""),
                     }
 
                     # Add parameters structure from original_schema if available
                     # The parameters already include default values where needed
-                    if 'original_schema' in param_info and 'properties' in param_info['original_schema']:
-                        factor_data['parameters'] = param_info['original_schema']['properties']
+                    if "original_schema" in param_info and "properties" in param_info["original_schema"]:
+                        factor_data["parameters"] = param_info["original_schema"]["properties"]
 
                     service_factors[param_name] = factor_data
 
                 if service_factors:
-                    template_tool['mcp_service_factors'] = service_factors
+                    template_tool["mcp_service_factors"] = service_factors
 
             template_tools.append(template_tool)
 
@@ -777,7 +773,7 @@ MCP_TOOLS: List[Dict[str, Any]] = {pprint.pformat(template_tools, indent=4, widt
         # Ensure template directory exists
         os.makedirs(os.path.dirname(template_path), exist_ok=True)
 
-        with open(template_path, 'w', encoding='utf-8') as f:
+        with open(template_path, "w", encoding="utf-8") as f:
             f.write(template_content)
 
         print(f"Saved template to: {os.path.relpath(template_path, BASE_DIR)}")
@@ -787,10 +783,10 @@ MCP_TOOLS: List[Dict[str, Any]] = {pprint.pformat(template_tools, indent=4, widt
         return {"error": str(e)}
 
 
-@app.route('/')
+@app.route("/")
 def index():
     """Main editor page"""
-    return render_template('tool_editor.html')
+    return render_template("tool_editor.html")
 
 
 # Debug routes are disabled - templates moved to backup folder
@@ -819,7 +815,7 @@ def index():
 #     return render_template('backup/debug_index.html')
 
 
-@app.route('/api/tools', methods=['GET'])
+@app.route("/api/tools", methods=["GET"])
 def get_tools():
     """API endpoint to get current tool definitions + internal args"""
     profile = request.args.get("profile")
@@ -838,15 +834,12 @@ def get_tools():
     file_mtimes = get_file_mtimes(paths)
 
     actual_profile = profile or list_profile_names()[0] if list_profile_names() else "default"
-    return jsonify({
-        "tools": tools,
-        "internal_args": internal_args,
-        "profile": actual_profile,
-        "file_mtimes": file_mtimes
-    })
+    return jsonify(
+        {"tools": tools, "internal_args": internal_args, "profile": actual_profile, "file_mtimes": file_mtimes}
+    )
 
 
-@app.route('/api/registry', methods=['GET'])
+@app.route("/api/registry", methods=["GET"])
 def get_registry():
     """API endpoint to get service registry for current profile"""
     profile = request.args.get("profile")
@@ -863,16 +856,12 @@ def get_registry():
     if not registry_path:
         # Default to mcp_service_registry/registry_{server}.json
         server_name = get_server_name_from_profile(profile) or profile.replace("mcp_", "")
-        registry_path = os.path.join(
-            os.path.dirname(__file__),
-            "mcp_service_registry",
-            f"registry_{server_name}.json"
-        )
+        registry_path = os.path.join(os.path.dirname(__file__), "mcp_service_registry", f"registry_{server_name}.json")
 
     # Load registry file
     try:
         if os.path.exists(registry_path):
-            with open(registry_path, 'r', encoding='utf-8') as f:
+            with open(registry_path, "r", encoding="utf-8") as f:
                 registry_data = json.load(f)
             return jsonify(registry_data)
         else:
@@ -881,7 +870,7 @@ def get_registry():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/tools', methods=['POST'])
+@app.route("/api/tools", methods=["POST"])
 def save_tools():
     """API endpoint to save tool definitions"""
     try:
@@ -898,7 +887,7 @@ def save_tools():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/tools/<int:tool_index>', methods=['DELETE'])
+@app.route("/api/tools/<int:tool_index>", methods=["DELETE"])
 def delete_tool(tool_index):
     """Delete a specific tool by index"""
     try:
@@ -934,17 +923,19 @@ def delete_tool(tool_index):
             internal_args_cleaned = True
             save_internal_args(internal_args, paths)
 
-        return jsonify({
-            "success": True,
-            "message": f"Tool '{tool_name}' deleted successfully",
-            "backup": result.get("backup"),
-            "internal_args_cleaned": internal_args_cleaned
-        })
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Tool '{tool_name}' deleted successfully",
+                "backup": result.get("backup"),
+                "internal_args_cleaned": internal_args_cleaned,
+            }
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/tools/validate', methods=['POST'])
+@app.route("/api/tools/validate", methods=["POST"])
 def validate_tools():
     """Validate tool definitions"""
     try:
@@ -980,7 +971,7 @@ def validate_tools():
         return jsonify({"valid": False, "error": str(e)}), 500
 
 
-@app.route('/api/backups', methods=['GET'])
+@app.route("/api/backups", methods=["GET"])
 def list_backups():
     """List available backups"""
     try:
@@ -990,26 +981,28 @@ def list_backups():
         ensure_dirs(paths)
         backups = []
         for filename in os.listdir(paths["backup_dir"]):
-            if filename.startswith('tool_definitions_') and filename.endswith('.py'):
+            if filename.startswith("tool_definitions_") and filename.endswith(".py"):
                 file_path = os.path.join(paths["backup_dir"], filename)
                 stat = os.stat(file_path)
-                backups.append({
-                    "filename": filename,
-                    "size": stat.st_size,
-                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
-                })
+                backups.append(
+                    {
+                        "filename": filename,
+                        "size": stat.st_size,
+                        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    }
+                )
         backups.sort(key=lambda x: x["modified"], reverse=True)
         return jsonify(backups)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/backups/<filename>', methods=['GET'])
+@app.route("/api/backups/<filename>", methods=["GET"])
 def get_backup(filename):
     """Get a specific backup file"""
     try:
         # Security check - ensure filename is safe
-        if '..' in filename or '/' in filename or '\\' in filename:
+        if ".." in filename or "/" in filename or "\\" in filename:
             return jsonify({"error": "Invalid filename"}), 400
 
         profile = request.args.get("profile")
@@ -1028,12 +1021,12 @@ def get_backup(filename):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/backups/<filename>/restore', methods=['POST'])
+@app.route("/api/backups/<filename>/restore", methods=["POST"])
 def restore_backup(filename):
     """Restore from a backup"""
     try:
         # Security check
-        if '..' in filename or '/' in filename or '\\' in filename:
+        if ".." in filename or "/" in filename or "\\" in filename:
             return jsonify({"error": "Invalid filename"}), 400
 
         profile = request.args.get("profile")
@@ -1058,19 +1051,21 @@ def restore_backup(filename):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/mcp-services', methods=['GET'])
+@app.route("/api/mcp-services", methods=["GET"])
 def get_mcp_services():
     """Get available MCP services from registry_{server_name}.json in mcp_service_registry"""
     try:
         # Get profile parameter to determine which server
         profiles = list_profile_names()
-        profile = request.args.get('profile') or (profiles[0] if profiles else 'default')
+        profile = request.args.get("profile") or (profiles[0] if profiles else "default")
 
         # Determine server name from profile using mappings
         server_name = get_server_name_from_profile(profile)
 
         # Convert server_name to registry format (mcp_outlook -> outlook, mcp_file_handler -> file_handler)
-        registry_name = server_name.replace('mcp_', '') if server_name and server_name.startswith('mcp_') else server_name
+        registry_name = (
+            server_name.replace("mcp_", "") if server_name and server_name.startswith("mcp_") else server_name
+        )
 
         # Try multiple paths in order of preference
         mcp_services_path = None
@@ -1078,16 +1073,18 @@ def get_mcp_services():
 
         if registry_name:
             # Priority 1: New registry format in mcp_service_registry
-            registry_path = os.path.join(os.path.dirname(__file__), 'mcp_service_registry', f'registry_{registry_name}.json')
-            paths_to_try.append(('registry', registry_path))
+            registry_path = os.path.join(
+                os.path.dirname(__file__), "mcp_service_registry", f"registry_{registry_name}.json"
+            )
+            paths_to_try.append(("registry", registry_path))
 
             # Priority 2: Old format in server folder (mcp_editor/mcp_outlook/outlook_mcp_services.json)
-            old_server_path = os.path.join(os.path.dirname(__file__), server_name, f'{registry_name}_mcp_services.json')
-            paths_to_try.append(('server_folder', old_server_path))
+            old_server_path = os.path.join(os.path.dirname(__file__), server_name, f"{registry_name}_mcp_services.json")
+            paths_to_try.append(("server_folder", old_server_path))
 
             # Priority 3: Legacy location (mcp_editor/outlook_mcp_services.json)
-            legacy_path = os.path.join(os.path.dirname(__file__), f'{registry_name}_mcp_services.json')
-            paths_to_try.append(('legacy', legacy_path))
+            legacy_path = os.path.join(os.path.dirname(__file__), f"{registry_name}_mcp_services.json")
+            paths_to_try.append(("legacy", legacy_path))
 
         # Try each path
         for path_type, path in paths_to_try:
@@ -1099,43 +1096,40 @@ def get_mcp_services():
         # If no registry found, log error
         if not mcp_services_path:
             # Check if expected registry file exists
-            expected_registry = os.path.join(os.path.dirname(__file__), 'mcp_service_registry', f'registry_{registry_name}.json')
+            expected_registry = os.path.join(
+                os.path.dirname(__file__), "mcp_service_registry", f"registry_{registry_name}.json"
+            )
             error_msg = f"Registry file not found for server '{registry_name}': {expected_registry}"
             print(f"ERROR: {error_msg}")
 
             # Return empty services instead of trying fallback
-            return jsonify({
-                "services": [],
-                "services_with_signatures": [],
-                "error": error_msg
-            })
+            return jsonify({"services": [], "services_with_signatures": [], "error": error_msg})
 
         if mcp_services_path and os.path.exists(mcp_services_path):
-            with open(mcp_services_path, 'r', encoding='utf-8') as f:
+            with open(mcp_services_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
                 # Handle new registry format
-                if 'services' in data and isinstance(data['services'], dict):
+                if "services" in data and isinstance(data["services"], dict):
                     # New registry format from mcp_service_registry
                     decorated = []
                     detailed = []
 
-                    for service_name, service_info in data['services'].items():
+                    for service_name, service_info in data["services"].items():
                         # Add to decorated services (use service_name, not tool_name)
                         # Service name should match what's selected in the UI
                         decorated.append(service_name)
 
                         # Build detailed info with service_name (not tool_name)
-                        detailed.append({
-                            "name": service_name,  # Use service_name consistently
-                            "parameters": service_info.get("parameters", []),
-                            "signature": service_info.get("signature", "")
-                        })
+                        detailed.append(
+                            {
+                                "name": service_name,  # Use service_name consistently
+                                "parameters": service_info.get("parameters", []),
+                                "signature": service_info.get("signature", ""),
+                            }
+                        )
 
-                    return jsonify({
-                        "services": decorated,
-                        "services_with_signatures": detailed
-                    })
+                    return jsonify({"services": decorated, "services_with_signatures": detailed})
                 else:
                     # Old format (backward compatibility)
                     decorated = data.get("decorated_services", [])
@@ -1155,31 +1149,25 @@ def get_mcp_services():
                                 part += f" = {param['default']}"
                             param_strings.append(part)
 
-                        detailed.append({
-                            "name": service.get("name"),
-                            "parameters": params,
-                            "signature": ", ".join(param_strings)
-                        })
+                        detailed.append(
+                            {"name": service.get("name"), "parameters": params, "signature": ", ".join(param_strings)}
+                        )
 
-                    return jsonify({
-                        "services": decorated,
-                        "services_with_signatures": detailed
-                    })
+                    return jsonify({"services": decorated, "services_with_signatures": detailed})
         return jsonify({"services": [], "services_with_signatures": []})
     except Exception as e:
         return jsonify({"error": str(e), "services": [], "services_with_signatures": []}), 500
 
 
-@app.route('/api/template-sources', methods=['GET'])
+@app.route("/api/template-sources", methods=["GET"])
 def get_template_sources():
     """Get available template files (tool_definition_templates.py and backups) for loading"""
     try:
-        profile = request.args.get('profile')
+        profile = request.args.get("profile")
         profile_conf = get_profile_config(profile)
         paths = resolve_paths(profile_conf)
 
         sources = []
-        editor_dir = os.path.dirname(__file__)
 
         # 1. Current template file (primary)
         template_path = paths.get("template_path")
@@ -1188,14 +1176,16 @@ def get_template_sources():
                 spec = importlib.util.spec_from_file_location("template", template_path)
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
-                tool_count = len(getattr(module, 'MCP_TOOLS', []))
-                sources.append({
-                    "name": "Current Template",
-                    "path": template_path,
-                    "type": "current",
-                    "count": tool_count,
-                    "modified": datetime.fromtimestamp(os.path.getmtime(template_path)).isoformat()
-                })
+                tool_count = len(getattr(module, "MCP_TOOLS", []))
+                sources.append(
+                    {
+                        "name": "Current Template",
+                        "path": template_path,
+                        "type": "current",
+                        "count": tool_count,
+                        "modified": datetime.fromtimestamp(os.path.getmtime(template_path)).isoformat(),
+                    }
+                )
             except Exception as e:
                 print(f"Warning: Could not read current template {template_path}: {e}")
 
@@ -1203,20 +1193,22 @@ def get_template_sources():
         backup_dir = paths.get("backup_dir")
         if backup_dir and os.path.isdir(backup_dir):
             for filename in os.listdir(backup_dir):
-                if filename.startswith('tool_definitions_') and filename.endswith('.py'):
+                if filename.startswith("tool_definitions_") and filename.endswith(".py"):
                     filepath = os.path.join(backup_dir, filename)
                     try:
                         spec = importlib.util.spec_from_file_location("backup", filepath)
                         module = importlib.util.module_from_spec(spec)
                         spec.loader.exec_module(module)
-                        tool_count = len(getattr(module, 'MCP_TOOLS', []))
-                        sources.append({
-                            "name": filename,
-                            "path": filepath,
-                            "type": "backup",
-                            "count": tool_count,
-                            "modified": datetime.fromtimestamp(os.path.getmtime(filepath)).isoformat()
-                        })
+                        tool_count = len(getattr(module, "MCP_TOOLS", []))
+                        sources.append(
+                            {
+                                "name": filename,
+                                "path": filepath,
+                                "type": "backup",
+                                "count": tool_count,
+                                "modified": datetime.fromtimestamp(os.path.getmtime(filepath)).isoformat(),
+                            }
+                        )
                     except Exception as e:
                         print(f"Warning: Could not read backup {filepath}: {e}")
 
@@ -1234,32 +1226,36 @@ def get_template_sources():
                     spec = importlib.util.spec_from_file_location("other", other_template)
                     module = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(module)
-                    tool_count = len(getattr(module, 'MCP_TOOLS', []))
-                    sources.append({
-                        "name": f"{other_profile} template",
-                        "path": other_template,
-                        "type": "other_profile",
-                        "profile": other_profile,
-                        "count": tool_count,
-                        "modified": datetime.fromtimestamp(os.path.getmtime(other_template)).isoformat()
-                    })
+                    tool_count = len(getattr(module, "MCP_TOOLS", []))
+                    sources.append(
+                        {
+                            "name": f"{other_profile} template",
+                            "path": other_template,
+                            "type": "other_profile",
+                            "profile": other_profile,
+                            "count": tool_count,
+                            "modified": datetime.fromtimestamp(os.path.getmtime(other_template)).isoformat(),
+                        }
+                    )
                 except Exception as e:
                     print(f"Warning: Could not read {other_profile} template: {e}")
 
         # Sort: current first, then by modified date descending
-        sources.sort(key=lambda x: (0 if x['type'] == 'current' else 1, x.get('modified', ''), x['name']), reverse=False)
+        sources.sort(
+            key=lambda x: (0 if x["type"] == "current" else 1, x.get("modified", ""), x["name"]), reverse=False
+        )
 
         return jsonify({"sources": sources})
     except Exception as e:
         return jsonify({"error": str(e), "sources": []}), 500
 
 
-@app.route('/api/template-sources/load', methods=['POST'])
+@app.route("/api/template-sources/load", methods=["POST"])
 def load_from_template_source():
     """Load MCP_TOOLS from a specific template file"""
     try:
         data = request.json or {}
-        source_path = data.get('path')
+        source_path = data.get("path")
 
         if not source_path:
             return jsonify({"error": "path is required"}), 400
@@ -1276,37 +1272,36 @@ def load_from_template_source():
         if not (abs_source.startswith(abs_editor) or abs_source.startswith(abs_root)):
             return jsonify({"error": "Access denied: path outside allowed directories"}), 403
 
-        if not source_path.endswith('.py'):
+        if not source_path.endswith(".py"):
             return jsonify({"error": "Only .py files are allowed"}), 400
 
         # Load MCP_TOOLS from the file
         spec = importlib.util.spec_from_file_location("source_template", source_path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        tools = getattr(module, 'MCP_TOOLS', [])
+        tools = getattr(module, "MCP_TOOLS", [])
 
-        return jsonify({
-            "success": True,
-            "tools": tools,
-            "source": source_path,
-            "count": len(tools)
-        })
+        return jsonify({"success": True, "tools": tools, "source": source_path, "count": len(tools)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/profiles', methods=['GET'])
+@app.route("/api/profiles", methods=["GET"])
 def get_profiles():
     """List available profiles from editor_config.json"""
     try:
         profiles = list_profile_names()
-        active = request.args.get("profile") or os.environ.get("MCP_EDITOR_MODULE") or (profiles[0] if profiles else "default")
+        active = (
+            request.args.get("profile")
+            or os.environ.get("MCP_EDITOR_MODULE")
+            or (profiles[0] if profiles else "default")
+        )
         return jsonify({"profiles": profiles, "active": active})
     except Exception as e:
         return jsonify({"error": str(e), "profiles": []}), 500
 
 
-@app.route('/api/profiles', methods=['POST'])
+@app.route("/api/profiles", methods=["POST"])
 def create_profile():
     """Create a new profile (project) with directory structure"""
     try:
@@ -1342,13 +1337,20 @@ def create_profile():
                 if os.path.exists(create_script_path):
                     # Run create_mcp_project.py
                     result = subprocess.run(
-                        [sys.executable, create_script_path, profile_name,
-                         "--port", str(port),
-                         "--description", f"MCP service for {profile_name}",
-                         "--author", "MCP Web Editor"],
+                        [
+                            sys.executable,
+                            create_script_path,
+                            profile_name,
+                            "--port",
+                            str(port),
+                            "--description",
+                            f"MCP service for {profile_name}",
+                            "--author",
+                            "MCP Web Editor",
+                        ],
                         capture_output=True,
                         text=True,
-                        cwd=os.path.dirname(BASE_DIR)
+                        cwd=os.path.dirname(BASE_DIR),
                     )
 
                     if result.returncode != 0:
@@ -1360,8 +1362,9 @@ def create_profile():
                         # Create minimal tool_definitions.py
                         tool_def_path = os.path.join(mcp_dir, "tool_definitions.py")
                         if not os.path.exists(tool_def_path):
-                            with open(tool_def_path, 'w', encoding='utf-8') as f:
-                                f.write('''"""
+                            with open(tool_def_path, "w", encoding="utf-8") as f:
+                                f.write(
+                                    '''"""
 MCP Tool Definitions - AUTO-GENERATED FILE
 """
 from typing import List, Dict, Any
@@ -1378,7 +1381,8 @@ def get_tool_by_name(tool_name: str) -> Dict[str, Any] | None:
 
 def get_tool_names() -> List[str]:
     return [tool["name"] for tool in MCP_TOOLS]
-''')
+'''
+                                )
                 else:
                     print(f"create_mcp_project.py not found at {create_script_path}, using simple structure")
                     # Fall back to simple structure creation
@@ -1388,8 +1392,9 @@ def get_tool_names() -> List[str]:
                     # Create minimal tool_definitions.py
                     tool_def_path = os.path.join(mcp_dir, "tool_definitions.py")
                     if not os.path.exists(tool_def_path):
-                        with open(tool_def_path, 'w', encoding='utf-8') as f:
-                            f.write('''"""
+                        with open(tool_def_path, "w", encoding="utf-8") as f:
+                            f.write(
+                                '''"""
 MCP Tool Definitions - AUTO-GENERATED FILE
 """
 from typing import List, Dict, Any
@@ -1406,7 +1411,8 @@ def get_tool_by_name(tool_name: str) -> Dict[str, Any] | None:
 
 def get_tool_names() -> List[str]:
     return [tool["name"] for tool in MCP_TOOLS]
-''')
+'''
+                            )
             except Exception as e:
                 print(f"Error running create_mcp_project.py: {str(e)}")
                 # Fall back to simple structure creation
@@ -1416,8 +1422,9 @@ def get_tool_names() -> List[str]:
                 # Create minimal tool_definitions.py
                 tool_def_path = os.path.join(mcp_dir, "tool_definitions.py")
                 if not os.path.exists(tool_def_path):
-                    with open(tool_def_path, 'w', encoding='utf-8') as f:
-                        f.write('''"""
+                    with open(tool_def_path, "w", encoding="utf-8") as f:
+                        f.write(
+                            '''"""
 MCP Tool Definitions - AUTO-GENERATED FILE
 """
 from typing import List, Dict, Any
@@ -1434,7 +1441,8 @@ def get_tool_by_name(tool_name: str) -> Dict[str, Any] | None:
 
 def get_tool_names() -> List[str]:
     return [tool["name"] for tool in MCP_TOOLS]
-''')
+'''
+                        )
 
         # Create profile config
         new_profile = {
@@ -1443,7 +1451,7 @@ def get_tool_names() -> List[str]:
             "backup_dir": backup_dir,
             "types_files": [],
             "host": "0.0.0.0",
-            "port": port
+            "port": port,
         }
 
         # Create directory structure in mcp_editor (for templates and backups)
@@ -1454,35 +1462,34 @@ def get_tool_names() -> List[str]:
         # Create empty tool_definition_templates.py if not exists
         template_file_path = os.path.join(BASE_DIR, template_path)
         if not os.path.exists(template_file_path):
-            with open(template_file_path, 'w', encoding='utf-8') as f:
-                f.write('''"""
+            with open(template_file_path, "w", encoding="utf-8") as f:
+                f.write(
+                    '''"""
 MCP Tool Definition Templates - AUTO-GENERATED
 Signatures extracted from source code using AST parsing
 """
 from typing import List, Dict, Any
 
 MCP_TOOLS: List[Dict[str, Any]] = []
-''')
+'''
+                )
 
         # Update editor_config.json
-        config_path = os.path.join(BASE_DIR, 'editor_config.json')
+        config_path = os.path.join(BASE_DIR, "editor_config.json")
         config_data = _load_config_file()
         config_data[profile_name] = new_profile
 
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config_data, indent=2, ensure_ascii=False, fp=f)
 
-        return jsonify({
-            "success": True,
-            "profile": profile_name,
-            "config": new_profile,
-            "created_dirs": [editor_profile_dir]
-        })
+        return jsonify(
+            {"success": True, "profile": profile_name, "config": new_profile, "created_dirs": [editor_profile_dir]}
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/server-generator/defaults', methods=['GET'])
+@app.route("/api/server-generator/defaults", methods=["GET"])
 def get_server_generator_defaults():
     """Expose detected modules and default paths for the Jinja2 server generator"""
     try:
@@ -1495,8 +1502,11 @@ def get_server_generator_defaults():
 
         if preferred_server:
             for mod in modules:
-                mod_server = mod.get("server_name") or get_server_name_from_path(mod.get("mcp_dir", "")) \
+                mod_server = (
+                    mod.get("server_name")
+                    or get_server_name_from_path(mod.get("mcp_dir", ""))
                     or get_server_name_from_profile(mod.get("name", ""))
+                )
                 if mod_server == preferred_server:
                     active_module = mod.get("name")
                     break
@@ -1504,21 +1514,18 @@ def get_server_generator_defaults():
         if not active_module and modules:
             active_module = modules[0]["name"]
 
-        return jsonify({
-            "modules": modules,
-            "fallback": fallback,
-            "active_module": active_module,
-            "server_name": preferred_server
-        })
+        return jsonify(
+            {"modules": modules, "fallback": fallback, "active_module": active_module, "server_name": preferred_server}
+        )
     except Exception as e:
         return jsonify({"error": str(e), "modules": [], "fallback": {}}), 500
 
 
-@app.route('/api/graph-types-properties', methods=['GET'])
+@app.route("/api/graph-types-properties", methods=["GET"])
 def get_graph_types_properties():
     """Get available properties from types files for the current profile"""
     try:
-        profile = request.args.get('profile')
+        profile = request.args.get("profile")
         profile_conf = get_profile_config(profile)
         paths = resolve_paths(profile_conf)
 
@@ -1526,13 +1533,9 @@ def get_graph_types_properties():
 
         # If no types_files configured, return empty with a flag
         if not types_files:
-            return jsonify({
-                "classes": [],
-                "properties_by_class": {},
-                "all_properties": [],
-                "has_types": False,
-                "types_name": None
-            })
+            return jsonify(
+                {"classes": [], "properties_by_class": {}, "all_properties": [], "has_types": False, "types_name": None}
+            )
 
         # Get server name for display
         server_name = get_server_name_from_profile(profile) or "types"
@@ -1541,30 +1544,35 @@ def get_graph_types_properties():
         profile_name = profile or "default"
 
         # Try new naming convention in mcp_service_registry folder first
-        registry_path = os.path.join(os.path.dirname(__file__), 'mcp_service_registry', f'types_property_{server_name}.json')
+        registry_path = os.path.join(
+            os.path.dirname(__file__), "mcp_service_registry", f"types_property_{server_name}.json"
+        )
 
         # Then try profile-specific path
         if not os.path.exists(registry_path):
-            properties_path = os.path.join(os.path.dirname(__file__), profile_name, 'types_properties.json')
+            properties_path = os.path.join(os.path.dirname(__file__), profile_name, "types_properties.json")
         else:
             properties_path = registry_path
 
         # Fallback to legacy path
         if not os.path.exists(properties_path):
-            properties_path = os.path.join(os.path.dirname(__file__), 'types_properties.json')
+            properties_path = os.path.join(os.path.dirname(__file__), "types_properties.json")
 
         if os.path.exists(properties_path):
-            with open(properties_path, 'r', encoding='utf-8') as f:
+            with open(properties_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 data["has_types"] = True
                 # Remove 'mcp_' prefix from server_name for types file
-                types_file_name = server_name.replace('mcp_', '') if server_name and server_name.startswith('mcp_') else server_name
+                types_file_name = (
+                    server_name.replace("mcp_", "") if server_name and server_name.startswith("mcp_") else server_name
+                )
                 data["types_name"] = f"{types_file_name}_types"
                 return jsonify(data)
         else:
             # Try to generate using extract script
             import subprocess
-            extract_script = os.path.join(os.path.dirname(__file__), 'mcp_service_registry', 'extract_types.py')
+
+            extract_script = os.path.join(os.path.dirname(__file__), "mcp_service_registry", "extract_types.py")
             if os.path.exists(extract_script):
                 # Pass types files and server name so output matches the active profile
                 cmd = [sys.executable, extract_script, "--server-name", server_name] + types_files
@@ -1572,28 +1580,41 @@ def get_graph_types_properties():
                 if os.path.exists(registry_path):
                     properties_path = registry_path
                 if os.path.exists(properties_path):
-                    with open(properties_path, 'r', encoding='utf-8') as f:
+                    with open(properties_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
                         data["has_types"] = True
                         # Remove 'mcp_' prefix from server_name for types file
-                        types_file_name = server_name.replace('mcp_', '') if server_name and server_name.startswith('mcp_') else server_name
+                        types_file_name = (
+                            server_name.replace("mcp_", "")
+                            if server_name and server_name.startswith("mcp_")
+                            else server_name
+                        )
                         data["types_name"] = f"{types_file_name}_types"
                         return jsonify(data)
 
         # Remove 'mcp_' prefix from server_name for types file
-        types_file_name = server_name.replace('mcp_', '') if server_name and server_name.startswith('mcp_') else server_name
-        return jsonify({
-            "classes": [],
-            "properties_by_class": {},
-            "all_properties": [],
-            "has_types": bool(types_files),
-            "types_name": f"{types_file_name}_types" if types_files else None
-        })
+        types_file_name = (
+            server_name.replace("mcp_", "") if server_name and server_name.startswith("mcp_") else server_name
+        )
+        return jsonify(
+            {
+                "classes": [],
+                "properties_by_class": {},
+                "all_properties": [],
+                "has_types": bool(types_files),
+                "types_name": f"{types_file_name}_types" if types_files else None,
+            }
+        )
     except Exception as e:
-        return jsonify({"error": str(e), "classes": [], "properties_by_class": {}, "all_properties": [], "has_types": False}), 500
+        return (
+            jsonify(
+                {"error": str(e), "classes": [], "properties_by_class": {}, "all_properties": [], "has_types": False}
+            ),
+            500,
+        )
 
 
-@app.route('/api/basemodels', methods=['GET'])
+@app.route("/api/basemodels", methods=["GET"])
 def get_basemodels():
     """Get available BaseModel schemas from outlook_types.py"""
     try:
@@ -1608,18 +1629,14 @@ def get_basemodels():
         result = []
         for name, model in models.items():
             schema = schemas.get(name, {})
-            result.append({
-                "name": name,
-                "description": model.__doc__ or f"{name} BaseModel",
-                "schema": schema
-            })
+            result.append({"name": name, "description": model.__doc__ or f"{name} BaseModel", "schema": schema})
 
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/tools/<int:tool_index>/apply-basemodel', methods=['POST'])
+@app.route("/api/tools/<int:tool_index>/apply-basemodel", methods=["POST"])
 def apply_basemodel_to_property(tool_index):
     """Apply a BaseModel schema to a specific property of a tool"""
     try:
@@ -1629,8 +1646,8 @@ def apply_basemodel_to_property(tool_index):
         graph_type_paths = paths.get("types_files")
 
         data = request.json
-        property_name = data.get('property_name')
-        basemodel_name = data.get('basemodel_name')
+        property_name = data.get("property_name")
+        basemodel_name = data.get("basemodel_name")
 
         if not property_name or not basemodel_name:
             return jsonify({"error": "Missing property_name or basemodel_name"}), 400
@@ -1658,7 +1675,7 @@ def apply_basemodel_to_property(tool_index):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/create-mcp-project', methods=['POST'])
+@app.route("/api/create-mcp-project", methods=["POST"])
 def create_new_mcp_project():
     """Create a new MCP server project using create_mcp_project.py"""
     try:
@@ -1687,11 +1704,7 @@ def create_new_mcp_project():
 
         creator = MCPProjectCreator(base_dir=ROOT_DIR)
         result = creator.create_project(
-            service_name=service_name,
-            description=description,
-            port=port,
-            author=author,
-            include_types=include_types
+            service_name=service_name, description=description, port=port, author=author, include_types=include_types
         )
 
         if result.get("errors"):
@@ -1699,21 +1712,23 @@ def create_new_mcp_project():
 
         # Reload profiles after creating new project
         global profiles
-        profiles = load_profiles()
+        profiles = list_profile_names()
 
-        return jsonify({
-            "success": True,
-            "service_name": service_name,
-            "project_dir": f"mcp_{service_name}",
-            "created_files": len(result.get("created_files", [])),
-            "message": f"Successfully created MCP project: {service_name}"
-        })
+        return jsonify(
+            {
+                "success": True,
+                "service_name": service_name,
+                "project_dir": f"mcp_{service_name}",
+                "created_files": len(result.get("created_files", [])),
+                "message": f"Successfully created MCP project: {service_name}",
+            }
+        )
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/server-generator', methods=['POST'])
+@app.route("/api/server-generator", methods=["POST"])
 def generate_server_from_web():
     """Run the Jinja2 server generator with paths provided by the web editor"""
     try:
@@ -1729,9 +1744,15 @@ def generate_server_from_web():
         if not server_name and selected_module:
             server_name = get_server_name_from_path(selected_module.get("mcp_dir", ""))
 
-        tools_path = data.get("tools_path") or (selected_module["tools_path"] if selected_module else defaults["tools_path"])
-        template_path = data.get("template_path") or (selected_module["template_path"] if selected_module else defaults["template_path"])
-        output_path = data.get("output_path") or (selected_module["output_path"] if selected_module else defaults["output_path"])
+        tools_path = data.get("tools_path") or (
+            selected_module["tools_path"] if selected_module else defaults["tools_path"]
+        )
+        template_path = data.get("template_path") or (
+            selected_module["template_path"] if selected_module else defaults["template_path"]
+        )
+        output_path = data.get("output_path") or (
+            selected_module["output_path"] if selected_module else defaults["output_path"]
+        )
 
         if not server_name:
             for candidate_path in (tools_path, template_path, output_path):
@@ -1778,12 +1799,12 @@ def generate_server_from_web():
             return jsonify({"error": f"Registry file not found for server: {server_name}"}), 400
 
         # Generate ALL server types by default
-        protocols_to_generate = ['rest', 'stdio', 'stream']
+        protocols_to_generate = ["rest", "stdio", "stream"]
         generated_files = []
 
         for protocol in protocols_to_generate:
             # Determine template for this protocol
-            if protocol == 'rest':
+            if protocol == "rest":
                 protocol_template_path = template_path
             else:
                 # Look for protocol-specific template
@@ -1796,21 +1817,21 @@ def generate_server_from_web():
 
             # Determine output file for this protocol
             output_base = Path(output_path)
-            if output_base.suffix == '' or output_base.is_dir():
+            if output_base.suffix == "" or output_base.is_dir():
                 # Output is a directory
-                if protocol == 'rest':
-                    filename = 'server_rest.py'
+                if protocol == "rest":
+                    filename = "server_rest.py"
                 else:
-                    filename = f'server_{protocol}.py'
+                    filename = f"server_{protocol}.py"
                 protocol_output_path = str(output_base / filename)
             else:
                 # Output is a file - generate protocol-specific files
                 base = output_base.stem
                 ext = output_base.suffix
-                if protocol == 'rest':
-                    filename = f'{base}_rest{ext}'
+                if protocol == "rest":
+                    filename = f"{base}_rest{ext}"
                 else:
-                    filename = f'{base}_{protocol}{ext}'
+                    filename = f"{base}_{protocol}{ext}"
                 protocol_output_path = str(output_base.parent / filename)
 
             # Generate this protocol's server
@@ -1820,36 +1841,38 @@ def generate_server_from_web():
                 registry_path=registry_path,
                 tools_path=tools_path,
                 server_name=server_name,
-                protocol_type=protocol
+                protocol_type=protocol,
             )
             generated_files.append(protocol_output_path)
 
         # Count tools for response
         loaded_tools = generator_module.load_tool_definitions(tools_path)
 
-        return jsonify({
-            "success": True,
-            "module": module_name,
-            "tools_path": tools_path,
-            "template_path": template_path,
-            "output_path": output_path,
-            "registry_path": registry_path,
-            "tool_count": len(loaded_tools),
-            "generated_files": generated_files,
-            "protocols": protocols_to_generate
-        })
+        return jsonify(
+            {
+                "success": True,
+                "module": module_name,
+                "tools_path": tools_path,
+                "template_path": template_path,
+                "output_path": output_path,
+                "registry_path": registry_path,
+                "tool_count": len(loaded_tools),
+                "generated_files": generated_files,
+                "protocols": protocols_to_generate,
+            }
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/scaffold/create', methods=['POST'])
+@app.route("/api/scaffold/create", methods=["POST"])
 def create_new_server():
     """Create a new MCP server project from scratch"""
     try:
         data = request.json
-        server_name = data.get('server_name', '').strip()
-        description = data.get('description', '').strip()
-        port = data.get('port', 8080)
+        server_name = data.get("server_name", "").strip()
+        description = data.get("description", "").strip()
+        port = data.get("port", 8080)
 
         # Validation
         if not server_name:
@@ -1873,77 +1896,69 @@ def create_new_server():
             server_name=server_name,
             description=description,
             port=port,
-            create_venv=False  # Don't create venv in web context
+            create_venv=False,  # Don't create venv in web context
         )
 
         if result.get("errors"):
-            return jsonify({
-                "error": "Server created with errors",
-                "details": result
-            }), 500
+            return jsonify({"error": "Server created with errors", "details": result}), 500
 
-        return jsonify({
-            "success": True,
-            "message": f"Successfully created MCP server: {server_name}",
-            "server_name": server_name,
-            "created_files": result["created_files"],
-            "created_dirs": result["created_dirs"],
-            "next_steps": [
-                f"cd mcp_{server_name}/mcp_server",
-                "python -m venv venv && source venv/bin/activate",
-                "pip install fastapi uvicorn pydantic",
-                f"Select '{server_name}' profile in web editor"
-            ]
-        })
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Successfully created MCP server: {server_name}",
+                "server_name": server_name,
+                "created_files": result["created_files"],
+                "created_dirs": result["created_dirs"],
+                "next_steps": [
+                    f"cd mcp_{server_name}/mcp_server",
+                    "python -m venv venv && source venv/bin/activate",
+                    "pip install fastapi uvicorn pydantic",
+                    f"Select '{server_name}' profile in web editor",
+                ],
+            }
+        )
 
     except Exception as e:
         import traceback
-        return jsonify({
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
 
 
-@app.route('/api/scaffold/check', methods=['POST'])
+@app.route("/api/scaffold/check", methods=["POST"])
 def check_server_exists():
     """Check if a server name is available"""
     try:
         data = request.json
-        server_name = data.get('server_name', '').strip()
+        server_name = data.get("server_name", "").strip()
 
         if not server_name:
             return jsonify({"valid": False, "error": "Server name is required"}), 400
 
         # Check naming rules
-        if not server_name.replace('_', '').isalnum():
-            return jsonify({
-                "valid": False,
-                "error": "Server name must contain only letters, numbers, and underscores"
-            }), 400
+        if not server_name.replace("_", "").isalnum():
+            return (
+                jsonify({"valid": False, "error": "Server name must contain only letters, numbers, and underscores"}),
+                400,
+            )
 
         # Check if exists
         server_dir = os.path.join(ROOT_DIR, f"mcp_{server_name}")
         exists = os.path.exists(server_dir)
 
-        return jsonify({
-            "valid": not exists,
-            "exists": exists,
-            "server_name": server_name,
-            "path": server_dir
-        })
+        return jsonify({"valid": not exists, "exists": exists, "server_name": server_name, "path": server_dir})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/browse-files', methods=['POST'])
+@app.route("/api/browse-files", methods=["POST"])
 def browse_files():
     """Browse files in a directory for file selection"""
     try:
         data = request.json or {}
-        path = data.get('path', ROOT_DIR)
-        extension = data.get('extension', '')
-        show_files = data.get('show_files', True)  # Default to showing files
+        path = data.get("path", ROOT_DIR)
+        extension = data.get("extension", "")
+        show_files = data.get("show_files", True)  # Default to showing files
 
         # Security: Ensure we're only browsing within the project root
         abs_path = os.path.abspath(path)
@@ -1968,20 +1983,12 @@ def browse_files():
                 item_path = os.path.join(abs_path, item)
                 if os.path.isdir(item_path):
                     # Skip hidden directories and __pycache__
-                    if not item.startswith('.') and item != '__pycache__':
-                        contents.append({
-                            "name": item,
-                            "path": item_path,
-                            "type": "directory"
-                        })
+                    if not item.startswith(".") and item != "__pycache__":
+                        contents.append({"name": item, "path": item_path, "type": "directory"})
                 elif os.path.isfile(item_path) and show_files:
                     # Filter by extension if specified
                     if not extension or item.endswith(extension):
-                        contents.append({
-                            "name": item,
-                            "path": item_path,
-                            "type": "file"
-                        })
+                        contents.append({"name": item, "path": item_path, "type": "file"})
         except PermissionError:
             return jsonify({"error": "Permission denied"}), 403
 
@@ -1991,7 +1998,7 @@ def browse_files():
             "contents": contents,
             # Keep old format for compatibility
             "dirs": [c["name"] for c in contents if c["type"] == "directory"],
-            "files": [c["name"] for c in contents if c["type"] == "file"]
+            "files": [c["name"] for c in contents if c["type"] == "file"],
         }
 
         return jsonify(result)
@@ -2002,6 +2009,7 @@ def browse_files():
 # ============================================================
 # Internal Args API Endpoints
 # ============================================================
+
 
 def save_internal_args(internal_args: dict, paths: dict) -> dict:
     """Save internal args to JSON file.
@@ -2024,12 +2032,15 @@ def save_internal_args(internal_args: dict, paths: dict) -> dict:
 
         # Debug logging
         print(f"[DEBUG] Saving internal_args to: {internal_args_path}")
-        print(f"[DEBUG] internal_args content ({len(internal_args)} tools):", json.dumps(internal_args, indent=2, ensure_ascii=False))
+        print(
+            f"[DEBUG] internal_args content ({len(internal_args)} tools):",
+            json.dumps(internal_args, indent=2, ensure_ascii=False),
+        )
 
         # Ensure directory exists
         os.makedirs(os.path.dirname(internal_args_path), exist_ok=True)
 
-        with open(internal_args_path, 'w', encoding='utf-8') as f:
+        with open(internal_args_path, "w", encoding="utf-8") as f:
             json.dump(internal_args, f, indent=2, ensure_ascii=False)
 
         print(f"[SUCCESS] Saved internal_args to {internal_args_path}")
@@ -2060,10 +2071,10 @@ def cleanup_old_backups(backup_dir: str, keep_count: int = 10):
     # Group backups by timestamp
     backup_groups = {}
     for filename in os.listdir(backup_dir):
-        if not filename.endswith('.bak'):
+        if not filename.endswith(".bak"):
             continue
         # Extract timestamp from filename (format: filename_YYYYMMDD_HHMMSS.bak)
-        parts = filename.rsplit('_', 2)
+        parts = filename.rsplit("_", 2)
         if len(parts) >= 3:
             timestamp = f"{parts[-2]}_{parts[-1].replace('.bak', '')}"
             if timestamp not in backup_groups:
@@ -2080,7 +2091,7 @@ def cleanup_old_backups(backup_dir: str, keep_count: int = 10):
                 print(f"Warning: Could not remove old backup {filename}: {e}")
 
 
-@app.route('/api/internal-args', methods=['GET'])
+@app.route("/api/internal-args", methods=["GET"])
 def get_internal_args():
     """Get internal args for the current profile"""
     try:
@@ -2089,16 +2100,18 @@ def get_internal_args():
         paths = resolve_paths(profile_conf)
 
         internal_args = load_internal_args(paths)
-        return jsonify({
-            "internal_args": internal_args,
-            "profile": profile or list_profile_names()[0] if list_profile_names() else "default",
-            "path": paths.get("internal_args_path")
-        })
+        return jsonify(
+            {
+                "internal_args": internal_args,
+                "profile": profile or list_profile_names()[0] if list_profile_names() else "default",
+                "path": paths.get("internal_args_path"),
+            }
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/internal-args', methods=['POST'])
+@app.route("/api/internal-args", methods=["POST"])
 def post_internal_args():
     """Save internal args (full replacement)"""
     try:
@@ -2120,13 +2133,15 @@ def post_internal_args():
             return jsonify(result), 500
 
         result["backup"] = backup_path
-        result["warning"] = "internal_args saved but tool_definitions may be out of sync. Consider using POST /api/tools/save-all"
+        result["warning"] = (
+            "internal_args saved but tool_definitions may be out of sync. Consider using POST /api/tools/save-all"
+        )
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/internal-args/<tool_name>', methods=['PUT'])
+@app.route("/api/internal-args/<tool_name>", methods=["PUT"])
 def put_internal_args_tool(tool_name: str):
     """Update internal args for a specific tool (merge)"""
     try:
@@ -2160,7 +2175,7 @@ def put_internal_args_tool(tool_name: str):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/tools/save-all', methods=['POST'])
+@app.route("/api/tools/save-all", methods=["POST"])
 def save_all_definitions():
     """
     Atomic save of all 3 files: tool_definitions.py, tool_definition_templates.py, tool_internal_args.json
@@ -2206,12 +2221,17 @@ def save_all_definitions():
                     validation_errors.append(f"{tool_name}.{arg_name}: missing required 'type' field")
 
         if validation_errors:
-            return jsonify({
-                "error": "Invalid internal_args",
-                "validation_errors": validation_errors,
-                "action": "fix_required",
-                "message": "Each internal arg must have a 'type' field (e.g., SelectParams, FilterParams)"
-            }), 400
+            return (
+                jsonify(
+                    {
+                        "error": "Invalid internal_args",
+                        "validation_errors": validation_errors,
+                        "action": "fix_required",
+                        "message": "Each internal arg must have a 'type' field (e.g., SelectParams, FilterParams)",
+                    }
+                ),
+                400,
+            )
 
         # CRITICAL: Strip any properties that are marked as internal before saving
         tools_data = prune_internal_properties(tools_data, internal_args)
@@ -2227,12 +2247,17 @@ def save_all_definitions():
                     if abs(current_mtimes[key] - loaded_mtimes[key]) > 5:  # 5 second tolerance
                         conflicts.append(key)
             if conflicts:
-                return jsonify({
-                    "error": "File conflict detected",
-                    "conflicts": conflicts,
-                    "action": "reload_required",
-                    "message": "Files were modified externally. Please reload before saving."
-                }), 409
+                return (
+                    jsonify(
+                        {
+                            "error": "File conflict detected",
+                            "conflicts": conflicts,
+                            "action": "reload_required",
+                            "message": "Files were modified externally. Please reload before saving.",
+                        }
+                    ),
+                    409,
+                )
 
         # Create backups with shared timestamp
         backup_dir = paths.get("backup_dir")
@@ -2240,7 +2265,7 @@ def save_all_definitions():
         backups = {
             "definitions": backup_file(paths.get("tool_path"), backup_dir, timestamp),
             "templates": backup_file(paths.get("template_path"), backup_dir, timestamp),
-            "internal_args": backup_file(paths.get("internal_args_path"), backup_dir, timestamp)
+            "internal_args": backup_file(paths.get("internal_args_path"), backup_dir, timestamp),
         }
 
         saved_files = []
@@ -2262,13 +2287,15 @@ def save_all_definitions():
             # Cleanup old backups
             cleanup_old_backups(backup_dir, keep_count=10)
 
-            return jsonify({
-                "success": True,
-                "saved": saved_files,
-                "backups": backups,
-                "timestamp": timestamp,
-                "profile": profile or list_profile_names()[0] if list_profile_names() else "default"
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "saved": saved_files,
+                    "backups": backups,
+                    "timestamp": timestamp,
+                    "profile": profile or list_profile_names()[0] if list_profile_names() else "default",
+                }
+            )
 
         except Exception as e:
             # Rollback: restore from backups
@@ -2277,7 +2304,7 @@ def save_all_definitions():
                     target_key = {
                         "definitions": "tool_path",
                         "templates": "template_path",
-                        "internal_args": "internal_args_path"
+                        "internal_args": "internal_args_path",
                     }.get(key)
                     if target_key and paths.get(target_key):
                         try:
@@ -2285,18 +2312,14 @@ def save_all_definitions():
                         except Exception as restore_error:
                             print(f"Warning: Could not restore {key}: {restore_error}")
 
-            return jsonify({
-                "error": str(e),
-                "rolled_back": saved_files,
-                "action": "all_files_restored"
-            }), 500
+            return jsonify({"error": str(e), "rolled_back": saved_files, "action": "all_files_restored"}), 500
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 # MCP Server Control API Endpoints
-@app.route('/api/server/status', methods=['GET'])
+@app.route("/api/server/status", methods=["GET"])
 def get_server_status():
     """Check if MCP server is running"""
     try:
@@ -2308,10 +2331,10 @@ def get_server_status():
 
         return jsonify(result)
     except Exception as e:
-        return jsonify({'running': False, 'error': str(e)})
+        return jsonify({"running": False, "error": str(e)})
 
 
-@app.route('/api/server/start', methods=['POST'])
+@app.route("/api/server/start", methods=["POST"])
 def start_server():
     """Start the MCP server"""
     try:
@@ -2321,15 +2344,15 @@ def start_server():
         manager = MCPServerManager(profile)
         result = manager.start()
 
-        if result.get('success'):
+        if result.get("success"):
             return jsonify(result)
         else:
             return jsonify(result), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/api/server/stop', methods=['POST'])
+@app.route("/api/server/stop", methods=["POST"])
 def stop_server():
     """Stop the MCP server"""
     try:
@@ -2340,15 +2363,15 @@ def stop_server():
         manager = MCPServerManager(profile)
         result = manager.stop(force=force)
 
-        if result.get('success'):
+        if result.get("success"):
             return jsonify(result)
         else:
             return jsonify(result), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/api/server/restart', methods=['POST'])
+@app.route("/api/server/restart", methods=["POST"])
 def restart_server():
     """Restart the MCP server"""
     try:
@@ -2358,15 +2381,15 @@ def restart_server():
         manager = MCPServerManager(profile)
         result = manager.restart()
 
-        if result.get('success'):
+        if result.get("success"):
             return jsonify(result)
         else:
             return jsonify(result), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/api/server/logs', methods=['GET'])
+@app.route("/api/server/logs", methods=["GET"])
 def get_server_logs():
     """Get MCP server logs"""
     try:
@@ -2377,19 +2400,15 @@ def get_server_logs():
         manager = MCPServerManager(profile)
         logs = manager.logs(lines=lines)
 
-        return jsonify({
-            'success': True,
-            'logs': logs,
-            'profile': profile
-        })
+        return jsonify({"success": True, "logs": logs, "profile": profile})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # Serve static files (CSS, JS)
-@app.route('/static/<path:path>')
+@app.route("/static/<path:path>")
 def send_static(path):
-    return send_from_directory(os.path.join(BASE_DIR, 'static'), path)
+    return send_from_directory(os.path.join(BASE_DIR, "static"), path)
 
 
 def scan_all_registries():
@@ -2399,7 +2418,7 @@ def scan_all_registries():
         registry_manager = MetaRegisterManager()
 
         for profile_name, profile_config in config.items():
-            source_dir = profile_config.get('source_dir')
+            source_dir = profile_config.get("source_dir")
             if not source_dir:
                 print(f"  Skipping {profile_name}: no source_dir configured")
                 continue
@@ -2411,16 +2430,14 @@ def scan_all_registries():
                 continue
 
             # Extract server name (mcp_outlook -> outlook)
-            server_name = profile_name.replace('mcp_', '') if profile_name.startswith('mcp_') else profile_name
+            server_name = profile_name.replace("mcp_", "") if profile_name.startswith("mcp_") else profile_name
 
             # Output path for registry
-            registry_path = os.path.join(BASE_DIR, 'mcp_service_registry', f'registry_{server_name}.json')
+            registry_path = os.path.join(BASE_DIR, "mcp_service_registry", f"registry_{server_name}.json")
 
             print(f"  Scanning {profile_name} from {source_path}...")
             success = registry_manager.export_service_manifest(
-                file_path=registry_path,
-                base_dir=source_path,
-                server_name=server_name
+                file_path=registry_path, base_dir=source_path, server_name=server_name
             )
 
             if success:
@@ -2432,7 +2449,7 @@ def scan_all_registries():
         print(f"Error scanning registries: {e}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Starting MCP Tool Editor Web Interface...")
 
     # Scan all registries on startup

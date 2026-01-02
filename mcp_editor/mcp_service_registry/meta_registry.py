@@ -10,7 +10,6 @@ import json
 import os
 import sys
 from datetime import datetime
-from pathlib import Path
 
 # 현재 디렉토리를 Python 경로에 추가
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -36,17 +35,15 @@ class MetaRegisterManager:
         """
         try:
             # 등록 타임스탬프 추가
-            metadata['registered_at'] = datetime.now().isoformat()
+            metadata["registered_at"] = datetime.now().isoformat()
 
             # 레지스트리에 등록
             self.registry[service_name] = metadata
 
             # 등록 이력 기록
-            self.registration_history.append({
-                'service': service_name,
-                'action': 'register',
-                'timestamp': metadata['registered_at']
-            })
+            self.registration_history.append(
+                {"service": service_name, "action": "register", "timestamp": metadata["registered_at"]}
+            )
 
             return True
         except Exception as e:
@@ -67,11 +64,9 @@ class MetaRegisterManager:
             del self.registry[service_name]
 
             # 제거 이력 기록
-            self.registration_history.append({
-                'service': service_name,
-                'action': 'unregister',
-                'timestamp': datetime.now().isoformat()
-            })
+            self.registration_history.append(
+                {"service": service_name, "action": "unregister", "timestamp": datetime.now().isoformat()}
+            )
             return True
         return False
 
@@ -94,9 +89,9 @@ class MetaRegisterManager:
     def get_registry_snapshot(self) -> Dict[str, Any]:
         """현재 레지스트리 상태의 스냅샷 반환"""
         return {
-            'services': self.registry.copy(),
-            'total_count': len(self.registry),
-            'snapshot_time': datetime.now().isoformat()
+            "services": self.registry.copy(),
+            "total_count": len(self.registry),
+            "snapshot_time": datetime.now().isoformat(),
         }
 
     def export_registry(self, file_path: str) -> bool:
@@ -110,7 +105,7 @@ class MetaRegisterManager:
             내보내기 성공 여부
         """
         try:
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(self.get_registry_snapshot(), f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
@@ -128,10 +123,10 @@ class MetaRegisterManager:
             가져오기 성공 여부
         """
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                if 'services' in data:
-                    self.registry = data['services']
+                if "services" in data:
+                    self.registry = data["services"]
                     return True
             return False
         except Exception as e:
@@ -151,6 +146,7 @@ class MetaRegisterManager:
         """
         try:
             from mcp_service_decorator import MCP_SERVICE_REGISTRY
+
             return MCP_SERVICE_REGISTRY.copy()
         except ImportError as e:
             print(f"Failed to import decorator registry: {e}")
@@ -184,7 +180,7 @@ class MetaRegisterManager:
                     "method": service_data.get("method"),
                     "is_async": service_data.get("is_async", False),
                     "file": service_data.get("file"),
-                    "line": service_data.get("line")
+                    "line": service_data.get("line"),
                 }
 
                 # 원본 메타데이터 가져오기
@@ -200,8 +196,8 @@ class MetaRegisterManager:
                         "description": original_metadata.get("description", ""),
                         "category": original_metadata.get("category", ""),
                         "tags": original_metadata.get("tags", []),
-                        "tool_names": original_metadata.get("tool_names", [f"Handle_{func_name}"])
-                    }
+                        "tool_names": original_metadata.get("tool_names", [f"Handle_{func_name}"]),
+                    },
                 }
 
                 # metadata에 추가 필드가 있으면 포함
@@ -215,11 +211,13 @@ class MetaRegisterManager:
             print(f"Failed to scan with mcp_service_scanner: {e}")
             return {}
 
-    def generate_service_manifest(self,
-                                   base_dir: Optional[str] = None,
-                                   server_name: str = "default",
-                                   include_runtime: bool = True,
-                                   include_static: bool = True) -> Dict[str, Any]:
+    def generate_service_manifest(
+        self,
+        base_dir: Optional[str] = None,
+        server_name: str = "default",
+        include_runtime: bool = True,
+        include_static: bool = True,
+    ) -> Dict[str, Any]:
         """
         데코레이터와 스캐너에서 데이터를 수집하여 통합 서비스 매니페스트 생성
 
@@ -237,7 +235,7 @@ class MetaRegisterManager:
             "generated_at": datetime.now().isoformat(),
             "server_name": server_name,
             "services": {},
-            "sources": []
+            "sources": [],
         }
 
         # 런타임 데코레이터 데이터 수집
@@ -250,9 +248,7 @@ class MetaRegisterManager:
                     original_metadata = service_data.get("metadata", {})
 
                     # handler 정보 구성 (런타임은 일부 정보가 없을 수 있음)
-                    handler = {
-                        "source": "runtime_decorator"
-                    }
+                    handler = {"source": "runtime_decorator"}
 
                     # 런타임 서비스 구조
                     runtime_entry = {
@@ -265,8 +261,8 @@ class MetaRegisterManager:
                             "category": original_metadata.get("category", ""),
                             "tags": original_metadata.get("tags", []),
                             "tool_names": original_metadata.get("tool_names", [f"Handle_{func_name}"]),
-                            "source": "runtime_decorator"
-                        }
+                            "source": "runtime_decorator",
+                        },
                     }
 
                     manifest["services"][f"runtime.{func_name}"] = runtime_entry
@@ -278,7 +274,7 @@ class MetaRegisterManager:
                 manifest["sources"].append("static_scanner")
                 for service_key, service_data in static_data.items():
                     # 중복 체크 - static이 runtime보다 우선순위 낮음
-                    func_name = service_data.get("service_name", service_key.split('.')[-1])
+                    func_name = service_data.get("service_name", service_key.split(".")[-1])
                     runtime_key = f"runtime.{func_name}"
                     if runtime_key not in manifest["services"]:
                         # metadata에 source 추가
@@ -288,16 +284,19 @@ class MetaRegisterManager:
         # 통계 정보 추가
         manifest["statistics"] = {
             "total_services": len(manifest["services"]),
-            "runtime_services": sum(1 for s in manifest["services"].values() if s.get("metadata", {}).get("source") == "runtime_decorator"),
-            "static_services": sum(1 for s in manifest["services"].values() if s.get("metadata", {}).get("source") == "static_scanner")
+            "runtime_services": sum(
+                1 for s in manifest["services"].values() if s.get("metadata", {}).get("source") == "runtime_decorator"
+            ),
+            "static_services": sum(
+                1 for s in manifest["services"].values() if s.get("metadata", {}).get("source") == "static_scanner"
+            ),
         }
 
         return manifest
 
-    def export_service_manifest(self,
-                                file_path: Optional[str] = None,
-                                base_dir: Optional[str] = None,
-                                server_name: str = "default") -> bool:
+    def export_service_manifest(
+        self, file_path: Optional[str] = None, base_dir: Optional[str] = None, server_name: str = "default"
+    ) -> bool:
         """
         서비스 매니페스트를 JSON 파일로 내보내기
 
@@ -316,7 +315,7 @@ class MetaRegisterManager:
 
             manifest = self.generate_service_manifest(base_dir, server_name)
 
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(manifest, f, indent=2, ensure_ascii=False)
 
             print(f"Service manifest exported to: {file_path}")
@@ -339,40 +338,19 @@ def extract_service_metadata():
     import argparse
 
     parser = argparse.ArgumentParser(description="MCP Service Registry Manager")
+    parser.add_argument("--base-dir", type=str, help="Base directory to scan for services")
     parser.add_argument(
-        "--base-dir",
-        type=str,
-        help="Base directory to scan for services"
+        "--server-name", type=str, default="default", help="Server name for the services (default: 'default')"
     )
     parser.add_argument(
-        "--server-name",
-        type=str,
-        default="default",
-        help="Server name for the services (default: 'default')"
+        "--output", type=str, default=None, help="Output file path (default: registry_{server_name}.json)"
     )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default=None,
-        help="Output file path (default: registry_{server_name}.json)"
-    )
-    parser.add_argument(
-        "--runtime-only",
-        action="store_true",
-        help="Only collect runtime decorator data"
-    )
-    parser.add_argument(
-        "--static-only",
-        action="store_true",
-        help="Only collect static scanner data"
-    )
+    parser.add_argument("--runtime-only", action="store_true", help="Only collect runtime decorator data")
+    parser.add_argument("--static-only", action="store_true", help="Only collect static scanner data")
 
     args = parser.parse_args()
 
     # 포함 옵션 결정
-    include_runtime = not args.static_only
-    include_static = not args.runtime_only
-
     if args.static_only and not args.base_dir:
         print("Error: --base-dir is required when using --static-only")
         sys.exit(1)
@@ -382,15 +360,13 @@ def extract_service_metadata():
 
     # 서비스 매니페스트 생성 및 내보내기
     success = registry_manager.export_service_manifest(
-        file_path=output_file,
-        base_dir=args.base_dir,
-        server_name=args.server_name
+        file_path=output_file, base_dir=args.base_dir, server_name=args.server_name
     )
 
     if success:
         print(f"\n✅ Service registry successfully exported to: {output_file}")
     else:
-        print(f"\n❌ Failed to export service registry")
+        print("\n❌ Failed to export service registry")
         sys.exit(1)
 
 

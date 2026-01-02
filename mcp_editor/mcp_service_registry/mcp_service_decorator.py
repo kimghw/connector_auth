@@ -10,16 +10,18 @@ from functools import wraps
 MCP_SERVICE_REGISTRY: Dict[str, Dict[str, Any]] = {}
 
 
-def mcp_service(tool_name: Optional[str] = None,
-                description: Optional[str] = None,
-                server_name: Optional[str] = None,
-                service_name: Optional[str] = None,
-                category: Optional[str] = None,
-                tags: Optional[List[str]] = None,
-                priority: Optional[int] = None,
-                related_objects: Optional[List[str]] = None,
-                service_signature: Optional[List[Dict[str, Any]]] = None,
-                include_in_registry: bool = True):
+def mcp_service(
+    tool_name: Optional[str] = None,
+    description: Optional[str] = None,
+    server_name: Optional[str] = None,
+    service_name: Optional[str] = None,
+    category: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    priority: Optional[int] = None,
+    related_objects: Optional[List[str]] = None,
+    service_signature: Optional[List[Dict[str, Any]]] = None,
+    include_in_registry: bool = True,
+):
     """
     Decorator for MCP service functions that captures function signature
 
@@ -35,6 +37,7 @@ def mcp_service(tool_name: Optional[str] = None,
         service_signature: Optional manual service signature definition (list of param dicts)
         include_in_registry: Whether to include in global registry
     """
+
     def decorator(func: Callable) -> Callable:
         # Get function signature
         sig = inspect.signature(func)
@@ -43,7 +46,7 @@ def mcp_service(tool_name: Optional[str] = None,
         # Get type hints
         try:
             type_hints = get_type_hints(func)
-        except:
+        except Exception:
             type_hints = {}
 
         # Extract parameter information
@@ -52,33 +55,32 @@ def mcp_service(tool_name: Optional[str] = None,
 
         for param_name, param in params.items():
             # Skip 'self' and 'cls' parameters
-            if param_name in ('self', 'cls'):
+            if param_name in ("self", "cls"):
                 continue
 
-            param_data = {
-                'name': param_name,
-                'type': None,
-                'default': None,
-                'required': True
-            }
+            param_data = {"name": param_name, "type": None, "default": None, "required": True}
 
             # Get type annotation
             if param_name in type_hints:
                 type_annotation = type_hints[param_name]
-                param_data['type'] = str(type_annotation).replace('typing.', '')
+                param_data["type"] = str(type_annotation).replace("typing.", "")
 
                 # Check if Optional
-                if 'Optional' in str(type_annotation) or 'Union' in str(type_annotation) and type(None) in type_annotation.__args__:
-                    param_data['required'] = False
+                if (
+                    "Optional" in str(type_annotation)
+                    or "Union" in str(type_annotation)
+                    and type(None) in type_annotation.__args__
+                ):
+                    param_data["required"] = False
 
             # Get default value
             if param.default != inspect.Parameter.empty:
-                param_data['default'] = param.default
-                param_data['required'] = False
+                param_data["default"] = param.default
+                param_data["required"] = False
 
             param_info.append(param_data)
 
-            if param_data['required']:
+            if param_data["required"]:
                 required_params.append(param_name)
 
         # Create service metadata
@@ -88,21 +90,21 @@ def mcp_service(tool_name: Optional[str] = None,
         final_parameters = service_signature if service_signature else param_info
 
         service_metadata = {
-            'name': final_service_name,
-            'function': func.__name__,
-            'module': func.__module__,
-            'description': description or func.__doc__ or f"{final_service_name} MCP service",
-            'server_name': server_name,
-            'service_name': service_name or func.__name__,
-            'category': category,
-            'tags': tags or [],
-            'priority': priority,
-            'related_objects': related_objects or [],
-            'is_async': inspect.iscoroutinefunction(func),
-            'parameters': final_parameters,
-            'required_parameters': required_params,
-            'return_type': str(type_hints.get('return', 'Any')).replace('typing.', ''),
-            'signature': str(sig)
+            "name": final_service_name,
+            "function": func.__name__,
+            "module": func.__module__,
+            "description": description or func.__doc__ or f"{final_service_name} MCP service",
+            "server_name": server_name,
+            "service_name": service_name or func.__name__,
+            "category": category,
+            "tags": tags or [],
+            "priority": priority,
+            "related_objects": related_objects or [],
+            "is_async": inspect.iscoroutinefunction(func),
+            "parameters": final_parameters,
+            "required_parameters": required_params,
+            "return_type": str(type_hints.get("return", "Any")).replace("typing.", ""),
+            "signature": str(sig),
         }
 
         # Add to registry if requested
@@ -146,7 +148,7 @@ def get_mcp_service_info(func_or_name: Any) -> Optional[Dict[str, Any]]:
     """
     if isinstance(func_or_name, str):
         return MCP_SERVICE_REGISTRY.get(func_or_name)
-    elif hasattr(func_or_name, '_mcp_service_metadata'):
+    elif hasattr(func_or_name, "_mcp_service_metadata"):
         return func_or_name._mcp_service_metadata
     return None
 
@@ -179,23 +181,23 @@ def generate_inputschema_from_service(service_name: str) -> Dict[str, Any]:
 
     # Type mapping
     type_mapping = {
-        'str': 'string',
-        'int': 'integer',
-        'float': 'number',
-        'bool': 'boolean',
-        'dict': 'object',
-        'Dict': 'object',
-        'list': 'array',
-        'List': 'array',
-        'Any': 'string'
+        "str": "string",
+        "int": "integer",
+        "float": "number",
+        "bool": "boolean",
+        "dict": "object",
+        "Dict": "object",
+        "list": "array",
+        "List": "array",
+        "Any": "string",
     }
 
-    for param in service_info['parameters']:
-        param_name = param['name']
-        param_type = param.get('type', 'Any')
+    for param in service_info["parameters"]:
+        param_name = param["name"]
+        param_type = param.get("type", "Any")
 
         # Basic type conversion
-        json_type = 'string'  # default
+        json_type = "string"  # default
 
         for py_type, js_type in type_mapping.items():
             if py_type in param_type:
@@ -203,26 +205,16 @@ def generate_inputschema_from_service(service_name: str) -> Dict[str, Any]:
                 break
 
         # Handle Optional types
-        if 'Optional' in param_type or not param['required']:
-            properties[param_name] = {
-                'type': [json_type, 'null'],
-                'description': f"{param_name} parameter"
-            }
+        if "Optional" in param_type or not param["required"]:
+            properties[param_name] = {"type": [json_type, "null"], "description": f"{param_name} parameter"}
         else:
-            properties[param_name] = {
-                'type': json_type,
-                'description': f"{param_name} parameter"
-            }
+            properties[param_name] = {"type": json_type, "description": f"{param_name} parameter"}
 
         # Add default value if present
-        if param['default'] is not None:
-            properties[param_name]['default'] = param['default']
+        if param["default"] is not None:
+            properties[param_name]["default"] = param["default"]
 
-    return {
-        'type': 'object',
-        'properties': properties,
-        'required': service_info['required_parameters']
-    }
+    return {"type": "object", "properties": properties, "required": service_info["required_parameters"]}
 
 
 # Example usage

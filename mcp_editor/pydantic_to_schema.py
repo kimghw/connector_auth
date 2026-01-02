@@ -1,12 +1,12 @@
 """
 Utility to convert Pydantic BaseModel classes to JSON Schema for MCP Tool Definitions
 """
+
 import json
 import sys
 import os
-from typing import Dict, Any, Type, get_type_hints, get_args, get_origin, List
+from typing import Dict, Any, Type, List
 from pydantic import BaseModel
-from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 import importlib.util
 
 # Add parent directory to path
@@ -24,14 +24,10 @@ def pydantic_to_mcp_schema(model_class: Type[BaseModel]) -> Dict[str, Any]:
         Dictionary containing the JSON schema for MCP tool definition
     """
     # Get JSON schema from Pydantic
-    schema = model_class.model_json_schema(mode='validation')
+    schema = model_class.model_json_schema(mode="validation")
 
     # Convert to MCP format
-    mcp_schema = {
-        "type": "object",
-        "properties": {},
-        "required": []
-    }
+    mcp_schema = {"type": "object", "properties": {}, "required": []}
 
     # Process properties
     if "properties" in schema:
@@ -186,7 +182,9 @@ def generate_mcp_schemas_from_graph_types(graph_type_paths: List[str] | None = N
     return schemas
 
 
-def update_tool_with_basemodel_schema(tool_def: Dict[str, Any], model_name: str, prop_name: str, graph_type_paths: List[str] | None = None):
+def update_tool_with_basemodel_schema(
+    tool_def: Dict[str, Any], model_name: str, prop_name: str, graph_type_paths: List[str] | None = None
+):
     """
     Update a specific property in a tool definition with a BaseModel schema.
 
@@ -214,7 +212,7 @@ def update_tool_with_basemodel_schema(tool_def: Dict[str, Any], model_name: str,
                     "type": "object",
                     "description": existing_desc or f"{model_name} parameters",
                     "properties": schema["properties"],
-                    "required": schema.get("required", [])
+                    "required": schema.get("required", []),
                 }
 
     return tool_def

@@ -8,12 +8,12 @@ To regenerate: python ../jinja/generate_server_mappings.py
 
 # List of all known server names (from decorator values)
 SERVER_NAMES = [
-    'file_handler',
-    'outlook',
+    "file_handler",
+    "outlook",
 ]
 
 # Default server name
-DEFAULT_SERVER = 'file_handler'
+DEFAULT_SERVER = "file_handler"
 
 
 def get_server_name_from_profile(profile: str) -> str | None:
@@ -26,7 +26,7 @@ def get_server_name_from_profile(profile: str) -> str | None:
     Returns:
         Server name or None if not found
     """
-    if profile == '_default':
+    if profile == "_default":
         return DEFAULT_SERVER
 
     # Check if profile contains any known server name
@@ -50,7 +50,7 @@ def get_server_name_from_path(path: str) -> str | None:
     # Check each known server name
     for server_name in SERVER_NAMES:
         # Check for directory naming pattern (mcp_{server_name})
-        if f'mcp_{server_name}' in path:
+        if f"mcp_{server_name}" in path:
             return server_name
         # Also check for just server_name in path
         if server_name in path:
