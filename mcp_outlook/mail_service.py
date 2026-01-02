@@ -5,9 +5,9 @@ Mail Service - GraphMailClient Facade
 
 from typing import Dict, Any, Optional, List
 
-from graph_mail_client import GraphMailClient, QueryMethod, ProcessingMode
-from mail_processing_options import MailStorageOption, AttachmentOption, OutputFormat
-from outlook_types import FilterParams, ExcludeParams, SelectParams, build_filter_query, build_select_query
+from .graph_mail_client import GraphMailClient, QueryMethod, ProcessingMode
+from .mail_processing_options import MailStorageOption, AttachmentOption, OutputFormat
+from .outlook_types import FilterParams, ExcludeParams, SelectParams, build_filter_query, build_select_query
 
 # mcp_service decorator is only needed for registry scanning, not runtime
 try:
@@ -79,7 +79,7 @@ class MailService:
         if order_by is None:
             order_by = "receivedDateTime desc"
 
-        return await self._client.build_and_fetch(
+        result = await self._client.build_and_fetch(
             user_email=user_email,
             query_method=query_method,
             filter_params=filter_params,
@@ -91,6 +91,15 @@ class MailService:
             top=top,
             order_by=order_by,
         )
+
+        # 반환 형식 변환: value -> emails
+        if "value" in result:
+            result["emails"] = result.pop("value")
+            result["success"] = True
+            result["user"] = user_email
+            result["method"] = query_method.value
+
+        return result
 
     @mcp_service(
         tool_name="handler_mail_fetch_and_process",  # 필수: MCP Tool 이름

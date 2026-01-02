@@ -13,7 +13,7 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session.auth_manager import AuthManager
-from outlook_types import (
+from .outlook_types import (
     FilterParams,
     ExcludeParams,
     SelectParams,

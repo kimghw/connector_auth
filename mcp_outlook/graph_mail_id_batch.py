@@ -13,7 +13,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session.auth_manager import AuthManager
-from outlook_types import SelectParams, build_select_query
+from .outlook_types import SelectParams, build_select_query
 
 
 class GraphMailIdBatch:

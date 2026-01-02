@@ -7,16 +7,16 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from enum import Enum
 
-from graph_mail_query import GraphMailQuery
-from graph_mail_id_batch import GraphMailIdBatch
-from mail_processing_options import (
+from .graph_mail_query import GraphMailQuery
+from .graph_mail_id_batch import GraphMailIdBatch
+from .mail_processing_options import (
     MailProcessorHandler,
     ProcessingOptions,
     MailStorageOption,
     AttachmentOption,
     OutputFormat,
 )
-from outlook_types import FilterParams, ExcludeParams, SelectParams
+from .outlook_types import FilterParams, ExcludeParams, SelectParams
 
 
 class QueryMethod(Enum):

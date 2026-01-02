@@ -335,4 +335,15 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                            'required': ['url', 'user_email'],
                            'type': 'object'},
         'mcp_service': 'fetch_url',
-        'name': 'mail_query_url'}]
+        'name': 'mail_query_url'},
+    {   'description': 'email_id 가 조회된 경우 그걸 이용해서 메일을 조회한다. body를 제외한 내용이 조회된 경우 에이전트가 사용자의 의도를 분석하여 관련된 email_id를 '
+                       '호출한다. ',
+        'inputSchema': {   'properties': {   'message_ids': {   'description': 'Auto-added parameter for message_ids ',
+                                                                'type': 'string'},
+                                             'user_email': {   'description': '이전 대화 내역에서 메일 주소를 찾아서 적용 없다면, 내부에서 자동으로 '
+                                                                              '처리해 줄 거임',
+                                                               'type': 'string'}},
+                           'required': ['message_ids'],
+                           'type': 'object'},
+        'mcp_service': 'batch_and_fetch',
+        'name': 'mail_query_if_emaidID'}]
