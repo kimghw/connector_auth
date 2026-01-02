@@ -1,0 +1,49 @@
+
+graph TB
+    subgraph "Client Layer"
+        UI[User Interface]
+        API[API Client]
+    end
+
+    subgraph "Facade Layer"
+        RS[rag_service.py<br/>Public API]
+    end
+
+    subgraph "Core Layer (Private)"
+        DM[Document Manager]
+        TP[Text Processor]
+        CH[Chunker]
+        EG[Embedding Generator]
+        SE[Search Engine]
+    end
+
+    subgraph "Storage Layer"
+        VS[Vector Store<br/>FAISS]
+        DB[(SQLite DB)]
+        FS[File Storage]
+    end
+
+    subgraph "External Services"
+        OAI[OpenAI API]
+    end
+
+    UI --> API
+    API --> RS
+    RS --> DM
+    RS --> TP
+    RS --> CH
+    RS --> EG
+    RS --> SE
+
+    DM --> DB
+    DM --> FS
+    CH --> DB
+    EG --> OAI
+    EG --> VS
+    SE --> VS
+    SE --> DB
+
+    style RS fill:#f9f,stroke:#333,stroke-width:4px
+    style UI fill:#bbf,stroke:#333,stroke-width:2px
+    style OAI fill:#fbf,stroke:#333,stroke-width:2px
+    

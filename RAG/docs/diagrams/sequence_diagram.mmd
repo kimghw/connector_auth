@@ -1,0 +1,51 @@
+
+sequenceDiagram
+    participant User
+    participant rag_service as RAG Service<br/>(Facade)
+    participant DM as Document<br/>Manager
+    participant TP as Text<br/>Processor
+    participant CH as Chunker
+    participant EG as Embedding<br/>Generator
+    participant VS as Vector<br/>Store
+    participant DB as Database
+
+    %% Upload Document
+    User->>rag_service: upload_document(file_path)
+    rag_service->>DM: upload(file_path)
+    DM->>DB: save_metadata()
+    DM-->>rag_service: doc_id
+    rag_service-->>User: doc_id
+
+    %% Process Document
+    User->>rag_service: process_document(doc_id)
+    rag_service->>TP: extract_text(file_path)
+    TP-->>rag_service: raw_text
+
+    rag_service->>TP: clean_text(raw_text)
+    TP-->>rag_service: clean_text
+
+    rag_service->>CH: create_chunks(clean_text)
+    CH-->>rag_service: chunks[]
+
+    loop For each chunk
+        rag_service->>EG: generate_embedding(chunk)
+        EG-->>rag_service: embedding
+        rag_service->>VS: add_vector(chunk_id, embedding)
+        rag_service->>DB: save_chunk(chunk)
+    end
+
+    rag_service-->>User: ProcessStatus
+
+    %% Search
+    User->>rag_service: search(query)
+    rag_service->>EG: generate_embedding(query)
+    EG-->>rag_service: query_embedding
+
+    rag_service->>VS: search_vectors(query_embedding)
+    VS-->>rag_service: chunk_ids[]
+
+    rag_service->>DB: get_chunks(chunk_ids)
+    DB-->>rag_service: chunks[]
+
+    rag_service-->>User: SearchResult[]
+    
