@@ -4,7 +4,7 @@ Signatures extracted from source code using AST parsing
 """
 from typing import List, Dict, Any
 
-MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 조회 기능',
+MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Outlook 메일을 날짜, 발신자, 제목 등 다양한 필터 조건을 사용하여 조회합니다. 특정 기간이나 조건에 맞는 메일을 효율적으로 검색할 수 있습니다.',
         'inputSchema': {   'properties': {   'exclude_params': {   'baseModel': 'ExcludeParams',
                                                                    'description': '제외 조건',
                                                                    'targetParam': 'exclude_params',
@@ -122,7 +122,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                                                                                                                     'type': 'string'}},
                                                                   'source': 'internal'}},
         'name': 'mail_fetch_filter'},
-    {   'description': '검색 방식 메일 조회 기능',
+    {   'description': 'Outlook 메일을 키워드로 검색합니다. 제목, 본문, 발신자 등 모든 필드에서 지정한 검색어를 포함하는 메일을 찾아 반환합니다.',
         'inputSchema': {   'properties': {   'search_term': {'description': '검색어 ($search 파라미터)', 'type': 'string'},
                                              'select_params': {   'baseModel': 'SelectParams',
                                                                   'description': '조회할 필드 선택',
@@ -165,7 +165,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                            'signature': 'user_email: str, search_term: str, select_params: Optional[SelectParams] = '
                                         'None, client_filter: Optional[ExcludeParams] = None, top: int = 50'},
         'name': 'mail_fetch_search'},
-    {   'description': '첨부파일 다운로드 포함 메일 처리 기능',
+    {   'description': '메일을 조회하고 첨부파일이 있는 경우 자동으로 다운로드합니다. 필터나 검색 조건으로 메일을 찾은 후 첨부파일을 지정된 폴더에 저장합니다.',
         'inputSchema': {   'properties': {   'filter_params': {   'baseModel': 'FilterParams',
                                                                   'description': '메일 필터링 조건',
                                                                   'properties': {   'received_date_from': {   'description': '메일 '
@@ -181,7 +181,8 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                                                                   'type': 'object'},
                                              'save_directory': {'description': '첨부파일 저장 디렉토리 경로', 'type': 'string'},
                                              'search_term': {'description': '검색어 (지정시 검색 모드로 전환)', 'type': 'string'},
-                                             'top': {'default': 50, 'description': '반환할 최대 메일 수', 'type': 'integer'}},
+                                             'top': {'default': 50, 'description': '반환할 최대 메일 수', 'type': 'integer'},
+                                             'user_email': {'description': '', 'type': 'string'}},
                            'required': [],
                            'type': 'object'},
         'mcp_service': {   'name': 'process_with_download',
@@ -213,7 +214,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                            'signature': 'user_email: str, filter_params: Optional[FilterParams] = None, search_term: '
                                         'Optional[str] = None, top: int = 50, save_directory: Optional[str] = None'},
         'name': 'mail_process_with_download'},
-    {   'description': '특정 기간 동안 메일조회하고 body를 제외하고 대략적인 내용만 추출할 수 있는 데이터만 수신하여 테이블로 정리하는 도구 입니다. ',
+    {   'description': '지정된 기간의 메일 목록을 미리보기 형태로 조회합니다. 메일 본문 전체가 아닌 제목, 발신자, 날짜, 요약 등 핵심 정보만을 효율적으로 가져와 테이블 형태로 정리합니다.',
         'inputSchema': {   'properties': {   'DatePeriodFilter': {   'baseModel': 'FilterParams',
                                                                      'description': '에이전트는 는 사용자의 질의에 따라 검색 범위의 날짜를 '
                                                                                     '추출한다. ',
@@ -278,7 +279,8 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                                                                                   'type': 'boolean'}},
                                                  'source': 'internal'}},
         'name': 'mail_list_preview'},
-    {   'description': 'URL 방식 메일 조회 기능 - $filter 와 $select를 설정 가능',
+    {   'description': 'Microsoft Graph API URL을 직접 사용하여 메일을 조회합니다. 고급 사용자를 위한 기능으로, OData 쿼리 파라미터($filter, $select '
+                       '등)를 직접 지정할 수 있습니다.',
         'inputSchema': {   'properties': {   'filter_params': {   'baseModel': 'FilterParams',
                                                                   'description': '메일 필터링 조건',
                                                                   'properties': {   'received_date_from': {   'description': '메일 '
@@ -343,8 +345,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '필터 방식 메일 �
                            'type': 'object'},
         'mcp_service': 'fetch_url',
         'name': 'mail_query_url'},
-    {   'description': 'email_id 가 조회된 경우 그걸 이용해서 메일을 조회한다. body를 제외한 내용이 조회된 경우 에이전트가 사용자의 의도를 분석하여 관련된 email_id를 '
-                       '호출한다. ',
+    {   'description': '특정 메일 ID 목록을 사용하여 해당 메일들의 상세 정보를 일괄 조회합니다. 이미 알고 있는 메일 ID를 통해 여러 메일의 전체 내용을 한 번에 가져올 수 있습니다.',
         'inputSchema': {   'properties': {   'message_ids': {   'description': 'Auto-added parameter for message_ids ',
                                                                 'type': 'string'},
                                              'user_email': {   'description': '이전 대화 내역에서 메일 주소를 찾아서 적용 없다면, 내부에서 자동으로 '

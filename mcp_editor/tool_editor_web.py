@@ -1803,17 +1803,8 @@ def generate_server_from_web():
         generated_files = []
 
         for protocol in protocols_to_generate:
-            # Determine template for this protocol
-            if protocol == "rest":
-                protocol_template_path = template_path
-            else:
-                # Look for protocol-specific template
-                template_dir = os.path.dirname(template_path)
-                protocol_template = os.path.join(template_dir, f"server_{protocol}.jinja2")
-                if os.path.exists(protocol_template):
-                    protocol_template_path = protocol_template
-                else:
-                    protocol_template_path = template_path
+            # Always use universal template for all protocols
+            protocol_template_path = template_path
 
             # Determine output file for this protocol
             output_base = Path(output_path)
