@@ -46,9 +46,7 @@ sys.path.insert(0, parent_dir)  # For direct module imports
 
 # Import parameter types if needed
 {%- if param_types %}
-{%- if server_name == 'outlook' %}
-from outlook_types import {{ param_types | join(', ') }}
-{%- endif %}
+from {{ server_name }}_types import {{ param_types | join(', ') }}
 {%- endif %}
 
 # Import tool definitions
