@@ -51,6 +51,10 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
                     },
                     "baseModel": "FilterParams",
                     "targetParam": "filter_params"
+                },
+                "user_email": {
+                    "type": "string",
+                    "description": ""
                 }
             },
             "required": []
@@ -83,6 +87,10 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
                 "top": {
                     "type": "integer",
                     "description": "반환할 최대 메일 수"
+                },
+                "user_email": {
+                    "type": "string",
+                    "description": ""
                 }
             },
             "required": [
@@ -128,7 +136,7 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
         }
     },
     {
-        "name": "mail_list",
+        "name": "mail_list_preview",
         "description": "특정 기간 동안 메일조회하고 body를 제외하고 대략적인 내용만 추출할 수 있는 데이터만 수신하여 테이블로 정리하는 도구 입니다.",
         "inputSchema": {
             "type": "object",

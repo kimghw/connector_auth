@@ -74,8 +74,11 @@ logger = logging.getLogger(__name__)
 {%- for key, service_info in unique_services.items() %}
 {%- if server_name == 'file_handler' %}
 from {{ service_info.module_path.split('.')[-1] }} import {{ service_info.class_name }}
+{%- elif server_name == 'outlook' %}
+sys.path.insert(0, os.path.dirname(parent_dir))  # Add path for mcp_outlook
+from mcp_outlook.outlook_service import {{ service_info.class_name }}
 {%- else %}
-from {{ service_info.module_path.replace('.', '_').replace('mcp_', '').replace('outlook_', '') }} import {{ service_info.class_name }}
+from {{ server_name }}_service import {{ service_info.class_name }}
 {%- endif %}
 {%- endfor %}
 

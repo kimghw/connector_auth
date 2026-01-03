@@ -462,16 +462,8 @@ if __name__ == "__main__":
     failed_protocols = []
 
     for protocol in protocols_to_generate:
-        # Determine template path for this protocol
-        if protocol == 'rest':
-            template_path = args.template or str(SCRIPT_DIR / "universal_server_template.jinja2")
-        else:
-            # Look for protocol-specific template
-            protocol_template = SCRIPT_DIR / f"server_{protocol}.jinja2"
-            if protocol_template.exists():
-                template_path = str(protocol_template)
-            else:
-                template_path = args.template or str(SCRIPT_DIR / "universal_server_template.jinja2")
+        # Always use universal template for all protocols
+        template_path = args.template or str(SCRIPT_DIR / "universal_server_template.jinja2")
 
         # Determine output path
         if args.output:

@@ -193,7 +193,12 @@ class MailService:
         description="검색 방식 메일 조회 기능",  # 필수: 기능 설명
     )
     async def fetch_search(
-        self, user_email: str, search_term: str, select_params: Optional[SelectParams] = None, top: int = 50
+        self,
+        user_email: str,
+        search_term: str,
+        select_params: Optional[SelectParams] = None,
+        client_filter: Optional[ExcludeParams] = None,
+        top: int = 50
     ) -> Dict[str, Any]:
         """검색 방식 메일 조회 - query_method 고정"""
         self._ensure_initialized()
@@ -202,6 +207,7 @@ class MailService:
             query_method=QueryMethod.SEARCH,
             search_term=search_term,
             select_params=select_params,
+            client_filter=client_filter,
             top=top,
         )
 

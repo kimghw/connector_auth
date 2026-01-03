@@ -56,7 +56,7 @@
 ### MCP 서버 디렉토리
 - `mcp_outlook/`: Outlook 메일 처리 서버
   - `mcp_server/`: 서버 코드 (server.py, tool_definitions.py)
-  - `mail_service.py`, `graph_mail_query.py`: 핵심 서비스 로직
+  - `outlook_service.py`, `graph_mail_query.py`: 핵심 서비스 로직
 - `mcp_file_handler/`: 파일 처리 서버
   - `mcp_server/`: 서버 코드
   - `file_manager.py`: 파일 관리 로직

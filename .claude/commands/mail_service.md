@@ -4,14 +4,14 @@ description: GraphMailClient 함수 및 인자 정리 (project)
 
 # GraphMailClient 함수 및 인자 정리
 
-`mail_service.py` 생성 시 참고할 `graph_mail_client.py` 컨텍스트
+`outlook_service.py` 생성 시 참고할 `graph_mail_client.py` 컨텍스트
 
 ---
 
 ## 설계 원칙
 
 **Facade 디자인 패턴 적용**
-- `mail_service.py`는 `GraphMailClient`의 Facade 역할
+- `outlook_service.py`는 `GraphMailClient`의 Facade 역할
 - **인자만 제어**하여 내부 복잡성을 숨김
 - 실제 로직은 `GraphMailClient`에 위임
 - MCP 도구에서 단순한 인터페이스로 호출 가능
@@ -24,7 +24,7 @@ description: GraphMailClient 함수 및 인자 정리 (project)
                   │ 단순 인자 전달
                   ▼
 ┌─────────────────────────────────────────────┐
-│              mail_service.py                │
+│              outlook_service.py                │
 │          (Facade - 인자만 제어)             │
 └─────────────────┬───────────────────────────┘
                   │ 위임
@@ -160,7 +160,7 @@ class MailService:
 
 ### 핵심 구현
 - `mcp_outlook/graph_mail_client.py` - GraphMailClient 본체
-- `mcp_outlook/mail_service.py` - Facade 레이어 (MCP 서비스)
+- `mcp_outlook/outlook_service.py` - Facade 레이어 (MCP 서비스)
 - `mcp_outlook/outlook_types.py` - 타입 정의
 
 ### 헬퍼 모듈

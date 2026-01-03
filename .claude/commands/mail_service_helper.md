@@ -4,7 +4,7 @@ description: Custom command (project)
 
 # Mail Service Helper - GraphMailClient 작업 가이드
 
-`mail_service.py` 작업 시 GraphMailClient를 감싸는 Facade 레이어 구현 가이드
+`outlook_service.py` 작업 시 GraphMailClient를 감싸는 Facade 레이어 구현 가이드
 
 ---
 
@@ -17,7 +17,7 @@ description: Custom command (project)
 
 ### 데이터 흐름
 ```
-MCP Tool Call → mail_service.py (Facade) → GraphMailClient → MS Graph API
+MCP Tool Call → outlook_service.py (Facade) → GraphMailClient → MS Graph API
 ```
 
 ---
@@ -142,7 +142,7 @@ async def search_emails(self, user_email: str, keyword: str, max_results: int = 
 
 ### 구현 파일
 - `mcp_outlook/graph_mail_client.py` - GraphMailClient 본체
-- `mcp_outlook/mail_service.py` - Facade 레이어 (작성 대상)
+- `mcp_outlook/outlook_service.py` - Facade 레이어 (작성 대상)
 
 ### 헬퍼 모듈
 - `mcp_outlook/graph_mail_filter.py` - 필터 쿼리 생성
