@@ -100,21 +100,121 @@ def load_tool_definitions(tool_def_path: str) -> List[Dict[str, Any]]:
         raise ValueError(f"Unsupported file type: {path.suffix}")
 
 
-def extract_param_types(registry: Dict[str, Any]) -> List[str]:
-    """Extract unique parameter types from registry"""
-    param_types = set()
+def find_type_locations(server_name: str) -> Dict[str, str]:
+    """Find the locations of types for a server
 
+    Returns dict mapping type names to their import paths
+    """
+    import ast
+    import glob
+
+    type_locations = {}
+
+    # Search patterns for finding type definitions
+    search_paths = [
+        PROJECT_ROOT / f"mcp_{server_name}" / "*.py",
+        PROJECT_ROOT / f"{server_name}" / "*.py",
+        PROJECT_ROOT / "mcp_editor" / f"mcp_{server_name}" / "*.py",
+    ]
+
+    for pattern in search_paths:
+        for file_path in glob.glob(str(pattern)):
+            try:
+                with open(file_path, 'r') as f:
+                    tree = ast.parse(f.read())
+
+                # Extract module name from file path
+                module_parts = Path(file_path).stem
+                if 'mcp_' in str(file_path):
+                    if 'mcp_editor' in str(file_path):
+                        module_name = f"mcp_editor.mcp_{server_name}.{module_parts}"
+                    else:
+                        module_name = f"mcp_{server_name}.{module_parts}"
+                else:
+                    module_name = f"{server_name}.{module_parts}"
+
+                # Find class definitions and enums
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.ClassDef):
+                        # Check if it's an Enum
+                        is_enum = any(
+                            base.id == 'Enum' if isinstance(base, ast.Name) else
+                            (base.attr == 'Enum' if isinstance(base, ast.Attribute) else False)
+                            for base in node.bases
+                        )
+
+                        if node.name not in type_locations:
+                            type_locations[node.name] = {
+                                'module': module_name,
+                                'is_enum': is_enum,
+                                'file': file_path
+                            }
+            except:
+                # Skip files that can't be parsed
+                continue
+
+    return type_locations
+
+
+def extract_type_info(registry: Dict[str, Any], tools: List[Dict[str, Any]], server_name: str = None) -> Dict[str, Any]:
+    """Extract type information from registry and tools
+
+    Returns:
+        Dict with:
+        - param_types: List of parameter type names
+        - enum_types: List of enum type names
+        - type_imports: Dict mapping types to their import paths
+    """
+    param_types = set()
+    enum_types = set()
+    type_imports = {}
+
+    # Extract from registry parameters
     for service_name, service_data in registry.get('services', {}).items():
         for param in service_data.get('parameters', []):
             param_type = param.get('type', '')
-            # Extract custom types (not built-ins)
-            if param_type and 'Params' in param_type:
-                # Handle Optional[XXXParams] -> XXXParams
-                if 'Optional[' in param_type:
-                    param_type = param_type.replace('Optional[', '').replace(']', '')
-                param_types.add(param_type)
 
-    return sorted(list(param_types))
+            # Extract custom types (not built-ins)
+            if param_type and param_type not in ['str', 'int', 'float', 'bool', 'dict', 'list']:
+                # Handle Optional[XXXParams] -> XXXParams
+                clean_type = param_type
+                if 'Optional[' in clean_type:
+                    clean_type = clean_type.replace('Optional[', '').replace(']', '')
+
+                # Categorize types
+                if 'Params' in clean_type:
+                    param_types.add(clean_type)
+                elif clean_type and clean_type[0].isupper():  # Likely an enum or class
+                    enum_types.add(clean_type)
+
+    # Extract from tool definitions
+    for tool in tools:
+        # Check mcp_service parameters
+        mcp_service = tool.get('mcp_service', {})
+        if isinstance(mcp_service, dict):
+            for param in mcp_service.get('parameters', []):
+                param_type = param.get('type', '')
+                if param_type and param_type not in ['str', 'int', 'float', 'bool', 'dict', 'list']:
+                    clean_type = param_type
+                    if 'Optional[' in clean_type:
+                        clean_type = clean_type.replace('Optional[', '').replace(']', '')
+
+                    if 'Params' in clean_type:
+                        param_types.add(clean_type)
+                    elif clean_type and clean_type[0].isupper():
+                        enum_types.add(clean_type)
+
+    # Find type locations if server_name is provided
+    type_locations = {}
+    if server_name:
+        type_locations = find_type_locations(server_name)
+
+    return {
+        'param_types': sorted(list(param_types)),
+        'enum_types': sorted(list(enum_types)),
+        'all_types': sorted(list(param_types | enum_types)),
+        'type_locations': type_locations
+    }
 
 
 def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], server_name: str, internal_args: Dict[str, Any] = None, protocol_type: str = 'rest') -> Dict[str, Any]:
@@ -158,8 +258,8 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                 }
             }
 
-    # Extract parameter types
-    param_types = extract_param_types(registry)
+    # Extract type information
+    type_info = extract_type_info(registry, tools, server_name)
 
     # Create unique_services for compatibility with STDIO/STREAM templates
     unique_services = {}
@@ -192,10 +292,20 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         elif tool_name in tools_map:
             tool_with_internal['implementation'] = tools_map[tool_name]['implementation']
         else:
-            # Fallback: try to find by iterating services
-            for svc_name, svc_info in services.items():
-                tool_with_internal['implementation'] = svc_info
-                break
+            # Fallback: Use a default implementation based on tool configuration
+            # For outlook service, use MailService as default
+            if server_name == 'outlook':
+                tool_with_internal['implementation'] = {
+                    'class_name': 'MailService',
+                    'module_path': 'mcp_outlook.outlook_service',
+                    'instance': 'mail_service',
+                    'method': service_name  # Use service_name from mcp_service
+                }
+            else:
+                # Generic fallback for other servers
+                for svc_name, svc_info in services.items():
+                    tool_with_internal['implementation'] = svc_info
+                    break
 
         # Build params from mcp_service.parameters or inputSchema.properties
         params = {}
@@ -303,7 +413,10 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         'unique_services': unique_services,  # Add unique_services for STDIO/STREAM templates
         'tools': processed_tools,  # List of tools with implementation info for template iteration
         'tools_map': tools_map,    # Dict for quick lookup by name
-        'param_types': param_types,
+        'param_types': type_info['param_types'],  # Parameter types (FilterParams, etc.)
+        'enum_types': type_info['enum_types'],     # Enum types (QueryMethod, etc.)
+        'all_types': type_info['all_types'],       # All custom types
+        'type_info': type_info,                    # Full type information
         'MCP_TOOLS': processed_tools,  # Tool definitions with internal args (same as tools)
         'internal_args': internal_args  # Full internal args for reference
     }

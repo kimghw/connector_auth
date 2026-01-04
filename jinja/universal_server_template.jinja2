@@ -44,8 +44,23 @@ sys.path.insert(0, file_handler_dir)  # For file_handler relative imports
 sys.path.insert(0, grandparent_dir)  # For session module and package imports
 sys.path.insert(0, parent_dir)  # For direct module imports
 
-# Import parameter types if needed
-{%- if param_types %}
+# Import types dynamically based on type_info
+{%- if type_info and type_info.type_locations %}
+{%- set imports = {} %}
+{%- for type_name in type_info.all_types %}
+{%- if type_name in type_info.type_locations %}
+{%- set loc = type_info.type_locations[type_name] %}
+{%- if loc.module not in imports %}
+{%- set _ = imports.update({loc.module: []}) %}
+{%- endif %}
+{%- set _ = imports[loc.module].append(type_name) %}
+{%- endif %}
+{%- endfor %}
+{%- for module, types in imports.items() %}
+from {{ module }} import {{ types | join(', ') }}
+{%- endfor %}
+{%- elif param_types %}
+# Fallback to simple import if type_locations not available
 from {{ server_name }}_types import {{ param_types | join(', ') }}
 {%- endif %}
 
@@ -264,7 +279,12 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {{ param_name }} = args["{{ param_name }}"]
     {%- elif param_info.has_default %}
     {{ param_name }}_raw = args.get("{{ param_name }}")
+    {%- if param_info.type in enum_types %}
+    # Handle enum type default
+    {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default | replace('"', '') }}
+    {%- else %}
     {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default_json }}
+    {%- endif %}
     {%- else %}
     {{ param_name }} = args.get("{{ param_name }}")
     {%- endif %}
@@ -355,7 +375,7 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- endfor %}
     {%- endif %}
 
-    return await {{ tool.implementation.instance }}.{{ tool.implementation.method or tool.mcp_service or tool.service_method }}(**call_args)
+    return await {{ tool.implementation.instance }}.{{ tool.implementation.method }}(**call_args)
     {%- else %}
 
     # Extract parameters from args
@@ -364,13 +384,18 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {{ param_name }} = args["{{ param_name }}"]
     {%- elif param_info.has_default %}
     {{ param_name }}_raw = args.get("{{ param_name }}")
+    {%- if param_info.type in enum_types %}
+    # Handle enum type default
+    {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default | replace('"', '') }}
+    {%- else %}
     {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default_json }}
+    {%- endif %}
     {%- else %}
     {{ param_name }} = args.get("{{ param_name }}")
     {%- endif %}
     {%- endfor %}
 
-    return await {{ tool.implementation.instance }}.{{ tool.implementation.method or tool.mcp_service or tool.service_method }}(
+    return await {{ tool.implementation.instance }}.{{ tool.implementation.method }}(
         {%- for param_name, param_info in tool.params.items() %}
         {{ param_name }}={{ param_name }}{{ "," if not loop.last else "" }}
         {%- endfor %}

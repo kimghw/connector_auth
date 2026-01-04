@@ -10,10 +10,14 @@ app = FastAPI(title="{{ server_title | default(server_name | title + ' MCP Serve
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on server startup"""
+{%- set initialized_instances = [] %}
 {%- for service_name, service_info in services.items() %}
+{%- if service_info.instance not in initialized_instances %}
     if hasattr({{ service_info.instance }}, 'initialize'):
         await {{ service_info.instance }}.initialize()
         logger.info("{{ service_info.class_name }} initialized")
+{%- set _ = initialized_instances.append(service_info.instance) %}
+{%- endif %}
 {%- endfor %}
     logger.info("{{ server_title | default(server_name | title + ' MCP Server') }} started")
 
@@ -108,84 +112,17 @@ async def call_tool(request: Request):
                 content={"error": {"message": f"Service not available: {service_class}"}}
             )
 
-        # Get the method
-        method_name = implementation_info["method"]
-        method = getattr(service_instance, method_name, None)
-        if not method:
+        # Get the handler function (handle_<tool_name>)
+        handler_name = f"handle_{tool_name}"
+        handler = globals().get(handler_name)
+        if not handler:
             return JSONResponse(
                 status_code=500,
-                content={"error": {"message": f"Method not found: {method_name}"}}
+                content={"error": {"message": f"Handler not found: {handler_name}"}}
             )
 
-        # Process arguments based on tool configuration
-        # Handle parameter transformations
-        processed_args = {}
-
-        # Get tool configuration
-        tool_config = get_tool_config(tool_name)
-
-        if tool_config:
-            schema_props = tool_config.get("inputSchema", {}).get("properties", {})
-            tool_internal_args = INTERNAL_ARGS.get(tool_name, {})
-
-            # Process signature arguments
-            for param_name, param_value in arguments.items():
-                param_schema = schema_props.get(param_name, {})
-
-                # Transform object parameters to their expected types
-                if param_schema.get("type") == "object":
-                    base_model = param_schema.get("baseModel")
-                    target_param = param_schema.get("targetParam", param_name)  # Use targetParam if specified
-
-                    # Create object instance based on baseModel
-                    # Skip empty dicts - they should be treated as None for merging with internal args
-                    if base_model and base_model in globals():
-                        model_class = globals()[base_model]
-                        if param_value:  # Only create object if param_value is not empty/None
-                            processed_args[target_param] = model_class(**param_value)
-                        # If empty, don't add to processed_args - let internal args take over
-                    elif param_value:  # Only add non-empty values
-                        processed_args[target_param] = param_value
-                else:
-                    # For non-object types, check if there's a targetParam mapping
-                    target_param = param_schema.get("targetParam", param_name)
-                    processed_args[target_param] = param_value
-
-            # Process internal arguments
-            for arg_name, arg_info in tool_internal_args.items():
-                # Check if this internal arg has a targetParam (may be in original_schema)
-                target_param = arg_info.get("original_schema", {}).get("targetParam") or arg_info.get("targetParam", arg_name)
-
-                # Build internal parameter
-                internal_value = build_internal_param(tool_name, arg_name)
-
-                if internal_value is not None:
-                    # Check if target_param already exists from signature args
-                    if target_param in processed_args:
-                        # Signature args have priority - merge internal into signature
-                        sig_value = processed_args[target_param]
-
-                        # If both are objects, merge them (signature priority)
-                        if hasattr(sig_value, '__dict__') and hasattr(internal_value, '__dict__'):
-                            # Convert to dict for merging (exclude None values)
-                            sig_dict = {k: v for k, v in vars(sig_value).items() if v is not None}
-                            internal_dict = {k: v for k, v in vars(internal_value).items() if v is not None}
-
-                            # Merge with signature priority
-                            merged_dict = {**internal_dict, **sig_dict}
-
-                            # Recreate object with merged values
-                            param_type = type(sig_value)
-                            processed_args[target_param] = param_type(**merged_dict)
-                        # Otherwise keep signature value (signature priority)
-                    else:
-                        # No signature arg, use internal arg
-                        processed_args[target_param] = internal_value
-        else:
-            processed_args = arguments
-
-        # Call the method
-        result = await method(**processed_args)
+        # Call the handler function directly with the arguments
+        result = await handler(arguments)
 
         response_content = format_tool_result(result)
         return JSONResponse(content=build_mcp_content(response_content))
