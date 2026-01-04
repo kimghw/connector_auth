@@ -1,5 +1,5 @@
 """
-FastAPI MCP Server for Outlook MCP Server
+FastAPI MCP Server for File Handler MCP Server
 Routes MCP protocol requests to service functions
 Generated from universal template with registry data and protocol selection
 """
@@ -19,11 +19,12 @@ parent_dir = os.path.dirname(current_dir)
 grandparent_dir = os.path.dirname(parent_dir)
 
 # Add paths for imports based on server type
+file_handler_dir = os.path.join(grandparent_dir, "mcp_file_handler")
+sys.path.insert(0, file_handler_dir)  # For file_handler relative imports
 sys.path.insert(0, grandparent_dir)  # For session module and package imports
 sys.path.insert(0, parent_dir)  # For direct module imports
 
 # Import parameter types if needed
-from outlook_types import ExcludeParams, FilterParams, SelectParams
 
 # Import tool definitions
 try:
@@ -36,10 +37,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Import service classes (unique)
-from mcp_outlook.outlook_service import MailService
+from file_manager import FileManager
 
 # Create service instances
-mail_service = MailService()
+file_manager = FileManager()
 
 # ============================================================
 # Common MCP protocol utilities (shared across protocols)
@@ -49,35 +50,39 @@ SUPPORTED_PROTOCOLS = {"rest", "stdio", "stream"}
 
 # Pre-computed tool -> implementation mapping
 TOOL_IMPLEMENTATIONS = {
-    "mail_fetch_filter": {
-        "service_class": "MailService",
-        "method": "fetch_filter"
+    "convert_file_to_text": {
+        "service_class": "FileManager",
+        "method": "process"
     },
-    "mail_fetch_search": {
-        "service_class": "MailService",
-        "method": "fetch_search"
+    "process_directory": {
+        "service_class": "FileManager",
+        "method": "process_directory"
     },
-    "mail_process_with_download": {
-        "service_class": "MailService",
-        "method": "process_with_download"
+    "save_file_metadata": {
+        "service_class": "FileManager",
+        "method": "save_metadata"
     },
-    "mail_list_preview": {
-        "service_class": "MailService",
-        "method": "query_mail_list"
+    "search_metadata": {
+        "service_class": "FileManager",
+        "method": "search_metadata"
     },
-    "mail_query_url": {
-        "service_class": "MailService",
-        "method": "fetch_url"
+    "convert_onedrive_to_text": {
+        "service_class": "FileManager",
+        "method": "process_onedrive"
     },
-    "mail_query_if_emaidID": {
-        "service_class": "MailService",
-        "method": "batch_and_fetch"
+    "get_file_metadata": {
+        "service_class": "FileManager",
+        "method": "get_metadata"
+    },
+    "delete_file_metadata": {
+        "service_class": "FileManager",
+        "method": "delete_metadata"
     },
 }
 
 # Pre-computed service class -> instance mapping
 SERVICE_INSTANCES = {
-    "MailService": mail_service,
+    "FileManager": file_manager,
 }
 
 
@@ -132,7 +137,7 @@ def build_mcp_content(payload: Dict[str, Any]) -> Dict[str, Any]:
 def load_internal_args() -> dict:
     """Load internal args from tool_internal_args.json"""
     possible_paths = [
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mcp_editor", "mcp_outlook", "tool_internal_args.json"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mcp_editor", "mcp_file_handler", "tool_internal_args.json"),
         os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tool_internal_args.json"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "tool_internal_args.json"),
     ]
@@ -152,12 +157,6 @@ INTERNAL_ARGS = load_internal_args()
 
 # Build INTERNAL_ARG_TYPES dynamically based on imported types
 INTERNAL_ARG_TYPES = {}
-if 'ExcludeParams' in globals():
-    INTERNAL_ARG_TYPES['ExcludeParams'] = ExcludeParams
-if 'FilterParams' in globals():
-    INTERNAL_ARG_TYPES['FilterParams'] = FilterParams
-if 'SelectParams' in globals():
-    INTERNAL_ARG_TYPES['SelectParams'] = SelectParams
 
 
 def extract_schema_defaults(arg_info: dict) -> dict:
@@ -229,214 +228,85 @@ def merge_param_data(internal_data: dict, runtime_data):
 
 # Tool handler functions
 
-async def handle_mail_fetch_filter(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle mail_fetch_filter tool call"""
+async def handle_convert_file_to_text(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle convert_file_to_text tool call"""
 
     # Extract parameters from args
-    user_email = args["user_email"]
-    filter_params_raw = args.get("filter_params")
-    filter_params = filter_params_raw if filter_params_raw is not None else None
-    exclude_params_raw = args.get("exclude_params")
-    exclude_params = exclude_params_raw if exclude_params_raw is not None else None
-    select_params_raw = args.get("select_params")
-    select_params = select_params_raw if select_params_raw is not None else None
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 50
-    # Internal overrides for object params
-    exclude_params_internal_params = build_internal_param("mail_fetch_filter", "exclude_params_internal")
-    exclude_params_internal_data = model_to_dict(exclude_params_internal_params)
+    input_path = args["input_path"]
+
+    return await file_manager.process(
+        input_path=input_path
+    )
+
+async def handle_process_directory(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle process_directory tool call"""
+
+    # Extract parameters from args
+    directory_path = args["directory_path"]
+
+    return await file_manager.process_directory(
+        directory_path=directory_path
+    )
+
+async def handle_save_file_metadata(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle save_file_metadata tool call"""
+
+    # Extract parameters from args
+    file_url = args["file_url"]
+    keywords = args["keywords"]
+    additional_metadata = args.get("additional_metadata")
 
     # Convert dicts to parameter objects where needed
-    filter_params_internal_data = {}
-    filter_params_raw = args.get("filter_params")
-    filter_params_data = merge_param_data(filter_params_internal_data, filter_params_raw)
-    if filter_params_data is not None:
-        filter_params_params = FilterParams(**filter_params_data)
-    else:
-        filter_params_params = None
-    exclude_params_internal_data = exclude_params_internal_data
-    exclude_params_raw = args.get("exclude_params")
-    exclude_params_data = merge_param_data(exclude_params_internal_data, exclude_params_raw)
-    if exclude_params_data is not None:
-        exclude_params_params = ExcludeParams(**exclude_params_data)
-    else:
-        exclude_params_params = None
-    select_params_internal_data = {}
-    select_params_raw = args.get("select_params")
-    select_params_data = merge_param_data(select_params_internal_data, select_params_raw)
-    if select_params_data is not None:
-        select_params_params = SelectParams(**select_params_data)
-    else:
-        select_params_params = None
+    additional_metadata_internal_data = {}
+    additional_metadata_raw = args.get("additional_metadata")
+    additional_metadata_data = merge_param_data(additional_metadata_internal_data, additional_metadata_raw)
+    additional_metadata_params = dict(**additional_metadata_data) if additional_metadata_data is not None else None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
-    call_args["user_email"] = user_email
-    call_args["filter_params"] = filter_params_params
-    call_args["exclude_params"] = exclude_params_params
-    call_args["select_params"] = select_params_params
-    call_args["top"] = top
-    # Process internal args with targetParam mappings
+    call_args["file_url"] = file_url
+    call_args["keywords"] = keywords
+    call_args["additional_metadata"] = additional_metadata_params
 
-    return await mail_service.fetch_filter(**call_args)
+    return await file_manager.save_metadata(**call_args)
 
-async def handle_mail_fetch_search(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle mail_fetch_search tool call"""
+async def handle_search_metadata(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle search_metadata tool call"""
 
     # Extract parameters from args
-    user_email = args["user_email"]
-    search_term = args["search_term"]
-    select_params_raw = args.get("select_params")
-    select_params = select_params_raw if select_params_raw is not None else None
-    client_filter_raw = args.get("client_filter")
-    client_filter = client_filter_raw if client_filter_raw is not None else None
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 50
 
-    # Convert dicts to parameter objects where needed
-    select_params_internal_data = {}
-    select_params_raw = args.get("select_params")
-    select_params_data = merge_param_data(select_params_internal_data, select_params_raw)
-    if select_params_data is not None:
-        select_params_params = SelectParams(**select_params_data)
-    else:
-        select_params_params = None
-    client_filter_internal_data = {}
-    client_filter_raw = args.get("client_filter")
-    client_filter_data = merge_param_data(client_filter_internal_data, client_filter_raw)
-    if client_filter_data is not None:
-        client_filter_params = ExcludeParams(**client_filter_data)
-    else:
-        client_filter_params = None
-    # Prepare call arguments
-    call_args = {}
+    return await file_manager.search_metadata(
+    )
 
-    # Add signature parameters
-    call_args["user_email"] = user_email
-    call_args["search_term"] = search_term
-    call_args["select_params"] = select_params_params
-    call_args["client_filter"] = client_filter_params
-    call_args["top"] = top
-
-    return await mail_service.fetch_search(**call_args)
-
-async def handle_mail_process_with_download(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle mail_process_with_download tool call"""
+async def handle_convert_onedrive_to_text(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle convert_onedrive_to_text tool call"""
 
     # Extract parameters from args
-    user_email = args["user_email"]
-    filter_params_raw = args.get("filter_params")
-    filter_params = filter_params_raw if filter_params_raw is not None else None
-    search_term_raw = args.get("search_term")
-    search_term = search_term_raw if search_term_raw is not None else None
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 50
-    save_directory_raw = args.get("save_directory")
-    save_directory = save_directory_raw if save_directory_raw is not None else None
-
-    # Convert dicts to parameter objects where needed
-    filter_params_internal_data = {}
-    filter_params_raw = args.get("filter_params")
-    filter_params_data = merge_param_data(filter_params_internal_data, filter_params_raw)
-    if filter_params_data is not None:
-        filter_params_params = FilterParams(**filter_params_data)
-    else:
-        filter_params_params = None
-    # Prepare call arguments
-    call_args = {}
-
-    # Add signature parameters
-    call_args["user_email"] = user_email
-    call_args["filter_params"] = filter_params_params
-    call_args["search_term"] = search_term
-    call_args["top"] = top
-    call_args["save_directory"] = save_directory
-
-    return await mail_service.process_with_download(**call_args)
-
-async def handle_mail_list_preview(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle mail_list_preview tool call"""
-
-    # Extract parameters from args
-    DatePeriodFilter = args["DatePeriodFilter"]
-    user_email = args.get("user_email")
-
-    # Convert dicts to parameter objects where needed
-    DatePeriodFilter_internal_data = {}
-    DatePeriodFilter_raw = args["DatePeriodFilter"]
-    DatePeriodFilter_data = merge_param_data(DatePeriodFilter_internal_data, DatePeriodFilter_raw) or {}
-    DatePeriodFilter_params = FilterParams(**DatePeriodFilter_data)
-    # Prepare call arguments
-    call_args = {}
-
-    # Add signature parameters
-    call_args["filter_params"] = DatePeriodFilter_params
-    call_args["user_email"] = user_email
-    # Process internal args with targetParam mappings
-
-    # Build internal arg: select
-    _internal_select = build_internal_param("mail_list_preview", "select")
-
-    # Check if target param already exists from signature
-    if "select_params" in call_args:
-        # Merge internal into signature (signature has priority, but skip None values)
-        existing_value = call_args["select_params"]
-        if hasattr(existing_value, '__dict__') and hasattr(_internal_select, '__dict__'):
-            # Both are objects - merge them (exclude None values from existing)
-            internal_dict = {k: v for k, v in vars(_internal_select).items() if v is not None}
-            existing_dict = {k: v for k, v in vars(existing_value).items() if v is not None}
-            merged_dict = {**internal_dict, **existing_dict}
-            call_args["select_params"] = type(existing_value)(**merged_dict)
-        # Otherwise keep existing signature value
-    else:
-        # No conflict, use internal value with targetParam mapping
-        call_args["select_params"] = _internal_select
-
-    return await mail_service.query_mail_list(**call_args)
-
-async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle mail_query_url tool call"""
-
-    # Extract parameters from args
-    filter_params = args.get("filter_params")
-    select = args.get("select")
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 50
     url = args["url"]
-    user_email = args["user_email"]
 
-    # Convert dicts to parameter objects where needed
-    filter_params_internal_data = {}
-    filter_params_raw = args.get("filter_params")
-    filter_params_data = merge_param_data(filter_params_internal_data, filter_params_raw)
-    filter_params_params = FilterParams(**filter_params_data) if filter_params_data is not None else None
-    select_internal_data = {}
-    select_raw = args.get("select")
-    select_data = merge_param_data(select_internal_data, select_raw)
-    select_params = SelectParams(**select_data) if select_data is not None else None
-    # Prepare call arguments
-    call_args = {}
+    return await file_manager.process_onedrive(
+        url=url
+    )
 
-    # Add signature parameters
-    call_args["filter_params"] = filter_params_params
-    call_args["select_params"] = select_params
-    call_args["top"] = top
-    call_args["url"] = url
-    call_args["user_email"] = user_email
-
-    return await mail_service.fetch_url(**call_args)
-
-async def handle_mail_query_if_emaidID(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle mail_query_if_emaidID tool call"""
+async def handle_get_file_metadata(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle get_file_metadata tool call"""
 
     # Extract parameters from args
-    message_ids = args["message_ids"]
-    user_email = args.get("user_email")
+    file_url = args["file_url"]
 
-    return await mail_service.batch_and_fetch(
-        message_ids=message_ids,
-        user_email=user_email
+    return await file_manager.get_metadata(
+        file_url=file_url
+    )
+
+async def handle_delete_file_metadata(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle delete_file_metadata tool call"""
+
+    # Extract parameters from args
+    file_url = args["file_url"]
+
+    return await file_manager.delete_metadata(
+        file_url=file_url
     )
 # ============================================================
 # REST API Protocol Handlers for MCP
@@ -444,53 +314,47 @@ async def handle_mail_query_if_emaidID(args: Dict[str, Any]) -> Dict[str, Any]:
 # Note: This template is included by universal_server_template.jinja2
 # All common imports and utilities are defined in the parent template
 
-app = FastAPI(title="Outlook MCP Server", version="1.0.0")
+app = FastAPI(title="File Handler MCP Server", version="1.0.0")
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on server startup"""
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    if hasattr(mail_service, 'initialize'):
-        await mail_service.initialize()
-        logger.info("MailService initialized")
-    logger.info("Outlook MCP Server started")
+    if hasattr(file_manager, 'initialize'):
+        await file_manager.initialize()
+        logger.info("FileManager initialized")
+    if hasattr(file_manager, 'initialize'):
+        await file_manager.initialize()
+        logger.info("FileManager initialized")
+    if hasattr(file_manager, 'initialize'):
+        await file_manager.initialize()
+        logger.info("FileManager initialized")
+    if hasattr(file_manager, 'initialize'):
+        await file_manager.initialize()
+        logger.info("FileManager initialized")
+    if hasattr(file_manager, 'initialize'):
+        await file_manager.initialize()
+        logger.info("FileManager initialized")
+    if hasattr(file_manager, 'initialize'):
+        await file_manager.initialize()
+        logger.info("FileManager initialized")
+    if hasattr(file_manager, 'initialize'):
+        await file_manager.initialize()
+        logger.info("FileManager initialized")
+    logger.info("File Handler MCP Server started")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on server shutdown"""
-    logger.info("Outlook MCP Server stopped")
+    logger.info("File Handler MCP Server stopped")
 
 
 @app.get("/")
 async def root():
     """Root endpoint"""
     return {
-        "name": "Outlook MCP Server",
+        "name": "File Handler MCP Server",
         "version": "1.0.0"
     }
 
@@ -498,7 +362,7 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "server": "outlook"}
+    return {"status": "healthy", "server": "file_handler"}
 
 
 @app.post("/mcp/v1/initialize")
@@ -508,7 +372,7 @@ async def initialize(request: Request):
     return {
         "protocolVersion": "1.0",
         "serverInfo": {
-            "name": "outlook-mcp-server",
+            "name": "file_handler-mcp-server",
             "version": "1.0.0"
         },
         "capabilities": {

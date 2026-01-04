@@ -1,13 +1,13 @@
 {# server_stdio.jinja2 - STDIO Protocol Implementation #}
+# ============================================================
 # STDIO Protocol Implementation for MCP Server
-import sys
-import json
-import asyncio
-from typing import Dict, Any, Optional, AsyncIterator
-from asyncio import StreamReader, StreamWriter
-import logging
+# ============================================================
+# Note: This template is included by universal_server_template.jinja2
+# All common imports and utilities are defined in the parent template
 
 # Configure logging for STDIO (stderr to avoid interfering with stdout)
+# Override the parent's logger to use stderr
+import sys
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',

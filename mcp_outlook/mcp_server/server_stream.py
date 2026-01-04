@@ -38,10 +38,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Import service classes (unique)
-from outlook_service import MailService
+from mcp_outlook.outlook_service import MailService
 
 # Create service instances
-mail_service = MailService()# ============================================================
+mail_service = MailService()
+
+# ============================================================
 # Common MCP protocol utilities (shared across protocols)
 # ============================================================
 
@@ -124,7 +126,6 @@ def build_mcp_content(payload: Dict[str, Any]) -> Dict[str, Any]:
             ]
         }
     }
-
 
 
 # ============================================================
@@ -440,14 +441,15 @@ async def handle_mail_query_if_emaidID(args: Dict[str, Any]) -> Dict[str, Any]:
         user_email=user_email
     )
 
+# ============================================================
 # StreamableHTTP Protocol Implementation for MCP Server
-import asyncio
-import json
-from aiohttp import web
-from typing import AsyncIterator, Dict, Any, Optional
-import logging
+# ============================================================
+# Note: This template is included by universal_server_template.jinja2
+# All common imports and utilities are defined in the parent template
 
-# Configure logging
+from aiohttp import web
+
+# Use the logger from parent template
 logger = logging.getLogger(__name__)
 
 class StreamableHTTPMCPServer:

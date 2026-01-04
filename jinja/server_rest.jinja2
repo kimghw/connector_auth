@@ -1,6 +1,8 @@
 # ============================================================
 # REST API Protocol Handlers for MCP
 # ============================================================
+# Note: This template is included by universal_server_template.jinja2
+# All common imports and utilities are defined in the parent template
 
 app = FastAPI(title="{{ server_title | default(server_name | title + ' MCP Server') }}", version="1.0.0")
 
