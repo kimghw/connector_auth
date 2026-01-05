@@ -312,43 +312,43 @@ async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
     # Value was already extracted above, use the existing variable
     DatePeriodFilter_data = merge_param_data(DatePeriodFilter_internal_data, DatePeriodFilter)
     if DatePeriodFilter_data is not None:
-        DatePeriodFilter_params = FilterParams(**DatePeriodFilter_data)
+        DatePeriodFilter = FilterParams(**DatePeriodFilter_data)
     else:
-        DatePeriodFilter_params = None
+        DatePeriodFilter = None
     exclude_params_internal_data = {}
     # Use already extracted value if it exists
     # Value was already extracted above, use the existing variable
     exclude_params_data = merge_param_data(exclude_params_internal_data, exclude_params)
     if exclude_params_data is not None:
-        exclude_params_params = ExcludeParams(**exclude_params_data)
+        exclude_params = ExcludeParams(**exclude_params_data)
     else:
-        exclude_params_params = None
+        exclude_params = None
     select_params_internal_data = {}
     # Use already extracted value if it exists
     # Value was already extracted above, use the existing variable
     select_params_data = merge_param_data(select_params_internal_data, select_params)
     if select_params_data is not None:
-        select_params_params = SelectParams(**select_params_data)
+        select_params = SelectParams(**select_params_data)
     else:
-        select_params_params = None
+        select_params = None
     client_filter_internal_data = {}
     # Use already extracted value if it exists
     # Value was already extracted above, use the existing variable
     client_filter_data = merge_param_data(client_filter_internal_data, client_filter)
     if client_filter_data is not None:
-        client_filter_params = ExcludeParams(**client_filter_data)
+        client_filter = ExcludeParams(**client_filter_data)
     else:
-        client_filter_params = None
+        client_filter = None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
     call_args["user_email"] = user_email
     call_args["query_method"] = query_method
-    call_args["filter_params"] = DatePeriodFilter_params
-    call_args["exclude_params"] = exclude_params_params
-    call_args["select_params"] = select_params_params
-    call_args["client_filter"] = client_filter_params
+    call_args["filter_params"] = DatePeriodFilter
+    call_args["exclude_params"] = exclude_params
+    call_args["select_params"] = select_params
+    call_args["client_filter"] = client_filter
     call_args["search_term"] = search_term
     call_args["url"] = url
     call_args["top"] = top
@@ -406,17 +406,17 @@ async def handle_mail_list_keyword(args: Dict[str, Any]) -> Dict[str, Any]:
     # Value was already extracted above, use the existing variable
     client_filter_data = merge_param_data(client_filter_internal_data, client_filter)
     if client_filter_data is not None:
-        client_filter_params = ExcludeParams(**client_filter_data)
+        client_filter = ExcludeParams(**client_filter_data)
     else:
-        client_filter_params = None
+        client_filter = None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
     call_args["user_email"] = user_email
     call_args["search_term"] = search_keywords
-    call_args["select_params"] = select_params_params
-    call_args["client_filter"] = client_filter_params
+    call_args["select_params"] = select_params
+    call_args["client_filter"] = client_filter
     call_args["top"] = top
     # Process internal args with targetParam mappings
 
@@ -461,16 +461,16 @@ async def handle_mail_query_if_emaidID(args: Dict[str, Any]) -> Dict[str, Any]:
     # Value was already extracted above, use the existing variable
     select_params_data = merge_param_data(select_params_internal_data, select_params)
     if select_params_data is not None:
-        select_params_params = SelectParams(**select_params_data)
+        select_params = SelectParams(**select_params_data)
     else:
-        select_params_params = None
+        select_params = None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
     call_args["user_email"] = user_email
     call_args["message_ids"] = message_ids
-    call_args["select_params"] = select_params_params
+    call_args["select_params"] = select_params
 
     return await mail_service.batch_and_fetch(**call_args)
 
@@ -495,33 +495,33 @@ async def handle_mail_fetch_filter(args: Dict[str, Any]) -> Dict[str, Any]:
     # Value was already extracted above, use the existing variable
     filter_params_data = merge_param_data(filter_params_internal_data, filter_params)
     if filter_params_data is not None:
-        filter_params_params = FilterParams(**filter_params_data)
+        filter_params = FilterParams(**filter_params_data)
     else:
-        filter_params_params = None
+        filter_params = None
     exclude_params_internal_data = {}
     # Use already extracted value if it exists
     # Value was already extracted above, use the existing variable
     exclude_params_data = merge_param_data(exclude_params_internal_data, exclude_params)
     if exclude_params_data is not None:
-        exclude_params_params = ExcludeParams(**exclude_params_data)
+        exclude_params = ExcludeParams(**exclude_params_data)
     else:
-        exclude_params_params = None
+        exclude_params = None
     select_params_internal_data = {}
     # Use already extracted value if it exists
     # Value was already extracted above, use the existing variable
     select_params_data = merge_param_data(select_params_internal_data, select_params)
     if select_params_data is not None:
-        select_params_params = SelectParams(**select_params_data)
+        select_params = SelectParams(**select_params_data)
     else:
-        select_params_params = None
+        select_params = None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
     call_args["user_email"] = user_email
-    call_args["filter_params"] = filter_params_params
-    call_args["exclude_params"] = exclude_params_params
-    call_args["select_params"] = select_params_params
+    call_args["filter_params"] = filter_params
+    call_args["exclude_params"] = exclude_params
+    call_args["select_params"] = select_params
     call_args["top"] = top
 
     return await mail_service.fetch_filter(**call_args)
@@ -547,25 +547,25 @@ async def handle_mail_fetch_search(args: Dict[str, Any]) -> Dict[str, Any]:
     # Value was already extracted above, use the existing variable
     select_params_data = merge_param_data(select_params_internal_data, select_params)
     if select_params_data is not None:
-        select_params_params = SelectParams(**select_params_data)
+        select_params = SelectParams(**select_params_data)
     else:
-        select_params_params = None
+        select_params = None
     client_filter_internal_data = {}
     # Use already extracted value if it exists
     # Value was already extracted above, use the existing variable
     client_filter_data = merge_param_data(client_filter_internal_data, client_filter)
     if client_filter_data is not None:
-        client_filter_params = ExcludeParams(**client_filter_data)
+        client_filter = ExcludeParams(**client_filter_data)
     else:
-        client_filter_params = None
+        client_filter = None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
     call_args["user_email"] = user_email
     call_args["search_term"] = search_term
-    call_args["select_params"] = select_params_params
-    call_args["client_filter"] = client_filter_params
+    call_args["select_params"] = select_params
+    call_args["client_filter"] = client_filter
     call_args["top"] = top
 
     return await mail_service.fetch_search(**call_args)
@@ -591,15 +591,15 @@ async def handle_mail_process_with_download(args: Dict[str, Any]) -> Dict[str, A
     # Value was already extracted above, use the existing variable
     filter_params_data = merge_param_data(filter_params_internal_data, filter_params)
     if filter_params_data is not None:
-        filter_params_params = FilterParams(**filter_params_data)
+        filter_params = FilterParams(**filter_params_data)
     else:
-        filter_params_params = None
+        filter_params = None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
     call_args["user_email"] = user_email
-    call_args["filter_params"] = filter_params_params
+    call_args["filter_params"] = filter_params
     call_args["search_term"] = search_term
     call_args["top"] = top
     call_args["save_directory"] = save_directory
@@ -629,34 +629,34 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     # Value was already extracted above, use the existing variable
     filter_params_data = merge_param_data(filter_params_internal_data, filter_params)
     if filter_params_data is not None:
-        filter_params_params = FilterParams(**filter_params_data)
+        filter_params = FilterParams(**filter_params_data)
     else:
-        filter_params_params = None
+        filter_params = None
     select_internal_data = {}
     # Use already extracted value if it exists
     # Value was already extracted above, use the existing variable
     select_data = merge_param_data(select_internal_data, select)
     if select_data is not None:
-        select_params = SelectParams(**select_data)
+        select = SelectParams(**select_data)
     else:
-        select_params = None
+        select = None
     client_filter_internal_data = {}
     # Use already extracted value if it exists
     # Value was already extracted above, use the existing variable
     client_filter_data = merge_param_data(client_filter_internal_data, client_filter)
     if client_filter_data is not None:
-        client_filter_params = ExcludeParams(**client_filter_data)
+        client_filter = ExcludeParams(**client_filter_data)
     else:
-        client_filter_params = None
+        client_filter = None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
     call_args["user_email"] = user_email
     call_args["url"] = url
-    call_args["filter_params"] = filter_params_params
-    call_args["select_params"] = select_params
-    call_args["client_filter"] = client_filter_params
+    call_args["filter_params"] = filter_params
+    call_args["select_params"] = select
+    call_args["client_filter"] = client_filter
     call_args["top"] = top
 
     return await mail_service.fetch_url(**call_args)

@@ -389,9 +389,9 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                 # Build call_params (how to pass to service method)
                 # Map from service param name to the value expression
                 if input_param_name in tool_internal_args:
-                    call_params[param_name] = {'value': f'{input_param_name}_params', 'source_param': input_param_name}
+                    call_params[param_name] = {'value': input_param_name, 'source_param': input_param_name}
                 elif input_param_name in object_params:
-                    call_params[param_name] = {'value': f'{input_param_name}_params', 'source_param': input_param_name}
+                    call_params[param_name] = {'value': input_param_name, 'source_param': input_param_name}
                 else:
                     call_params[param_name] = {'value': input_param_name, 'source_param': input_param_name}
 
@@ -425,7 +425,7 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
 
                 # Get targetParam from inputSchema property or default to prop_name
                 target_param = prop_def.get('targetParam', prop_name)
-                call_params[target_param] = {'value': f'{prop_name}_params' if prop_name in object_params else prop_name, 'source_param': prop_name}
+                call_params[target_param] = {'value': prop_name, 'source_param': prop_name}
 
         # Internal args are handled separately with targetParam mappings
         # They are processed in the template itself (lines 260-291 in universal_server_template.jinja2)

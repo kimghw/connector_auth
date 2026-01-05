@@ -309,7 +309,7 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {{ param_name }}_raw = args["{{ source_param }}"]
     {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}_raw) or {}
     {%- endif %}
-    {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_data)
+    {{ param_name }} = {{ param_info.class_name }}(**{{ param_name }}_data)
     {%- elif param_info.has_default %}
     # Use already extracted value if it exists
     {%- if param_name in tool.params %}
@@ -321,12 +321,12 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}_raw)
     {%- endif %}
     if {{ param_name }}_data is not None:
-        {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_data)
+        {{ param_name }} = {{ param_info.class_name }}(**{{ param_name }}_data)
     else:
         {%- if param_info.default_json %}
-        {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_info.default_json }})
+        {{ param_name }} = {{ param_info.class_name }}(**{{ param_info.default_json }})
         {%- else %}
-        {{ param_name }}_params = None
+        {{ param_name }} = None
         {%- endif %}
     {%- else %}
     # Use already extracted value if it exists
@@ -338,7 +338,7 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {{ param_name }}_raw = args.get("{{ source_param }}")
     {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}_raw)
     {%- endif %}
-    {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_data) if {{ param_name }}_data is not None else None
+    {{ param_name }} = {{ param_info.class_name }}(**{{ param_name }}_data) if {{ param_name }}_data is not None else None
     {%- endif %}
     {%- endif %}
     {%- endfor %}

@@ -126,7 +126,19 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '지정된 기간의 �
                                                  'source': 'internal'}},
         'name': 'mail_list_period'},
     {   'description': 'New tool description',
-        'inputSchema': {   'properties': {   'search_keywords': {   'description': '',
+        'inputSchema': {   'properties': {   'search_keywords': {   'description': '1. 단일 키워드 검색 어디든 해당 키워드가 포함된 메일을 '
+                                                                                   '찾습니다. 예: keyword1 2. 여러 키워드 모두 포함 '
+                                                                                   '(AND) 공백으로 구분하면 모든 키워드가 포함된 메일을 '
+                                                                                   '찾습니다. 예: keyword1 keyword2 3. 여러 '
+                                                                                   '키워드 중 하나라도 포함 (OR) OR 연산자로 여러 키워드 '
+                                                                                   '중 하나라도 있는 메일을 찾습니다. 예: keyword1 OR '
+                                                                                   'keyword2 4. 특정 키워드 제외 (NOT) 마이너스 '
+                                                                                   '기호로 특정 키워드가 없는 메일만 찾습니다. 예: '
+                                                                                   'keyword1 -keyword2 5. 정확한 구문 검색 '
+                                                                                   '따옴표로 묶어 정확한 순서의 구문을 찾습니다. 예: '
+                                                                                   '"keyword1 keyword2" 6. 복합 조건 괄호와 '
+                                                                                   '연산자를 조합하여 복잡한 조건을 만들 수 있습니다. 예: '
+                                                                                   '(keyword1 OR keyword2) keyword3',
                                                                     'targetParam': 'search_term',
                                                                     'type': 'string'},
                                              'top': {'description': '', 'type': 'integer'},
