@@ -2493,9 +2493,9 @@
             });
         }
 
-        // ========== Tool Missing Parameter Check ==========
-        function getToolMissingParams(tool) {
-            // Check if tool has missing required parameters
+        // ========== Tool Service-Only Parameter Check ==========
+        function getServiceOnlyParams(tool) {
+            // Check if tool has service-only required parameters (in service but not in inputSchema/internalArgs)
             // Guard against servicesInfo not being initialized yet
             if (!window.servicesInfo || typeof servicesInfo !== 'object') {
                 return [];
@@ -2521,7 +2521,7 @@
                 ...Object.keys(toolInternalArgs)
             ]);
 
-            const missingParams = [];
+            const serviceOnlyParams = [];
 
             service.parameters.forEach(param => {
                 if (!param.is_required) return;
@@ -2542,13 +2542,13 @@
                 }
 
                 if (!isDefined) {
-                    missingParams.push(param.name);
+                    serviceOnlyParams.push(param.name);
                 }
             });
 
-            return missingParams;
+            return serviceOnlyParams;
         }
-        // ========== End Tool Missing Parameter Check ==========
+        // ========== End Tool Service-Only Parameter Check ==========
 
         // ========== Tool Drag and Drop Functions ==========
         let draggedToolIndex = null;
@@ -2680,20 +2680,20 @@
                        </div>`
                     : '';
 
-                // Check for missing required parameters
-                const missingParams = getToolMissingParams(tool);
-                const missingBadgeHtml = missingParams.length > 0
-                    ? `<span class="missing-badge" title="Missing: ${missingParams.join(', ')}"
+                // Check for service-only required parameters (need to be added as Signature or Internal)
+                const serviceOnlyParams = getServiceOnlyParams(tool);
+                const warningBadgeHtml = serviceOnlyParams.length > 0
+                    ? `<span class="warning-badge" title="Needs config: ${serviceOnlyParams.join(', ')}"
                         style="position: absolute; top: 8px; right: 8px; background: #dc3545; color: white;
                                font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 10px;
                                display: flex; align-items: center; gap: 3px;">
-                        <span style="font-size: 12px;">⚠</span>${missingParams.length}
+                        <span style="font-size: 12px;">⚠</span>${serviceOnlyParams.length}
                        </span>`
                     : '';
 
                 toolItem.innerHTML = `
                     <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
-                    ${missingBadgeHtml}
+                    ${warningBadgeHtml}
                     <h3>${tool.name}</h3>
                     <p>${tool.description}</p>
                     ${serviceMethodHtml}
@@ -2813,7 +2813,6 @@
                                        onkeypress="if(event.key === 'Enter') { this.blur(); }"
                                        onclick="event.stopPropagation();">
                                 <span style="margin-left: 12px; font-size: 12px; color: #666; background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${propDef.type}</span>
-                                ${propDef.targetParam ? `<span style="margin-left: 8px; font-size: 11px; color: #007bff; background: #e7f1ff; padding: 2px 6px; border-radius: 4px;" title="Maps to service method parameter">→ ${propDef.targetParam}</span>` : ''}
                                 ${isRequired ? '<span style="margin-left: 8px; font-size: 11px; color: var(--danger-color); font-weight: 600;">REQUIRED</span>' : ''}
                                 ${isInternal ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--warning-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">INTERNAL</span>' : ''}
                                 ${hasSignatureDefaults ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--success-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">DEFAULTS</span>' : ''}
@@ -3260,7 +3259,7 @@
                             paramsHtml += '<div style="margin-top: 8px;"><strong>Parameters:</strong></div>';
                             paramsHtml += '<ul style="margin: 4px 0; padding-left: 20px;">';
 
-                            let missingRequiredParams = [];
+                            let unconfiguredParams = [];
 
                             service.parameters.forEach(param => {
                                 // Check if this parameter is defined in schema or internal args
@@ -3271,7 +3270,7 @@
                                 if (allDefinedProps.has(param.name)) {
                                     isDefined = true;
                                     if (schemaProperties[param.name]) {
-                                        definedWhere = '✓ Schema';
+                                        definedWhere = '✓ Signature';
                                     } else if (toolInternalArgs[param.name]) {
                                         definedWhere = '✓ Internal';
                                     }
@@ -3280,7 +3279,7 @@
                                     for (const [propName, propDef] of Object.entries(schemaProperties)) {
                                         if (propDef.targetParam === param.name) {
                                             isDefined = true;
-                                            definedWhere = `✓ Schema (via ${propName})`;
+                                            definedWhere = `✓ Signature (via ${propName})`;
                                             break;
                                         }
                                     }
@@ -3293,10 +3292,10 @@
 
                                 const statusColor = isDefined ? '#28a745' : (isRequired ? '#dc3545' : '#ffc107');
                                 const statusIcon = isDefined ? '✓' : (isRequired ? '✗' : '○');
-                                const statusText = isDefined ? definedWhere : (isRequired ? 'Missing!' : 'Optional');
+                                const statusText = isDefined ? definedWhere : (isRequired ? 'Needs Config' : 'Internal Candidate');
 
                                 if (!isDefined && isRequired) {
-                                    missingRequiredParams.push(param.name);
+                                    unconfiguredParams.push(param.name);
                                 }
 
                                 paramsHtml += `
@@ -3310,17 +3309,17 @@
                             });
                             paramsHtml += '</ul>';
 
-                            // Show warning for missing required parameters
-                            if (missingRequiredParams.length > 0) {
+                            // Show warning for unconfigured required parameters
+                            if (unconfiguredParams.length > 0) {
                                 paramsHtml += `
                                     <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 8px; margin-top: 8px;">
-                                        <strong style="color: #856404;">⚠️ Missing Required Parameters:</strong>
+                                        <strong style="color: #856404;">⚠️ Required Parameters Need Config:</strong>
                                         <ul style="margin: 4px 0 0 0; padding-left: 20px;">
-                                            ${missingRequiredParams.map(p => `<li style="color: #856404;">${p}</li>`).join('')}
+                                            ${unconfiguredParams.map(p => `<li style="color: #856404;">${p}</li>`).join('')}
                                         </ul>
                                         <div style="margin-top: 8px;">
-                                            <button class="btn btn-sm btn-warning" onclick="addMissingParameters(${index}, ${JSON.stringify(missingRequiredParams).replace(/"/g, '&quot;')})">
-                                                Add Missing Parameters
+                                            <button class="btn btn-sm btn-warning" onclick="addToSignature(${index}, ${JSON.stringify(unconfiguredParams).replace(/"/g, '&quot;')})">
+                                                Add to Signature
                                             </button>
                                         </div>
                                     </div>`;
@@ -3340,7 +3339,7 @@
                 });
         }
 
-        function addMissingParameters(index, missingParams) {
+        function addToSignature(index, params) {
             const tool = tools[index];
 
             if (!tool.inputSchema) {
@@ -3350,8 +3349,8 @@
                 tool.inputSchema.properties = {};
             }
 
-            // Add each missing parameter
-            missingParams.forEach(paramName => {
+            // Add each parameter to inputSchema (Signature)
+            params.forEach(paramName => {
                 // Add to schema properties
                 tool.inputSchema.properties[paramName] = {
                     type: 'string',  // Default type, should be updated based on actual parameter type
@@ -3369,7 +3368,60 @@
 
             // Re-render the editor
             renderToolEditor(tool, index);
-            showNotification(`Added ${missingParams.length} missing parameter(s)`, 'success');
+            showNotification(`Added ${params.length} parameter(s) to Signature`, 'success');
+        }
+
+        // Add parameters directly to Internal (without touching inputSchema)
+        function addAsInternal(index, paramsInfo) {
+            const tool = tools[index];
+            const toolName = tool.name;
+
+            // Initialize internalArgs for this tool if needed
+            if (!internalArgs[toolName]) {
+                internalArgs[toolName] = {};
+            }
+
+            // Helper to extract baseModel from type strings like "Optional[SelectParams]"
+            function extractBaseModel(typeStr) {
+                if (!typeStr) return null;
+                // Match patterns like Optional[SelectParams], List[str], etc.
+                const match = typeStr.match(/(?:Optional|List|Dict|Set)\[([^\]]+)\]/);
+                if (match) {
+                    return match[1];
+                }
+                // If no wrapper, check if it's a class name (capitalized)
+                if (/^[A-Z][a-zA-Z0-9]*$/.test(typeStr)) {
+                    return typeStr;
+                }
+                return null;
+            }
+
+            // Add each parameter directly to internalArgs
+            paramsInfo.forEach(paramInfo => {
+                const paramName = paramInfo.name;
+                const baseModel = extractBaseModel(paramInfo.type);
+
+                // Create internal arg entry with service metadata
+                internalArgs[toolName][paramName] = {
+                    type: paramInfo.type || 'string',
+                    description: paramInfo.description || `Service parameter: ${paramName}`,
+                    original_schema: {
+                        type: paramInfo.type === 'object' ? 'object' : (paramInfo.type || 'string'),
+                        description: paramInfo.description || `Service parameter: ${paramName}`,
+                        targetParam: paramName,
+                        ...(baseModel ? { baseModel: baseModel } : {})
+                    },
+                    was_required: paramInfo.is_required || false,
+                    // Store default value if available
+                    ...(paramInfo.has_default && paramInfo.default !== undefined
+                        ? { default: paramInfo.default }
+                        : {})
+                };
+            });
+
+            // Re-render the editor
+            renderToolEditor(tool, index);
+            showNotification(`Added ${paramsInfo.length} parameter(s) as Internal`, 'success');
         }
 
         function updateToolField(index, field, value) {

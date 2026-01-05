@@ -4,7 +4,192 @@ Signatures extracted from source code using AST parsing
 """
 from typing import List, Dict, Any
 
-MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Outlook 메일을 날짜, 발신자, 제목 등 다양한 필터 조건을 사용하여 조회합니다. 특정 기간이나 조건에 맞는 메일을 효율적으로 검색할 수 있습니다. '
+MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '지정된 기간의 메일 목록을 미리보기 형태로 조회합니다. 메일 본문 전체가 아닌 제목, 발신자, 날짜, 요약 등 핵심 정보만을 효율적으로 가져와 테이블 형태로 정리합니다.',
+        'inputSchema': {   'properties': {   'DatePeriodFilter': {   'baseModel': 'FilterParams',
+                                                                     'description': '에이전트는 는 사용자의 질의에 따라 검색 범위의 날짜를 '
+                                                                                    '추출한다. ',
+                                                                     'properties': {   'received_date_from': {   'description': '메일 '
+                                                                                                                                '수신 '
+                                                                                                                                '시작 '
+                                                                                                                                '날짜 '
+                                                                                                                                '(포함, '
+                                                                                                                                'receivedDateTime '
+                                                                                                                                '>= '
+                                                                                                                                '이 '
+                                                                                                                                '값)',
+                                                                                                                 'type': 'string'},
+                                                                                       'received_date_to': {   'description': '메일 '
+                                                                                                                              '수신 '
+                                                                                                                              '종료 '
+                                                                                                                              '날짜 '
+                                                                                                                              '(포함, '
+                                                                                                                              'receivedDateTime '
+                                                                                                                              '<= '
+                                                                                                                              '이 '
+                                                                                                                              '값)',
+                                                                                                               'type': 'string'}},
+                                                                     'required': [   'received_date_from',
+                                                                                     'received_date_to'],
+                                                                     'targetParam': 'filter_params',
+                                                                     'type': 'object'},
+                                             'user_email': {   'description': '이메일 주소를 입력하고 입력하지 않을 경우 내부에서 연결정보를 메일 '
+                                                                              '주소를 추정함',
+                                                               'type': 'string'}},
+                           'required': ['DatePeriodFilter'],
+                           'type': 'object'},
+        'mcp_service': {   'name': 'query_mail_list',
+                           'parameters': [   {   'default': None,
+                                                 'has_default': False,
+                                                 'is_required': True,
+                                                 'name': 'user_email',
+                                                 'type': 'str'},
+                                             {   'default': 'QueryMethod.FILTER',
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'query_method',
+                                                 'type': 'QueryMethod'},
+                                             {   'default': None,
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'filter_params',
+                                                 'type': 'Optional[FilterParams]'},
+                                             {   'default': None,
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'exclude_params',
+                                                 'type': 'Optional[ExcludeParams]'},
+                                             {   'default': None,
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'select_params',
+                                                 'type': 'Optional[SelectParams]'},
+                                             {   'default': None,
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'client_filter',
+                                                 'type': 'Optional[ExcludeParams]'},
+                                             {   'default': None,
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'search_term',
+                                                 'type': 'Optional[str]'},
+                                             {   'default': None,
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'url',
+                                                 'type': 'Optional[str]'},
+                                             {   'default': 50,
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'top',
+                                                 'type': 'int'},
+                                             {   'default': None,
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'order_by',
+                                                 'type': 'Optional[str]'}],
+                           'signature': 'user_email: str, query_method: QueryMethod = "QueryMethod.FILTER", '
+                                        'filter_params: Optional[FilterParams] = None, exclude_params: '
+                                        'Optional[ExcludeParams] = None, select_params: Optional[SelectParams] = None, '
+                                        'client_filter: Optional[ExcludeParams] = None, search_term: Optional[str] = '
+                                        'None, url: Optional[str] = None, top: int = 50, order_by: Optional[str] = '
+                                        'None'},
+        'mcp_service_factors': {   'select': {   'baseModel': 'SelectParams',
+                                                 'description': 'SelectParams parameters',
+                                                 'parameters': {   'body_preview': {   'default': True,
+                                                                                       'description': '메시지 본문의 처음 255자 '
+                                                                                                      '(텍스트 형식)',
+                                                                                       'type': 'boolean'},
+                                                                   'has_attachments': {   'default': True,
+                                                                                          'description': '첨부파일 포함 여부',
+                                                                                          'type': 'boolean'},
+                                                                   'id': {   'default': True,
+                                                                             'description': '메시지 고유 식별자 (읽기 전용)',
+                                                                             'type': 'boolean'},
+                                                                   'internet_message_id': {   'default': True,
+                                                                                              'description': 'RFC2822 '
+                                                                                                             '형식의 메시지 '
+                                                                                                             'ID',
+                                                                                              'type': 'boolean'},
+                                                                   'received_date_time': {   'default': True,
+                                                                                             'description': '메시지 수신 '
+                                                                                                            '날짜/시간 '
+                                                                                                            '(ISO 8601 '
+                                                                                                            '형식, UTC)',
+                                                                                             'type': 'boolean'},
+                                                                   'sender': {   'default': True,
+                                                                                 'description': '메시지를 생성하는 데 사용된 계정',
+                                                                                 'type': 'boolean'},
+                                                                   'subject': {   'default': True,
+                                                                                  'description': '메시지 제목',
+                                                                                  'type': 'boolean'}},
+                                                 'source': 'internal'}},
+        'name': 'mail_list_period'},
+    {   'description': 'New tool description',
+        'inputSchema': {   'properties': {   'search_keywords': {   'description': '',
+                                                                    'targetParam': 'search_term',
+                                                                    'type': 'string'},
+                                             'top': {'description': '', 'type': 'integer'},
+                                             'user_email': {'description': '', 'type': 'string'}},
+                           'required': ['search_keywords'],
+                           'type': 'object'},
+        'mcp_service': {   'name': 'fetch_search',
+                           'parameters': [   {   'default': None,
+                                                 'has_default': False,
+                                                 'is_required': True,
+                                                 'name': 'user_email',
+                                                 'type': 'str'},
+                                             {   'default': None,
+                                                 'has_default': False,
+                                                 'is_required': True,
+                                                 'name': 'search_term',
+                                                 'type': 'str'},
+                                             {   'default': None,
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'select_params',
+                                                 'type': 'Optional[SelectParams]'},
+                                             {   'default': None,
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'client_filter',
+                                                 'type': 'Optional[ExcludeParams]'},
+                                             {   'default': 50,
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'top',
+                                                 'type': 'int'}],
+                           'signature': 'user_email: str, search_term: str, select_params: Optional[SelectParams] = '
+                                        'None, client_filter: Optional[ExcludeParams] = None, top: int = 50'},
+        'mcp_service_factors': {   'select_params': {   'baseModel': 'SelectParams',
+                                                        'description': 'SelectParams parameters for mail_list_keyword',
+                                                        'source': 'internal'}},
+        'name': 'mail_list_keyword'},
+    {   'description': '특정 메일 ID 목록을 사용하여 해당 메일들의 상세 정보를 일괄 조회합니다. 이미 알고 있는 메일 ID를 통해 여러 메일의 전체 내용을 한 번에 가져올 수 있습니다.',
+        'inputSchema': {   'properties': {   'message_ids': {'description': '', 'type': 'array'},
+                                             'user_email': {'description': '', 'type': 'string'}},
+                           'required': [],
+                           'type': 'object'},
+        'mcp_service': {   'name': 'batch_and_fetch',
+                           'parameters': [   {   'default': None,
+                                                 'has_default': False,
+                                                 'is_required': True,
+                                                 'name': 'user_email',
+                                                 'type': 'str'},
+                                             {   'default': None,
+                                                 'has_default': False,
+                                                 'is_required': True,
+                                                 'name': 'message_ids',
+                                                 'type': 'List[str]'},
+                                             {   'default': None,
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'select_params',
+                                                 'type': 'Optional[SelectParams]'}],
+                           'signature': 'user_email: str, message_ids: List[str], select_params: '
+                                        'Optional[SelectParams] = None'},
+        'name': 'mail_query_if_emaidID'},
+    {   'description': 'Outlook 메일을 날짜, 발신자, 제목 등 다양한 필터 조건을 사용하여 조회합니다. 특정 기간이나 조건에 맞는 메일을 효율적으로 검색할 수 있습니다. '
                        'mail_list_xx 와 달리 본문을 포함해서 반환한다.',
         'inputSchema': {   'properties': {   'exclude_params': {   'baseModel': 'ExcludeParams',
                                                                    'description': '제외 조건',
@@ -182,127 +367,6 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Outlook 메일을 날�
                            'signature': 'user_email: str, filter_params: Optional[FilterParams] = None, search_term: '
                                         'Optional[str] = None, top: int = 50, save_directory: Optional[str] = None'},
         'name': 'mail_process_with_download'},
-    {   'description': '지정된 기간의 메일 목록을 미리보기 형태로 조회합니다. 메일 본문 전체가 아닌 제목, 발신자, 날짜, 요약 등 핵심 정보만을 효율적으로 가져와 테이블 형태로 정리합니다.',
-        'inputSchema': {   'properties': {   'DatePeriodFilter': {   'baseModel': 'FilterParams',
-                                                                     'description': '에이전트는 는 사용자의 질의에 따라 검색 범위의 날짜를 '
-                                                                                    '추출한다. ',
-                                                                     'properties': {   'received_date_from': {   'description': '메일 '
-                                                                                                                                '수신 '
-                                                                                                                                '시작 '
-                                                                                                                                '날짜 '
-                                                                                                                                '(포함, '
-                                                                                                                                'receivedDateTime '
-                                                                                                                                '>= '
-                                                                                                                                '이 '
-                                                                                                                                '값)',
-                                                                                                                 'type': 'string'},
-                                                                                       'received_date_to': {   'description': '메일 '
-                                                                                                                              '수신 '
-                                                                                                                              '종료 '
-                                                                                                                              '날짜 '
-                                                                                                                              '(포함, '
-                                                                                                                              'receivedDateTime '
-                                                                                                                              '<= '
-                                                                                                                              '이 '
-                                                                                                                              '값)',
-                                                                                                               'type': 'string'}},
-                                                                     'required': [   'received_date_from',
-                                                                                     'received_date_to'],
-                                                                     'targetParam': 'filter_params',
-                                                                     'type': 'object'},
-                                             'user_email': {   'description': '이메일 주소를 입력하고 입력하지 않을 경우 내부에서 연결정보를 메일 '
-                                                                              '주소를 추정함',
-                                                               'type': 'string'}},
-                           'required': ['DatePeriodFilter'],
-                           'type': 'object'},
-        'mcp_service': {   'name': 'query_mail_list',
-                           'parameters': [   {   'default': None,
-                                                 'has_default': False,
-                                                 'is_required': True,
-                                                 'name': 'user_email',
-                                                 'type': 'str'},
-                                             {   'default': 'QueryMethod.FILTER',
-                                                 'has_default': True,
-                                                 'is_required': False,
-                                                 'name': 'query_method',
-                                                 'type': 'QueryMethod'},
-                                             {   'default': None,
-                                                 'has_default': True,
-                                                 'is_required': False,
-                                                 'name': 'filter_params',
-                                                 'type': 'Optional[FilterParams]'},
-                                             {   'default': None,
-                                                 'has_default': True,
-                                                 'is_required': False,
-                                                 'name': 'exclude_params',
-                                                 'type': 'Optional[ExcludeParams]'},
-                                             {   'default': None,
-                                                 'has_default': True,
-                                                 'is_required': False,
-                                                 'name': 'select_params',
-                                                 'type': 'Optional[SelectParams]'},
-                                             {   'default': None,
-                                                 'has_default': True,
-                                                 'is_required': False,
-                                                 'name': 'client_filter',
-                                                 'type': 'Optional[ExcludeParams]'},
-                                             {   'default': None,
-                                                 'has_default': True,
-                                                 'is_required': False,
-                                                 'name': 'search_term',
-                                                 'type': 'Optional[str]'},
-                                             {   'default': None,
-                                                 'has_default': True,
-                                                 'is_required': False,
-                                                 'name': 'url',
-                                                 'type': 'Optional[str]'},
-                                             {   'default': 50,
-                                                 'has_default': True,
-                                                 'is_required': False,
-                                                 'name': 'top',
-                                                 'type': 'int'},
-                                             {   'default': None,
-                                                 'has_default': True,
-                                                 'is_required': False,
-                                                 'name': 'order_by',
-                                                 'type': 'Optional[str]'}],
-                           'signature': 'user_email: str, query_method: QueryMethod = "QueryMethod.FILTER", '
-                                        'filter_params: Optional[FilterParams] = None, exclude_params: '
-                                        'Optional[ExcludeParams] = None, select_params: Optional[SelectParams] = None, '
-                                        'client_filter: Optional[ExcludeParams] = None, search_term: Optional[str] = '
-                                        'None, url: Optional[str] = None, top: int = 50, order_by: Optional[str] = '
-                                        'None'},
-        'mcp_service_factors': {   'select': {   'baseModel': 'SelectParams',
-                                                 'description': 'SelectParams parameters',
-                                                 'parameters': {   'body_preview': {   'default': True,
-                                                                                       'description': '메시지 본문의 처음 255자 '
-                                                                                                      '(텍스트 형식)',
-                                                                                       'type': 'boolean'},
-                                                                   'has_attachments': {   'default': True,
-                                                                                          'description': '첨부파일 포함 여부',
-                                                                                          'type': 'boolean'},
-                                                                   'id': {   'default': True,
-                                                                             'description': '메시지 고유 식별자 (읽기 전용)',
-                                                                             'type': 'boolean'},
-                                                                   'internet_message_id': {   'default': True,
-                                                                                              'description': 'RFC2822 '
-                                                                                                             '형식의 메시지 '
-                                                                                                             'ID',
-                                                                                              'type': 'boolean'},
-                                                                   'received_date_time': {   'default': True,
-                                                                                             'description': '메시지 수신 '
-                                                                                                            '날짜/시간 '
-                                                                                                            '(ISO 8601 '
-                                                                                                            '형식, UTC)',
-                                                                                             'type': 'boolean'},
-                                                                   'sender': {   'default': True,
-                                                                                 'description': '메시지를 생성하는 데 사용된 계정',
-                                                                                 'type': 'boolean'},
-                                                                   'subject': {   'default': True,
-                                                                                  'description': '메시지 제목',
-                                                                                  'type': 'boolean'}},
-                                                 'source': 'internal'}},
-        'name': 'mail_list_period'},
     {   'description': 'Microsoft Graph API URL을 직접 사용하여 메일을 조회합니다. 고급 사용자를 위한 기능으로, OData 쿼리 파라미터($filter, $select '
                        '등)를 직접 지정할 수 있습니다.',
         'inputSchema': {   'properties': {   'filter_params': {   'baseModel': 'FilterParams',
@@ -399,120 +463,4 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Outlook 메일을 날�
                            'signature': 'user_email: str, url: str, filter_params: Optional[FilterParams] = None, '
                                         'select_params: Optional[SelectParams] = None, client_filter: '
                                         'Optional[ExcludeParams] = None, top: int = 50'},
-        'name': 'mail_query_url'},
-    {   'description': '특정 메일 ID 목록을 사용하여 해당 메일들의 상세 정보를 일괄 조회합니다. 이미 알고 있는 메일 ID를 통해 여러 메일의 전체 내용을 한 번에 가져올 수 있습니다.',
-        'inputSchema': {   'properties': {   'message_id_internal': {   'description': '',
-                                                                        'targetParam': 'message_ids',
-                                                                        'type': 'string'},
-                                             'message_ids': {'description': '', 'type': 'array'},
-                                             'user_email': {'description': '', 'type': 'string'}},
-                           'required': [],
-                           'type': 'object'},
-        'mcp_service': {   'name': 'batch_and_fetch',
-                           'parameters': [   {   'default': None,
-                                                 'has_default': False,
-                                                 'is_required': True,
-                                                 'name': 'user_email',
-                                                 'type': 'str'},
-                                             {   'default': None,
-                                                 'has_default': False,
-                                                 'is_required': True,
-                                                 'name': 'message_ids',
-                                                 'type': 'List[str]'},
-                                             {   'default': None,
-                                                 'has_default': True,
-                                                 'is_required': False,
-                                                 'name': 'select_params',
-                                                 'type': 'Optional[SelectParams]'}],
-                           'signature': 'user_email: str, message_ids: List[str], select_params: '
-                                        'Optional[SelectParams] = None'},
-        'name': 'mail_query_if_emaidID'},
-    {   'description': 'New tool description',
-        'inputSchema': {   'properties': {   'client_filter': {   'baseModel': 'ExcludeParams',
-                                                                  'description': 'ExcludeParams parameters',
-                                                                  'properties': {   'exclude_from_address': {   'default': 'block@krs.co.kr',
-                                                                                                                'description': '제외할 '
-                                                                                                                               '발신자 '
-                                                                                                                               '주소 '
-                                                                                                                               '(from '
-                                                                                                                               '필드)',
-                                                                                                                'type': 'string'}},
-                                                                  'required': [],
-                                                                  'type': 'object'},
-                                             'search_keywords': {'description': '', 'type': 'string'},
-                                             'select_params': {   'baseModel': 'SelectParams',
-                                                                  'description': 'SelectParams parameters',
-                                                                  'properties': {   'body_preview': {   'description': '메시지 '
-                                                                                                                       '본문의 '
-                                                                                                                       '처음 '
-                                                                                                                       '255자 '
-                                                                                                                       '(텍스트 '
-                                                                                                                       '형식)',
-                                                                                                        'type': 'boolean'},
-                                                                                    'has_attachments': {   'description': '첨부파일 '
-                                                                                                                          '포함 '
-                                                                                                                          '여부',
-                                                                                                           'type': 'boolean'},
-                                                                                    'id': {   'description': '메시지 고유 '
-                                                                                                             '식별자 (읽기 '
-                                                                                                             '전용)',
-                                                                                              'type': 'boolean'},
-                                                                                    'received_date_time': {   'description': '메시지 '
-                                                                                                                             '수신 '
-                                                                                                                             '날짜/시간 '
-                                                                                                                             '(ISO '
-                                                                                                                             '8601 '
-                                                                                                                             '형식, '
-                                                                                                                             'UTC)',
-                                                                                                              'type': 'boolean'},
-                                                                                    'sender': {   'description': '메시지를 '
-                                                                                                                 '생성하는 '
-                                                                                                                 '데 '
-                                                                                                                 '사용된 '
-                                                                                                                 '계정',
-                                                                                                  'type': 'boolean'},
-                                                                                    'subject': {   'description': '메시지 '
-                                                                                                                  '제목',
-                                                                                                   'type': 'boolean'},
-                                                                                    'web_link': {   'description': 'Outlook '
-                                                                                                                   'Web에서 '
-                                                                                                                   '메시지를 '
-                                                                                                                   '열기 '
-                                                                                                                   '위한 '
-                                                                                                                   'URL',
-                                                                                                    'type': 'boolean'}},
-                                                                  'required': [],
-                                                                  'type': 'object'},
-                                             'top': {'description': '', 'type': 'integer'},
-                                             'user_email': {'description': '', 'type': 'string'}},
-                           'required': ['search_keywords'],
-                           'type': 'object'},
-        'mcp_service': {   'name': 'fetch_search',
-                           'parameters': [   {   'default': None,
-                                                 'has_default': False,
-                                                 'is_required': True,
-                                                 'name': 'user_email',
-                                                 'type': 'str'},
-                                             {   'default': None,
-                                                 'has_default': False,
-                                                 'is_required': True,
-                                                 'name': 'search_term',
-                                                 'type': 'str'},
-                                             {   'default': None,
-                                                 'has_default': True,
-                                                 'is_required': False,
-                                                 'name': 'select_params',
-                                                 'type': 'Optional[SelectParams]'},
-                                             {   'default': None,
-                                                 'has_default': True,
-                                                 'is_required': False,
-                                                 'name': 'client_filter',
-                                                 'type': 'Optional[ExcludeParams]'},
-                                             {   'default': 50,
-                                                 'has_default': True,
-                                                 'is_required': False,
-                                                 'name': 'top',
-                                                 'type': 'int'}],
-                           'signature': 'user_email: str, search_term: str, select_params: Optional[SelectParams] = '
-                                        'None, client_filter: Optional[ExcludeParams] = None, top: int = 50'},
-        'name': 'mail_list_keyword'}]
+        'name': 'mail_query_url'}]

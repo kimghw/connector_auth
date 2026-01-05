@@ -384,18 +384,22 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
 
     # Check if target param already exists from signature
     if "{{ target_param }}" in call_args:
-        # Merge internal into signature (signature has priority, but skip None values)
         existing_value = call_args["{{ target_param }}"]
-        if hasattr(existing_value, '__dict__') and hasattr(_internal_{{ arg_name }}, '__dict__'):
-            # Both are objects - merge them (exclude None values from existing)
+        if existing_value is None:
+            # Signature value is None, use internal value
+            if _internal_{{ arg_name }} is not None:
+                call_args["{{ target_param }}"] = _internal_{{ arg_name }}
+        elif hasattr(existing_value, '__dict__') and hasattr(_internal_{{ arg_name }}, '__dict__'):
+            # Both are objects - merge them (signature has priority for non-None values)
             internal_dict = {k: v for k, v in vars(_internal_{{ arg_name }}).items() if v is not None}
             existing_dict = {k: v for k, v in vars(existing_value).items() if v is not None}
             merged_dict = {**internal_dict, **existing_dict}
             call_args["{{ target_param }}"] = type(existing_value)(**merged_dict)
-        # Otherwise keep existing signature value
+        # Otherwise keep existing signature value (non-None primitive or incompatible types)
     else:
         # No conflict, use internal value with targetParam mapping
-        call_args["{{ target_param }}"] = _internal_{{ arg_name }}
+        if _internal_{{ arg_name }} is not None:
+            call_args["{{ target_param }}"] = _internal_{{ arg_name }}
     {%- endif %}
     {%- endfor %}
     {%- endif %}

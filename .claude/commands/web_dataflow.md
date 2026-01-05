@@ -309,16 +309,21 @@ description: MCP 웹에디터 데이터 흐름 및 핸들러 처리 가이드 (p
 │ 3. call_args 구성    │ ← Signature 파라미터 설정
 └────────┬─────────────┘
          ↓
+┌────────────────────────────┐
+│ 4. Signature Defaults 적용 │ ← LLM 미입력 시 기본값 적용
+└────────┬───────────────────┘
+         ↓
 ┌──────────────────────┐
-│ 4. Internal 구성     │ ← 시스템 고정값 로드
+│ 5. Internal 구성     │ ← 시스템 고정값 로드
 └────────┬─────────────┘
          ↓
-┌──────────────────────────┐
-│ 5. 파라미터 병합         │ ← 두 번째 병합 (Signature > Internal)
-└────────┬─────────────────┘
+┌──────────────────────────────────────────────────────┐
+│ 6. 파라미터 병합                                     │
+│    ← (Signature > Signature Defaults > Internal)    │
+└────────┬─────────────────────────────────────────────┘
          ↓
 ┌──────────────────────┐
-│ 6. 서비스 함수 호출  │ ← 비즈니스 로직 실행
+│ 7. 서비스 함수 호출  │ ← 비즈니스 로직 실행
 └────────┬─────────────┘
          ↓
 ┌──────────────────┐
@@ -404,7 +409,27 @@ call_args["select_params"] = select_params_params
 
 ---
 
-#### 4단계: Internal 파라미터 처리
+#### 4단계: Signature Defaults 적용
+
+LLM이 값을 제공하지 않은 Signature 파라미터에 기본값을 적용합니다.
+`mcp_service_factors`에서 `source: "signature_defaults"`로 정의된 값들입니다.
+
+```python
+# Signature Defaults 파라미터 적용 (LLM이 값을 제공하지 않은 경우)
+if "top" not in call_args or call_args["top"] is None:
+    top_defaults = get_signature_defaults("mail_list_period", "top")
+    if top_defaults:
+        call_args["top"] = top_defaults
+```
+
+**핵심 포인트:**
+- LLM에게 노출되지만, 값을 제공하지 않으면 기본값 사용
+- `source: "signature_defaults"`로 설정된 파라미터에 적용
+- Signature(사용자 입력)보다 우선순위 낮음, Internal보다 높음
+
+---
+
+#### 5단계: Internal 파라미터 처리
 
 `mcp_service_factors`에 정의된 숨겨진 파라미터를 구성합니다. (source: "internal")
 
@@ -419,9 +444,9 @@ _internal_select = build_internal_param("mail_list_period", "select")
 
 ---
 
-#### 5단계: 파라미터 병합 - 두 번째 병합
+#### 6단계: 파라미터 병합 - 두 번째 병합
 
-Signature 파라미터와 Internal 파라미터를 병합합니다.
+Signature 파라미터, Signature Defaults, Internal 파라미터를 병합합니다.
 **두 번째 병합: 도구 레벨의 Internal 파라미터와 Signature 파라미터 병합**
 
 ```python
@@ -449,7 +474,7 @@ else:
 
 ---
 
-#### 6단계: 서비스 함수 호출
+#### 7단계: 서비스 함수 호출
 
 최종 준비된 인자로 실제 비즈니스 로직을 호출합니다.
 
@@ -496,21 +521,26 @@ return await mail_service.query_mail_list(**call_args)
 
 ## 5. 파라미터 병합 체계
 
-### 파라미터 3단계 구조
+### 파라미터 4단계 구조
 
 1. **Signature 파라미터** (사용자 입력)
    - LLM이 직접 제공하는 값
    - 최고 우선순위
 
-2. **Signature 내부 Internal** (파라미터별 Internal)
+2. **Signature Defaults** (기본값)
+   - LLM에게 노출되지만, 값을 제공하지 않으면 적용되는 기본값
+   - `source: "signature_defaults"`로 정의
+   - 4단계에서 적용됨
+
+3. **Signature 내부 Internal** (파라미터별 Internal)
    - 특정 Signature 파라미터가 가진 자체 Internal 데이터
    - 예: `DatePeriodFilter_internal_data = {"start": "2024-01-01"}`
    - 2단계에서 병합됨
 
-3. **도구 레벨 Internal** (전역 Internal)
+4. **도구 레벨 Internal** (전역 Internal)
    - `mcp_service_factors`에 정의된 도구 전체 Internal (source: "internal")
    - targetParam으로 특정 Signature 파라미터에 매핑
-   - 5단계에서 병합됨
+   - 6단계에서 병합됨
 
 ### 두 번의 병합 과정
 
@@ -521,12 +551,13 @@ Signature 내부 Internal + 사용자 입력 = Signature 파라미터 객체
 - 각 Signature 파라미터 내부에서 발생
 - 파라미터별 Internal과 사용자 입력 병합
 
-#### 두 번째 병합 (5단계)
+#### 두 번째 병합 (6단계)
 ```
-도구 레벨 Internal + Signature 파라미터 객체 = 최종 파라미터
+도구 레벨 Internal + Signature Defaults + Signature 파라미터 객체 = 최종 파라미터
 ```
 - 도구 전체 레벨에서 발생
 - targetParam 매핑을 통해 특정 파라미터로 병합
+- Signature Defaults는 4단계에서 먼저 적용됨
 
 ### 최종 우선순위
 
@@ -905,4 +936,4 @@ mcp_{service}/mcp_server/server_{protocol}.py
 ---
 
 *관련: terminology.md, decorator.md, web.md*
-*Version: 2.3 (all sections updated: removed all tool_internal_args.json references, unified mcp_service_factors architecture)*
+*Version: 2.4 (Signature Defaults 단계 추가: 4단계 구조로 확장, 런타임 흐름도 7단계로 업데이트)*

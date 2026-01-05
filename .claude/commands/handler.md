@@ -66,14 +66,23 @@ DatePeriodFilter_data = merge_param_data(
 - **시점**: Internal 파라미터 처리 후
 - **대상**: Internal 파라미터 + Signature 파라미터 객체
 - **우선순위**: Signature 파라미터 > Internal
+- **조건**: Internal 파라미터 값이 있을 때만 처리
 
 ```python
 # 예시: select_params 병합
 _internal_select = build_internal_param("mail_list", "select")  # mcp_service_factors에서
-existing_select_params = call_args["select_params"]  # 이미 처리된 Signature
 
-merged_dict = {**internal_dict, **existing_dict}  # existing이 internal을 덮어씀
-call_args["select_params"] = SelectParams(**merged_dict)
+# Signature와 Internal이 같은 targetParam을 가리킬 때만 병합
+if "select_params" in call_args:
+    existing_value = call_args["select_params"]
+    internal_dict = {k: v for k, v in vars(_internal_select).items() if v is not None}
+    existing_dict = {k: v for k, v in vars(existing_value).items() if v is not None}
+    merged_dict = {**internal_dict, **existing_dict}  # existing이 internal을 덮어씀
+    call_args["select_params"] = SelectParams(**merged_dict)
+else:
+    # Internal만 있는 경우: 값이 있을 때만 추가
+    if _internal_select is not None:
+        call_args["select_params"] = _internal_select
 ```
 
 ## 실제 데이터 예시
@@ -145,6 +154,38 @@ await mail_service.mail_list(
 | `{service}_service.py` | 비즈니스 로직 | 개발자가 직접 수정 |
 
 ## 핵심 개념
+
+### SIGNATURE vs INTERNAL 핵심 차이
+
+| 모드 | LLM이 값 안 보낼 때 | 결과 |
+|------|-------------------|------|
+| **SIGNATURE** | `args.get()` → `None` → 서비스에 `None` 전달 | 기본값 미적용 (예: `$select` 없음) |
+| **INTERNAL** | `build_internal_param()` → 기본값으로 객체 생성 | 기본값 적용 (예: `$select` 포함) |
+
+#### SIGNATURE 동작
+```python
+# LLM이 select_params를 안 보내면
+select_params_raw = args.get("select_params")  # None
+select_params_data = merge_param_data({}, None)  # → None
+select_params_params = None  # 서비스에 None 전달
+# 결과: $select 파라미터 없이 API 호출 → 모든 필드 반환
+```
+
+#### INTERNAL 동작
+```python
+# Internal Args에서 기본값으로 객체 생성
+_internal_select = build_internal_param("mail_list_period", "select")
+# → SelectParams(id=True, subject=True, sender=True, ...)
+
+# Signature 값이 None이면 Internal 값 사용
+if existing_value is None:
+    call_args["select_params"] = _internal_select
+# 결과: $select=id,subject,sender,... 포함하여 API 호출 → 지정 필드만 반환
+```
+
+#### 사용 시나리오
+- **SIGNATURE**: LLM이 선택적으로 값을 제공할 때 (사용자가 명시적으로 지정)
+- **INTERNAL**: 항상 기본값이 적용되어야 할 때 (시스템 고정값)
 
 ### source 필드의 역할 (mcp_service_factors 내)
 - `"internal"`: LLM에게 완전히 숨김 - 시스템 고정값

@@ -50,6 +50,18 @@ SUPPORTED_PROTOCOLS = {"rest", "stdio", "stream"}
 
 # Pre-computed tool -> implementation mapping
 TOOL_IMPLEMENTATIONS = {
+    "mail_list_period": {
+        "service_class": "MailService",
+        "method": "mail_list_period"
+    },
+    "mail_list_keyword": {
+        "service_class": "MailService",
+        "method": "mail_list_keyword"
+    },
+    "mail_query_if_emaidID": {
+        "service_class": "MailService",
+        "method": "mail_query_if_emaidID"
+    },
     "mail_fetch_filter": {
         "service_class": "MailService",
         "method": "mail_fetch_filter"
@@ -62,21 +74,9 @@ TOOL_IMPLEMENTATIONS = {
         "service_class": "MailService",
         "method": "mail_process_with_download"
     },
-    "mail_list_period": {
-        "service_class": "MailService",
-        "method": "mail_list_period"
-    },
     "mail_query_url": {
         "service_class": "MailService",
         "method": "mail_query_url"
-    },
-    "mail_query_if_emaidID": {
-        "service_class": "MailService",
-        "method": "mail_query_if_emaidID"
-    },
-    "mail_list_keyword": {
-        "service_class": "MailService",
-        "method": "mail_list_keyword"
     },
 }
 
@@ -234,6 +234,79 @@ def merge_param_data(internal_data: dict, runtime_data):
 
 # Tool handler functions
 
+async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle mail_list_period tool call"""
+
+    # Extract parameters from args
+    # Extract from input with source param name
+    DatePeriodFilter = args["DatePeriodFilter"]
+    user_email = args.get("user_email")
+
+    # Convert dicts to parameter objects where needed
+    DatePeriodFilter_internal_data = {}
+    # Use already extracted raw value or get from args
+    # Value was already extracted above, use the existing variable
+    DatePeriodFilter_data = merge_param_data(DatePeriodFilter_internal_data, DatePeriodFilter) or {}
+    DatePeriodFilter_params = FilterParams(**DatePeriodFilter_data)
+    # Prepare call arguments
+    call_args = {}
+
+    # Add signature parameters
+    call_args["filter_params"] = DatePeriodFilter_params
+    call_args["user_email"] = user_email
+    # Process internal args with targetParam mappings
+
+    # Build internal arg: select
+    _internal_select = build_internal_param("mail_list_period", "select")
+
+    # Check if target param already exists from signature
+    if "select_params" in call_args:
+        existing_value = call_args["select_params"]
+        if existing_value is None:
+            # Signature value is None, use internal value
+            if _internal_select is not None:
+                call_args["select_params"] = _internal_select
+        elif hasattr(existing_value, '__dict__') and hasattr(_internal_select, '__dict__'):
+            # Both are objects - merge them (signature has priority for non-None values)
+            internal_dict = {k: v for k, v in vars(_internal_select).items() if v is not None}
+            existing_dict = {k: v for k, v in vars(existing_value).items() if v is not None}
+            merged_dict = {**internal_dict, **existing_dict}
+            call_args["select_params"] = type(existing_value)(**merged_dict)
+        # Otherwise keep existing signature value (non-None primitive or incompatible types)
+    else:
+        # No conflict, use internal value with targetParam mapping
+        if _internal_select is not None:
+            call_args["select_params"] = _internal_select
+
+    return await mail_service.mail_list_period(**call_args)
+
+async def handle_mail_list_keyword(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle mail_list_keyword tool call"""
+
+    # Extract parameters from args
+    # Extract from input with source param name
+    search_keywords = args["search_keywords"]
+    top = args.get("top")
+    user_email = args.get("user_email")
+
+    return await mail_service.mail_list_keyword(
+        search_term=search_keywords,
+        top=top,
+        user_email=user_email
+    )
+
+async def handle_mail_query_if_emaidID(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle mail_query_if_emaidID tool call"""
+
+    # Extract parameters from args
+    message_ids = args.get("message_ids")
+    user_email = args.get("user_email")
+
+    return await mail_service.mail_query_if_emaidID(
+        message_ids=message_ids,
+        user_email=user_email
+    )
+
 async def handle_mail_fetch_filter(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_fetch_filter tool call"""
 
@@ -322,48 +395,6 @@ async def handle_mail_process_with_download(args: Dict[str, Any]) -> Dict[str, A
 
     return await mail_service.mail_process_with_download(**call_args)
 
-async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle mail_list_period tool call"""
-
-    # Extract parameters from args
-    # Extract from input with source param name
-    DatePeriodFilter = args["DatePeriodFilter"]
-    user_email = args.get("user_email")
-
-    # Convert dicts to parameter objects where needed
-    DatePeriodFilter_internal_data = {}
-    # Use already extracted raw value or get from args
-    # Value was already extracted above, use the existing variable
-    DatePeriodFilter_data = merge_param_data(DatePeriodFilter_internal_data, DatePeriodFilter) or {}
-    DatePeriodFilter_params = FilterParams(**DatePeriodFilter_data)
-    # Prepare call arguments
-    call_args = {}
-
-    # Add signature parameters
-    call_args["filter_params"] = DatePeriodFilter_params
-    call_args["user_email"] = user_email
-    # Process internal args with targetParam mappings
-
-    # Build internal arg: select
-    _internal_select = build_internal_param("mail_list_period", "select")
-
-    # Check if target param already exists from signature
-    if "select_params" in call_args:
-        # Merge internal into signature (signature has priority, but skip None values)
-        existing_value = call_args["select_params"]
-        if hasattr(existing_value, '__dict__') and hasattr(_internal_select, '__dict__'):
-            # Both are objects - merge them (exclude None values from existing)
-            internal_dict = {k: v for k, v in vars(_internal_select).items() if v is not None}
-            existing_dict = {k: v for k, v in vars(existing_value).items() if v is not None}
-            merged_dict = {**internal_dict, **existing_dict}
-            call_args["select_params"] = type(existing_value)(**merged_dict)
-        # Otherwise keep existing signature value
-    else:
-        # No conflict, use internal value with targetParam mapping
-        call_args["select_params"] = _internal_select
-
-    return await mail_service.mail_list_period(**call_args)
-
 async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_query_url tool call"""
 
@@ -398,53 +429,6 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     call_args["user_email"] = user_email
 
     return await mail_service.mail_query_url(**call_args)
-
-async def handle_mail_query_if_emaidID(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle mail_query_if_emaidID tool call"""
-
-    # Extract parameters from args
-    message_id_internal = args.get("message_id_internal")
-    message_ids = args.get("message_ids")
-    user_email = args.get("user_email")
-
-    return await mail_service.mail_query_if_emaidID(
-        message_ids=message_ids,
-        user_email=user_email
-    )
-
-async def handle_mail_list_keyword(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle mail_list_keyword tool call"""
-
-    # Extract parameters from args
-    client_filter = args.get("client_filter")
-    # Extract from input with source param name
-    search_keywords = args["search_keywords"]
-    select_params = args.get("select_params")
-    top = args.get("top")
-    user_email = args.get("user_email")
-
-    # Convert dicts to parameter objects where needed
-    client_filter_internal_data = {}
-    # Use already extracted value if it exists
-    # Value was already extracted above, use the existing variable
-    client_filter_data = merge_param_data(client_filter_internal_data, client_filter)
-    client_filter_params = ExcludeParams(**client_filter_data) if client_filter_data is not None else None
-    select_params_internal_data = {}
-    # Use already extracted value if it exists
-    # Value was already extracted above, use the existing variable
-    select_params_data = merge_param_data(select_params_internal_data, select_params)
-    select_params_params = SelectParams(**select_params_data) if select_params_data is not None else None
-    # Prepare call arguments
-    call_args = {}
-
-    # Add signature parameters
-    call_args["client_filter"] = client_filter_params
-    call_args["search_keywords"] = search_keywords
-    call_args["select_params"] = select_params_params
-    call_args["top"] = top
-    call_args["user_email"] = user_email
-
-    return await mail_service.mail_list_keyword(**call_args)
 
 # ============================================================
 # STDIO Protocol Implementation for MCP Server

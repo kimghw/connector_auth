@@ -423,6 +423,23 @@ def extract_service_factors(tools: list) -> tuple[dict, dict]:
                 if tool_name not in internal_args:
                     internal_args[tool_name] = {}
 
+                # targetParam 추론: 명시적 지정 > 서비스 파라미터 매칭 > 기본값
+                target_param = param_info.get("targetParam")
+                if not target_param:
+                    # 서비스 메서드 파라미터에서 매칭 시도
+                    service_params = tool.get("mcp_service", {}).get("parameters", [])
+                    param_names = [p.get("name") for p in service_params]
+
+                    # 1. {name}_params 형태 체크 (예: select → select_params)
+                    if f"{param_name}_params" in param_names:
+                        target_param = f"{param_name}_params"
+                    # 2. _internal 접미사 제거 (예: select_internal → select)
+                    elif param_name.endswith("_internal"):
+                        target_param = param_name.replace("_internal", "")
+                    # 3. 그대로 사용
+                    else:
+                        target_param = param_name
+
                 internal_args[tool_name][param_name] = {
                     "description": param_info.get("description", ""),
                     "type": param_info.get("baseModel", "object"),
@@ -433,7 +450,7 @@ def extract_service_factors(tools: list) -> tuple[dict, dict]:
                         "required": [],
                         "type": "object",
                     },
-                    "targetParam": param_name.replace("_internal", ""),  # _internal 접미사 제거
+                    "targetParam": target_param,
                     "was_required": False,
                 }
 
@@ -595,8 +612,16 @@ def is_all_none_defaults(factor_data):
 
     When all defaults in mcp_service_factors are None, the factor has no effect
     on parameter merging and should be removed.
+
+    Exception: 'internal' source factors are always useful because they indicate
+    the parameter should be hidden from LLM, regardless of default values.
     """
     if not isinstance(factor_data, dict):
+        return False
+
+    # Internal source factors are always useful - they indicate the parameter
+    # should be hidden from LLM, even without specific default values
+    if factor_data.get("source") == "internal":
         return False
 
     parameters = factor_data.get("parameters", {})

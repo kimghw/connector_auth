@@ -17,6 +17,85 @@ import json
 MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
 [
     {
+        "name": "mail_list_period",
+        "description": "지정된 기간의 메일 목록을 미리보기 형태로 조회합니다. 메일 본문 전체가 아닌 제목, 발신자, 날짜, 요약 등 핵심 정보만을 효율적으로 가져와 테이블 형태로 정리합니다.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "DatePeriodFilter": {
+                    "type": "object",
+                    "description": "에이전트는 는 사용자의 질의에 따라 검색 범위의 날짜를 추출한다.",
+                    "properties": {
+                        "received_date_from": {
+                            "type": "string",
+                            "description": "메일 수신 시작 날짜 (포함, receivedDateTime >= 이 값)"
+                        },
+                        "received_date_to": {
+                            "type": "string",
+                            "description": "메일 수신 종료 날짜 (포함, receivedDateTime <= 이 값)"
+                        }
+                    },
+                    "required": [
+                        "received_date_from",
+                        "received_date_to"
+                    ],
+                    "baseModel": "FilterParams",
+                    "targetParam": "filter_params"
+                },
+                "user_email": {
+                    "type": "string",
+                    "description": "이메일 주소를 입력하고 입력하지 않을 경우 내부에서 연결정보를 메일 주소를 추정함"
+                }
+            },
+            "required": [
+                "DatePeriodFilter"
+            ]
+        }
+    },
+    {
+        "name": "mail_list_keyword",
+        "description": "New tool description",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "search_keywords": {
+                    "type": "string",
+                    "description": "",
+                    "targetParam": "search_term"
+                },
+                "top": {
+                    "type": "integer",
+                    "description": ""
+                },
+                "user_email": {
+                    "type": "string",
+                    "description": ""
+                }
+            },
+            "required": [
+                "search_keywords"
+            ]
+        }
+    },
+    {
+        "name": "mail_query_if_emaidID",
+        "description": "특정 메일 ID 목록을 사용하여 해당 메일들의 상세 정보를 일괄 조회합니다. 이미 알고 있는 메일 ID를 통해 여러 메일의 전체 내용을 한 번에 가져올 수 있습니다.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "message_ids": {
+                    "type": "array",
+                    "description": ""
+                },
+                "user_email": {
+                    "type": "string",
+                    "description": ""
+                }
+            },
+            "required": []
+        }
+    },
+    {
         "name": "mail_fetch_filter",
         "description": "Outlook 메일을 날짜, 발신자, 제목 등 다양한 필터 조건을 사용하여 조회합니다. 특정 기간이나 조건에 맞는 메일을 효율적으로 검색할 수 있습니다. mail_list_xx 와 달리 본문을 포함해서 반환한다.",
         "inputSchema": {
@@ -138,42 +217,6 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
         }
     },
     {
-        "name": "mail_list_period",
-        "description": "지정된 기간의 메일 목록을 미리보기 형태로 조회합니다. 메일 본문 전체가 아닌 제목, 발신자, 날짜, 요약 등 핵심 정보만을 효율적으로 가져와 테이블 형태로 정리합니다.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "DatePeriodFilter": {
-                    "type": "object",
-                    "description": "에이전트는 는 사용자의 질의에 따라 검색 범위의 날짜를 추출한다.",
-                    "properties": {
-                        "received_date_from": {
-                            "type": "string",
-                            "description": "메일 수신 시작 날짜 (포함, receivedDateTime >= 이 값)"
-                        },
-                        "received_date_to": {
-                            "type": "string",
-                            "description": "메일 수신 종료 날짜 (포함, receivedDateTime <= 이 값)"
-                        }
-                    },
-                    "required": [
-                        "received_date_from",
-                        "received_date_to"
-                    ],
-                    "baseModel": "FilterParams",
-                    "targetParam": "filter_params"
-                },
-                "user_email": {
-                    "type": "string",
-                    "description": "이메일 주소를 입력하고 입력하지 않을 경우 내부에서 연결정보를 메일 주소를 추정함"
-                }
-            },
-            "required": [
-                "DatePeriodFilter"
-            ]
-        }
-    },
-    {
         "name": "mail_query_url",
         "description": "Microsoft Graph API URL을 직접 사용하여 메일을 조회합니다. 고급 사용자를 위한 기능으로, OData 쿼리 파라미터($filter, $select 등)를 직접 지정할 수 있습니다.",
         "inputSchema": {
@@ -240,101 +283,6 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
             "required": [
                 "url",
                 "user_email"
-            ]
-        }
-    },
-    {
-        "name": "mail_query_if_emaidID",
-        "description": "특정 메일 ID 목록을 사용하여 해당 메일들의 상세 정보를 일괄 조회합니다. 이미 알고 있는 메일 ID를 통해 여러 메일의 전체 내용을 한 번에 가져올 수 있습니다.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "message_id_internal": {
-                    "type": "string",
-                    "description": "",
-                    "targetParam": "message_ids"
-                },
-                "message_ids": {
-                    "type": "array",
-                    "description": ""
-                },
-                "user_email": {
-                    "type": "string",
-                    "description": ""
-                }
-            },
-            "required": []
-        }
-    },
-    {
-        "name": "mail_list_keyword",
-        "description": "New tool description",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "client_filter": {
-                    "type": "object",
-                    "description": "ExcludeParams parameters",
-                    "properties": {
-                        "exclude_from_address": {
-                            "type": "string",
-                            "description": "제외할 발신자 주소 (from 필드)"
-                        }
-                    },
-                    "required": [],
-                    "baseModel": "ExcludeParams"
-                },
-                "search_keywords": {
-                    "type": "string",
-                    "description": ""
-                },
-                "select_params": {
-                    "type": "object",
-                    "description": "SelectParams parameters",
-                    "properties": {
-                        "body_preview": {
-                            "type": "boolean",
-                            "description": "메시지 본문의 처음 255자 (텍스트 형식)"
-                        },
-                        "has_attachments": {
-                            "type": "boolean",
-                            "description": "첨부파일 포함 여부"
-                        },
-                        "id": {
-                            "type": "boolean",
-                            "description": "메시지 고유 식별자 (읽기 전용)"
-                        },
-                        "received_date_time": {
-                            "type": "boolean",
-                            "description": "메시지 수신 날짜/시간 (ISO 8601 형식, UTC)"
-                        },
-                        "sender": {
-                            "type": "boolean",
-                            "description": "메시지를 생성하는 데 사용된 계정"
-                        },
-                        "subject": {
-                            "type": "boolean",
-                            "description": "메시지 제목"
-                        },
-                        "web_link": {
-                            "type": "boolean",
-                            "description": "Outlook Web에서 메시지를 열기 위한 URL"
-                        }
-                    },
-                    "required": [],
-                    "baseModel": "SelectParams"
-                },
-                "top": {
-                    "type": "integer",
-                    "description": ""
-                },
-                "user_email": {
-                    "type": "string",
-                    "description": ""
-                }
-            },
-            "required": [
-                "search_keywords"
             ]
         }
     }
