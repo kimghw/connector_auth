@@ -312,6 +312,16 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         object_params = {}
         call_params = {}
 
+        # First, get the inputSchema to understand the mappings
+        input_schema = tool.get('inputSchema', {})
+        properties = input_schema.get('properties', {})
+
+        # Create a mapping from inputSchema property name to targetParam (service method param name)
+        param_mappings = {}
+        for prop_name, prop_def in properties.items():
+            target_param = prop_def.get('targetParam', prop_name)
+            param_mappings[prop_name] = target_param
+
         # Get parameters from mcp_service if available
         if isinstance(mcp_service, dict):
             for param in mcp_service.get('parameters', []):
@@ -321,7 +331,18 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                 has_default = param.get('has_default', False)
                 default = param.get('default')
 
-                params[param_name] = {
+                # Find the input schema property name that maps to this service parameter
+                input_param_name = None
+                for inp_name, tgt_name in param_mappings.items():
+                    if tgt_name == param_name:
+                        input_param_name = inp_name
+                        break
+
+                # If not found in mappings, assume it's the same
+                if input_param_name is None:
+                    input_param_name = param_name
+
+                params[input_param_name] = {
                     'type': param_type,
                     'is_required': is_required,
                     'has_default': has_default,
@@ -333,7 +354,7 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                 if 'Params' in param_type or param_type == 'object':
                     # Extract class name from type (e.g., Optional[FilterParams] -> FilterParams)
                     class_name = param_type.replace('Optional[', '').replace(']', '')
-                    object_params[param_name] = {
+                    object_params[input_param_name] = {
                         'class_name': class_name,
                         'is_optional': 'Optional' in param_type or has_default,
                         'has_default': has_default,
@@ -341,15 +362,13 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                     }
 
                 # Build call_params (how to pass to service method)
-                # Get targetParam from mcp_service parameter or default to param_name
-                target_param = param.get('targetParam', param_name)
-
-                if param_name in tool_internal_args:
-                    call_params[target_param] = {'value': f'{param_name}_params', 'source_param': param_name}
-                elif param_name in object_params:
-                    call_params[target_param] = {'value': f'{param_name}_params', 'source_param': param_name}
+                # Map from service param name to the value expression
+                if input_param_name in tool_internal_args:
+                    call_params[param_name] = {'value': f'{input_param_name}_params', 'source_param': input_param_name}
+                elif input_param_name in object_params:
+                    call_params[param_name] = {'value': f'{input_param_name}_params', 'source_param': input_param_name}
                 else:
-                    call_params[target_param] = {'value': param_name, 'source_param': param_name}
+                    call_params[param_name] = {'value': input_param_name, 'source_param': input_param_name}
 
         # Fallback: extract from inputSchema if no mcp_service parameters
         if not params:

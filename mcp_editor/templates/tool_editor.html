@@ -422,6 +422,50 @@
             white-space: nowrap;
         }
 
+        /* Drag and Drop styles */
+        .tool-item.dragging {
+            opacity: 0.5;
+            background: var(--primary-color);
+            transform: scale(1.02);
+        }
+
+        .tool-item.drag-over {
+            border-top: 3px solid var(--primary-color);
+            margin-top: -3px;
+        }
+
+        .tool-item .drag-handle {
+            display: none;
+            position: absolute;
+            left: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: grab;
+            color: #999;
+            font-size: 14px;
+            padding: 4px;
+        }
+
+        .tool-item:hover .drag-handle {
+            display: block;
+        }
+
+        .tool-item {
+            position: relative;
+            padding-left: 24px;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 122, 255, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(0, 122, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 122, 255, 0); }
+        }
+
+        .btn.unsaved {
+            background: #ff9500 !important;
+            color: white !important;
+        }
+
         .editor-area {
             flex: 1;
             padding: 40px;
@@ -880,6 +924,9 @@
                 <button class="btn btn-secondary btn-tooltip btn-icon-only" data-debug-id="BTN_HELP" onclick="openHelpModal()" data-tooltip="View diagrams and documentation&#10;Tool/Handler structure&#10;Add Property flow">
                     <span class="material-icons">help_outline</span>
                 </button>
+                <a href="/docs" target="_blank" class="btn btn-secondary btn-tooltip btn-icon-only" data-debug-id="BTN_DOCS" data-tooltip="📊 데이터 흐름 다이어그램&#10;🔄 핸들러 처리 가이드&#10;📋 파라미터 병합 체계&#10;&#10;Open documentation viewer">
+                    <span class="material-icons">article</span>
+                </a>
                 <button class="btn btn-secondary btn-tooltip btn-icon-only" data-debug-id="BTN_VALIDATE" onclick="validateTools()" data-tooltip="Validate tool definitions">
                     <span class="material-icons">check_circle</span>
                 </button>
@@ -1419,6 +1466,7 @@
     <script>
         let tools = [];
         let internalArgs = {};  // Internal args (hidden from MCP signature)
+        let signatureDefaults = {};  // Signature params with internal defaults (shown to LLM but has fallback values)
         let fileMtimes = {};    // File modification times for conflict detection
         let currentToolIndex = -1;
         let nestedGraphTarget = null;
@@ -1787,11 +1835,13 @@
                     console.log('[DEBUG] Data received:', data);
                     const loadedTools = data.tools || data;
                     tools = loadedTools;
-                    // Load internal args and file mtimes from new API response format
+                    // Load internal args, signature defaults, and file mtimes from new API response format
                     internalArgs = data.internal_args || {};
+                    signatureDefaults = data.signature_defaults || {};
                     fileMtimes = data.file_mtimes || {};
                     console.log('[DEBUG] tools variable set, tools.length:', tools.length);
                     console.log('[DEBUG] internalArgs loaded:', Object.keys(internalArgs).length, 'tools');
+                    console.log('[DEBUG] signatureDefaults loaded:', Object.keys(signatureDefaults).length, 'tools');
                     console.log('[DEBUG] Calling renderToolList()...');
                     renderToolList();
                     console.log('[DEBUG] renderToolList() completed');
@@ -2443,6 +2493,144 @@
             });
         }
 
+        // ========== Tool Missing Parameter Check ==========
+        function getToolMissingParams(tool) {
+            // Check if tool has missing required parameters
+            // Guard against servicesInfo not being initialized yet
+            if (!window.servicesInfo || typeof servicesInfo !== 'object') {
+                return [];
+            }
+
+            const serviceName = typeof tool.mcp_service === 'string'
+                ? tool.mcp_service
+                : tool.mcp_service?.name;
+
+            if (!serviceName || !servicesInfo[serviceName]) {
+                return [];
+            }
+
+            const service = servicesInfo[serviceName];
+            if (!service.parameters || service.parameters.length === 0) {
+                return [];
+            }
+
+            const schemaProperties = tool.inputSchema?.properties || {};
+            const toolInternalArgs = (window.internalArgs && internalArgs[tool.name]) || {};
+            const allDefinedProps = new Set([
+                ...Object.keys(schemaProperties),
+                ...Object.keys(toolInternalArgs)
+            ]);
+
+            const missingParams = [];
+
+            service.parameters.forEach(param => {
+                if (!param.is_required) return;
+
+                let isDefined = false;
+
+                // Check direct match
+                if (allDefinedProps.has(param.name)) {
+                    isDefined = true;
+                } else {
+                    // Check targetParam mappings
+                    for (const [propName, propDef] of Object.entries(schemaProperties)) {
+                        if (propDef.targetParam === param.name) {
+                            isDefined = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!isDefined) {
+                    missingParams.push(param.name);
+                }
+            });
+
+            return missingParams;
+        }
+        // ========== End Tool Missing Parameter Check ==========
+
+        // ========== Tool Drag and Drop Functions ==========
+        let draggedToolIndex = null;
+
+        function handleToolDragStart(e, index) {
+            draggedToolIndex = index;
+            e.target.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', index);
+        }
+
+        function handleToolDragEnd(e) {
+            e.target.classList.remove('dragging');
+            document.querySelectorAll('.tool-item').forEach(item => {
+                item.classList.remove('drag-over');
+            });
+            draggedToolIndex = null;
+        }
+
+        function handleToolDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const toolItem = e.target.closest('.tool-item');
+            if (toolItem && !toolItem.classList.contains('dragging')) {
+                // Remove drag-over from all items
+                document.querySelectorAll('.tool-item').forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+                toolItem.classList.add('drag-over');
+            }
+        }
+
+        function handleToolDragLeave(e) {
+            const toolItem = e.target.closest('.tool-item');
+            if (toolItem) {
+                toolItem.classList.remove('drag-over');
+            }
+        }
+
+        function handleToolDrop(e, dropIndex) {
+            e.preventDefault();
+            const toolItem = e.target.closest('.tool-item');
+            if (toolItem) {
+                toolItem.classList.remove('drag-over');
+            }
+
+            if (draggedToolIndex === null || draggedToolIndex === dropIndex) {
+                return;
+            }
+
+            // Reorder tools array
+            const draggedTool = tools[draggedToolIndex];
+            tools.splice(draggedToolIndex, 1);
+            tools.splice(dropIndex, 0, draggedTool);
+
+            // Update currentToolIndex if needed
+            if (currentToolIndex === draggedToolIndex) {
+                currentToolIndex = dropIndex;
+            } else if (draggedToolIndex < currentToolIndex && dropIndex >= currentToolIndex) {
+                currentToolIndex--;
+            } else if (draggedToolIndex > currentToolIndex && dropIndex <= currentToolIndex) {
+                currentToolIndex++;
+            }
+
+            // Re-render
+            renderToolList();
+            showNotification(`Moved "${draggedTool.name}" to position ${dropIndex + 1}`, 'success');
+
+            // Mark as unsaved
+            markUnsaved();
+        }
+
+        function markUnsaved() {
+            // Add visual indicator that there are unsaved changes
+            const saveButton = document.querySelector('[data-debug-id="BTN_SAVE"]');
+            if (saveButton && !saveButton.classList.contains('unsaved')) {
+                saveButton.classList.add('unsaved');
+                saveButton.style.animation = 'pulse 1s infinite';
+            }
+        }
+        // ========== End Tool Drag and Drop Functions ==========
+
         function renderToolList() {
             console.log('[DEBUG] renderToolList() called');
             console.log('[DEBUG] tools.length:', tools.length);
@@ -2464,10 +2652,23 @@
                 const toolItem = document.createElement('div');
                 toolItem.className = 'tool-item';
                 toolItem.setAttribute('data-debug-id', `TOOL_${index}`);
+                toolItem.setAttribute('data-tool-index', index);
+                toolItem.setAttribute('draggable', 'true');
                 if (index === currentToolIndex) {
                     toolItem.classList.add('active');
                 }
-                toolItem.onclick = () => selectTool(index);
+                toolItem.onclick = (e) => {
+                    // Don't select if clicking drag handle
+                    if (e.target.classList.contains('drag-handle')) return;
+                    selectTool(index);
+                };
+
+                // Drag and drop events
+                toolItem.ondragstart = (e) => handleToolDragStart(e, index);
+                toolItem.ondragend = handleToolDragEnd;
+                toolItem.ondragover = handleToolDragOver;
+                toolItem.ondragleave = handleToolDragLeave;
+                toolItem.ondrop = (e) => handleToolDrop(e, index);
 
                 // Get service method info
                 const serviceName = typeof tool.mcp_service === 'string'
@@ -2479,7 +2680,20 @@
                        </div>`
                     : '';
 
+                // Check for missing required parameters
+                const missingParams = getToolMissingParams(tool);
+                const missingBadgeHtml = missingParams.length > 0
+                    ? `<span class="missing-badge" title="Missing: ${missingParams.join(', ')}"
+                        style="position: absolute; top: 8px; right: 8px; background: #dc3545; color: white;
+                               font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 10px;
+                               display: flex; align-items: center; gap: 3px;">
+                        <span style="font-size: 12px;">⚠</span>${missingParams.length}
+                       </span>`
+                    : '';
+
                 toolItem.innerHTML = `
+                    <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
+                    ${missingBadgeHtml}
                     <h3>${tool.name}</h3>
                     <p>${tool.description}</p>
                     ${serviceMethodHtml}
@@ -2582,6 +2796,7 @@
                 const isRequired = required.includes(propName);
                 // isInternal already set above
                 const isMcpParam = isPropertyMcpParam(propName);
+                const hasSignatureDefaults = !isInternal && signatureDefaults[tool.name]?.[propName];
                 const propId = `prop-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}`;
                 propertiesHtml += `
                     <div class="property-collapsible" data-internal="${isInternal}">
@@ -2601,6 +2816,7 @@
                                 ${propDef.targetParam ? `<span style="margin-left: 8px; font-size: 11px; color: #007bff; background: #e7f1ff; padding: 2px 6px; border-radius: 4px;" title="Maps to service method parameter">→ ${propDef.targetParam}</span>` : ''}
                                 ${isRequired ? '<span style="margin-left: 8px; font-size: 11px; color: var(--danger-color); font-weight: 600;">REQUIRED</span>' : ''}
                                 ${isInternal ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--warning-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">INTERNAL</span>' : ''}
+                                ${hasSignatureDefaults ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--success-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">DEFAULTS</span>' : ''}
                                 ${isMcpParam ? `<span style="margin-left: 8px; font-size: 10px; color: white; background: ${isInternal ? 'var(--warning-color)' : 'var(--primary-color)'}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">MCP</span>` : ''}
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px;" onclick="event.stopPropagation();">
@@ -2633,6 +2849,13 @@
                                        onchange="setPropertyDestination(${index}, '${propName}', 'internal')" style="margin-right: 4px;">
                                 <span style="font-size: 11px; font-weight: 500;">Internal</span>
                             </label>
+                            ${!isInternal && propDef.type === 'object' ? `
+                            <label style="display: flex; align-items: center; cursor: pointer; padding: 4px 10px; border: 2px solid ${hasSignatureDefaults ? 'var(--success-color)' : 'var(--border-color)'}; border-radius: 5px; background: ${hasSignatureDefaults ? 'rgba(52, 199, 89, 0.1)' : 'white'}; margin-left: 4px;">
+                                <input type="checkbox" ${hasSignatureDefaults ? 'checked' : ''}
+                                       onchange="toggleSignatureDefaults(${index}, '${propName}', this.checked)" style="margin-right: 4px;">
+                                <span style="font-size: 11px; font-weight: 500; color: ${hasSignatureDefaults ? 'var(--success-color)' : 'var(--text-secondary)'};">Use Defaults</span>
+                            </label>
+                            ` : ''}
                             <span style="font-size: 11px; color: var(--text-secondary); margin-left: 8px;">Type:</span>
                             <select class="form-control" style="width: auto; padding: 4px 8px; font-size: 11px;"
                                     onchange="updatePropertyField(${index}, '${propName}', 'type', this.value); renderToolEditor(tools[${index}], ${index});">
@@ -3311,6 +3534,79 @@
                     window.scrollTo(scrollLeft, scrollTop);
                 }
             }, 10);
+        }
+
+        // Toggle signature defaults for a property (Signature + internal defaults)
+        function toggleSignatureDefaults(index, propName, enabled) {
+            const tool = tools[index];
+            const toolName = tool.name;
+            const propDef = tool.inputSchema?.properties?.[propName];
+
+            if (!propDef) {
+                console.error('Property not found in inputSchema:', propName);
+                return;
+            }
+
+            if (enabled) {
+                // Enable signature defaults: store property schema in signatureDefaults
+                if (!signatureDefaults[toolName]) {
+                    signatureDefaults[toolName] = {};
+                }
+
+                // Copy property definition with defaults
+                signatureDefaults[toolName][propName] = {
+                    baseModel: propDef.baseModel || propDef.type,
+                    description: propDef.description || '',
+                    properties: propDef.properties ? JSON.parse(JSON.stringify(propDef.properties)) : {},
+                    source: 'signature_defaults'
+                };
+
+                showNotification(`Property "${propName}" now has signature defaults enabled`, 'success');
+            } else {
+                // Disable signature defaults: remove from signatureDefaults
+                if (signatureDefaults[toolName]) {
+                    delete signatureDefaults[toolName][propName];
+
+                    // Clean up empty tool entry
+                    if (Object.keys(signatureDefaults[toolName]).length === 0) {
+                        delete signatureDefaults[toolName];
+                    }
+                }
+
+                showNotification(`Property "${propName}" signature defaults disabled`, 'info');
+            }
+
+            // Re-render to update UI
+            renderToolEditor(tool, index);
+        }
+
+        // Update signature defaults for a property (JSON format)
+        function updateSignatureDefaults(index, propName, jsonString) {
+            const tool = tools[index];
+            const toolName = tool.name;
+
+            if (!signatureDefaults[toolName] || !signatureDefaults[toolName][propName]) {
+                console.error('Signature defaults not found:', toolName, propName);
+                return;
+            }
+
+            try {
+                const defaults = JSON.parse(jsonString);
+                // Update default values in properties
+                const sigDef = signatureDefaults[toolName][propName];
+                if (!sigDef.properties) {
+                    sigDef.properties = {};
+                }
+                for (const [key, value] of Object.entries(defaults)) {
+                    if (!sigDef.properties[key]) {
+                        sigDef.properties[key] = { type: typeof value };
+                    }
+                    sigDef.properties[key].default = value;
+                }
+                showNotification(`Signature defaults updated for "${propName}"`, 'success');
+            } catch (e) {
+                showNotification(`Invalid JSON: ${e.message}`, 'error');
+            }
         }
 
         function updateInternalArgDefaults(index, propName, jsonString) {
@@ -4754,6 +5050,7 @@
             console.log('[DEBUG] saveTools() called');
             console.log('[DEBUG] tools:', tools);
             console.log('[DEBUG] internalArgs:', internalArgs);
+            console.log('[DEBUG] signatureDefaults:', signatureDefaults);
             console.log('[DEBUG] fileMtimes:', fileMtimes);
 
             const profileQuery = profileParam();
@@ -4763,11 +5060,12 @@
             console.log('[DEBUG] profileQuery:', profileQuery);
             console.log('[DEBUG] saveProfile:', saveProfile);
 
-            // Use the new save-all API to atomically save tools + internal_args
+            // Use the new save-all API to atomically save tools + internal_args + signature_defaults
             const url = `/api/tools/save-all${profileQuery}`;
             const payload = {
                 tools: tools,
                 internal_args: internalArgs,
+                signature_defaults: signatureDefaults,  // Signature params with internal defaults
                 file_mtimes: fileMtimes  // For conflict detection
             };
 

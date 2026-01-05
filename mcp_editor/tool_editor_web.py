@@ -61,20 +61,20 @@ Web interface for editing MCP Tool Definitions
    - enum: 열거값 → properties[propName].enum
    - format: 포맷 (uri, email 등) → properties[propName].format
 
-### 3. Internal Args (별도 저장)
-   - Internal toggle: 체크 시 → internal_args[toolName][propName]
-   - 저장 위치: tool_internal_args.json 파일
+### 3. Internal Args & Signature Defaults (mcp_service_factors에 저장)
+   - Internal toggle: 체크 시 → mcp_service_factors[propName] (source: 'internal')
+   - Signature Defaults toggle: 체크 시 → mcp_service_factors[propName] (source: 'signature_defaults')
+   - 저장 위치: tool_definition_templates.py의 mcp_service_factors 필드
 
 ### 4. 파일 저장 경로
    - tool_definitions.py: 클린 버전 (mcp_service 제외)
-   - tool_definition_templates.py: 템플릿 버전 (mcp_service 포함)
-   - tool_internal_args.json: 내부 인자 정보
+   - tool_definition_templates.py: 템플릿 버전 (mcp_service + mcp_service_factors 포함)
    - backups/: 백업 파일들
 
 ## 데이터 인덱싱 구조
 - tools[]: 0부터 시작하는 도구 배열 인덱스
 - properties{}: 속성명을 key로 하는 객체
-- internal_args{}: 도구명 → 속성명 → 값 구조
+- mcp_service_factors{}: 파라미터명 → {source, baseModel, parameters} 구조
 - 중첩 속성: data-tool-index + data-parent-prop + data-nested-prop
 
 ## API 엔드포인트 매핑
@@ -282,19 +282,10 @@ def get_profile_config(profile_name: str | None = None) -> dict:
 
 
 def resolve_paths(profile_conf: dict) -> dict:
-    # internal_args_path는 선택적 - 없으면 template_path 기반으로 자동 생성
-    internal_args_path = profile_conf.get("internal_args_path")
-    if internal_args_path:
-        internal_args_path = _resolve_path(internal_args_path)
-    else:
-        # 기본값: template_path와 같은 디렉토리의 tool_internal_args.json
-        template_dir = os.path.dirname(_resolve_path(profile_conf["template_definitions_path"]))
-        internal_args_path = os.path.join(template_dir, "tool_internal_args.json")
-
+    # 단순화: 중간 JSON 파일 제거, mcp_service_factors에 직접 저장
     return {
         "template_path": _resolve_path(profile_conf["template_definitions_path"]),
         "tool_path": _resolve_path(profile_conf["tool_definitions_path"]),
-        "internal_args_path": internal_args_path,
         "backup_dir": _resolve_path(profile_conf["backup_dir"]),
         "types_files": profile_conf.get(
             "types_files", profile_conf.get("graph_types_files", ["../mcp_outlook/outlook_types.py"])
@@ -400,20 +391,65 @@ def load_tool_definitions(paths: dict):
         return {"error": str(e)}
 
 
-def load_internal_args(paths: dict) -> dict:
+def extract_service_factors(tools: list) -> tuple[dict, dict]:
     """
-    Load internal args from tool_internal_args.json
-    Returns empty dict if file doesn't exist (graceful fallback)
+    Extract internal_args and signature_defaults from mcp_service_factors in tools.
+
+    mcp_service_factors는 tool_definition_templates.py에 직접 저장됩니다.
+    source 필드로 구분:
+    - 'internal': LLM에게 완전히 숨겨진 파라미터
+    - 'signature_defaults': LLM에게 보이지만 기본값이 있는 파라미터
+
+    Returns:
+        tuple: (internal_args, signature_defaults)
     """
-    internal_args_path = paths.get("internal_args_path")
-    if not internal_args_path or not os.path.exists(internal_args_path):
-        return {}
-    try:
-        with open(internal_args_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Warning: Failed to load internal_args from {internal_args_path}: {e}")
-        return {}
+    internal_args = {}
+    signature_defaults = {}
+
+    for tool in tools:
+        tool_name = tool.get("name")
+        if not tool_name:
+            continue
+
+        service_factors = tool.get("mcp_service_factors", {})
+        if not service_factors:
+            continue
+
+        for param_name, param_info in service_factors.items():
+            source = param_info.get("source", "internal")  # 기본값은 internal
+
+            if source == "internal":
+                # Internal args 구조로 변환
+                if tool_name not in internal_args:
+                    internal_args[tool_name] = {}
+
+                internal_args[tool_name][param_name] = {
+                    "description": param_info.get("description", ""),
+                    "type": param_info.get("baseModel", "object"),
+                    "original_schema": {
+                        "baseModel": param_info.get("baseModel", "object"),
+                        "description": param_info.get("description", ""),
+                        "properties": param_info.get("parameters", {}),
+                        "required": [],
+                        "type": "object",
+                    },
+                    "targetParam": param_name.replace("_internal", ""),  # _internal 접미사 제거
+                    "was_required": False,
+                }
+
+            elif source == "signature_defaults":
+                # Signature defaults 구조로 변환
+                if tool_name not in signature_defaults:
+                    signature_defaults[tool_name] = {}
+
+                signature_defaults[tool_name][param_name] = {
+                    "baseModel": param_info.get("baseModel", "object"),
+                    "description": param_info.get("description", ""),
+                    "properties": param_info.get("parameters", {}),
+                    "source": "signature_defaults",
+                }
+
+    return internal_args, signature_defaults
 
 
 def get_file_mtimes(paths: dict) -> dict:
@@ -421,7 +457,10 @@ def get_file_mtimes(paths: dict) -> dict:
     Collect file modification times for conflict detection
     """
     mtimes = {}
-    path_keys = [("tool_path", "definitions"), ("template_path", "templates"), ("internal_args_path", "internal_args")]
+    path_keys = [
+        ("tool_path", "definitions"),
+        ("template_path", "templates"),
+    ]
     for path_key, mtime_key in path_keys:
         path = paths.get(path_key)
         if path and os.path.exists(path):
@@ -513,6 +552,67 @@ def clean_newlines_from_schema(schema):
         return schema
 
 
+def clean_redundant_target_params(schema):
+    """Remove targetParam from properties where property name equals targetParam value.
+
+    When inputSchema property name is the same as the service method parameter name,
+    targetParam is redundant and should be removed.
+
+    Example:
+        'exclude_params': {'targetParam': 'exclude_params', ...}
+        -> 'exclude_params': {...}  (targetParam removed)
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    result = {}
+    for key, value in schema.items():
+        if key == "properties" and isinstance(value, dict):
+            # Clean properties
+            cleaned_props = {}
+            for prop_name, prop_def in value.items():
+                if isinstance(prop_def, dict):
+                    # Remove targetParam if it equals property name
+                    if prop_def.get("targetParam") == prop_name:
+                        prop_def = {k: v for k, v in prop_def.items() if k != "targetParam"}
+                    # Recursively clean nested properties
+                    cleaned_props[prop_name] = clean_redundant_target_params(prop_def)
+                else:
+                    cleaned_props[prop_name] = prop_def
+            result[key] = cleaned_props
+        elif isinstance(value, dict):
+            result[key] = clean_redundant_target_params(value)
+        elif isinstance(value, list):
+            result[key] = [clean_redundant_target_params(item) if isinstance(item, dict) else item for item in value]
+        else:
+            result[key] = value
+
+    return result
+
+
+def is_all_none_defaults(factor_data):
+    """Check if all parameter defaults are None (making the factor useless).
+
+    When all defaults in mcp_service_factors are None, the factor has no effect
+    on parameter merging and should be removed.
+    """
+    if not isinstance(factor_data, dict):
+        return False
+
+    parameters = factor_data.get("parameters", {})
+    if not parameters:
+        return True  # No parameters = effectively all None
+
+    for param_name, param_def in parameters.items():
+        if isinstance(param_def, dict):
+            default_value = param_def.get("default")
+            # If any default is not None, the factor is useful
+            if default_value is not None:
+                return False
+
+    return True  # All defaults are None
+
+
 def prune_internal_properties(tools_data: list, internal_args: dict):
     """Remove inputSchema properties that are marked as internal args.
 
@@ -596,7 +696,14 @@ def _load_services_for_server(server_name: str | None, scan_dir: str | None, for
     return services
 
 
-def save_tool_definitions(tools_data, paths: dict, force_rescan: bool = False, skip_backup: bool = False):
+def save_tool_definitions(
+    tools_data,
+    paths: dict,
+    force_rescan: bool = False,
+    skip_backup: bool = False,
+    internal_args: dict = None,
+    signature_defaults: dict = None,
+):
     """Save MCP_TOOLS to both tool_definitions.py and tool_definition_templates.py
 
     Args:
@@ -604,7 +711,15 @@ def save_tool_definitions(tools_data, paths: dict, force_rescan: bool = False, s
         paths: Resolved paths dict from resolve_paths()
         force_rescan: Force rescan of service signatures
         skip_backup: Skip internal backup (use when caller already handles backup)
+        internal_args: Internal parameters (hidden from LLM, source: 'internal')
+        signature_defaults: Signature params with defaults (shown to LLM, source: 'signature_defaults')
+
+    mcp_service_factors에 직접 저장 (중간 JSON 파일 없이 단순화)
     """
+    if internal_args is None:
+        internal_args = {}
+    if signature_defaults is None:
+        signature_defaults = {}
     try:
         ensure_dirs(paths)
         backup_filename = None
@@ -637,6 +752,8 @@ def save_tool_definitions(tools_data, paths: dict, force_rescan: bool = False, s
                 cleaned_input = remove_defaults(cleaned_input)
                 # Recursively clean newlines from all descriptions in inputSchema
                 cleaned_input = clean_newlines_from_schema(cleaned_input)
+                # Remove redundant targetParam (when prop name == targetParam value)
+                cleaned_input = clean_redundant_target_params(cleaned_input)
                 cleaned_tool["inputSchema"] = order_schema_fields(cleaned_input)
             # Add any other fields except mcp_service and mcp_service_factors
             for k, v in tool.items():
@@ -715,13 +832,14 @@ def get_tool_names() -> List[str]:
 
         # Build template tools
         template_tools = []
-        # Load internal args to check for _internal parameters
-        internal_args = load_internal_args(paths)
+        # internal_args는 파라미터로 전달됨 (중간 파일 없이 직접 사용)
 
         for tool in tools_data:
             template_tool = {k: v for k, v in tool.items()}
             if "inputSchema" in template_tool:
-                template_tool["inputSchema"] = order_schema_fields(template_tool["inputSchema"])
+                # Clean redundant targetParam and order fields
+                cleaned_schema = clean_redundant_target_params(template_tool["inputSchema"])
+                template_tool["inputSchema"] = order_schema_fields(cleaned_schema)
 
             # Add signature if available
             if "mcp_service" in template_tool and isinstance(template_tool["mcp_service"], dict):
@@ -732,11 +850,13 @@ def get_tool_names() -> List[str]:
                     if service_info.get("parameters"):
                         template_tool["mcp_service"]["parameters"] = service_info["parameters"]
 
-            # Add mcp_service_factors for internal parameters
-            # These are service method parameters that are internally configured
+            # Add mcp_service_factors for internal parameters and signature defaults
+            # These are service method parameters that are internally configured or have fallback values
             tool_name = tool.get("name")
+            service_factors = {}
+
+            # 1. Add internal args (source: 'internal' - completely hidden from LLM)
             if tool_name and tool_name in internal_args:
-                service_factors = {}
                 for param_name, param_info in internal_args[tool_name].items():
                     # Each key is the actual service method parameter name
                     # Store essential information for internal parameters
@@ -751,10 +871,31 @@ def get_tool_names() -> List[str]:
                     if "original_schema" in param_info and "properties" in param_info["original_schema"]:
                         factor_data["parameters"] = param_info["original_schema"]["properties"]
 
-                    service_factors[param_name] = factor_data
+                    # Skip if all defaults are None (useless factor)
+                    if not is_all_none_defaults(factor_data):
+                        service_factors[param_name] = factor_data
 
-                if service_factors:
-                    template_tool["mcp_service_factors"] = service_factors
+            # 2. Add signature defaults (source: 'signature_defaults' - visible to LLM but has fallback values)
+            if tool_name and tool_name in signature_defaults:
+                for param_name, param_info in signature_defaults[tool_name].items():
+                    # Each key is the actual service method parameter name
+                    # Store essential information for signature defaults
+                    factor_data = {
+                        "source": "signature_defaults",
+                        "baseModel": param_info.get("baseModel") or param_info.get("type"),
+                        "description": param_info.get("description", ""),
+                    }
+
+                    # Add parameters structure (properties with default values)
+                    if "properties" in param_info:
+                        factor_data["parameters"] = param_info["properties"]
+
+                    # Skip if all defaults are None (useless factor)
+                    if not is_all_none_defaults(factor_data):
+                        service_factors[param_name] = factor_data
+
+            if service_factors:
+                template_tool["mcp_service_factors"] = service_factors
 
             template_tools.append(template_tool)
 
@@ -789,6 +930,12 @@ def index():
     return render_template("tool_editor.html")
 
 
+@app.route("/docs")
+def docs_viewer():
+    """Documentation viewer page - MCP 웹에디터 데이터 흐름 및 핸들러 처리 가이드"""
+    return render_template("docs_viewer.html")
+
+
 # Debug routes are disabled - templates moved to backup folder
 # Uncomment and update paths if debug pages are needed
 # @app.route('/debug')
@@ -817,7 +964,7 @@ def index():
 
 @app.route("/api/tools", methods=["GET"])
 def get_tools():
-    """API endpoint to get current tool definitions + internal args"""
+    """API endpoint to get current tool definitions + internal args + signature defaults"""
     profile = request.args.get("profile")
     profile_conf = get_profile_config(profile)
     paths = resolve_paths(profile_conf)
@@ -827,15 +974,22 @@ def get_tools():
     if isinstance(tools, dict) and "error" in tools:
         return jsonify(tools), 500
 
-    # 2. Load internal args
-    internal_args = load_internal_args(paths)
+    # 2. Extract internal_args and signature_defaults from mcp_service_factors
+    # (단순화: 중간 JSON 파일 없이 tool_definition_templates.py에서 직접 추출)
+    internal_args, signature_defaults = extract_service_factors(tools)
 
     # 3. Collect file mtimes for conflict detection
     file_mtimes = get_file_mtimes(paths)
 
     actual_profile = profile or list_profile_names()[0] if list_profile_names() else "default"
     return jsonify(
-        {"tools": tools, "internal_args": internal_args, "profile": actual_profile, "file_mtimes": file_mtimes}
+        {
+            "tools": tools,
+            "internal_args": internal_args,
+            "signature_defaults": signature_defaults,
+            "profile": actual_profile,
+            "file_mtimes": file_mtimes,
+        }
     )
 
 
@@ -910,25 +1064,17 @@ def delete_tool(tool_index):
         tools.pop(tool_index)
 
         # Save the updated tools
+        # mcp_service_factors는 도구 내부에 저장되므로 도구 삭제 시 자동 정리됨
         force_rescan = str(request.args.get("force_rescan", "")).lower() in ("1", "true", "yes")
         result = save_tool_definitions(tools, paths, force_rescan=force_rescan)
         if "error" in result:
             return jsonify(result), 500
-
-        # CRITICAL: Clean up internal args for deleted tool (Issue 3 fix)
-        internal_args = load_internal_args(paths)
-        internal_args_cleaned = False
-        if tool_name in internal_args:
-            del internal_args[tool_name]
-            internal_args_cleaned = True
-            save_internal_args(internal_args, paths)
 
         return jsonify(
             {
                 "success": True,
                 "message": f"Tool '{tool_name}' deleted successfully",
                 "backup": result.get("backup"),
-                "internal_args_cleaned": internal_args_cleaned,
             }
         )
     except Exception as e:
@@ -2002,45 +2148,6 @@ def browse_files():
 # ============================================================
 
 
-def save_internal_args(internal_args: dict, paths: dict) -> dict:
-    """Save internal args to JSON file.
-
-    Structure:
-    - default: Static values stored in original_schema.properties[prop].default
-              (from UI/Pydantic/saved settings)
-    - value: Optional stored runtime value (if needed for persistence)
-
-    The server's build_internal_param function uses priority:
-    1. runtime_value (passed at function call time)
-    2. stored value field (if exists)
-    3. defaults from original_schema.properties
-    """
-    try:
-        internal_args_path = paths.get("internal_args_path")
-        if not internal_args_path:
-            print("[ERROR] internal_args_path not configured in paths")
-            return {"error": "internal_args_path not configured"}
-
-        # Debug logging
-        print(f"[DEBUG] Saving internal_args to: {internal_args_path}")
-        print(
-            f"[DEBUG] internal_args content ({len(internal_args)} tools):",
-            json.dumps(internal_args, indent=2, ensure_ascii=False),
-        )
-
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(internal_args_path), exist_ok=True)
-
-        with open(internal_args_path, "w", encoding="utf-8") as f:
-            json.dump(internal_args, f, indent=2, ensure_ascii=False)
-
-        print(f"[SUCCESS] Saved internal_args to {internal_args_path}")
-        return {"success": True, "path": internal_args_path}
-    except Exception as e:
-        print(f"[ERROR] Failed to save internal_args: {e}")
-        return {"error": str(e)}
-
-
 def backup_file(file_path: str, backup_dir: str, timestamp: str) -> str | None:
     """Create backup of a file with shared timestamp"""
     if not os.path.exists(file_path):
@@ -2084,18 +2191,23 @@ def cleanup_old_backups(backup_dir: str, keep_count: int = 10):
 
 @app.route("/api/internal-args", methods=["GET"])
 def get_internal_args():
-    """Get internal args for the current profile"""
+    """Get internal args for the current profile (DEPRECATED: use GET /api/tools instead)"""
     try:
         profile = request.args.get("profile")
         profile_conf = get_profile_config(profile)
         paths = resolve_paths(profile_conf)
 
-        internal_args = load_internal_args(paths)
+        # Load tools and extract internal_args from mcp_service_factors
+        tools = load_tool_definitions(paths)
+        if isinstance(tools, dict) and "error" in tools:
+            return jsonify(tools), 500
+
+        internal_args, _ = extract_service_factors(tools)
         return jsonify(
             {
                 "internal_args": internal_args,
                 "profile": profile or list_profile_names()[0] if list_profile_names() else "default",
-                "path": paths.get("internal_args_path"),
+                "deprecated": "Use GET /api/tools instead",
             }
         )
     except Exception as e:
@@ -2104,73 +2216,27 @@ def get_internal_args():
 
 @app.route("/api/internal-args", methods=["POST"])
 def post_internal_args():
-    """Save internal args (full replacement)"""
-    try:
-        profile = request.args.get("profile")
-        profile_conf = get_profile_config(profile)
-        paths = resolve_paths(profile_conf)
-
-        internal_args = request.json
-        if not isinstance(internal_args, dict):
-            return jsonify({"error": "Request body must be a JSON object"}), 400
-
-        # Create backup before saving
-        backup_dir = paths.get("backup_dir")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = backup_file(paths.get("internal_args_path"), backup_dir, timestamp)
-
-        result = save_internal_args(internal_args, paths)
-        if "error" in result:
-            return jsonify(result), 500
-
-        result["backup"] = backup_path
-        result["warning"] = (
-            "internal_args saved but tool_definitions may be out of sync. Consider using POST /api/tools/save-all"
-        )
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    """DEPRECATED: Use POST /api/tools/save-all instead"""
+    return jsonify({
+        "error": "This endpoint is deprecated",
+        "message": "Use POST /api/tools/save-all to save internal_args along with tools"
+    }), 410
 
 
 @app.route("/api/internal-args/<tool_name>", methods=["PUT"])
 def put_internal_args_tool(tool_name: str):
-    """Update internal args for a specific tool (merge)"""
-    try:
-        profile = request.args.get("profile")
-        profile_conf = get_profile_config(profile)
-        paths = resolve_paths(profile_conf)
-
-        tool_args = request.json
-        if not isinstance(tool_args, dict):
-            return jsonify({"error": "Request body must be a JSON object"}), 400
-
-        # Load existing internal args
-        internal_args = load_internal_args(paths)
-
-        # Merge tool args
-        internal_args[tool_name] = tool_args
-
-        # Create backup before saving
-        backup_dir = paths.get("backup_dir")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = backup_file(paths.get("internal_args_path"), backup_dir, timestamp)
-
-        result = save_internal_args(internal_args, paths)
-        if "error" in result:
-            return jsonify(result), 500
-
-        result["backup"] = backup_path
-        result["tool"] = tool_name
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    """DEPRECATED: Use POST /api/tools/save-all instead"""
+    return jsonify({
+        "error": "This endpoint is deprecated",
+        "message": "Use POST /api/tools/save-all to save internal_args along with tools"
+    }), 410
 
 
 @app.route("/api/tools/save-all", methods=["POST"])
 def save_all_definitions():
     """
-    Atomic save of all 3 files: tool_definitions.py, tool_definition_templates.py, tool_internal_args.json
-    This is the recommended API for saving to ensure consistency.
+    Atomic save: tool_definitions.py + tool_definition_templates.py (with mcp_service_factors)
+    단순화: 중간 JSON 파일 없이 mcp_service_factors에 직접 저장
     """
     try:
         profile = request.args.get("profile")
@@ -2184,25 +2250,25 @@ def save_all_definitions():
 
         tools_data = data.get("tools")
         internal_args = data.get("internal_args", {})
-        loaded_mtimes = data.get("file_mtimes")  # For conflict detection
+        signature_defaults = data.get("signature_defaults", {})
+        loaded_mtimes = data.get("file_mtimes")
 
         # Debug logging
         print(f"\n[DEBUG] /api/tools/save-all called for profile: {profile}")
         print(f"[DEBUG] Received {len(tools_data) if tools_data else 0} tools")
-        print(f"[DEBUG] Received internal_args: {json.dumps(internal_args, indent=2, ensure_ascii=False)}")
+        print(f"[DEBUG] Received internal_args: {len(internal_args)} tools")
+        print(f"[DEBUG] Received signature_defaults: {len(signature_defaults)} tools")
 
         if not tools_data or not isinstance(tools_data, list):
             return jsonify({"error": "tools must be a list"}), 400
 
-        # CRITICAL: Clean up orphaned internal_args (Issue 3 fix)
-        # Remove internal_args for tools that no longer exist
+        # Clean up orphaned internal_args
         tool_names = {tool.get("name") for tool in tools_data if tool.get("name")}
         orphaned_tools = [t for t in internal_args.keys() if t not in tool_names]
         for orphaned in orphaned_tools:
             del internal_args[orphaned]
 
-        # CRITICAL: Validate internal_args structure (Issue 5 fix)
-        # Each internal arg must have a 'type' field for code generation
+        # Validate internal_args structure
         validation_errors = []
         for tool_name, tool_args in internal_args.items():
             for arg_name, arg_info in tool_args.items():
@@ -2224,18 +2290,16 @@ def save_all_definitions():
                 400,
             )
 
-        # CRITICAL: Strip any properties that are marked as internal before saving
+        # Strip any properties that are marked as internal before saving
         tools_data = prune_internal_properties(tools_data, internal_args)
 
-        # Check for file conflicts (optional)
-        # Note: templates file is auto-scanned from source code, so external modification is expected
+        # Check for file conflicts
         if loaded_mtimes:
             current_mtimes = get_file_mtimes(paths)
             conflicts = []
-            # Only check definitions and internal_args, NOT templates (templates are auto-generated)
-            for key in ["definitions", "internal_args"]:
+            for key in ["definitions"]:  # Only check definitions (templates are auto-generated)
                 if key in loaded_mtimes and key in current_mtimes:
-                    if abs(current_mtimes[key] - loaded_mtimes[key]) > 5:  # 5 second tolerance
+                    if abs(current_mtimes[key] - loaded_mtimes[key]) > 5:
                         conflicts.append(key)
             if conflicts:
                 return (
@@ -2250,32 +2314,31 @@ def save_all_definitions():
                     409,
                 )
 
-        # Create backups with shared timestamp
+        # Create backups
         backup_dir = paths.get("backup_dir")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backups = {
             "definitions": backup_file(paths.get("tool_path"), backup_dir, timestamp),
             "templates": backup_file(paths.get("template_path"), backup_dir, timestamp),
-            "internal_args": backup_file(paths.get("internal_args_path"), backup_dir, timestamp),
         }
 
         saved_files = []
         try:
-            # 1. Save tool_definitions.py and templates (existing function)
-            # skip_backup=True because we already created backups above with backup_file()
+            # Save tool_definitions.py and templates (with mcp_service_factors)
+            # internal_args와 signature_defaults는 mcp_service_factors에 직접 병합됨
             force_rescan = str(request.args.get("force_rescan", "")).lower() in ("1", "true", "yes")
-            result = save_tool_definitions(tools_data, paths, force_rescan=force_rescan, skip_backup=True)
+            result = save_tool_definitions(
+                tools_data,
+                paths,
+                force_rescan=force_rescan,
+                skip_backup=True,
+                internal_args=internal_args,
+                signature_defaults=signature_defaults,
+            )
             if "error" in result:
                 raise Exception(result["error"])
             saved_files.extend(["definitions", "templates"])
 
-            # 2. Save internal_args.json
-            result = save_internal_args(internal_args, paths)
-            if "error" in result:
-                raise Exception(result["error"])
-            saved_files.append("internal_args")
-
-            # Cleanup old backups
             cleanup_old_backups(backup_dir, keep_count=10)
 
             return jsonify(
@@ -2292,11 +2355,7 @@ def save_all_definitions():
             # Rollback: restore from backups
             for key, backup_path in backups.items():
                 if backup_path and os.path.exists(backup_path):
-                    target_key = {
-                        "definitions": "tool_path",
-                        "templates": "template_path",
-                        "internal_args": "internal_args_path",
-                    }.get(key)
+                    target_key = {"definitions": "tool_path", "templates": "template_path"}.get(key)
                     if target_key and paths.get(target_key):
                         try:
                             shutil.copy2(backup_path, paths[target_key])

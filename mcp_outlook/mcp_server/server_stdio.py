@@ -247,12 +247,14 @@ async def handle_mail_fetch_filter(args: Dict[str, Any]) -> Dict[str, Any]:
 
     # Convert dicts to parameter objects where needed
     exclude_params_internal_data = exclude_params_internal_data
-    exclude_params_raw = args.get("exclude_params")
-    exclude_params_data = merge_param_data(exclude_params_internal_data, exclude_params_raw)
+    # Use already extracted value if it exists
+    # Value was already extracted above, use the existing variable
+    exclude_params_data = merge_param_data(exclude_params_internal_data, exclude_params)
     exclude_params_params = ExcludeParams(**exclude_params_data) if exclude_params_data is not None else None
     filter_params_internal_data = {}
-    filter_params_raw = args.get("filter_params")
-    filter_params_data = merge_param_data(filter_params_internal_data, filter_params_raw)
+    # Use already extracted value if it exists
+    # Value was already extracted above, use the existing variable
+    filter_params_data = merge_param_data(filter_params_internal_data, filter_params)
     filter_params_params = FilterParams(**filter_params_data) if filter_params_data is not None else None
     # Prepare call arguments
     call_args = {}
@@ -269,6 +271,7 @@ async def handle_mail_fetch_search(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_fetch_search tool call"""
 
     # Extract parameters from args
+    # Extract from input with source param name
     search_term = args["search_term"]
     select_params = args.get("select_params")
     top = args.get("top")
@@ -276,8 +279,9 @@ async def handle_mail_fetch_search(args: Dict[str, Any]) -> Dict[str, Any]:
 
     # Convert dicts to parameter objects where needed
     select_params_internal_data = {}
-    select_params_raw = args.get("select_params")
-    select_params_data = merge_param_data(select_params_internal_data, select_params_raw)
+    # Use already extracted value if it exists
+    # Value was already extracted above, use the existing variable
+    select_params_data = merge_param_data(select_params_internal_data, select_params)
     select_params_params = SelectParams(**select_params_data) if select_params_data is not None else None
     # Prepare call arguments
     call_args = {}
@@ -302,8 +306,9 @@ async def handle_mail_process_with_download(args: Dict[str, Any]) -> Dict[str, A
 
     # Convert dicts to parameter objects where needed
     filter_params_internal_data = {}
-    filter_params_raw = args.get("filter_params")
-    filter_params_data = merge_param_data(filter_params_internal_data, filter_params_raw)
+    # Use already extracted value if it exists
+    # Value was already extracted above, use the existing variable
+    filter_params_data = merge_param_data(filter_params_internal_data, filter_params)
     filter_params_params = FilterParams(**filter_params_data) if filter_params_data is not None else None
     # Prepare call arguments
     call_args = {}
@@ -321,13 +326,15 @@ async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_list_period tool call"""
 
     # Extract parameters from args
+    # Extract from input with source param name
     DatePeriodFilter = args["DatePeriodFilter"]
     user_email = args.get("user_email")
 
     # Convert dicts to parameter objects where needed
     DatePeriodFilter_internal_data = {}
-    DatePeriodFilter_raw = args["DatePeriodFilter"]
-    DatePeriodFilter_data = merge_param_data(DatePeriodFilter_internal_data, DatePeriodFilter_raw) or {}
+    # Use already extracted raw value or get from args
+    # Value was already extracted above, use the existing variable
+    DatePeriodFilter_data = merge_param_data(DatePeriodFilter_internal_data, DatePeriodFilter) or {}
     DatePeriodFilter_params = FilterParams(**DatePeriodFilter_data)
     # Prepare call arguments
     call_args = {}
@@ -364,17 +371,21 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     filter_params = args.get("filter_params")
     select = args.get("select")
     top = args.get("top")
+    # Extract from input with source param name
     url = args["url"]
+    # Extract from input with source param name
     user_email = args["user_email"]
 
     # Convert dicts to parameter objects where needed
     filter_params_internal_data = {}
-    filter_params_raw = args.get("filter_params")
-    filter_params_data = merge_param_data(filter_params_internal_data, filter_params_raw)
+    # Use already extracted value if it exists
+    # Value was already extracted above, use the existing variable
+    filter_params_data = merge_param_data(filter_params_internal_data, filter_params)
     filter_params_params = FilterParams(**filter_params_data) if filter_params_data is not None else None
     select_internal_data = {}
-    select_raw = args.get("select")
-    select_data = merge_param_data(select_internal_data, select_raw)
+    # Use already extracted value if it exists
+    # Value was already extracted above, use the existing variable
+    select_data = merge_param_data(select_internal_data, select)
     select_params = SelectParams(**select_data) if select_data is not None else None
     # Prepare call arguments
     call_args = {}
@@ -392,12 +403,13 @@ async def handle_mail_query_if_emaidID(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_query_if_emaidID tool call"""
 
     # Extract parameters from args
+    message_id_internal = args.get("message_id_internal")
+    message_ids = args.get("message_ids")
     user_email = args.get("user_email")
-    test_message_ids = args["test_message_ids"]
 
     return await mail_service.mail_query_if_emaidID(
-        user_email=user_email,
-        test_message_ids=test_message_ids
+        message_ids=message_ids,
+        user_email=user_email
     )
 
 async def handle_mail_list_keyword(args: Dict[str, Any]) -> Dict[str, Any]:
@@ -405,6 +417,7 @@ async def handle_mail_list_keyword(args: Dict[str, Any]) -> Dict[str, Any]:
 
     # Extract parameters from args
     client_filter = args.get("client_filter")
+    # Extract from input with source param name
     search_keywords = args["search_keywords"]
     select_params = args.get("select_params")
     top = args.get("top")
@@ -412,12 +425,14 @@ async def handle_mail_list_keyword(args: Dict[str, Any]) -> Dict[str, Any]:
 
     # Convert dicts to parameter objects where needed
     client_filter_internal_data = {}
-    client_filter_raw = args.get("client_filter")
-    client_filter_data = merge_param_data(client_filter_internal_data, client_filter_raw)
+    # Use already extracted value if it exists
+    # Value was already extracted above, use the existing variable
+    client_filter_data = merge_param_data(client_filter_internal_data, client_filter)
     client_filter_params = ExcludeParams(**client_filter_data) if client_filter_data is not None else None
     select_params_internal_data = {}
-    select_params_raw = args.get("select_params")
-    select_params_data = merge_param_data(select_params_internal_data, select_params_raw)
+    # Use already extracted value if it exists
+    # Value was already extracted above, use the existing variable
+    select_params_data = merge_param_data(select_params_internal_data, select_params)
     select_params_params = SelectParams(**select_params_data) if select_params_data is not None else None
     # Prepare call arguments
     call_args = {}

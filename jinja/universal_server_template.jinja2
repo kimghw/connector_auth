@@ -276,9 +276,12 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     # Extract parameters from args
     {%- for param_name, param_info in tool.params.items() %}
     {%- if param_info.is_required %}
-    {{ param_name }} = args["{{ param_name }}"]
+    # Extract from input with source param name
+    {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
+    {{ param_name }} = args["{{ source_param }}"]
     {%- elif param_info.has_default %}
-    {{ param_name }}_raw = args.get("{{ param_name }}")
+    {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
+    {{ param_name }}_raw = args.get("{{ source_param }}")
     {%- if param_info.type in enum_types %}
     # Handle enum type default
     {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default | replace('"', '') }}
@@ -286,7 +289,8 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default_json }}
     {%- endif %}
     {%- else %}
-    {{ param_name }} = args.get("{{ param_name }}")
+    {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
+    {{ param_name }} = args.get("{{ source_param }}")
     {%- endif %}
     {%- endfor %}
 
@@ -313,12 +317,26 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {{ param_name }}_internal_data = {}
     {%- endif %}
     {%- if not param_info.is_optional %}
-    {{ param_name }}_raw = args["{{ param_name }}"]
+    # Use already extracted raw value or get from args
+    {%- if param_name in tool.params %}
+    # Value was already extracted above, use the existing variable
+    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}) or {}
+    {%- else %}
+    {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
+    {{ param_name }}_raw = args["{{ source_param }}"]
     {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}_raw) or {}
+    {%- endif %}
     {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_data)
     {%- elif param_info.has_default %}
-    {{ param_name }}_raw = args.get("{{ param_name }}")
+    # Use already extracted value if it exists
+    {%- if param_name in tool.params %}
+    # Value was already extracted above, use the existing variable
+    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }})
+    {%- else %}
+    {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
+    {{ param_name }}_raw = args.get("{{ source_param }}")
     {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}_raw)
+    {%- endif %}
     if {{ param_name }}_data is not None:
         {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_data)
     else:
@@ -328,8 +346,15 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
         {{ param_name }}_params = None
         {%- endif %}
     {%- else %}
-    {{ param_name }}_raw = args.get("{{ param_name }}")
+    # Use already extracted value if it exists
+    {%- if param_name in tool.params %}
+    # Value was already extracted above, use the existing variable
+    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }})
+    {%- else %}
+    {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
+    {{ param_name }}_raw = args.get("{{ source_param }}")
     {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}_raw)
+    {%- endif %}
     {{ param_name }}_params = {{ param_info.class_name }}(**{{ param_name }}_data) if {{ param_name }}_data is not None else None
     {%- endif %}
     {%- endif %}
@@ -381,9 +406,12 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     # Extract parameters from args
     {%- for param_name, param_info in tool.params.items() %}
     {%- if param_info.is_required %}
-    {{ param_name }} = args["{{ param_name }}"]
+    # Extract from input with source param name
+    {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
+    {{ param_name }} = args["{{ source_param }}"]
     {%- elif param_info.has_default %}
-    {{ param_name }}_raw = args.get("{{ param_name }}")
+    {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
+    {{ param_name }}_raw = args.get("{{ source_param }}")
     {%- if param_info.type in enum_types %}
     # Handle enum type default
     {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default | replace('"', '') }}
@@ -391,13 +419,14 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default_json }}
     {%- endif %}
     {%- else %}
-    {{ param_name }} = args.get("{{ param_name }}")
+    {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
+    {{ param_name }} = args.get("{{ source_param }}")
     {%- endif %}
     {%- endfor %}
 
     return await {{ tool.implementation.instance }}.{{ tool.implementation.method }}(
-        {%- for param_name, param_info in tool.params.items() %}
-        {{ param_name }}={{ param_name }}{{ "," if not loop.last else "" }}
+        {%- for target_param, param_info in tool.call_params.items() %}
+        {{ target_param }}={{ param_info.value }}{{ "," if not loop.last else "" }}
         {%- endfor %}
     )
     {%- endif %}

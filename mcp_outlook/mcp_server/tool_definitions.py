@@ -25,8 +25,7 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
                 "exclude_params": {
                     "type": "object",
                     "description": "제외 조건",
-                    "baseModel": "ExcludeParams",
-                    "targetParam": "exclude_params"
+                    "baseModel": "ExcludeParams"
                 },
                 "filter_params": {
                     "type": "object",
@@ -49,8 +48,7 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
                             "description": "메일 발신 종료 날짜 (포함, sentDateTime <= 이 값)"
                         }
                     },
-                    "baseModel": "FilterParams",
-                    "targetParam": "filter_params"
+                    "baseModel": "FilterParams"
                 },
                 "user_email": {
                     "type": "string",
@@ -195,8 +193,7 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
                         }
                     },
                     "required": [],
-                    "baseModel": "FilterParams",
-                    "targetParam": "filter_params"
+                    "baseModel": "FilterParams"
                 },
                 "select": {
                     "type": "object",
@@ -233,8 +230,7 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
                 },
                 "url": {
                     "type": "string",
-                    "description": "only baseURL : https://graph.microsoft.com/v1.0/me/mailFolders/junkemail/messages?",
-                    "targetParam": "url"
+                    "description": "only baseURL : https://graph.microsoft.com/v1.0/me/mailFolders/junkemail/messages?"
                 },
                 "user_email": {
                     "type": "string",
@@ -253,19 +249,21 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
         "inputSchema": {
             "type": "object",
             "properties": {
+                "message_id_internal": {
+                    "type": "string",
+                    "description": "",
+                    "targetParam": "message_ids"
+                },
+                "message_ids": {
+                    "type": "array",
+                    "description": ""
+                },
                 "user_email": {
                     "type": "string",
-                    "description": "이전 대화 내역에서 메일 주소를 찾아서 적용 없다면, 내부에서 자동으로 처리해 줄 거임"
-                },
-                "test_message_ids": {
-                    "type": "string",
-                    "description": "Auto-added parameter for message_ids",
-                    "targetParam": "message_ids"
+                    "description": ""
                 }
             },
-            "required": [
-                "test_message_ids"
-            ]
+            "required": []
         }
     },
     {

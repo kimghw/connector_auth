@@ -8,7 +8,6 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Outlook 메일을 날�
                        'mail_list_xx 와 달리 본문을 포함해서 반환한다.',
         'inputSchema': {   'properties': {   'exclude_params': {   'baseModel': 'ExcludeParams',
                                                                    'description': '제외 조건',
-                                                                   'targetParam': 'exclude_params',
                                                                    'type': 'object'},
                                              'filter_params': {   'baseModel': 'FilterParams',
                                                                   'description': '메일 필터링 조건',
@@ -52,7 +51,6 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Outlook 메일을 날�
                                                                                                                        '이 '
                                                                                                                        '값)',
                                                                                                         'type': 'string'}},
-                                                                  'targetParam': 'filter_params',
                                                                   'type': 'object'},
                                              'user_email': {'description': '', 'type': 'string'}},
                            'required': [],
@@ -86,42 +84,11 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Outlook 메일을 날�
                            'signature': 'user_email: str, filter_params: Optional[FilterParams] = None, '
                                         'exclude_params: Optional[ExcludeParams] = None, select_params: '
                                         'Optional[SelectParams] = None, top: int = 50'},
-        'mcp_service_factors': {   'exclude_params_internal': {   'baseModel': 'ExcludeParams',
-                                                                  'description': 'ExcludeParams parameters',
-                                                                  'parameters': {   'exclude_body_keywords': {   'default': None,
-                                                                                                                 'description': '본문에서 '
-                                                                                                                                '제외할 '
-                                                                                                                                '키워드 '
-                                                                                                                                '목록',
-                                                                                                                 'type': 'string'},
-                                                                                    'exclude_from_address': {   'default': None,
-                                                                                                                'description': '제외할 '
-                                                                                                                               '발신자 '
-                                                                                                                               '주소 '
-                                                                                                                               '(from '
-                                                                                                                               '필드)',
-                                                                                                                'type': 'string'},
-                                                                                    'exclude_preview_keywords': {   'default': None,
-                                                                                                                    'description': '미리보기에서 '
-                                                                                                                                   '제외할 '
-                                                                                                                                   '키워드 '
-                                                                                                                                   '목록',
-                                                                                                                    'type': 'string'},
-                                                                                    'exclude_sender_address': {   'default': None,
-                                                                                                                  'description': '제외할 '
-                                                                                                                                 '실제 '
-                                                                                                                                 '발신자 '
-                                                                                                                                 '주소 '
-                                                                                                                                 '(sender '
-                                                                                                                                 '필드)',
-                                                                                                                  'type': 'string'},
-                                                                                    'exclude_subject_keywords': {   'default': None,
-                                                                                                                    'description': '제목에서 '
-                                                                                                                                   '제외할 '
-                                                                                                                                   '키워드 '
-                                                                                                                                   '목록',
-                                                                                                                    'type': 'string'}},
-                                                                  'source': 'internal'}},
+        'mcp_service_factors': {   'filter_params': {   'baseModel': 'FilterParams',
+                                                        'description': 'Test signature defaults',
+                                                        'parameters': {   'test_field': {   'default': 'test_value',
+                                                                                            'type': 'string'}},
+                                                        'source': 'signature_defaults'}},
         'name': 'mail_fetch_filter'},
     {   'description': 'Outlook 메일을 키워드로 검색합니다. 제목, 본문, 발신자 등 모든 필드에서 지정한 검색어를 포함하는 메일을 찾아 반환합니다.',
         'inputSchema': {   'properties': {   'search_term': {'description': '검색어 ($search 파라미터)', 'type': 'string'},
@@ -351,7 +318,6 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Outlook 메일을 날�
                                                                                                                            '날짜',
                                                                                                             'type': 'string'}},
                                                                   'required': [],
-                                                                  'targetParam': 'filter_params',
                                                                   'type': 'object'},
                                              'select': {   'baseModel': 'SelectParams',
                                                            'description': 'SelectParams parameters',
@@ -395,7 +361,6 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Outlook 메일을 날�
                                              'url': {   'default': 'https://graph.microsoft.com/v1.0/me/mailFolders/junkemail/messages?',
                                                         'description': 'only baseURL : '
                                                                        'https://graph.microsoft.com/v1.0/me/mailFolders/junkemail/messages?',
-                                                        'targetParam': 'url',
                                                         'type': 'string'},
                                              'user_email': {'description': '사용자 이메일 (인증용)', 'type': 'string'}},
                            'required': ['url', 'user_email'],
@@ -436,14 +401,12 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': 'Outlook 메일을 날�
                                         'Optional[ExcludeParams] = None, top: int = 50'},
         'name': 'mail_query_url'},
     {   'description': '특정 메일 ID 목록을 사용하여 해당 메일들의 상세 정보를 일괄 조회합니다. 이미 알고 있는 메일 ID를 통해 여러 메일의 전체 내용을 한 번에 가져올 수 있습니다.',
-        'inputSchema': {   'properties': {   'test_message_ids': {   'description': 'Auto-added parameter for '
-                                                                                    'message_ids ',
-                                                                     'targetParam': 'message_ids',
-                                                                     'type': 'string'},
-                                             'user_email': {   'description': '이전 대화 내역에서 메일 주소를 찾아서 적용 없다면, 내부에서 자동으로 '
-                                                                              '처리해 줄 거임',
-                                                               'type': 'string'}},
-                           'required': ['test_message_ids'],
+        'inputSchema': {   'properties': {   'message_id_internal': {   'description': '',
+                                                                        'targetParam': 'message_ids',
+                                                                        'type': 'string'},
+                                             'message_ids': {'description': '', 'type': 'array'},
+                                             'user_email': {'description': '', 'type': 'string'}},
+                           'required': [],
                            'type': 'object'},
         'mcp_service': {   'name': 'batch_and_fetch',
                            'parameters': [   {   'default': None,
