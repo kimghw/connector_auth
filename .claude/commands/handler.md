@@ -18,6 +18,7 @@
 - **정의**: LLM에게 완전히 숨겨진 시스템 고정값
 - **위치**: `tool_definition_templates.py`의 `mcp_service_factors` (source: "internal")
 - **특징**: `targetParam`으로 서비스 메서드에 매핑, 5단계에서 병합
+- **변경사항**: tool_internal_args.json 삭제 → mcp_service_factors로 통합 (2025-01-05)
 
 ### 2. 서비스 함수 인자
 - **정의**: 실제 비즈니스 로직의 메서드 파라미터
@@ -206,6 +207,7 @@ if existing_value is None:
 1. **모든 파라미터 설정이 `tool_definition_templates.py`에 통합**:
    - inputSchema: LLM 노출 스키마
    - mcp_service_factors: Internal + SignatureDefaults (source로 구분)
+   - **변경**: tool_internal_args.json 파일 삭제 → mcp_service_factors로 통합
 
 2. **두 번의 병합**:
    - 첫 번째: SignatureDefaults + 사용자 입력 → Signature 파라미터 객체
@@ -216,3 +218,11 @@ if existing_value is None:
    - `signature_defaults`: 노출 + 기본값
 
 4. **최종 병합 데이터가 서비스 함수에 전달됨**
+
+## 최근 변경사항 (2025-01-05)
+
+### Internal Args 처리 방식 변경
+- **이전**: `tool_internal_args.json` 파일에서 별도 관리
+- **현재**: `tool_definition_templates.py`의 `mcp_service_factors`에 통합
+- **추출**: `extract_internal_args_from_tools()` 함수로 source='internal' 파라미터 추출
+- **템플릿**: `INTERNAL_ARGS`가 context에서 전달되도록 변경 (파일 로드 제거)

@@ -21,38 +21,63 @@ def load_registry(registry_path: str) -> Dict[str, Any]:
         return json.load(f)
 
 
-def find_internal_args_file(tools_path: str, server_name: str) -> Optional[str]:
-    """Find tool_internal_args.json file"""
-    tools_path = Path(tools_path).resolve()
+def extract_internal_args_from_tools(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Extract internal args from mcp_service_factors in tool definitions"""
+    internal_args = {}
 
-    # Search patterns in order of priority
-    search_paths = [
-        # Same directory as tools file (most reliable)
-        tools_path.parent / "tool_internal_args.json",
-        # Pattern: mcp_editor/mcp_{server}/tool_internal_args.json (current convention per docs)
-        PROJECT_ROOT / "mcp_editor" / f"mcp_{server_name}" / "tool_internal_args.json",
-        # Legacy pattern
-        PROJECT_ROOT / "mcp_editor" / server_name / "tool_internal_args.json",
-    ]
+    for tool in tools:
+        tool_name = tool.get('name', '')
+        mcp_service_factors = tool.get('mcp_service_factors', {})
 
-    for candidate in search_paths:
-        if candidate.exists():
-            return str(candidate)
+        # Find factors with source='internal'
+        tool_internal = {}
+        for factor_name, factor_data in mcp_service_factors.items():
+            if factor_data.get('source') == 'internal':
+                # The factor_name (e.g., 'select') maps to a targetParam (e.g., 'select_params')
+                # We need to find the targetParam from inputSchema
+                input_schema = tool.get('inputSchema', {})
+                properties = input_schema.get('properties', {})
 
-    return None
+                # Find the property that uses this factor
+                target_param = None
+                for prop_name, prop_def in properties.items():
+                    # Check if this property maps to our factor
+                    # The factor name should match the baseModel or be referenced somehow
+                    if prop_def.get('$ref') and factor_data.get('baseModel') in prop_def.get('$ref', ''):
+                        # This property uses this factor
+                        target_param = prop_def.get('targetParam', prop_name)
+                        break
+                    # Also check if prop_name matches factor_name
+                    elif prop_name == factor_name or prop_name == factor_name + '_params':
+                        target_param = prop_def.get('targetParam', prop_name)
+                        break
 
+                if not target_param:
+                    # If no matching property found, use the factor_name with _params suffix as targetParam
+                    target_param = factor_name + '_params' if not factor_name.endswith('_params') else factor_name
 
-def load_internal_args(internal_args_path: Optional[str]) -> Dict[str, Any]:
-    """Load internal args from JSON file"""
-    if not internal_args_path or not Path(internal_args_path).exists():
-        return {}
+                # Extract default values from parameters
+                default_values = {}
+                for param_name, param_def in factor_data.get('parameters', {}).items():
+                    if 'default' in param_def:
+                        default_values[param_name] = param_def['default']
 
-    try:
-        with open(internal_args_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Warning: Failed to load internal_args from {internal_args_path}: {e}")
-        return {}
+                # Build the internal arg structure to match what the template expects
+                tool_internal[factor_name] = {
+                    'targetParam': target_param,
+                    'type': factor_data.get('baseModel', ''),
+                    'value': default_values,  # Use extracted default values, not full schema
+                    'original_schema': {
+                        'targetParam': target_param,
+                        'properties': factor_data.get('parameters', {}),
+                        'type': 'object'
+                    }
+                }
+
+        if tool_internal:
+            internal_args[tool_name] = tool_internal
+
+    return internal_args
 
 
 def load_tool_definitions(tool_def_path: str) -> List[Dict[str, Any]]:
@@ -469,15 +494,15 @@ def generate_server(
     print(f"Loading tool definitions from: {tools_path}")
     tools = load_tool_definitions(tools_path)
 
-    # Find and load internal args
-    internal_args_path = find_internal_args_file(tools_path, server_name)
-    internal_args = {}
-    if internal_args_path:
-        print(f"Loading internal args from: {internal_args_path}")
-        internal_args = load_internal_args(internal_args_path)
-        print(f"  - Loaded internal args for {len(internal_args)} tools")
+    # Extract internal args from mcp_service_factors in tool definitions
+    print(f"Extracting internal args from mcp_service_factors...")
+    internal_args = extract_internal_args_from_tools(tools)
+    if internal_args:
+        print(f"  - Extracted internal args for {len(internal_args)} tools")
+        for tool_name, tool_internal in internal_args.items():
+            print(f"    - {tool_name}: {list(tool_internal.keys())}")
     else:
-        print("No internal args file found")
+        print("  - No internal args found in mcp_service_factors")
 
     # Prepare context
     context = prepare_context(registry, tools, server_name, internal_args, protocol_type)

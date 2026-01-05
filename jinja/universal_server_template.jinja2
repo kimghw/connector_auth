@@ -170,26 +170,9 @@ def build_mcp_content(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ============================================================
 # Internal Args Support
 # ============================================================
-def load_internal_args() -> dict:
-    """Load internal args from tool_internal_args.json"""
-    possible_paths = [
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mcp_editor", "mcp_{{ server_name }}", "tool_internal_args.json"),
-        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tool_internal_args.json"),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "tool_internal_args.json"),
-    ]
-    for path in possible_paths:
-        if os.path.exists(path):
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    raw_args = json.load(f)
-                logger.info(f"Loaded internal args from {path}")
-                return raw_args
-            except Exception as exc:
-                logger.warning(f"Failed to load internal args from {path}: {exc}")
-    return {}
-
-
-INTERNAL_ARGS = load_internal_args()
+# Internal args are now embedded in tool definitions via mcp_service_factors
+# This data is passed from the generator as part of the context
+INTERNAL_ARGS = {{ internal_args | pprint }}
 
 # Build INTERNAL_ARG_TYPES dynamically based on imported types
 INTERNAL_ARG_TYPES = {}

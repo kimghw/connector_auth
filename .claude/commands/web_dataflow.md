@@ -108,10 +108,11 @@ description: MCP 웹에디터 데이터 흐름 및 핸들러 처리 가이드 (p
   └─────────────────────┘      │   (Internal/SigDefaults) │
                                └──────────────────────────┘
                                           │
-                                          ▼ extract_service_factors()
+                                          ▼ extract_internal_args_from_tools()
                                ┌──────────────────────────┐
                                │ internal_args dict       │
-                               │ signature_defaults dict  │
+                               │ (from mcp_service_factors│
+                               │  with source='internal') │
                                └──────────────────────────┘
 ```
 
@@ -659,13 +660,16 @@ mcp_editor/tool_editor_web.py
         │
         └─→ jinja/generate_universal_server.py
               │
-              ├─→ prepare_context()        # L220
+              ├─→ extract_internal_args_from_tools()  # L24
+              │     └─→ mcp_service_factors에서 source='internal' 추출
+              │
+              ├─→ prepare_context()        # L238
               │     ├─→ registry_{server}.json 로드
               │     ├─→ tool_definition_templates.py 로드
-              │     │     (mcp_service_factors에서 Internal/SigDefaults 추출)
+              │     ├─→ internal_args를 context에 포함
               │     └─→ Jinja2 context 딕셔너리 생성
               │
-              └─→ generate_server()        # L446
+              └─→ generate_server()        # L465
                     ├─→ universal_server_template.jinja2 렌더링
                     └─→ server_{protocol}.py 파일 생성
 ```
@@ -716,10 +720,11 @@ mcp_{service}/mcp_server/server_{protocol}.py
 | 함수명 | 정의 위치 | 호출 시점 | 역할 |
 |--------|----------|----------|------|
 | `scan_codebase_for_mcp_services()` | `mcp_service_scanner.py:252` | 웹에디터 시작/Reload | @mcp_service 스캔 → registry.json |
-| `prepare_context()` | `generate_universal_server.py:220` | Generate Server | 템플릿 렌더링용 context 생성 |
-| `generate_server()` | `generate_universal_server.py:446` | Generate Server | Jinja2로 서버 코드 생성 |
-| `build_internal_param()` | `universal_server_template.jinja2:213` | 런타임 핸들러 | Internal 파라미터 빌드 |
-| `merge_param_data()` | `universal_server_template.jinja2:262` | 런타임 핸들러 | 파라미터 병합 |
+| `extract_internal_args_from_tools()` | `generate_universal_server.py:24` | Generate Server | mcp_service_factors에서 Internal 추출 |
+| `prepare_context()` | `generate_universal_server.py:238` | Generate Server | 템플릿 렌더링용 context 생성 |
+| `generate_server()` | `generate_universal_server.py:465` | Generate Server | Jinja2로 서버 코드 생성 |
+| `build_internal_param()` | `universal_server_template.jinja2:204` | 런타임 핸들러 | Internal 파라미터 빌드 |
+| `merge_param_data()` | `universal_server_template.jinja2:253` | 런타임 핸들러 | 파라미터 병합 |
 | `handle_{tool_name}()` | 생성된 `server_{protocol}.py` | LLM 요청 수신 | MCP Tool 핸들러 |
 
 ### registry_{server}.json 구조
@@ -935,5 +940,5 @@ mcp_{service}/mcp_server/server_{protocol}.py
 
 ---
 
-*관련: terminology.md, decorator.md, web.md*
-*Version: 2.4 (Signature Defaults 단계 추가: 4단계 구조로 확장, 런타임 흐름도 7단계로 업데이트)*
+*관련: terminology.md, decorator.md, web.md, handler.md*
+*Version: 2.5 (tool_internal_args.json 삭제, mcp_service_factors 통합, extract_internal_args_from_tools 추가)*
