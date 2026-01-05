@@ -8,12 +8,14 @@ Jinja2 템플릿 시스템을 활용하여 REST, STDIO, StreamableHTTP 등 다�
 ```
 jinja/
 ├── generate_universal_server.py      # 메인 생성 스크립트 (이미 구현됨)
-├── universal_server_template.jinja2   # 범용 서버 템플릿
-├── protocol_base.jinja2              # 프로토콜 공통 유틸리티
+├── universal_server_template.jinja2   # 범용 서버 템플릿 (공통 유틸리티 포함)
 ├── server_rest.jinja2                # REST 프로토콜
 ├── server_stdio.jinja2               # STDIO 프로토콜
 ├── server_stream.jinja2              # StreamableHTTP 프로토콜
-└── server_[new].jinja2               # 새 프로토콜 추가 위치
+├── server_[new].jinja2               # 새 프로토콜 추가 위치
+├── backup/                           # 백업 디렉토리
+├── legacy_backup/                    # 레거시 템플릿 백업
+└── __pycache__/                      # Python 캐시
 ```
 
 ## 3. 프로토콜 추가 단계별 가이드
@@ -142,18 +144,22 @@ if __name__ == "__main__":
 ```python
 # generate_universal_server.py (이미 구현됨)
 parser.add_argument('--protocol',
-                   choices=['rest', 'stdio', 'stream', 'your_new_protocol'],  # 여기에 추가
+                   choices=['rest', 'stdio', 'stream', 'all', 'your_new_protocol'],  # 여기에 추가
                    default='rest')
+# 'all' 옵션: 모든 프로토콜 서버를 한 번에 생성
 ```
 
 ## 4. 실행 및 테스트
 
 ### 코드 생성
 ```bash
-# 서버 생성 (outlook을 예시로)
+# 개별 프로토콜 서버 생성 (outlook을 예시로)
 python jinja/generate_universal_server.py outlook --protocol rest
 python jinja/generate_universal_server.py outlook --protocol stdio
 python jinja/generate_universal_server.py outlook --protocol stream
+
+# 모든 프로토콜 서버 한 번에 생성
+python jinja/generate_universal_server.py outlook --protocol all
 ```
 
 ### 필수 테스트
@@ -244,7 +250,8 @@ if handler_name in globals():
 ---
 
 **작성일**: 2025-12-26
-**버전**: 3.1.0
+**버전**: 3.2.0
 **업데이트**:
 - v3.0.0: STDIO 및 StreamableHTTP 프로토콜 추가, 문서 간소화
 - v3.1.0: 서비스 초기화 및 파라미터 파싱 주의사항 추가
+- v3.2.0: protocol_base.jinja2 제거 반영, 'all' 옵션 추가, 디렉토리 구조 업데이트
