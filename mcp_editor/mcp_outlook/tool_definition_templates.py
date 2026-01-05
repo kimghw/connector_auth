@@ -163,6 +163,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '지정된 기간의 �
                                         'None, client_filter: Optional[ExcludeParams] = None, top: int = 50'},
         'mcp_service_factors': {   'select_params': {   'baseModel': 'SelectParams',
                                                         'description': 'SelectParams parameters for mail_list_keyword',
+                                                        'parameters': {},
                                                         'source': 'internal'}},
         'name': 'mail_list_keyword'},
     {   'description': '특정 메일 ID 목록을 사용하여 해당 메일들의 상세 정보를 일괄 조회합니다. 이미 알고 있는 메일 ID를 통해 여러 메일의 전체 내용을 한 번에 가져올 수 있습니다.',

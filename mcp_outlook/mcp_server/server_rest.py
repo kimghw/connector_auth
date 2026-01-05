@@ -415,7 +415,7 @@ async def handle_mail_list_keyword(args: Dict[str, Any]) -> Dict[str, Any]:
     # Add signature parameters
     call_args["user_email"] = user_email
     call_args["search_term"] = search_keywords
-    call_args["select_params"] = select_params
+    call_args["select_params"] = select_params_params
     call_args["client_filter"] = client_filter_params
     call_args["top"] = top
     # Process internal args with targetParam mappings

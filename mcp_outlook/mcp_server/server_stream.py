@@ -137,26 +137,9 @@ def build_mcp_content(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ============================================================
 # Internal Args Support
 # ============================================================
-def load_internal_args() -> dict:
-    """Load internal args from tool_internal_args.json"""
-    possible_paths = [
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mcp_editor", "mcp_outlook", "tool_internal_args.json"),
-        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tool_internal_args.json"),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "tool_internal_args.json"),
-    ]
-    for path in possible_paths:
-        if os.path.exists(path):
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    raw_args = json.load(f)
-                logger.info(f"Loaded internal args from {path}")
-                return raw_args
-            except Exception as exc:
-                logger.warning(f"Failed to load internal args from {path}: {exc}")
-    return {}
-
-
-INTERNAL_ARGS = load_internal_args()
+# Internal args are now embedded in tool definitions via mcp_service_factors
+# This data is passed from the generator as part of the context
+INTERNAL_ARGS = {}
 
 # Build INTERNAL_ARG_TYPES dynamically based on imported types
 INTERNAL_ARG_TYPES = {}
@@ -257,29 +240,6 @@ async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
     # Add signature parameters
     call_args["filter_params"] = DatePeriodFilter_params
     call_args["user_email"] = user_email
-    # Process internal args with targetParam mappings
-
-    # Build internal arg: select
-    _internal_select = build_internal_param("mail_list_period", "select")
-
-    # Check if target param already exists from signature
-    if "select_params" in call_args:
-        existing_value = call_args["select_params"]
-        if existing_value is None:
-            # Signature value is None, use internal value
-            if _internal_select is not None:
-                call_args["select_params"] = _internal_select
-        elif hasattr(existing_value, '__dict__') and hasattr(_internal_select, '__dict__'):
-            # Both are objects - merge them (signature has priority for non-None values)
-            internal_dict = {k: v for k, v in vars(_internal_select).items() if v is not None}
-            existing_dict = {k: v for k, v in vars(existing_value).items() if v is not None}
-            merged_dict = {**internal_dict, **existing_dict}
-            call_args["select_params"] = type(existing_value)(**merged_dict)
-        # Otherwise keep existing signature value (non-None primitive or incompatible types)
-    else:
-        # No conflict, use internal value with targetParam mapping
-        if _internal_select is not None:
-            call_args["select_params"] = _internal_select
 
     return await mail_service.mail_list_period(**call_args)
 
@@ -317,12 +277,9 @@ async def handle_mail_fetch_filter(args: Dict[str, Any]) -> Dict[str, Any]:
     exclude_params = args.get("exclude_params")
     filter_params = args.get("filter_params")
     user_email = args.get("user_email")
-    # Internal overrides for object params
-    exclude_params_internal_params = build_internal_param("mail_fetch_filter", "exclude_params_internal")
-    exclude_params_internal_data = model_to_dict(exclude_params_internal_params)
 
     # Convert dicts to parameter objects where needed
-    exclude_params_internal_data = exclude_params_internal_data
+    exclude_params_internal_data = {}
     # Use already extracted value if it exists
     # Value was already extracted above, use the existing variable
     exclude_params_data = merge_param_data(exclude_params_internal_data, exclude_params)
@@ -339,7 +296,6 @@ async def handle_mail_fetch_filter(args: Dict[str, Any]) -> Dict[str, Any]:
     call_args["exclude_params"] = exclude_params_params
     call_args["filter_params"] = filter_params_params
     call_args["user_email"] = user_email
-    # Process internal args with targetParam mappings
 
     return await mail_service.mail_fetch_filter(**call_args)
 

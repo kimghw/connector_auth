@@ -32,21 +32,34 @@ class MCPServerManager:
         self.server_path = self._get_server_path()
 
     def _get_server_path(self) -> Optional[str]:
-        """Get the server.py path based on profile"""
-        if "outlook" in self.profile.lower():
-            path = os.path.join(ROOT_DIR, "mcp_outlook", "mcp_server", "server.py")
-        elif "file" in self.profile.lower() or "handler" in self.profile.lower():
-            path = os.path.join(ROOT_DIR, "mcp_file_handler", "mcp_server", "server.py")
-        else:
-            # Default or try to find any server.py
-            for module in ["mcp_outlook", "mcp_file_handler"]:
-                path = os.path.join(ROOT_DIR, module, "mcp_server", "server.py")
-                if os.path.exists(path):
-                    break
-            else:
-                path = None
+        """Get the server path based on profile - checks for multiple server types"""
+        server_files = ["server_rest.py", "server_stdio.py", "server_stream.py", "server.py"]
 
-        return path if path and os.path.exists(path) else None
+        if "outlook" in self.profile.lower():
+            base_path = os.path.join(ROOT_DIR, "mcp_outlook", "mcp_server")
+        elif "file" in self.profile.lower() or "handler" in self.profile.lower():
+            base_path = os.path.join(ROOT_DIR, "mcp_file_handler", "mcp_server")
+        else:
+            # Default or try to find any server
+            for module in ["mcp_outlook", "mcp_file_handler"]:
+                base_path = os.path.join(ROOT_DIR, module, "mcp_server")
+                # Check if any server file exists in this path
+                for server_file in server_files:
+                    if os.path.exists(os.path.join(base_path, server_file)):
+                        break
+                else:
+                    continue
+                break
+            else:
+                return None
+
+        # Return the first existing server file in the base path
+        for server_file in server_files:
+            path = os.path.join(base_path, server_file)
+            if os.path.exists(path):
+                return path
+
+        return None
 
     def _read_pid(self) -> Optional[int]:
         """Read PID from file"""
@@ -75,7 +88,8 @@ class MCPServerManager:
             # Check if it's actually our Python server
             if process.is_running():
                 cmdline = " ".join(process.cmdline())
-                return "python" in process.name().lower() and "server.py" in cmdline
+                # Check for any server file (server.py, server_rest.py, server_stdio.py, server_stream.py)
+                return "python" in process.name().lower() and ("server.py" in cmdline or "server_" in cmdline)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
         return False
@@ -97,15 +111,30 @@ class MCPServerManager:
 
         # Also look for unmanaged processes
         if self.server_path:
-            server_identifier = self.server_path.replace(ROOT_DIR, "").lstrip("/")
+            # Get just the filename for more flexible matching
+            server_filename = os.path.basename(self.server_path)
+
             for proc in psutil.process_iter(["pid", "name", "cmdline"]):
                 try:
                     if proc.info["cmdline"] and proc.info["pid"] != pid:
                         cmdline = " ".join(proc.info["cmdline"])
-                        if server_identifier in cmdline and "python" in proc.info["name"].lower():
-                            processes.append(
-                                {"pid": proc.info["pid"], "cmd": cmdline, "managed": False, "profile": "unknown"}
-                            )
+
+                        # Check if this is a python process running our server file
+                        if "python" in proc.info["name"].lower() and server_filename in cmdline:
+                            # Additional check: make sure it's the right module (outlook or file_handler)
+                            if "outlook" in self.profile.lower():
+                                # For outlook profile, accept if running server_rest.py without explicit path check
+                                # since it could be started from various directories
+                                if server_filename in cmdline:
+                                    processes.append(
+                                        {"pid": proc.info["pid"], "cmd": cmdline, "managed": False, "profile": "unknown"}
+                                    )
+                            elif "file" in self.profile.lower() or "handler" in self.profile.lower():
+                                # Similar for file_handler
+                                if server_filename in cmdline:
+                                    processes.append(
+                                        {"pid": proc.info["pid"], "cmd": cmdline, "managed": False, "profile": "unknown"}
+                                    )
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
 
