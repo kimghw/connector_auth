@@ -3,7 +3,7 @@ Mail Service - GraphMailClient Facade
 인자를 그대로 위임하고, 필요시 일부 값만 조정하는 서비스 레이어
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 
 from .graph_mail_client import GraphMailClient, QueryMethod, ProcessingMode
 from .outlook_types import (
@@ -395,6 +395,82 @@ class MailService:
 
         return await self._client.batch_and_fetch(
             user_email=user_email, message_ids=message_ids, select_params=select_params
+        )
+
+    @mcp_service(
+        tool_name="handle_attachments_metadata",  # 필수: MCP Tool 이름
+        server_name="outlook",  # 필수: 서버 식별자
+        service_name="fetch_attachments_metadata",  # 필수: 메서드명
+        category="outlook_mail",  # 권장: 카테고리
+        tags=["attachment", "metadata", "batch"],  # 권장: 태그
+        priority=5,  # 선택: 우선순위 (1-10)
+        description="이도구 호출하기 전에 메일 리스트를 조회해야함. 메일과 첨부파일의 메타데이터만 조회 (다운로드 없음)",  # 필수: 기능 설명
+    )
+    async def fetch_attachments_metadata(
+        self,
+        user_email: str,
+        message_ids: List[str],
+        select_params: Optional[SelectParams] = None,
+    ) -> Dict[str, Any]:
+        """
+        메일과 첨부파일의 메타데이터만 조회 - GraphMailClient.fetch_attachments_metadata 위임
+
+        Args:
+            user_email: 사용자 이메일
+            message_ids: 메일 ID 리스트
+            select_params: 선택할 필드
+
+        Returns:
+            메일 및 첨부파일 메타데이터
+        """
+        self._ensure_initialized()
+
+        return await self._client.fetch_attachments_metadata(
+            user_email=user_email,
+            message_ids=message_ids,
+            select_params=select_params,
+        )
+
+    @mcp_service(
+        tool_name="handle_download_attachments",  # 필수: MCP Tool 이름
+        server_name="outlook",  # 필수: 서버 식별자
+        service_name="download_attachments",  # 필수: 메서드명
+        category="outlook_mail",  # 권장: 카테고리
+        tags=["attachment", "download", "batch"],  # 권장: 태그
+        priority=5,  # 선택: 우선순위 (1-10)
+        description="첨부파일 다운로드 (메일ID 또는 첨부파일ID 지정)",  # 필수: 기능 설명
+    )
+    async def download_attachments(
+        self,
+        user_email: str,
+        target: Union[List[str], List[Dict[str, str]]],
+        save_directory: str = "downloads",
+        skip_duplicates: bool = True,
+        select_params: Optional[SelectParams] = None,
+    ) -> Dict[str, Any]:
+        """
+        첨부파일 다운로드 - GraphMailClient.download_attachments 위임
+
+        Args:
+            user_email: 사용자 이메일
+            target:
+                - 메일 ID 리스트: ["msg_id1", "msg_id2"] -> 모든 첨부파일 다운로드
+                - 첨부파일 ID 쌍: [{"message_id": "...", "attachment_id": "..."}] -> 특정 첨부파일만
+            save_directory: 저장 디렉토리
+            skip_duplicates: 중복 건너뛰기
+            select_params: 선택할 필드
+
+        Returns:
+            다운로드 결과
+        """
+        self._ensure_initialized()
+
+        return await self._client.download_attachments(
+            user_email=user_email,
+            target=target,
+            save_directory=save_directory,
+            skip_duplicates=skip_duplicates,
+            select_params=select_params,
         )
 
     def format_results(self, results: Dict[str, Any], verbose: bool = False) -> str:

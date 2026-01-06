@@ -376,7 +376,7 @@ class GraphAttachmentHandler:
         self,
         user_email: str,
         message_ids: List[str],
-        select_fields: Optional[List[str]] = None,
+        select_params: Optional[Any] = None,  # SelectParams 또는 List[str]
     ) -> List[Dict[str, Any]]:
         """
         $batch 요청 본문 생성
@@ -384,13 +384,26 @@ class GraphAttachmentHandler:
         Args:
             user_email: 사용자 이메일
             message_ids: 메일 ID 목록
-            select_fields: 선택할 필드 목록
+            select_params: SelectParams 객체 또는 필드 목록
 
         Returns:
             $batch requests 배열
         """
+        from .outlook_types import SelectParams, build_select_query
+
         # ExpandBuilder 설정
         self.expand_builder.reset()
+
+        # select_params 처리
+        select_fields = None
+        if select_params:
+            if isinstance(select_params, SelectParams):
+                # SelectParams 객체인 경우 build_select_query 사용
+                select_query = build_select_query(select_params)
+                select_fields = select_query.split(",") if select_query else None
+            elif isinstance(select_params, list):
+                # 리스트인 경우 그대로 사용 (하위 호환성)
+                select_fields = select_params
 
         # 기본 필드 + 사용자 정의 필드
         default_fields = ["id", "subject", "from", "receivedDateTime", "body", "hasAttachments"]
@@ -408,11 +421,136 @@ class GraphAttachmentHandler:
 
         return requests
 
+    async def fetch_metadata_only(
+        self,
+        user_email: str,
+        message_ids: List[str],
+        select_params: Optional[Any] = None,  # SelectParams 또는 List[str]
+    ) -> Dict[str, Any]:
+        """
+        메일과 첨부파일의 메타데이터만 조회 (다운로드 없음)
+
+        Args:
+            user_email: 사용자 이메일
+            message_ids: 메일 ID 목록
+            select_params: SelectParams 객체 또는 필드 목록
+
+        Returns:
+            메타데이터 조회 결과
+        """
+        result = {
+            "success": False,
+            "messages": [],
+            "total_processed": 0,
+            "attachments_count": 0,
+            "errors": [],
+        }
+
+        if not message_ids:
+            result["success"] = True
+            result["message"] = "No messages to process"
+            return result
+
+        # 토큰 획득
+        access_token = await self._get_access_token(user_email)
+        if not access_token:
+            result["errors"].append("Failed to acquire access token")
+            return result
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+
+        # 배치 분할
+        batches = [
+            message_ids[i : i + self.max_batch_size]
+            for i in range(0, len(message_ids), self.max_batch_size)
+        ]
+
+        print(f"\n📋 Fetching metadata for {len(message_ids)} emails ({len(batches)} batches)")
+
+        async with aiohttp.ClientSession() as session:
+            for batch_num, batch_ids in enumerate(batches, 1):
+                print(f"\n=== Batch {batch_num}/{len(batches)} ({len(batch_ids)} emails) ===")
+
+                # 배치 요청 생성
+                requests = self._build_batch_requests(user_email, batch_ids, select_params)
+                batch_body = {"requests": requests}
+
+                try:
+                    async with session.post(
+                        self.batch_url, headers=headers, json=batch_body
+                    ) as response:
+                        if response.status != 200:
+                            error_text = await response.text()
+                            result["errors"].append(f"Batch {batch_num} failed: {error_text[:200]}")
+                            continue
+
+                        batch_response = await response.json()
+
+                        # 각 응답 처리 (메타데이터만)
+                        for resp in batch_response.get("responses", []):
+                            req_id = int(resp.get("id", 0)) - 1
+                            if req_id < 0 or req_id >= len(batch_ids):
+                                continue
+
+                            message_id = batch_ids[req_id]
+
+                            if resp.get("status") != 200:
+                                error_msg = resp.get("body", {}).get("error", {}).get("message", "Unknown")
+                                result["errors"].append(f"Mail {message_id[:20]}...: {error_msg}")
+                                continue
+
+                            mail_data = resp.get("body", {})
+
+                            # 메타데이터 추출
+                            metadata = {
+                                "id": mail_data.get("id"),
+                                "subject": mail_data.get("subject"),
+                                "from": mail_data.get("from", {}).get("emailAddress", {}),
+                                "toRecipients": mail_data.get("toRecipients", []),
+                                "receivedDateTime": mail_data.get("receivedDateTime"),
+                                "hasAttachments": mail_data.get("hasAttachments", False),
+                                "importance": mail_data.get("importance"),
+                                "isRead": mail_data.get("isRead"),
+                                "bodyPreview": mail_data.get("bodyPreview", ""),
+                                "body": mail_data.get("body", {}),  # 전체 본문 포함
+                                "attachments": []
+                            }
+
+                            # 첨부파일 메타데이터 추출
+                            attachments = mail_data.get("attachments", [])
+                            for att in attachments:
+                                att_meta = {
+                                    "id": att.get("id"),
+                                    "name": att.get("name"),
+                                    "contentType": att.get("contentType"),
+                                    "size": att.get("size", 0),
+                                    "isInline": att.get("isInline", False),
+                                    "@odata.type": att.get("@odata.type"),
+                                }
+                                metadata["attachments"].append(att_meta)
+                                result["attachments_count"] += 1
+
+                            result["messages"].append(metadata)
+                            result["total_processed"] += 1
+
+                            print(f"✅ {metadata['subject'][:50]}... ({len(attachments)} attachments)")
+
+                except Exception as e:
+                    result["errors"].append(f"Batch {batch_num} exception: {str(e)}")
+
+        result["success"] = result["total_processed"] > 0
+        result["message"] = f"Fetched metadata for {result['total_processed']} emails"
+
+        return result
+
     async def fetch_and_save(
         self,
         user_email: str,
         message_ids: List[str],
-        select_fields: Optional[List[str]] = None,
+        select_params: Optional[Any] = None,  # SelectParams 또는 List[str]
         skip_duplicates: bool = True,
     ) -> Dict[str, Any]:
         """
@@ -421,7 +559,7 @@ class GraphAttachmentHandler:
         Args:
             user_email: 사용자 이메일
             message_ids: 메일 ID 목록
-            select_fields: 추가 선택 필드
+            select_params: SelectParams 객체 또는 필드 목록
             skip_duplicates: 중복 메일 건너뛰기
 
         Returns:
@@ -477,7 +615,7 @@ class GraphAttachmentHandler:
                 print(f"\n=== 배치 {batch_num}/{len(batches)} ({len(batch_ids)}개) ===")
 
                 # 배치 요청 생성
-                requests = self._build_batch_requests(user_email, batch_ids, select_fields)
+                requests = self._build_batch_requests(user_email, batch_ids, select_params)
                 batch_body = {"requests": requests}
 
                 try:
@@ -557,6 +695,98 @@ class GraphAttachmentHandler:
 
         except Exception as e:
             result["errors"].append(f"메일 처리 실패 ({subject[:30]}...): {str(e)}")
+
+    async def fetch_specific_attachments(
+        self,
+        user_email: str,
+        attachments_info: List[Dict[str, str]],
+        save_directory: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        특정 첨부파일들을 선택적으로 다운로드 (메일 ID와 첨부파일 ID 지정)
+
+        Args:
+            user_email: 사용자 이메일
+            attachments_info: [{"message_id": "...", "attachment_id": "..."}, ...]
+            save_directory: 저장 디렉토리
+
+        Returns:
+            처리 결과
+        """
+        result = {
+            "success": False,
+            "total_requested": len(attachments_info),
+            "downloaded": 0,
+            "failed": 0,
+            "results": [],
+            "errors": [],
+        }
+
+        if not attachments_info:
+            result["success"] = True
+            result["message"] = "No attachments to process"
+            return result
+
+        # 토큰 획득
+        access_token = await self._get_access_token(user_email)
+        if not access_token:
+            result["errors"].append("Failed to acquire access token")
+            return result
+
+        handler = AttachmentHandler(access_token)
+
+        for info in attachments_info:
+            message_id = info.get("message_id")
+            attachment_id = info.get("attachment_id")
+
+            if not message_id or not attachment_id:
+                result["errors"].append(f"Invalid attachment info: {info}")
+                result["failed"] += 1
+                continue
+
+            try:
+                # 첨부파일 다운로드
+                attachment_data = await handler.get_attachment(message_id, attachment_id, user_email)
+
+                # 파일명 및 경로 설정
+                file_name = attachment_data.get("name", f"attachment_{attachment_id}")
+
+                if save_directory:
+                    folder_path = Path(save_directory) / message_id[:8]
+                else:
+                    folder_path = Path(self.folder_manager.base_directory) / message_id[:8]
+
+                folder_path.mkdir(parents=True, exist_ok=True)
+                file_path = str(folder_path / file_name)
+
+                # 저장
+                saved_path = await handler.download_attachment(
+                    message_id, attachment_id, file_path, user_email
+                )
+
+                result["results"].append({
+                    "message_id": message_id,
+                    "attachment_id": attachment_id,
+                    "file_path": saved_path,
+                    "name": file_name,
+                    "success": True,
+                })
+                result["downloaded"] += 1
+
+            except Exception as e:
+                result["errors"].append(f"Failed {message_id}/{attachment_id}: {str(e)}")
+                result["results"].append({
+                    "message_id": message_id,
+                    "attachment_id": attachment_id,
+                    "success": False,
+                    "error": str(e),
+                })
+                result["failed"] += 1
+
+        result["success"] = result["downloaded"] > 0
+        result["message"] = f"Downloaded {result['downloaded']}/{result['total_requested']} attachments"
+
+        return result
 
     async def close(self):
         """리소스 정리"""

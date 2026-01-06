@@ -3,7 +3,7 @@ Graph Mail Client - 통합 메일 처리 클라이언트
 쿼리, 메일 처리, 첨부파일 관리를 통합하는 상위 클래스
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from datetime import datetime, timedelta
 from enum import Enum
 
@@ -362,26 +362,22 @@ class GraphMailClient:
         except Exception as e:
             return {"status": "error", "error": str(e), "value": [], "query_method": QueryMethod.BATCH_ID.value}
 
-    async def batch_and_attachment(
+    async def fetch_attachments_metadata(
         self,
         user_email: str,
         message_ids: List[str],
         select_params: Optional[SelectParams] = None,
-        save_directory: str = "downloads",
-        skip_duplicates: bool = True,
     ) -> Dict[str, Any]:
         """
-        메일 ID로 메일 + 첨부파일 조회 ($expand=attachments)
+        메일과 첨부파일의 메타데이터만 조회 (다운로드 없음)
 
         Args:
             user_email: 사용자 이메일
             message_ids: 메일 ID 리스트
             select_params: 선택할 필드
-            save_directory: 첨부파일 저장 디렉토리
-            skip_duplicates: 중복 메일 건너뛰기
 
         Returns:
-            조회 및 저장 결과
+            메일 및 첨부파일 메타데이터
         """
         self._ensure_initialized()
 
@@ -395,34 +391,114 @@ class GraphMailClient:
 
         try:
             from .graph_mail_attachment import GraphAttachmentHandler
-            from .outlook_types import build_select_query
 
-            # SelectParams를 List[str]로 변환
-            select_fields = None
-            if select_params:
-                select_query = build_select_query(select_params)
-                select_fields = select_query.split(",") if select_query else None
+            print(f"\n📋 Fetching metadata for {len(message_ids)} emails...")
+            handler = GraphAttachmentHandler()
 
-            print(f"\n📧 Fetching {len(message_ids)} emails with attachments...")
-            handler = GraphAttachmentHandler(base_directory=save_directory)
-            result = await handler.fetch_and_save(
+            result = await handler.fetch_metadata_only(
                 user_email=user_email,
                 message_ids=message_ids,
-                select_fields=select_fields,
-                skip_duplicates=skip_duplicates,
+                select_params=select_params,
             )
 
             return {
                 "status": "success",
                 "value": result.get("messages", []),
                 "total": result.get("total_processed", 0),
-                "attachments_saved": result.get("attachments_saved", 0),
-                "skipped": result.get("skipped", 0),
+                "attachments_count": result.get("attachments_count", 0),
                 "errors": result.get("errors"),
             }
 
         except Exception as e:
             return {"status": "error", "error": str(e), "value": []}
+
+    async def download_attachments(
+        self,
+        user_email: str,
+        target: Union[List[str], List[Dict[str, str]]],
+        save_directory: str = "downloads",
+        skip_duplicates: bool = True,
+        select_params: Optional[SelectParams] = None,
+    ) -> Dict[str, Any]:
+        """
+        첨부파일 다운로드 통합 함수
+
+        Args:
+            user_email: 사용자 이메일
+            target:
+                - 메일 ID 리스트: ["msg_id1", "msg_id2"] -> 해당 메일의 모든 첨부파일 다운로드
+                - 첨부파일 ID 쌍 리스트: [{"message_id": "...", "attachment_id": "..."}, ...] -> 특정 첨부파일만 다운로드
+            save_directory: 저장 디렉토리
+            skip_duplicates: 중복 건너뛰기 (메일 ID 리스트일 때만 적용)
+            select_params: 선택할 필드 (메일 ID 리스트일 때만 적용)
+
+        Returns:
+            다운로드 결과
+        """
+        self._ensure_initialized()
+
+        if not target:
+            return {
+                "status": "success",
+                "message": "No targets provided",
+                "downloaded": 0,
+            }
+
+        try:
+            from .graph_mail_attachment import GraphAttachmentHandler
+
+            handler = GraphAttachmentHandler(base_directory=save_directory)
+
+            # 입력 타입 판별
+            if all(isinstance(item, str) for item in target):
+                # 메일 ID 리스트 -> 모든 첨부파일 다운로드
+                print(f"\n📧 Downloading all attachments from {len(target)} emails...")
+
+                result = await handler.fetch_and_save(
+                    user_email=user_email,
+                    message_ids=target,
+                    select_params=select_params,
+                    skip_duplicates=skip_duplicates,
+                )
+
+                return {
+                    "status": "success",
+                    "mode": "all_attachments",
+                    "total_mails": result.get("total_requested", 0),
+                    "processed": result.get("processed", 0),
+                    "saved_attachments": result.get("saved_attachments", []),
+                    "skipped_duplicates": result.get("skipped_duplicates", 0),
+                    "errors": result.get("errors", []),
+                }
+
+            elif all(isinstance(item, dict) and "message_id" in item and "attachment_id" in item for item in target):
+                # 메일/첨부파일 ID 쌍 -> 특정 첨부파일만 다운로드
+                print(f"\n📎 Downloading {len(target)} specific attachments...")
+
+                result = await handler.fetch_specific_attachments(
+                    user_email=user_email,
+                    attachments_info=target,
+                    save_directory=save_directory,
+                )
+
+                return {
+                    "status": "success",
+                    "mode": "specific_attachments",
+                    "total_requested": result.get("total_requested", 0),
+                    "downloaded": result.get("downloaded", 0),
+                    "failed": result.get("failed", 0),
+                    "results": result.get("results", []),
+                    "errors": result.get("errors", []),
+                }
+
+            else:
+                return {
+                    "status": "error",
+                    "error": "Invalid target format. Use message IDs list or attachment info list",
+                }
+
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
 
     async def batch_and_process(
         self,
