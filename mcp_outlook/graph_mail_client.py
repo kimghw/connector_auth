@@ -9,7 +9,7 @@ from enum import Enum
 
 from .graph_mail_query import GraphMailQuery
 from .graph_mail_id_batch import GraphMailIdBatch
-from .mail_processing_options import (
+from .mail_processor_handler import (
     MailProcessorHandler,
     ProcessingOptions,
     MailStorageOption,

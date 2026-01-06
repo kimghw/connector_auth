@@ -541,7 +541,7 @@ class GraphMailQuery:
         Returns:
             처리된 결과
         """
-        from mail_processing_options import (
+        from mail_processor_handler import (
             MailProcessorHandler,
             ProcessingOptions,
             MailStorageOption,

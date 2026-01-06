@@ -6,7 +6,7 @@ Mail Service - GraphMailClient Facade
 from typing import Dict, Any, Optional, List
 
 from .graph_mail_client import GraphMailClient, QueryMethod, ProcessingMode
-from .mail_processing_options import MailStorageOption, AttachmentOption, OutputFormat
+from .mail_processor_handler import MailStorageOption, AttachmentOption, OutputFormat
 from .outlook_types import FilterParams, ExcludeParams, SelectParams, build_filter_query, build_select_query
 
 # mcp_service decorator is only needed for registry scanning, not runtime
