@@ -576,7 +576,7 @@ class GraphMailQuery:
             raise Exception(f"Failed to get access token for {user_email}")
 
         # MailProcessorHandler 생성 및 처리
-        handler = MailProcessorHandler(access_token)
+        handler = MailProcessorHandler(user_email, access_token)
         await handler.initialize()
 
         options = ProcessingOptions(

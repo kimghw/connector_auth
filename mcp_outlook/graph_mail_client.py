@@ -292,7 +292,7 @@ class GraphMailClient:
         )
 
         # Create MailProcessorHandler for this request
-        mail_processor = MailProcessorHandler(access_token)
+        mail_processor = MailProcessorHandler(user_email, access_token)
         try:
             await mail_processor.initialize()
         except Exception as e:
@@ -548,8 +548,19 @@ class GraphMailClient:
             save_directory=save_directory,
         )
 
+        # Get access token for processing
+        access_token = await self.mail_query._get_access_token(user_email)
+        if not access_token:
+            return {
+                "status": "error",
+                "error": f"Failed to get access token for {user_email}",
+                "value": emails,
+                "processing_mode": processing_mode.value,
+                "query_method": QueryMethod.BATCH_ID.value,
+            }
+
         # 6. 메일 처리
-        processor = MailProcessorHandler(processing_options)
+        processor = MailProcessorHandler(user_email, access_token)
         processed_results = []
         errors = []
 

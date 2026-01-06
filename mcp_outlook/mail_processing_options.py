@@ -213,9 +213,10 @@ class DatabaseStorage(StorageInterface):
 class MailProcessorHandler:
     """메일 처리 핸들러 - 인터페이스 및 라우팅 담당"""
 
-    def __init__(self, access_token: str):
+    def __init__(self, user_email: str, access_token: str):
+        self.user_email = user_email
         self.access_token = access_token
-        self.text_processor = MailTextProcessor(access_token)
+        self.text_processor = MailTextProcessor(user_email, access_token)
         self.storage = None
         self.options = None
 

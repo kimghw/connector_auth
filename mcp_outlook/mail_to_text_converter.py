@@ -109,8 +109,10 @@ class MailTextProcessor:
         try:
             # 1. 메일 정보 조회
             print("  1️⃣ 메일 정보 조회 중...")
-            mail_url = f"https://graph.microsoft.com/v1.0/users/me/messages/{mail_id}"
-            mail_data = await self.mail_query._fetch_parallel_with_url(mail_url, 1)
+            mail_url = f"https://graph.microsoft.com/v1.0/users/{self.user_email}/messages/{mail_id}"
+            mail_data = await self.mail_query._fetch_parallel_with_url(
+                self.user_email, self.access_token, mail_url, 1
+            )
 
             if not mail_data or not mail_data.get("value"):
                 raise Exception("메일을 찾을 수 없습니다")
@@ -219,8 +221,10 @@ class MailTextProcessor:
 
         try:
             # 1. 메일 상세 정보
-            mail_url = f"https://graph.microsoft.com/v1.0/users/me/messages/{mail_id}?$select=id,subject,from,toRecipients,receivedDateTime,body,hasAttachments,importance,categories"
-            mail_data = await self.mail_query._fetch_parallel_with_url(mail_url, 1)
+            mail_url = f"https://graph.microsoft.com/v1.0/users/{self.user_email}/messages/{mail_id}?$select=id,subject,from,toRecipients,receivedDateTime,body,hasAttachments,importance,categories"
+            mail_data = await self.mail_query._fetch_parallel_with_url(
+                self.user_email, self.access_token, mail_url, 1
+            )
             mail = mail_data["value"][0] if isinstance(mail_data["value"], list) else mail_data["value"]
 
             result["mail"] = {
@@ -333,8 +337,10 @@ class MailTextProcessor:
 
         try:
             # 1. 메일 정보 저장
-            mail_url = f"https://graph.microsoft.com/v1.0/users/me/messages/{mail_id}"
-            mail_data = await self.mail_query._fetch_parallel_with_url(mail_url, 1)
+            mail_url = f"https://graph.microsoft.com/v1.0/users/{self.user_email}/messages/{mail_id}"
+            mail_data = await self.mail_query._fetch_parallel_with_url(
+                self.user_email, self.access_token, mail_url, 1
+            )
             mail = mail_data["value"][0] if isinstance(mail_data["value"], list) else mail_data["value"]
 
             mail_file = temp_dir / f"mail_{mail_id[:8]}.json"
