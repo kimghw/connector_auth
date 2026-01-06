@@ -9,13 +9,6 @@ from enum import Enum
 
 from .graph_mail_query import GraphMailQuery
 from .graph_mail_id_batch import GraphMailIdBatch
-from .mail_processor_handler import (
-    MailProcessorHandler,
-    ProcessingOptions,
-    MailStorageOption,
-    AttachmentOption,
-    OutputFormat,
-)
 from .outlook_types import FilterParams, ExcludeParams, SelectParams
 
 
@@ -188,9 +181,9 @@ class GraphMailClient:
         order_by: Optional[str] = None,
         # 처리 파라미터
         processing_mode: ProcessingMode = ProcessingMode.FETCH_ONLY,
-        mail_storage: MailStorageOption = MailStorageOption.MEMORY,
-        attachment_handling: AttachmentOption = AttachmentOption.SKIP,
-        output_format: OutputFormat = OutputFormat.COMBINED,
+        mail_storage: str = "memory",
+        attachment_handling: str = "skip",
+        output_format: str = "combined",
         save_directory: Optional[str] = None,
         # 추가 옵션
         return_on_error: bool = True,
@@ -269,153 +262,50 @@ class GraphMailClient:
                 "query_method": query_method.value,
             }
 
-        # 5. 추가 처리가 필요한 경우
+        # 5. 추가 처리가 필요한 경우 - GraphAttachmentHandler 사용
         print(f"\n🔧 Processing emails with mode: {processing_mode.value}")
 
-        # Get access token for processing
-        access_token = await self.mail_query._get_access_token(user_email)
-        if not access_token:
-            return {
-                "status": "error",
-                "error": f"Failed to get access token for {user_email}",
-                "value": emails,
-                "processing_mode": processing_mode.value,
-                "query_method": query_method.value,
-            }
+        # 첨부파일 처리가 필요한 경우 GraphAttachmentHandler 사용
+        if processing_mode in [ProcessingMode.FETCH_AND_DOWNLOAD, ProcessingMode.FULL_PROCESS]:
+            from .graph_mail_attachment import GraphAttachmentHandler
 
-        # ProcessingOptions 생성
-        processing_options = ProcessingOptions(
-            mail_storage=mail_storage,
-            attachment_handling=attachment_handling,
-            output_format=output_format,
-            save_directory=save_directory,
-        )
+            message_ids = [email.get("id") for email in emails if email.get("id")]
+            if message_ids:
+                handler = GraphAttachmentHandler(base_directory=save_directory or "downloads")
+                try:
+                    attachment_result = await handler.fetch_and_save(
+                        user_email=user_email,
+                        message_ids=message_ids,
+                        skip_duplicates=True,
+                    )
+                    print(f"📎 Processed {attachment_result.get('total_processed', 0)} emails with attachments")
+                    return {
+                        "status": "success",
+                        "value": emails,
+                        "total": len(emails),
+                        "processing_mode": processing_mode.value,
+                        "query_method": query_method.value,
+                        "attachment_result": attachment_result,
+                    }
+                except Exception as e:
+                    print(f"⚠️ Attachment processing failed: {e}")
+                    return {
+                        "status": "partial",
+                        "value": emails,
+                        "total": len(emails),
+                        "processing_mode": processing_mode.value,
+                        "query_method": query_method.value,
+                        "attachment_error": str(e),
+                    }
 
-        # Create MailProcessorHandler for this request
-        mail_processor = MailProcessorHandler(user_email, access_token)
-        try:
-            await mail_processor.initialize()
-        except Exception as e:
-            # Clean up on initialization failure
-            try:
-                await mail_processor.close()
-            except Exception:
-                pass
-            return {
-                "status": "error",
-                "error": f"Failed to initialize MailProcessorHandler: {str(e)}",
-                "value": emails,
-                "processing_mode": processing_mode.value,
-                "query_method": query_method.value,
-            }
-
-        # 처리 실행
-        try:
-            processed_result = await mail_processor.process_mail(mail_data=result, options=processing_options)
-
-            # 처리 정보 추가
-            processed_result["processing_mode"] = processing_mode.value
-            processed_result["query_method"] = query_method.value
-            processed_result["original_count"] = len(emails)
-
-            # 처리 모드별 추가 정보
-            if processing_mode == ProcessingMode.FETCH_AND_DOWNLOAD:
-                if processed_result.get("attachments"):
-                    processed_result["downloaded_count"] = len(processed_result["attachments"])
-                    print(f"📎 Downloaded {processed_result['downloaded_count']} attachments")
-
-            elif processing_mode == ProcessingMode.FETCH_AND_CONVERT:
-                if processed_result.get("converted_files"):
-                    processed_result["converted_count"] = len(processed_result["converted_files"])
-                    print(f"🔄 Converted {processed_result['converted_count']} files")
-
-            print("✅ Processing completed successfully")
-            return processed_result
-
-        except Exception as e:
-            print(f"❌ Processing failed: {str(e)}")
-            return {
-                "status": "error",
-                "error": str(e),
-                "value": emails,  # 원본 메일은 반환
-                "processing_mode": processing_mode.value,
-                "query_method": query_method.value,
-            }
-        finally:
-            # Clean up processor
-            await mail_processor.close()
-
-    async def quick_search(
-        self, user_email: str, keyword: str, max_results: int = 50, process_attachments: bool = False
-    ) -> Dict[str, Any]:
-        """
-        빠른 검색 헬퍼 메서드
-
-        Args:
-            user_email: User email for authentication
-            keyword: 검색어
-            max_results: 최대 결과 수
-            process_attachments: 첨부파일 처리 여부
-
-        Returns:
-            검색 결과
-        """
-        processing_mode = ProcessingMode.FETCH_AND_DOWNLOAD if process_attachments else ProcessingMode.FETCH_ONLY
-        attachment_handling = AttachmentOption.DOWNLOAD_ONLY if process_attachments else AttachmentOption.SKIP
-
-        return await self.fetch_and_process(
-            user_email=user_email,
-            query_method=QueryMethod.SEARCH,
-            search_term=keyword,
-            top=max_results,
-            processing_mode=processing_mode,
-            attachment_handling=attachment_handling,
-        )
-
-    async def get_attachments_from_sender(
-        self, user_email: str, sender_email: str, days_back: int = 30, download: bool = True, convert: bool = False
-    ) -> Dict[str, Any]:
-        """
-        특정 발신자의 첨부파일 가져오기
-
-        Args:
-            user_email: User email for authentication
-            sender_email: 발신자 이메일
-            days_back: 며칠 전까지
-            download: 다운로드 여부
-            convert: 변환 여부
-
-        Returns:
-            첨부파일 정보
-        """
-        # 필터 설정
-        filter_params: FilterParams = {
-            "from_address": sender_email,
-            "has_attachments": True,
-            "received_date_from": (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%dT00:00:00Z"),
+        # 그 외 모드는 쿼리 결과만 반환
+        return {
+            "status": "success",
+            "value": emails,
+            "total": len(emails),
+            "processing_mode": processing_mode.value,
+            "query_method": query_method.value,
         }
-
-        # 처리 모드 설정
-        if convert:
-            processing_mode = ProcessingMode.FETCH_AND_CONVERT
-            attachment_handling = AttachmentOption.DOWNLOAD_CONVERT
-        elif download:
-            processing_mode = ProcessingMode.FETCH_AND_DOWNLOAD
-            attachment_handling = AttachmentOption.DOWNLOAD_ONLY
-        else:
-            processing_mode = ProcessingMode.FETCH_ONLY
-            attachment_handling = AttachmentOption.SKIP
-
-        return await self.fetch_and_process(
-            user_email=user_email,
-            query_method=QueryMethod.FILTER,
-            filter_params=filter_params,
-            top=100,
-            order_by="receivedDateTime desc",
-            processing_mode=processing_mode,
-            attachment_handling=attachment_handling,
-            save_directory=f"attachments/{sender_email.split('@')[0]}",
-        )
 
     async def batch_and_fetch(
         self, user_email: str, message_ids: List[str], select_params: Optional[SelectParams] = None
@@ -472,6 +362,68 @@ class GraphMailClient:
         except Exception as e:
             return {"status": "error", "error": str(e), "value": [], "query_method": QueryMethod.BATCH_ID.value}
 
+    async def batch_and_attachment(
+        self,
+        user_email: str,
+        message_ids: List[str],
+        select_params: Optional[SelectParams] = None,
+        save_directory: str = "downloads",
+        skip_duplicates: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        메일 ID로 메일 + 첨부파일 조회 ($expand=attachments)
+
+        Args:
+            user_email: 사용자 이메일
+            message_ids: 메일 ID 리스트
+            select_params: 선택할 필드
+            save_directory: 첨부파일 저장 디렉토리
+            skip_duplicates: 중복 메일 건너뛰기
+
+        Returns:
+            조회 및 저장 결과
+        """
+        self._ensure_initialized()
+
+        if not message_ids:
+            return {
+                "status": "success",
+                "value": [],
+                "total": 0,
+                "message": "No message IDs provided",
+            }
+
+        try:
+            from .graph_mail_attachment import GraphAttachmentHandler
+            from .outlook_types import build_select_query
+
+            # SelectParams를 List[str]로 변환
+            select_fields = None
+            if select_params:
+                select_query = build_select_query(select_params)
+                select_fields = select_query.split(",") if select_query else None
+
+            print(f"\n📧 Fetching {len(message_ids)} emails with attachments...")
+            handler = GraphAttachmentHandler(base_directory=save_directory)
+            result = await handler.fetch_and_save(
+                user_email=user_email,
+                message_ids=message_ids,
+                select_fields=select_fields,
+                skip_duplicates=skip_duplicates,
+            )
+
+            return {
+                "status": "success",
+                "value": result.get("messages", []),
+                "total": result.get("total_processed", 0),
+                "attachments_saved": result.get("attachments_saved", 0),
+                "skipped": result.get("skipped", 0),
+                "errors": result.get("errors"),
+            }
+
+        except Exception as e:
+            return {"status": "error", "error": str(e), "value": []}
+
     async def batch_and_process(
         self,
         user_email: str,
@@ -479,9 +431,9 @@ class GraphMailClient:
         select_params: Optional[SelectParams] = None,
         # 처리 파라미터
         processing_mode: ProcessingMode = ProcessingMode.FETCH_ONLY,
-        mail_storage: MailStorageOption = MailStorageOption.MEMORY,
-        attachment_handling: AttachmentOption = AttachmentOption.SKIP,
-        output_format: OutputFormat = OutputFormat.COMBINED,
+        mail_storage: str = "memory",
+        attachment_handling: str = "skip",
+        output_format: str = "combined",
         save_directory: Optional[str] = None,
         return_on_error: bool = True,
     ) -> Dict[str, Any]:

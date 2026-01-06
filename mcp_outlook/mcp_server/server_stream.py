@@ -25,7 +25,6 @@ sys.path.insert(0, grandparent_dir)  # For session module and package imports
 sys.path.insert(0, parent_dir)  # For direct module imports
 
 # Import types dynamically based on type_info
-from mcp_outlook.mail_processor_handler import AttachmentOption, MailStorageOption, OutputFormat
 from mcp_outlook.outlook_types import ExcludeParams, FilterParams, SelectParams
 from mcp_outlook.graph_mail_client import ProcessingMode, QueryMethod
 

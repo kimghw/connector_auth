@@ -1,6 +1,14 @@
 """
-Graph Mail Query - Entry point for mail operations
-Combines filter helpers, filter builder, and mail search functionality
+Graph Mail Query - 메일 조회 엔트리포인트
+인증 처리 및 Graph API 호출을 담당
+
+역할:
+    - 인증 처리 (AuthManager 활용)
+    - URL로 Graph API 호출
+    - 페이지네이션 처리
+    - 클라이언트 사이드 필터링
+
+URL 빌드는 graph_mail_url.py에서 담당
 """
 
 import asyncio
@@ -21,19 +29,24 @@ from .outlook_types import (
     build_exclude_query,
     build_select_query,
 )
+from .graph_mail_url import GraphMailUrlBuilder
 
 
 class GraphMailQuery:
     """
-    Main entry point for Graph API mail operations
-    Handles authentication, filter building, and mail retrieval
+    Graph API 메일 조회 클래스
+
+    역할:
+        - 인증 처리 (AuthManager)
+        - URL로 Graph API 호출
+        - 페이지네이션 처리
+        - 클라이언트 사이드 필터링
     """
 
     def __init__(self):
-        """
-        Initialize Graph Mail Query
-        """
+        """Initialize Graph Mail Query"""
         self.auth_manager = AuthManager()
+        self._url_builder: Optional[GraphMailUrlBuilder] = None
 
     async def initialize(self) -> bool:
         """
@@ -66,6 +79,20 @@ class GraphMailQuery:
             print(f"Token retrieval error for {user_email}: {str(e)}")
             return None
 
+    def _get_url_builder(self, user_email: str) -> GraphMailUrlBuilder:
+        """
+        URL 빌더 인스턴스 반환 (캐싱)
+
+        Args:
+            user_email: 사용자 이메일
+
+        Returns:
+            GraphMailUrlBuilder 인스턴스
+        """
+        if self._url_builder is None or self._url_builder.user_email != user_email:
+            self._url_builder = GraphMailUrlBuilder(user_email)
+        return self._url_builder
+
     def _build_query_url(
         self,
         user_email: str,
@@ -85,22 +112,12 @@ class GraphMailQuery:
         Returns:
             Complete URL with query parameters
         """
-        base_url = f"https://graph.microsoft.com/v1.0/users/{user_email}/messages"
-        params = []
-
-        if filter_query:
-            params.append(f"$filter={filter_query}")
-
-        if select_fields:
-            params.append(f"$select={','.join(select_fields)}")
-
-        if order_by:
-            params.append(f"$orderby={order_by}")
-
-        if params:
-            base_url += "?" + "&".join(params)
-
-        return base_url
+        url_builder = self._get_url_builder(user_email)
+        return url_builder.build_filter_url(
+            filter_query=filter_query,
+            select_fields=select_fields,
+            order_by=order_by,
+        )
 
     async def query_filter(
         self,
@@ -295,26 +312,17 @@ class GraphMailQuery:
                 # 리스트 형태는 그대로 사용 (이미 필드명이 들어 있다고 가정)
                 select_fields = select
 
-        # Build search URL
-        base_url = f"https://graph.microsoft.com/v1.0/users/{user_email}/messages"
+        # Enforce Graph API search limit
+        actual_top = min(top, 250)
 
-        # Add search parameter (따옴표로 감싸서 전체 구문 검색)
-        base_url += f'?$search="{search}"'
-
-        # Add select fields if provided (이미 get_selected_fields()로 변환된 리스트)
-        if select_fields:
-            base_url += f"&$select={','.join(select_fields)}"
-
-        # Add orderby if provided
-        if orderby:
-            base_url += f"&$orderby={orderby}"
-
-        # Fetch data (Graph API limits search to 250 results) with immediate filtering
-        actual_top = min(top, 250)  # Enforce Graph API search limit
-
-        # $search는 페이지네이션과 함께 사용할 수 없으므로 직접 처리
-        # $top을 URL에 추가
-        base_url += f"&$top={actual_top}"
+        # Build search URL using URL builder
+        url_builder = self._get_url_builder(user_email)
+        base_url = url_builder.build_search_url(
+            search_query=search,
+            select_fields=select_fields,
+            order_by=orderby,
+            top=actual_top,
+        )
 
         # 직접 호출 (페이지네이션 없이)
         try:
@@ -541,55 +549,37 @@ class GraphMailQuery:
         Returns:
             처리된 결과
         """
-        from mail_processor_handler import (
-            MailProcessorHandler,
-            ProcessingOptions,
-            MailStorageOption,
-            AttachmentOption,
-            OutputFormat,
-        )
+        from .graph_mail_attachment import GraphAttachmentHandler
 
-        # 옵션 매핑
-        storage_map = {
-            "memory": MailStorageOption.MEMORY,
-            "text": MailStorageOption.TEXT_FILE,
-            "json": MailStorageOption.JSON_FILE,
-            "database": MailStorageOption.DATABASE,
+        # 메일 목록 추출
+        if isinstance(mail_data, dict):
+            emails = mail_data.get("value", [mail_data])
+        else:
+            emails = mail_data if isinstance(mail_data, list) else [mail_data]
+
+        # 첨부파일 처리가 필요한 경우
+        if attachment_handling in ["download", "convert", "convert_delete"]:
+            message_ids = [email.get("id") for email in emails if email.get("id")]
+            if message_ids:
+                handler = GraphAttachmentHandler(base_directory=save_directory or "downloads")
+                attachment_result = await handler.fetch_and_save(
+                    user_email=user_email,
+                    message_ids=message_ids,
+                    skip_duplicates=True,
+                )
+                return {
+                    "status": "success",
+                    "value": emails,
+                    "total": len(emails),
+                    "attachment_result": attachment_result,
+                }
+
+        # 첨부파일 처리 없이 메일만 반환
+        return {
+            "status": "success",
+            "value": emails,
+            "total": len(emails),
         }
-
-        attachment_map = {
-            "skip": AttachmentOption.SKIP,
-            "download": AttachmentOption.DOWNLOAD_ONLY,
-            "convert": AttachmentOption.DOWNLOAD_CONVERT,
-            "convert_delete": AttachmentOption.CONVERT_DELETE,
-        }
-
-        format_map = {
-            "combined": OutputFormat.COMBINED,
-            "separated": OutputFormat.SEPARATED,
-            "structured": OutputFormat.STRUCTURED,
-        }
-
-        # Get access token for the user
-        access_token = await self._get_access_token(user_email)
-        if not access_token:
-            raise Exception(f"Failed to get access token for {user_email}")
-
-        # MailProcessorHandler 생성 및 처리
-        handler = MailProcessorHandler(user_email, access_token)
-        await handler.initialize()
-
-        options = ProcessingOptions(
-            mail_storage=storage_map.get(mail_storage, MailStorageOption.MEMORY),
-            attachment_handling=attachment_map.get(attachment_handling, AttachmentOption.SKIP),
-            output_format=format_map.get(output_format, OutputFormat.COMBINED),
-            save_directory=save_directory,
-        )
-
-        try:
-            return await handler.process_mail(mail_data, options)
-        finally:
-            await handler.close()
 
     async def close(self):
         """Clean up resources"""

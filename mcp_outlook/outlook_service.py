@@ -6,8 +6,10 @@ Mail Service - GraphMailClient Facade
 from typing import Dict, Any, Optional, List
 
 from .graph_mail_client import GraphMailClient, QueryMethod, ProcessingMode
-from .mail_processor_handler import MailStorageOption, AttachmentOption, OutputFormat
-from .outlook_types import FilterParams, ExcludeParams, SelectParams, build_filter_query, build_select_query
+from .outlook_types import (
+    FilterParams, ExcludeParams, SelectParams,
+    build_filter_query, build_select_query
+)
 
 # mcp_service decorator is only needed for registry scanning, not runtime
 try:
@@ -123,9 +125,9 @@ class MailService:
         top: int = 50,
         order_by: Optional[str] = None,
         processing_mode: ProcessingMode = ProcessingMode.FETCH_ONLY,
-        mail_storage: MailStorageOption = MailStorageOption.MEMORY,
-        attachment_handling: AttachmentOption = AttachmentOption.SKIP,
-        output_format: OutputFormat = OutputFormat.COMBINED,
+        mail_storage: str = "memory",
+        attachment_handling: str = "skip",
+        output_format: str = "combined",
         save_directory: Optional[str] = None,
         return_on_error: bool = True,
     ) -> Dict[str, Any]:
@@ -279,7 +281,7 @@ class MailService:
             search_term=search_term,
             top=top,
             processing_mode=ProcessingMode.FETCH_AND_DOWNLOAD,
-            attachment_handling=AttachmentOption.DOWNLOAD_ONLY,
+            attachment_handling="download",
             save_directory=save_directory,
         )
 
@@ -310,7 +312,7 @@ class MailService:
             search_term=search_term,
             top=top,
             processing_mode=ProcessingMode.FETCH_AND_CONVERT,
-            attachment_handling=AttachmentOption.DOWNLOAD_CONVERT,
+            attachment_handling="convert",
             save_directory=save_directory,
         )
 
@@ -329,9 +331,9 @@ class MailService:
         message_ids: List[str],
         select_params: Optional[SelectParams] = None,
         processing_mode: ProcessingMode = ProcessingMode.FETCH_ONLY,
-        mail_storage: MailStorageOption = MailStorageOption.MEMORY,
-        attachment_handling: AttachmentOption = AttachmentOption.SKIP,
-        output_format: OutputFormat = OutputFormat.COMBINED,
+        mail_storage: str = "memory",
+        attachment_handling: str = "skip",
+        output_format: str = "combined",
         save_directory: Optional[str] = None,
         return_on_error: bool = True,
     ) -> Dict[str, Any]:
