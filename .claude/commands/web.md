@@ -2,6 +2,8 @@
 description: 웹에디터 설계 원칙 및 작업 가이드 (project)
 ---
 
+> **공통 지침**: 작업 전 [common.md](common.md) 참조
+
 # 웹에디터 설계 원칙 및 작업 가이드
 
 ## 웹에디터 실행
@@ -21,16 +23,14 @@ MCP 서버의 Tool 인자 및 값을 제어
 | 정보 | 경로 패턴 |
 |------|----------|
 | 서비스 구현 정보 | `mcp_editor/mcp_service_registry/registry_{server}.json` |
-| 도구 정의 (LLM용) | `mcp_editor/mcp_{server}/tool_definition_templates.py` |
-| Internal 파라미터 | `mcp_editor/mcp_{server}/tool_internal_args.json` |
+| 도구 정의 (LLM용) + Internal | `mcp_editor/mcp_{server}/tool_definition_templates.py` |
 
 ### 각 파일의 역할
 
 | 파일 | 역할 | 변경 시점 |
 |------|------|----------|
-| `tool_definition_templates.py` | LLM에게 뭘 보여줄지 (inputSchema) | 웹에디터에서 수정 시 |
+| `tool_definition_templates.py` | LLM 스키마 + mcp_service_factors (Internal 포함) | 웹에디터에서 수정 시 |
 | `registry_{server}.json` | 실제 코드 어디를 호출할지 (implementation) | 소스코드 변경 후 스캔 시 |
-| `tool_internal_args.json` | 숨겨진 파라미터 기본값 | 웹에디터에서 Internal 설정 시 |
 
 ## 3. 네이밍 규칙
 → `docs/terminology.md` 참조
@@ -60,20 +60,22 @@ MCP 서버의 Tool 인자 및 값을 제어
 | 분류 | 설명 | LLM 노출 | 저장 위치 |
 |------|------|---------|----------|
 | **Signature** | LLM이 제공하는 파라미터 | O | `tool_definition_templates.py`의 inputSchema |
-| **Internal** | 시스템이 고정하는 파라미터 | X | `tool_internal_args.json` |
+| **Signature Defaults** | LLM에게 보이지만 기본값 제공 | O | `mcp_service_factors` (source: signature_defaults) |
+| **Internal** | 시스템이 고정하는 파라미터 | X | `mcp_service_factors` (source: internal) |
 
 ## 6. Generate 흐름
 
 ### 다중 프로토콜 생성 흐름 (v2.0)
 ```
 tool_definition_templates.py  ─┐
+(mcp_service_factors 포함)    │
                                ├─→ generate_universal_server.py ─┬─→ server_rest.py
-registry_{server}.json        ─┤                                ├─→ server_stdio.py
-                               │                                 └─→ server_stream.py
-tool_internal_args.json       ─┘
+registry_{server}.json        ─┘                                ├─→ server_stdio.py
+                                                                 └─→ server_stream.py
 
 웹에디터 Save 시:
-tool_definition_templates.py ─→ 웹에디터 Save ─→ tool_definitions.py
+tool_definition_templates.py ─→ 웹에디터 Save ─→ tool_definitions.py (clean)
+                                              ─→ tool_definition_templates.py (mcp_service_factors 포함)
 ```
 
 ### 프로토콜별 특징
@@ -101,10 +103,10 @@ tool_definition_templates.py ─→ 웹에디터 Save ─→ tool_definitions.py
 
 ### 서버 생성
 - `jinja/generate_universal_server.py` - 다중 프로토콜 서버 생성 스크립트
+- `jinja/universal_server_template.jinja2` - 범용 서버 베이스 템플릿
 - `jinja/server_rest.jinja2` - REST API 서버 템플릿
 - `jinja/server_stdio.jinja2` - STDIO 프로토콜 서버 템플릿
 - `jinja/server_stream.jinja2` - Stream 프로토콜 서버 템플릿
-- `jinja/protocol_base.jinja2` - 프로토콜 공통 베이스 템플릿
 - `jinja/generate_editor_config.py` - editor_config.json 생성
 - `jinja/editor_config_template.jinja2` - editor_config 템플릿
 
@@ -198,3 +200,8 @@ python -c "from jinja.generate_universal_server import generate_server; generate
   - [ ] server_stdio.py 생성 및 동작 확인
   - [ ] server_stream.py 생성 및 동작 확인
 - [ ] 생성된 tool_definitions.py가 정상 동작하는지 테스트
+
+---
+*Last Updated: 2026-01-06*
+*Version: 2.1*
+*변경사항: tool_internal_args.json 삭제 → mcp_service_factors 통합, protocol_base.jinja2 제거*

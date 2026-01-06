@@ -23,7 +23,7 @@ sys.path.insert(0, file_handler_dir)  # For file_handler relative imports
 sys.path.insert(0, grandparent_dir)  # For session module and package imports
 sys.path.insert(0, parent_dir)  # For direct module imports
 
-# Import parameter types if needed
+# Import types dynamically based on type_info
 
 # Import tool definitions
 try:
@@ -36,7 +36,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Import service classes (unique)
-from file_manager import FileManager
+from mcp_file_handler.file_manager import FileManager
 
 # Create service instances
 file_manager = FileManager()
@@ -133,26 +133,9 @@ def build_mcp_content(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ============================================================
 # Internal Args Support
 # ============================================================
-def load_internal_args() -> dict:
-    """Load internal args from tool_internal_args.json"""
-    possible_paths = [
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mcp_editor", "mcp_file_handler", "tool_internal_args.json"),
-        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tool_internal_args.json"),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "tool_internal_args.json"),
-    ]
-    for path in possible_paths:
-        if os.path.exists(path):
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    raw_args = json.load(f)
-                logger.info(f"Loaded internal args from {path}")
-                return raw_args
-            except Exception as exc:
-                logger.warning(f"Failed to load internal args from {path}: {exc}")
-    return {}
-
-
-INTERNAL_ARGS = load_internal_args()
+# Internal args are now embedded in tool definitions via mcp_service_factors
+# This data is passed from the generator as part of the context
+INTERNAL_ARGS = {}
 
 # Build INTERNAL_ARG_TYPES dynamically based on imported types
 INTERNAL_ARG_TYPES = {}
@@ -174,7 +157,7 @@ def build_internal_param(tool_name: str, arg_name: str, runtime_value: dict = No
 
     Value resolution priority:
     1. runtime_value: Dynamic value passed from function arguments at runtime
-    2. stored value: Value from tool_internal_args.json
+    2. stored value: Value from INTERNAL_ARGS (generated from mcp_service_factors)
     3. defaults: Static value from original_schema.properties
     """
     arg_info = INTERNAL_ARGS.get(tool_name, {}).get(arg_name)
@@ -231,6 +214,7 @@ async def handle_convert_file_to_text(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle convert_file_to_text tool call"""
 
     # Extract parameters from args
+    # Extract from input with source param name
     input_path = args["input_path"]
 
     return await file_manager.process(
@@ -241,6 +225,7 @@ async def handle_process_directory(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle process_directory tool call"""
 
     # Extract parameters from args
+    # Extract from input with source param name
     directory_path = args["directory_path"]
 
     return await file_manager.process_directory(
@@ -251,22 +236,25 @@ async def handle_save_file_metadata(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle save_file_metadata tool call"""
 
     # Extract parameters from args
+    # Extract from input with source param name
     file_url = args["file_url"]
+    # Extract from input with source param name
     keywords = args["keywords"]
     additional_metadata = args.get("additional_metadata")
 
     # Convert dicts to parameter objects where needed
     additional_metadata_internal_data = {}
-    additional_metadata_raw = args.get("additional_metadata")
-    additional_metadata_data = merge_param_data(additional_metadata_internal_data, additional_metadata_raw)
-    additional_metadata_params = dict(**additional_metadata_data) if additional_metadata_data is not None else None
+    # Use already extracted value if it exists
+    # Value was already extracted above, use the existing variable
+    additional_metadata_data = merge_param_data(additional_metadata_internal_data, additional_metadata)
+    additional_metadata = dict(**additional_metadata_data) if additional_metadata_data is not None else None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
     call_args["file_url"] = file_url
     call_args["keywords"] = keywords
-    call_args["additional_metadata"] = additional_metadata_params
+    call_args["additional_metadata"] = additional_metadata
 
     return await file_manager.save_metadata(**call_args)
 
@@ -282,6 +270,7 @@ async def handle_convert_onedrive_to_text(args: Dict[str, Any]) -> Dict[str, Any
     """Handle convert_onedrive_to_text tool call"""
 
     # Extract parameters from args
+    # Extract from input with source param name
     url = args["url"]
 
     return await file_manager.process_onedrive(
@@ -292,6 +281,7 @@ async def handle_get_file_metadata(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle get_file_metadata tool call"""
 
     # Extract parameters from args
+    # Extract from input with source param name
     file_url = args["file_url"]
 
     return await file_manager.get_metadata(
@@ -302,6 +292,7 @@ async def handle_delete_file_metadata(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle delete_file_metadata tool call"""
 
     # Extract parameters from args
+    # Extract from input with source param name
     file_url = args["file_url"]
 
     return await file_manager.delete_metadata(

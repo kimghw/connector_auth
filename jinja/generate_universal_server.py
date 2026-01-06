@@ -510,6 +510,12 @@ def generate_server(
     # Setup Jinja2
     template_dir = os.path.dirname(template_path)
     env = Environment(loader=FileSystemLoader(template_dir))
+
+    # Add custom filter to raise errors during template rendering
+    def raise_error(message):
+        raise ValueError(message)
+    env.filters['raise_error'] = raise_error
+
     template = env.get_template(os.path.basename(template_path))
 
     # Render template

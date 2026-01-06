@@ -2,6 +2,8 @@
 description: MCP Server 용어 정의 (Terminology) (project)
 ---
 
+> **공통 지침**: 작업 전 [common.md](common.md) 참조
+
 # MCP Server 용어 정의 (Terminology)
 
 ## 핵심 구조 (Core Structure)
@@ -65,7 +67,7 @@ description: MCP Server 용어 정의 (Terminology) (project)
 | 모듈 디렉토리 | `mcp_{server_name}/` | `mcp_outlook/` |
 | 에디터 프로필 | `mcp_editor/mcp_{server_name}/` | `mcp_editor/mcp_outlook/` |
 | 템플릿 정의 | `tool_definition_templates.py` | |
-| Internal Args | `tool_internal_args.json` | |
+| Internal Args | `mcp_service_factors` (templates 내) | tool_definition_templates.py 참조 |
 | 레지스트리 | `registry_{server_name}.json` | `registry_outlook.json` |
 
 ## 데이터 흐름
@@ -116,14 +118,16 @@ async def handle_{{ tool_name }}(args):
 - `mcp_editor/mcp_service_registry/types_property_{server_name}.json` - 타입 속성
 
 ### 서버별 파일
-- `mcp_editor/mcp_{server_name}/tool_definition_templates.py` - 도구 정의 템플릿
-- `mcp_editor/mcp_{server_name}/tool_internal_args.json` - Internal 파라미터
+- `mcp_editor/mcp_{server_name}/tool_definition_templates.py` - 도구 정의 템플릿 (mcp_service_factors 포함)
 - `mcp_{server_name}/mcp_server/tool_definitions.py` - 생성된 도구 정의
-- `mcp_{server_name}/mcp_server/server.py` - 생성된 서버 코드
+- `mcp_{server_name}/mcp_server/server_rest.py` - REST API 서버
+- `mcp_{server_name}/mcp_server/server_stdio.py` - STDIO 프로토콜 서버
+- `mcp_{server_name}/mcp_server/server_stream.py` - Stream 프로토콜 서버 (SSE)
 
 ### 설정 파일
 - `mcp_editor/editor_config.json` - 에디터 설정 (프로필별 경로)
 
 ---
-*Last Updated: 2025-12-24*
-*Version: 2.3*
+*Last Updated: 2026-01-06*
+*Version: 2.4*
+*변경사항: tool_internal_args.json 삭제 → mcp_service_factors 통합, 다중 프로토콜 서버 구조 반영*

@@ -227,7 +227,7 @@ def build_internal_param(tool_name: str, arg_name: str, runtime_value: dict = No
 
     Value resolution priority:
     1. runtime_value: Dynamic value passed from function arguments at runtime
-    2. stored value: Value from tool_internal_args.json
+    2. stored value: Value from INTERNAL_ARGS (generated from mcp_service_factors)
     3. defaults: Static value from original_schema.properties
     """
     arg_info = INTERNAL_ARGS.get(tool_name, {}).get(arg_name)

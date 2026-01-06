@@ -2,6 +2,8 @@
 description: MCP 웹에디터 데이터 흐름 및 핸들러 처리 가이드 (project)
 ---
 
+> **공통 지침**: 작업 전 [common.md](common.md) 참조
+
 # MCP 웹에디터 데이터 흐름 및 핸들러 처리 가이드
 
 ## 목차
@@ -940,5 +942,7 @@ mcp_{service}/mcp_server/server_{protocol}.py
 
 ---
 
-*관련: terminology.md, decorator.md, web.md, handler.md*
-*Version: 2.5 (tool_internal_args.json 삭제, mcp_service_factors 통합, extract_internal_args_from_tools 추가)*
+*관련: terminology.md, web.md, handler.md*
+*Version: 2.6*
+*Last Updated: 2026-01-06*
+*변경사항: tool_internal_args.json 삭제, mcp_service_factors 통합, extract_internal_args_from_tools 추가*

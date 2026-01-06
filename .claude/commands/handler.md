@@ -1,3 +1,5 @@
+> **공통 지침**: 작업 전 [common.md](common.md) 참조
+
 # MCP 핸들러 파라미터 체계 정리
 
 ## 파라미터 종류 및 계층 구조
@@ -19,6 +21,15 @@
 - **위치**: `tool_definition_templates.py`의 `mcp_service_factors` (source: "internal")
 - **특징**: `targetParam`으로 서비스 메서드에 매핑, 5단계에서 병합
 - **변경사항**: tool_internal_args.json 삭제 → mcp_service_factors로 통합 (2025-01-05)
+
+**런타임 데이터 흐름:**
+```
+mcp_service_factors (tool_definition_templates.py)
+    ↓ generator가 source='internal' 추출
+생성된 서버 코드의 INTERNAL_ARGS 딕셔너리 (server_*.py)
+    ↓ build_internal_param() 또는 직접 생성자 호출
+런타임 파라미터 객체
+```
 
 ### 2. 서비스 함수 인자
 - **정의**: 실제 비즈니스 로직의 메서드 파라미터
@@ -71,7 +82,7 @@ DatePeriodFilter_data = merge_param_data(
 
 ```python
 # 예시: select_params 병합
-_internal_select = build_internal_param("mail_list", "select")  # mcp_service_factors에서
+_internal_select = build_internal_param("mail_list_period", "select")  # INTERNAL_ARGS에서
 
 # Signature와 Internal이 같은 targetParam을 가리킬 때만 병합
 if "select_params" in call_args:
@@ -174,9 +185,9 @@ select_params_params = None  # 서비스에 None 전달
 
 #### INTERNAL 동작
 ```python
-# Internal Args에서 기본값으로 객체 생성
+# INTERNAL_ARGS 딕셔너리에서 기본값으로 객체 생성
 _internal_select = build_internal_param("mail_list_period", "select")
-# → SelectParams(id=True, subject=True, sender=True, ...)
+# → SelectParams(id=True, subject=True, sender=True, body_preview=True, ...)
 
 # Signature 값이 None이면 Internal 값 사용
 if existing_value is None:
@@ -197,10 +208,18 @@ if existing_value is None:
 - **사용처**: Signature 파라미터, Internal 파라미터 모두
 - **동작**: 핸들러에서 자동 매핑 처리
 
-### None 값 처리 원칙
-- 병합 시 None 값은 제외됨
-- 명시적으로 설정하지 않은 필드는 기존값 유지
-- 부분 업데이트 가능
+### None 값 처리 원칙 (merge_param_data)
+
+| 조건 | 동작 | 결과 |
+|------|------|------|
+| `runtime_data`가 falsy (`None`, `{}`, `[]`, `""`) | internal_data 반환 | 기본/내부값 사용 |
+| `runtime_data`가 truthy (값 있는 dict) | `{**internal, **runtime}` | runtime이 internal 덮어씀 |
+| `runtime_data` dict 내 개별 None 값 | 그대로 병합 | internal 값 덮어씀 (주의!) |
+
+**주의사항:**
+- `{"key": None}` 형태는 truthy이므로 internal의 해당 키를 None으로 덮어씀
+- 개별 키 레벨의 None 필터링은 5단계 Internal 병합에서만 발생 (`if v is not None`)
+- 빈 dict/list/""도 "입력 없음"으로 간주되어 internal 값이 복원됨
 
 ## 요약
 
@@ -226,3 +245,7 @@ if existing_value is None:
 - **현재**: `tool_definition_templates.py`의 `mcp_service_factors`에 통합
 - **추출**: `extract_internal_args_from_tools()` 함수로 source='internal' 파라미터 추출
 - **템플릿**: `INTERNAL_ARGS`가 context에서 전달되도록 변경 (파일 로드 제거)
+
+---
+*Last Updated: 2026-01-06*
+*Version: 1.1*

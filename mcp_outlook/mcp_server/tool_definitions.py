@@ -14,7 +14,7 @@ from typing import List, Dict, Any
 import json
 
 # MCP Tool Definitions
-MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
+MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
 [
     {
         "name": "mail_list_period",

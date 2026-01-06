@@ -2,6 +2,8 @@
 description: MCP 서비스 구현 가이드 - Facade 패턴 적용
 ---
 
+> **공통 지침**: 작업 전 [common.md](common.md) 참조
+
 # MCP 서비스 구현 가이드
 
 MCP(Model Communication Protocol) 서버의 서비스 레이어 구현을 위한 범용 가이드
@@ -494,8 +496,7 @@ async def safe_method(self, param: str):
 - `mcp_editor/mcp_service_registry/registry_{service_name}.json` - 서비스 레지스트리
 
 ### 템플릿 및 정의
-- `mcp_editor/mcp_{service_name}/tool_definition_templates.py` - 도구 템플릿
-- `mcp_editor/mcp_{service_name}/tool_internal_args.json` - Internal 파라미터
+- `mcp_editor/mcp_{service_name}/tool_definition_templates.py` - 도구 템플릿 (mcp_service_factors 포함)
 
 ### 서버 코드
 - `mcp_{service_name}/mcp_server/server_rest.py` - REST API 서버
@@ -505,12 +506,14 @@ async def safe_method(self, param: str):
 ---
 
 **작성일**: 2025-01-05
-**버전**: 1.1.0
+**최종 수정일**: 2026-01-06
+**버전**: 1.2.0
 **용도**: 범용 MCP 서비스 구현 가이드
 **업데이트**:
 - v1.0.0: 초기 버전 - Facade 패턴 기반 서비스 구현 가이드
 - v1.1.0: decorator.md 내용 통합 - 데코레이터 상세 가이드 추가
+- v1.2.0: tool_internal_args.json 삭제 반영 (mcp_service_factors로 통합)
 
 **관련 문서**:
-- `/home/kimghw/Connector_auth/docs/terminology.md` - MCP 용어 정의
-- `/home/kimghw/Connector_auth/.claude/commands/web.md` - 웹에디터 사용 가이드
+- `.claude/commands/terminology.md` - MCP 용어 정의
+- `.claude/commands/web.md` - 웹에디터 사용 가이드

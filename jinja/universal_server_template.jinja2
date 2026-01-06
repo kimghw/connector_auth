@@ -107,9 +107,12 @@ SUPPORTED_PROTOCOLS = {"rest", "stdio", "stream"}
 # Pre-computed tool -> implementation mapping
 TOOL_IMPLEMENTATIONS = {
 {%- for tool in tools %}
+{%- if not tool.implementation or not tool.implementation.method %}
+{{ "ERROR: tool.implementation.method is not set for tool '" ~ tool.name ~ "'. Check mcp_service.name in tool_definition_templates.py and registry mapping." | raise_error }}
+{%- endif %}
     "{{ tool.name }}": {
         "service_class": "{{ tool.implementation.class_name }}",
-        "method": "{{ tool.implementation.method or tool.service_method or tool.name }}"
+        "method": "{{ tool.implementation.method }}"
     },
 {%- endfor %}
 }
@@ -198,7 +201,7 @@ def build_internal_param(tool_name: str, arg_name: str, runtime_value: dict = No
 
     Value resolution priority:
     1. runtime_value: Dynamic value passed from function arguments at runtime
-    2. stored value: Value from tool_internal_args.json
+    2. stored value: Value from INTERNAL_ARGS (generated from mcp_service_factors)
     3. defaults: Static value from original_schema.properties
     """
     arg_info = INTERNAL_ARGS.get(tool_name, {}).get(arg_name)

@@ -807,7 +807,7 @@ from typing import List, Dict, Any
 import json
 
 # MCP Tool Definitions
-MCP_TOOLS: List[Dict[str, Any]] = json.loads("""
+MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
 '''
 
         # Format the tools data using JSON for consistent alignment/readability
@@ -1651,7 +1651,7 @@ MCP_TOOLS: List[Dict[str, Any]] = []
         config_data[profile_name] = new_profile
 
         with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config_data, indent=2, ensure_ascii=False, fp=f)
+            json.dump(config_data, f, indent=2, ensure_ascii=False)
 
         return jsonify(
             {"success": True, "profile": profile_name, "config": new_profile, "created_dirs": [editor_profile_dir]}

@@ -2,6 +2,8 @@
 description: Debug ID Configuration (MCP Tool Editor) (project)
 ---
 
+> **공통 지침**: 작업 전 [common.md](common.md) 참조
+
 # Debug ID Configuration (MCP Tool Editor)
 
 Source file: `mcp_editor/templates/tool_editor.html`
@@ -104,3 +106,6 @@ Debug ID 추가/수정 시:
 - [ ] 동적 생성 요소는 인덱스 포함 (TOOL_0, PROFILE_1)
 - [ ] data-debug-skip으로 제외 필요한 요소 표시
 - [ ] refreshDebugIndexes() 호출하여 인덱스 갱신
+
+---
+*Last Updated: 2026-01-06*
