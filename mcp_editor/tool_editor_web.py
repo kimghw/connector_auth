@@ -496,26 +496,12 @@ def extract_service_factors(tools: list) -> tuple[dict, dict]:
                 if tool_name not in internal_args:
                     internal_args[tool_name] = {}
 
-                # targetParam 추론: 명시적 지정 > 서비스 파라미터 매칭 > 기본값
+                # targetParam is REQUIRED - no auto-inference
                 target_param = param_info.get("targetParam")
                 if not target_param:
-                    # 서비스 메서드 파라미터에서 매칭 시도
-                    mcp_service = tool.get("mcp_service", {})
-                    if isinstance(mcp_service, dict):
-                        service_params = mcp_service.get("parameters", [])
-                    else:
-                        service_params = []
-                    svc_param_names = [p.get("name") for p in service_params]
-
-                    # 1. {name}_params 형태 체크 (예: select → select_params)
-                    if f"{param_name}_params" in svc_param_names:
-                        target_param = f"{param_name}_params"
-                    # 2. _internal 접미사 제거 (예: select_internal → select)
-                    elif param_name.endswith("_internal"):
-                        target_param = param_name.replace("_internal", "")
-                    # 3. 그대로 사용
-                    else:
-                        target_param = param_name
+                    print(f"  [WARNING] Tool '{tool_name}': mcp_service_factors['{param_name}'] missing 'targetParam'")
+                    # Use param_name as fallback for backward compatibility during migration
+                    target_param = param_name
 
                 internal_args[tool_name][param_name] = {
                     "description": param_info.get("description", ""),
@@ -991,9 +977,14 @@ def get_tool_names() -> List[str]:
                     # Store essential information for internal parameters
                     # baseModel is the type for this factor
                     base_model = param_info.get("original_schema", {}).get("baseModel") or param_info.get("type")
+
+                    # targetParam is REQUIRED - specifies which mcp_service parameter this maps to
+                    target_param = param_info.get("targetParam", param_name)
+
                     factor_data = {
                         "source": "internal",
                         "type": base_model,  # Use 'type' instead of 'baseModel' for consistency
+                        "targetParam": target_param,  # Required: target mcp_service parameter
                         "description": param_info.get("description", ""),
                     }
 
@@ -1013,9 +1004,14 @@ def get_tool_names() -> List[str]:
                     # Each key is the actual service method parameter name
                     # Store essential information for signature defaults
                     base_model = param_info.get("baseModel") or param_info.get("type")
+
+                    # targetParam is REQUIRED - specifies which mcp_service parameter this maps to
+                    target_param = param_info.get("targetParam", param_name)
+
                     factor_data = {
                         "source": "signature_defaults",
                         "type": base_model,  # Use 'type' instead of 'baseModel' for consistency
+                        "targetParam": target_param,  # Required: target mcp_service parameter
                         "description": param_info.get("description", ""),
                     }
 

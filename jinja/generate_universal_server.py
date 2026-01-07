@@ -76,7 +76,7 @@ def _convert_params_list_to_dict(params_list: list) -> dict:
 def extract_internal_args_from_tools(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Extract internal args from mcp_service_factors in tool definitions
 
-    Handles both new format (type, list parameters) and legacy format (baseModel, dict parameters).
+    Requires explicit targetParam field in each factor.
     """
     internal_args = {}
 
@@ -91,27 +91,13 @@ def extract_internal_args_from_tools(tools: List[Dict[str, Any]]) -> Dict[str, A
                 # Support both 'type' (new) and 'baseModel' (legacy) field names
                 factor_type = factor_data.get('type') or factor_data.get('baseModel', '')
 
-                # The factor_name (e.g., 'select') maps to a targetParam (e.g., 'select_params')
-                # We need to find the targetParam from inputSchema
-                input_schema = tool.get('inputSchema', {})
-                properties = input_schema.get('properties', {})
-
-                # Find the property that uses this factor using NAME-BASED matching
-                # Priority: 1. Explicit targetServiceFactor, 2. Name matching, 3. Default
-                target_param = None
-                for prop_name, prop_def in properties.items():
-                    # Priority 1: Explicit targetServiceFactor reference
-                    if prop_def.get('targetServiceFactor') == factor_name:
-                        target_param = prop_def.get('targetParam', prop_name)
-                        break
-                    # Priority 2: Property name matches factor name
-                    elif prop_name == factor_name or prop_name == factor_name + '_params':
-                        target_param = prop_def.get('targetParam', prop_name)
-                        break
-
-                if not target_param:
-                    # Priority 3: Use factor_name with _params suffix as targetParam
-                    target_param = factor_name + '_params' if not factor_name.endswith('_params') else factor_name
+                # targetParam is REQUIRED - no auto-matching
+                if 'targetParam' not in factor_data:
+                    raise ValueError(
+                        f"Tool '{tool_name}': mcp_service_factors['{factor_name}'] "
+                        f"requires 'targetParam' field to specify target mcp_service parameter"
+                    )
+                target_param = factor_data['targetParam']
 
                 # Get parameters - handle both list format (new) and dict format (legacy)
                 raw_params = factor_data.get('parameters', [])
