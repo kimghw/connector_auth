@@ -632,15 +632,15 @@ def clean_newlines_from_schema(schema):
         return schema
 
 
-def clean_redundant_target_params(schema):
-    """Remove targetParam from properties where property name equals targetParam value.
+def ensure_target_params(schema):
+    """Ensure all properties have targetParam field.
 
-    When inputSchema property name is the same as the service method parameter name,
-    targetParam is redundant and should be removed.
+    Every inputSchema property should have a targetParam that specifies which
+    mcp_service parameter it maps to. If not specified, defaults to property name.
 
     Example:
-        'exclude_params': {'targetParam': 'exclude_params', ...}
-        -> 'exclude_params': {...}  (targetParam removed)
+        'user_email': {'type': 'string', 'description': '...'}
+        -> 'user_email': {'type': 'string', 'description': '...', 'targetParam': 'user_email'}
     """
     if not isinstance(schema, dict):
         return schema
@@ -648,22 +648,23 @@ def clean_redundant_target_params(schema):
     result = {}
     for key, value in schema.items():
         if key == "properties" and isinstance(value, dict):
-            # Clean properties
-            cleaned_props = {}
+            # Process properties
+            processed_props = {}
             for prop_name, prop_def in value.items():
                 if isinstance(prop_def, dict):
-                    # Remove targetParam if it equals property name
-                    if prop_def.get("targetParam") == prop_name:
-                        prop_def = {k: v for k, v in prop_def.items() if k != "targetParam"}
-                    # Recursively clean nested properties
-                    cleaned_props[prop_name] = clean_redundant_target_params(prop_def)
+                    # Add targetParam if not present (defaults to property name)
+                    if "targetParam" not in prop_def:
+                        prop_def = dict(prop_def)
+                        prop_def["targetParam"] = prop_name
+                    # Recursively process nested properties
+                    processed_props[prop_name] = ensure_target_params(prop_def)
                 else:
-                    cleaned_props[prop_name] = prop_def
-            result[key] = cleaned_props
+                    processed_props[prop_name] = prop_def
+            result[key] = processed_props
         elif isinstance(value, dict):
-            result[key] = clean_redundant_target_params(value)
+            result[key] = ensure_target_params(value)
         elif isinstance(value, list):
-            result[key] = [clean_redundant_target_params(item) if isinstance(item, dict) else item for item in value]
+            result[key] = [ensure_target_params(item) if isinstance(item, dict) else item for item in value]
         else:
             result[key] = value
 
@@ -853,8 +854,8 @@ def save_tool_definitions(
                 # for use by apply_schema_defaults() in server_rest.py
                 # Recursively clean newlines from all descriptions in inputSchema
                 cleaned_input = clean_newlines_from_schema(cleaned_input)
-                # Remove redundant targetParam (when prop name == targetParam value)
-                cleaned_input = clean_redundant_target_params(cleaned_input)
+                # Ensure all properties have targetParam field
+                cleaned_input = ensure_target_params(cleaned_input)
                 cleaned_tool["inputSchema"] = order_schema_fields(cleaned_input)
             # Add mcp_service (only name field needed for server generation)
             if "mcp_service" in tool and isinstance(tool["mcp_service"], dict):
@@ -944,8 +945,8 @@ def get_tool_names() -> List[str]:
         for tool in tools_data:
             template_tool = {k: v for k, v in tool.items()}
             if "inputSchema" in template_tool:
-                # Clean redundant targetParam and order fields
-                cleaned_schema = clean_redundant_target_params(template_tool["inputSchema"])
+                # Ensure all properties have targetParam and order fields
+                cleaned_schema = ensure_target_params(template_tool["inputSchema"])
                 template_tool["inputSchema"] = order_schema_fields(cleaned_schema)
 
             # Convert mcp_service from string to dict if needed (frontend sends string)

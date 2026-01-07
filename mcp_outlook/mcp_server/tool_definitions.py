@@ -29,11 +29,13 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
                     "properties": {
                         "received_date_from": {
                             "type": "string",
-                            "description": "메일 수신 시작 날짜 (포함, receivedDateTime >= 이 값)"
+                            "description": "메일 수신 시작 날짜 (포함, receivedDateTime >= 이 값)",
+                            "targetParam": "received_date_from"
                         },
                         "received_date_to": {
                             "type": "string",
-                            "description": "메일 수신 종료 날짜 (포함, receivedDateTime <= 이 값)"
+                            "description": "메일 수신 종료 날짜 (포함, receivedDateTime <= 이 값)",
+                            "targetParam": "received_date_to"
                         }
                     },
                     "required": [
@@ -45,7 +47,8 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
                 },
                 "user_email": {
                     "type": "string",
-                    "description": "이메일 주소를 입력하고 입력하지 않을 경우 내부에서 연결정보를 메일 주소를 추정함"
+                    "description": "이메일 주소를 입력하고 입력하지 않을 경우 내부에서 연결정보를 메일 주소를 추정함",
+                    "targetParam": "user_email"
                 }
             },
             "required": [
@@ -69,11 +72,13 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
                 },
                 "top": {
                     "type": "integer",
-                    "description": ""
+                    "description": "",
+                    "targetParam": "top"
                 },
                 "user_email": {
                     "type": "string",
-                    "description": ""
+                    "description": "",
+                    "targetParam": "user_email"
                 }
             },
             "required": [
@@ -92,11 +97,13 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
             "properties": {
                 "message_ids": {
                     "type": "array",
-                    "description": ""
+                    "description": "",
+                    "targetParam": "message_ids"
                 },
                 "user_email": {
                     "type": "string",
-                    "description": ""
+                    "description": "",
+                    "targetParam": "user_email"
                 }
             },
             "required": []
@@ -113,11 +120,13 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
             "properties": {
                 "message_ids": {
                     "type": "array",
-                    "description": ""
+                    "description": "",
+                    "targetParam": "message_ids"
                 },
                 "user_email": {
                     "type": "string",
-                    "description": ""
+                    "description": "",
+                    "targetParam": "user_email"
                 }
             },
             "required": [
@@ -136,21 +145,25 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
             "properties": {
                 "message_attachment_ids": {
                     "type": "string",
-                    "description": ""
+                    "description": "",
+                    "targetParam": "message_attachment_ids"
                 },
                 "save_directory": {
                     "type": "string",
                     "description": "",
-                    "default": "downloadsssss"
+                    "default": "downloadsssss",
+                    "targetParam": "save_directory"
                 },
                 "skip_duplicates": {
                     "type": "boolean",
                     "description": "",
-                    "default": false
+                    "default": false,
+                    "targetParam": "skip_duplicates"
                 },
                 "user_email": {
                     "type": "string",
-                    "description": ""
+                    "description": "",
+                    "targetParam": "user_email"
                 }
             },
             "required": [
@@ -170,7 +183,8 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
                 "exclude_params": {
                     "type": "object",
                     "description": "제외 조건",
-                    "baseModel": "ExcludeParams"
+                    "baseModel": "ExcludeParams",
+                    "targetParam": "exclude_params"
                 },
                 "filter_params": {
                     "type": "object",
@@ -178,26 +192,32 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
                     "properties": {
                         "received_date_from": {
                             "type": "string",
-                            "description": "메일 수신 시작 날짜 (포함, receivedDateTime >= 이 값)"
+                            "description": "메일 수신 시작 날짜 (포함, receivedDateTime >= 이 값)",
+                            "targetParam": "received_date_from"
                         },
                         "received_date_to": {
                             "type": "string",
-                            "description": "메일 수신 종료 날짜 (포함, receivedDateTime <= 이 값)"
+                            "description": "메일 수신 종료 날짜 (포함, receivedDateTime <= 이 값)",
+                            "targetParam": "received_date_to"
                         },
                         "sent_date_from": {
                             "type": "string",
-                            "description": "메일 발신 시작 날짜 (포함, sentDateTime >= 이 값)"
+                            "description": "메일 발신 시작 날짜 (포함, sentDateTime >= 이 값)",
+                            "targetParam": "sent_date_from"
                         },
                         "sent_date_to": {
                             "type": "string",
-                            "description": "메일 발신 종료 날짜 (포함, sentDateTime <= 이 값)"
+                            "description": "메일 발신 종료 날짜 (포함, sentDateTime <= 이 값)",
+                            "targetParam": "sent_date_to"
                         }
                     },
-                    "baseModel": "FilterParams"
+                    "baseModel": "FilterParams",
+                    "targetParam": "filter_params"
                 },
                 "user_email": {
                     "type": "string",
-                    "description": ""
+                    "description": "",
+                    "targetParam": "user_email"
                 }
             },
             "required": []
@@ -214,7 +234,8 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
             "properties": {
                 "search_term": {
                     "type": "string",
-                    "description": "검색어 ($search 파라미터)"
+                    "description": "검색어 ($search 파라미터)",
+                    "targetParam": "search_term"
                 },
                 "select_params": {
                     "type": "object",
@@ -225,19 +246,23 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
                             "description": "조회할 필드 목록",
                             "items": {
                                 "type": "string"
-                            }
+                            },
+                            "targetParam": "fields"
                         }
                     },
-                    "baseModel": "SelectParams"
+                    "baseModel": "SelectParams",
+                    "targetParam": "select_params"
                 },
                 "top": {
                     "type": "integer",
                     "description": "반환할 최대 메일 수",
-                    "default": 50
+                    "default": 50,
+                    "targetParam": "top"
                 },
                 "user_email": {
                     "type": "string",
-                    "description": ""
+                    "description": "",
+                    "targetParam": "user_email"
                 }
             },
             "required": [
@@ -260,31 +285,38 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
                     "properties": {
                         "received_date_from": {
                             "type": "string",
-                            "description": "메일 수신 시작 날짜"
+                            "description": "메일 수신 시작 날짜",
+                            "targetParam": "received_date_from"
                         },
                         "received_date_to": {
                             "type": "string",
-                            "description": "메일 수신 종료 날짜"
+                            "description": "메일 수신 종료 날짜",
+                            "targetParam": "received_date_to"
                         }
                     },
-                    "baseModel": "FilterParams"
+                    "baseModel": "FilterParams",
+                    "targetParam": "filter_params"
                 },
                 "save_directory": {
                     "type": "string",
-                    "description": "첨부파일 저장 디렉토리 경로"
+                    "description": "첨부파일 저장 디렉토리 경로",
+                    "targetParam": "save_directory"
                 },
                 "search_term": {
                     "type": "string",
-                    "description": "검색어 (지정시 검색 모드로 전환)"
+                    "description": "검색어 (지정시 검색 모드로 전환)",
+                    "targetParam": "search_term"
                 },
                 "top": {
                     "type": "integer",
                     "description": "반환할 최대 메일 수",
-                    "default": 50
+                    "default": 50,
+                    "targetParam": "top"
                 },
                 "user_email": {
                     "type": "string",
-                    "description": ""
+                    "description": "",
+                    "targetParam": "user_email"
                 }
             },
             "required": []
@@ -305,29 +337,35 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
                     "properties": {
                         "received_date_from": {
                             "type": "string",
-                            "description": "메일 수신 시작 날짜"
+                            "description": "메일 수신 시작 날짜",
+                            "targetParam": "received_date_from"
                         },
                         "received_date_to": {
                             "type": "string",
-                            "description": "메일 수신 종료 날짜"
+                            "description": "메일 수신 종료 날짜",
+                            "targetParam": "received_date_to"
                         }
                     },
                     "required": [],
-                    "baseModel": "FilterParams"
+                    "baseModel": "FilterParams",
+                    "targetParam": "filter_params"
                 },
                 "top": {
                     "type": "integer",
                     "description": "최대 결과 수",
-                    "default": 50
+                    "default": 50,
+                    "targetParam": "top"
                 },
                 "url": {
                     "type": "string",
                     "description": "only baseURL : https://graph.microsoft.com/v1.0/me/mailFolders/junkemail/messages?",
-                    "default": "https://graph.microsoft.com/v1.0/me/mailFolders/junkemail/messages?"
+                    "default": "https://graph.microsoft.com/v1.0/me/mailFolders/junkemail/messages?",
+                    "targetParam": "url"
                 },
                 "user_email": {
                     "type": "string",
-                    "description": "사용자 이메일 (인증용)"
+                    "description": "사용자 이메일 (인증용)",
+                    "targetParam": "user_email"
                 }
             },
             "required": []
