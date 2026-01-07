@@ -12,5 +12,5 @@
 4. 코드를 생성해주세요.
 5. 테스트를 완료해 주세요.
 6. 사용자의 질의는 다음의 스크립트에 중요사항을 저장해 주세요.
-    - /home/kimghw/Connector_auth/.claude/commands/userrquery.md
+    - /home/kimghw/Connector_auth/.claude/preprompts/usersenario.md
     - 진행해 주세요. 실행해 주세요. 같은거 말고 구체적인 요청에 대해서 작성하고, 최종적으로 이 요구사항에 맞게 업데이트 되었는지 확인해 주세요.
