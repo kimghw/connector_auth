@@ -776,9 +776,10 @@ def save_tool_definitions(
                 cleaned_description = " ".join(cleaned_description.split())
                 cleaned_tool["description"] = cleaned_description
             if "inputSchema" in tool:
-                # Remove defaults for the public definitions and order schema
+                # Keep defaults for runtime apply_schema_defaults() function
                 cleaned_input = copy.deepcopy(tool["inputSchema"])
-                cleaned_input = remove_defaults(cleaned_input)
+                # Note: remove_defaults() removed - default values are now preserved
+                # for use by apply_schema_defaults() in server_rest.py
                 # Recursively clean newlines from all descriptions in inputSchema
                 cleaned_input = clean_newlines_from_schema(cleaned_input)
                 # Remove redundant targetParam (when prop name == targetParam value)

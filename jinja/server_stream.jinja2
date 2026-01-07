@@ -114,6 +114,26 @@ class StreamableHTTPMCPServer:
                 status=500
             )
 
+    def apply_schema_defaults(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply default values from inputSchema to arguments if not provided."""
+        tool_config = get_tool_config(tool_name)
+        if not tool_config:
+            return arguments
+
+        input_schema = tool_config.get("inputSchema", {})
+        properties = input_schema.get("properties", {})
+
+        # Create a copy of arguments to avoid modifying the original
+        merged_args = dict(arguments) if arguments else {}
+
+        # Apply defaults for properties that have them and are not in arguments
+        for prop_name, prop_def in properties.items():
+            if prop_name not in merged_args and "default" in prop_def:
+                merged_args[prop_name] = prop_def["default"]
+                logger.debug(f"Applied default for {prop_name}: {prop_def['default']}")
+
+        return merged_args
+
     async def handle_tools_call(self, request: web.Request) -> web.Response:
         """도구 실행 - 스트리밍 응답 지원"""
         try:
@@ -127,6 +147,9 @@ class StreamableHTTPMCPServer:
                     {"error": {"code": -32602, "message": "Tool name is required"}},
                     status=400
                 )
+
+            # Apply default values from inputSchema
+            arguments = self.apply_schema_defaults(tool_name, arguments)
 
             # 도구 핸들러 검색
             handler_name = f"handle_{tool_name.replace('-', '_')}"

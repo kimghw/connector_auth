@@ -443,7 +443,7 @@ class MailService:
     async def download_attachments(
         self,
         user_email: str,
-        target: Union[List[str], List[Dict[str, str]]],
+        message_attachment_ids: Union[List[str], List[Dict[str, str]]],
         save_directory: str = "downloads",
         skip_duplicates: bool = True,
         select_params: Optional[SelectParams] = None,
@@ -453,7 +453,7 @@ class MailService:
 
         Args:
             user_email: 사용자 이메일
-            target:
+            message_attachment_ids:
                 - 메일 ID 리스트: ["msg_id1", "msg_id2"] -> 모든 첨부파일 다운로드
                 - 첨부파일 ID 쌍: [{"message_id": "...", "attachment_id": "..."}] -> 특정 첨부파일만
             save_directory: 저장 디렉토리
@@ -467,7 +467,7 @@ class MailService:
 
         return await self._client.download_attachments(
             user_email=user_email,
-            target=target,
+            message_attachment_ids=message_attachment_ids,
             save_directory=save_directory,
             skip_duplicates=skip_duplicates,
             select_params=select_params,

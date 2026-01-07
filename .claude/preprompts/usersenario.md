@@ -2,6 +2,34 @@
 
 ## 최근 세션 기록
 
+### 2026-01-07: inputSchema default 값 동기화 문제 해결
+
+#### 요청 사항
+- 웹 에디터에서 설정한 `inputSchema.properties.default` 값이 `tool_definitions.py`에 반영되지 않는 문제 해결
+
+#### 문제 원인
+- **위치**: `mcp_editor/tool_editor_web.py` - `save_tool_definitions()` 함수 (라인 778-781)
+- **원인**: `remove_defaults()` 함수가 `tool_definitions.py` 생성 시 모든 default 값을 의도적으로 제거
+- **영향**: `server_rest.py`의 `apply_schema_defaults()` 함수가 default 값을 읽을 수 없음
+
+#### 해결 방법
+- `remove_defaults()` 함수 호출 제거
+- 이제 웹 에디터에서 저장 시 default 값이 `tool_definitions.py`에 유지됨
+
+#### 수정된 파일
+- `mcp_editor/tool_editor_web.py` (라인 778-784)
+
+#### 관련 구조 (두 단계 기본값 처리)
+```
+1단계: apply_schema_defaults() - inputSchema.properties.default에서 동적 적용 (우선)
+2단계: 핸들러 함수 하드코딩 - mcp_service.parameters.default에서 생성 시 결정 (폴백)
+```
+
+#### 검증 완료
+- `mail_attachment_download` 도구에서 `save_directory: 'downloadsssss'`, `skip_duplicates: False` 기본값 적용 확인
+
+---
+
 ### 2026-01-07: MCP Tool-Service 매핑 수정
 
 #### 요청 사항

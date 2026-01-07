@@ -346,11 +346,13 @@ class GraphAttachmentHandler:
 
         Args:
             base_directory: 첨부파일 저장 기본 디렉토리
-            metadata_file: 메타데이터 파일 경로
+            metadata_file: 메타데이터 파일명 (base_directory 안에 저장됨)
         """
         self.auth_manager = AuthManager()
         self.folder_manager = MailFolderManager(base_directory)
-        self.metadata_manager = MailMetadataManager(metadata_file)
+        # metadata_file을 base_directory 안에 저장
+        metadata_path = str(Path(base_directory) / metadata_file)
+        self.metadata_manager = MailMetadataManager(metadata_path)
         self.expand_builder = ExpandBuilder()
 
         self.batch_url = "https://graph.microsoft.com/v1.0/$batch"

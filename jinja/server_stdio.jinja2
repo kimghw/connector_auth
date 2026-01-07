@@ -99,6 +99,26 @@ class StdioMCPServer:
         """Handle tools/list request"""
         return {"tools": MCP_TOOLS}
 
+    def apply_schema_defaults(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply default values from inputSchema to arguments if not provided."""
+        tool_config = get_tool_config(tool_name)
+        if not tool_config:
+            return arguments
+
+        input_schema = tool_config.get("inputSchema", {})
+        properties = input_schema.get("properties", {})
+
+        # Create a copy of arguments to avoid modifying the original
+        merged_args = dict(arguments) if arguments else {}
+
+        # Apply defaults for properties that have them and are not in arguments
+        for prop_name, prop_def in properties.items():
+            if prop_name not in merged_args and "default" in prop_def:
+                merged_args[prop_name] = prop_def["default"]
+                logger.debug(f"Applied default for {prop_name}: {prop_def['default']}")
+
+        return merged_args
+
     async def handle_tools_call(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle tools/call request"""
         tool_name = params.get("name")
@@ -106,6 +126,9 @@ class StdioMCPServer:
 
         if not tool_name:
             raise ValueError("Tool name is required")
+
+        # Apply default values from inputSchema
+        arguments = self.apply_schema_defaults(tool_name, arguments)
 
         # Look up the handler function
         handler_name = f"handle_{tool_name.replace('-', '_')}"

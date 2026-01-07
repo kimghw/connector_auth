@@ -64,6 +64,14 @@ TOOL_IMPLEMENTATIONS = {
         "service_class": "MailService",
         "method": "batch_and_fetch"
     },
+    "mail_attachment_meta": {
+        "service_class": "MailService",
+        "method": "fetch_attachments_metadata"
+    },
+    "mail_attachment_download": {
+        "service_class": "MailService",
+        "method": "download_attachments"
+    },
     "mail_fetch_filter": {
         "service_class": "MailService",
         "method": "fetch_filter"
@@ -79,10 +87,6 @@ TOOL_IMPLEMENTATIONS = {
     "mail_query_url": {
         "service_class": "MailService",
         "method": "fetch_url"
-    },
-    "mail_attachment_meta": {
-        "service_class": "MailService",
-        "method": "fetch_attachments_metadata"
     },
 }
 
@@ -142,7 +146,54 @@ def build_mcp_content(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ============================================================
 # Internal args are now embedded in tool definitions via mcp_service_factors
 # This data is passed from the generator as part of the context
-INTERNAL_ARGS = {'mail_attachment_meta': {'select_params': {'original_schema': {'properties': {'body': {'default': True,
+INTERNAL_ARGS = {'mail_attachment_download': {'select_params': {'original_schema': {'properties': {'body': {'description': '메시지 '
+                                                                                                           '본문 '
+                                                                                                           '(HTML '
+                                                                                                           '또는 '
+                                                                                                           '텍스트 '
+                                                                                                           '형식)',
+                                                                                            'type': 'boolean'},
+                                                                                   'categories': {'description': '메시지에 '
+                                                                                                                 '연결된 '
+                                                                                                                 '카테고리 '
+                                                                                                                 '목록',
+                                                                                                  'type': 'boolean'},
+                                                                                   'change_key': {'description': '메시지 '
+                                                                                                                 '버전 '
+                                                                                                                 '키',
+                                                                                                  'type': 'boolean'},
+                                                                                   'created_date_time': {'description': '메시지 '
+                                                                                                                        '생성 '
+                                                                                                                        '날짜/시간 '
+                                                                                                                        '(ISO '
+                                                                                                                        '8601 '
+                                                                                                                        '형식, '
+                                                                                                                        'UTC)',
+                                                                                                         'type': 'boolean'},
+                                                                                   'id': {'description': '메시지 '
+                                                                                                         '고유 '
+                                                                                                         '식별자 '
+                                                                                                         '(읽기 '
+                                                                                                         '전용)',
+                                                                                          'type': 'boolean'},
+                                                                                   'last_modified_date_time': {'description': '메시지 '
+                                                                                                                              '최종 '
+                                                                                                                              '수정 '
+                                                                                                                              '날짜/시간 '
+                                                                                                                              '(ISO '
+                                                                                                                              '8601 '
+                                                                                                                              '형식, '
+                                                                                                                              'UTC)',
+                                                                                                               'type': 'boolean'},
+                                                                                   'subject': {'description': '메시지 '
+                                                                                                              '제목',
+                                                                                               'type': 'boolean'}},
+                                                                    'targetParam': 'select_params',
+                                                                    'type': 'object'},
+                                                'targetParam': 'select_params',
+                                                'type': 'object',
+                                                'value': {}}},
+ 'mail_attachment_meta': {'select_params': {'original_schema': {'properties': {'body': {'default': True,
                                                                                         'description': '메시지 '
                                                                                                        '본문 '
                                                                                                        '(HTML '
@@ -240,7 +291,48 @@ INTERNAL_ARGS = {'mail_attachment_meta': {'select_params': {'original_schema': {
                                            'internet_message_id': True,
                                            'received_date_time': True,
                                            'sender': True,
-                                           'subject': True}}}}
+                                           'subject': True}}},
+ 'mail_query_url': {'select': {'original_schema': {'properties': {'body_preview': {'description': '메시지 '
+                                                                                                  '본문의 '
+                                                                                                  '처음 '
+                                                                                                  '255자 '
+                                                                                                  '(텍스트 '
+                                                                                                  '형식)',
+                                                                                   'type': 'boolean'},
+                                                                  'created_date_time': {'description': '메시지 '
+                                                                                                       '생성 '
+                                                                                                       '날짜/시간 '
+                                                                                                       '(ISO '
+                                                                                                       '8601 '
+                                                                                                       '형식, '
+                                                                                                       'UTC)',
+                                                                                        'type': 'boolean'},
+                                                                  'from_recipient': {'description': '메시지가 '
+                                                                                                    '전송된 '
+                                                                                                    '사서함의 '
+                                                                                                    '소유자 '
+                                                                                                    '(from '
+                                                                                                    '필드)',
+                                                                                     'type': 'boolean'},
+                                                                  'id': {'description': '메시지 '
+                                                                                        '고유 '
+                                                                                        '식별자 '
+                                                                                        '(읽기 '
+                                                                                        '전용)',
+                                                                         'type': 'boolean'},
+                                                                  'received_date_time': {'description': '메시지 '
+                                                                                                        '수신 '
+                                                                                                        '날짜/시간 '
+                                                                                                        '(ISO '
+                                                                                                        '8601 '
+                                                                                                        '형식, '
+                                                                                                        'UTC)',
+                                                                                         'type': 'boolean'}},
+                                                   'targetParam': 'select_params',
+                                                   'type': 'object'},
+                               'targetParam': 'select_params',
+                               'type': 'SelectParams',
+                               'value': {}}}}
 
 # Build INTERNAL_ARG_TYPES dynamically based on imported types
 INTERNAL_ARG_TYPES = {}
@@ -515,6 +607,102 @@ async def handle_mail_query_if_emaidID(args: Dict[str, Any]) -> Dict[str, Any]:
 
     return await mail_service.batch_and_fetch(**call_args)
 
+async def handle_mail_attachment_meta(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle mail_attachment_meta tool call"""
+
+    # Extract parameters from args
+    # Extract from input with source param name
+    user_email = args["user_email"]
+    # Extract from input with source param name
+    message_ids = args["message_ids"]
+    select_params_raw = args.get("select_params")
+    select_params = select_params_raw if select_params_raw is not None else None
+
+    # Convert dicts to parameter objects where needed
+    # Prepare call arguments
+    call_args = {}
+
+    # Add signature parameters
+    call_args["user_email"] = user_email
+    call_args["message_ids"] = message_ids
+    call_args["select_params"] = select_params
+    # Process internal args with targetParam mappings
+
+    # Build internal arg: select_params
+    _internal_select_params = SelectParams(**{'body': True, 'id': True, 'received_date_time': True, 'subject': True})
+
+    # Check if target param already exists from signature
+    if "select_params" in call_args:
+        existing_value = call_args["select_params"]
+        if existing_value is None:
+            # Signature value is None, use internal value
+            if _internal_select_params is not None:
+                call_args["select_params"] = _internal_select_params
+        elif hasattr(existing_value, '__dict__') and hasattr(_internal_select_params, '__dict__'):
+            # Both are objects - merge them (signature has priority for non-None values)
+            internal_dict = {k: v for k, v in vars(_internal_select_params).items() if v is not None}
+            existing_dict = {k: v for k, v in vars(existing_value).items() if v is not None}
+            merged_dict = {**internal_dict, **existing_dict}
+            call_args["select_params"] = type(existing_value)(**merged_dict)
+        # Otherwise keep existing signature value (non-None primitive or incompatible types)
+    else:
+        # No conflict, use internal value with targetParam mapping
+        if _internal_select_params is not None:
+            call_args["select_params"] = _internal_select_params
+
+    return await mail_service.fetch_attachments_metadata(**call_args)
+
+async def handle_mail_attachment_download(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle mail_attachment_download tool call"""
+
+    # Extract parameters from args
+    # Extract from input with source param name
+    user_email = args["user_email"]
+    # Extract from input with source param name
+    message_attachment_ids = args["message_attachment_ids"]
+    save_directory_raw = args.get("save_directory")
+    save_directory = save_directory_raw if save_directory_raw is not None else 'downloads'
+    skip_duplicates_raw = args.get("skip_duplicates")
+    skip_duplicates = skip_duplicates_raw if skip_duplicates_raw is not None else True
+    select_params_raw = args.get("select_params")
+    select_params = select_params_raw if select_params_raw is not None else None
+
+    # Convert dicts to parameter objects where needed
+    # Prepare call arguments
+    call_args = {}
+
+    # Add signature parameters
+    call_args["user_email"] = user_email
+    call_args["message_attachment_ids"] = message_attachment_ids
+    call_args["save_directory"] = save_directory
+    call_args["skip_duplicates"] = skip_duplicates
+    call_args["select_params"] = select_params
+    # Process internal args with targetParam mappings
+
+    # Build internal arg: select_params
+    _internal_select_params = object()
+
+    # Check if target param already exists from signature
+    if "select_params" in call_args:
+        existing_value = call_args["select_params"]
+        if existing_value is None:
+            # Signature value is None, use internal value
+            if _internal_select_params is not None:
+                call_args["select_params"] = _internal_select_params
+        elif hasattr(existing_value, '__dict__') and hasattr(_internal_select_params, '__dict__'):
+            # Both are objects - merge them (signature has priority for non-None values)
+            internal_dict = {k: v for k, v in vars(_internal_select_params).items() if v is not None}
+            existing_dict = {k: v for k, v in vars(existing_value).items() if v is not None}
+            merged_dict = {**internal_dict, **existing_dict}
+            call_args["select_params"] = type(existing_value)(**merged_dict)
+        # Otherwise keep existing signature value (non-None primitive or incompatible types)
+    else:
+        # No conflict, use internal value with targetParam mapping
+        if _internal_select_params is not None:
+            call_args["select_params"] = _internal_select_params
+
+    return await mail_service.download_attachments(**call_args)
+
 async def handle_mail_fetch_filter(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_fetch_filter tool call"""
 
@@ -657,8 +845,8 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     url = args["url"]
     filter_params_raw = args.get("filter_params")
     filter_params = filter_params_raw if filter_params_raw is not None else None
-    select_raw = args.get("select")
-    select = select_raw if select_raw is not None else None
+    select_params_raw = args.get("select_params")
+    select_params = select_params_raw if select_params_raw is not None else None
     client_filter_raw = args.get("client_filter")
     client_filter = client_filter_raw if client_filter_raw is not None else None
     top_raw = args.get("top")
@@ -673,14 +861,14 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
         filter_params = FilterParams(**filter_params_data)
     else:
         filter_params = None
-    select_internal_data = {}
+    select_params_internal_data = {}
     # Use already extracted value if it exists
     # Value was already extracted above, use the existing variable
-    select_data = merge_param_data(select_internal_data, select)
-    if select_data is not None:
-        select = SelectParams(**select_data)
+    select_params_data = merge_param_data(select_params_internal_data, select_params)
+    if select_params_data is not None:
+        select_params = SelectParams(**select_params_data)
     else:
-        select = None
+        select_params = None
     client_filter_internal_data = {}
     # Use already extracted value if it exists
     # Value was already extracted above, use the existing variable
@@ -696,56 +884,34 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     call_args["user_email"] = user_email
     call_args["url"] = url
     call_args["filter_params"] = filter_params
-    call_args["select_params"] = select
+    call_args["select_params"] = select_params
     call_args["client_filter"] = client_filter
     call_args["top"] = top
-
-    return await mail_service.fetch_url(**call_args)
-
-async def handle_mail_attachment_meta(args: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle mail_attachment_meta tool call"""
-
-    # Extract parameters from args
-    # Extract from input with source param name
-    user_email = args["user_email"]
-    # Extract from input with source param name
-    message_ids = args["message_ids"]
-    select_params_raw = args.get("select_params")
-    select_params = select_params_raw if select_params_raw is not None else None
-
-    # Convert dicts to parameter objects where needed
-    # Prepare call arguments
-    call_args = {}
-
-    # Add signature parameters
-    call_args["user_email"] = user_email
-    call_args["message_ids"] = message_ids
-    call_args["select_params"] = select_params
     # Process internal args with targetParam mappings
 
-    # Build internal arg: select_params
-    _internal_select_params = SelectParams(**{'body': True, 'id': True, 'received_date_time': True, 'subject': True})
+    # Build internal arg: select
+    _internal_select = SelectParams()
 
     # Check if target param already exists from signature
     if "select_params" in call_args:
         existing_value = call_args["select_params"]
         if existing_value is None:
             # Signature value is None, use internal value
-            if _internal_select_params is not None:
-                call_args["select_params"] = _internal_select_params
-        elif hasattr(existing_value, '__dict__') and hasattr(_internal_select_params, '__dict__'):
+            if _internal_select is not None:
+                call_args["select_params"] = _internal_select
+        elif hasattr(existing_value, '__dict__') and hasattr(_internal_select, '__dict__'):
             # Both are objects - merge them (signature has priority for non-None values)
-            internal_dict = {k: v for k, v in vars(_internal_select_params).items() if v is not None}
+            internal_dict = {k: v for k, v in vars(_internal_select).items() if v is not None}
             existing_dict = {k: v for k, v in vars(existing_value).items() if v is not None}
             merged_dict = {**internal_dict, **existing_dict}
             call_args["select_params"] = type(existing_value)(**merged_dict)
         # Otherwise keep existing signature value (non-None primitive or incompatible types)
     else:
         # No conflict, use internal value with targetParam mapping
-        if _internal_select_params is not None:
-            call_args["select_params"] = _internal_select_params
+        if _internal_select is not None:
+            call_args["select_params"] = _internal_select
 
-    return await mail_service.fetch_attachments_metadata(**call_args)
+    return await mail_service.fetch_url(**call_args)
 
 # ============================================================
 # StreamableHTTP Protocol Implementation for MCP Server
@@ -862,6 +1028,26 @@ class StreamableHTTPMCPServer:
                 status=500
             )
 
+    def apply_schema_defaults(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply default values from inputSchema to arguments if not provided."""
+        tool_config = get_tool_config(tool_name)
+        if not tool_config:
+            return arguments
+
+        input_schema = tool_config.get("inputSchema", {})
+        properties = input_schema.get("properties", {})
+
+        # Create a copy of arguments to avoid modifying the original
+        merged_args = dict(arguments) if arguments else {}
+
+        # Apply defaults for properties that have them and are not in arguments
+        for prop_name, prop_def in properties.items():
+            if prop_name not in merged_args and "default" in prop_def:
+                merged_args[prop_name] = prop_def["default"]
+                logger.debug(f"Applied default for {prop_name}: {prop_def['default']}")
+
+        return merged_args
+
     async def handle_tools_call(self, request: web.Request) -> web.Response:
         """도구 실행 - 스트리밍 응답 지원"""
         try:
@@ -875,6 +1061,9 @@ class StreamableHTTPMCPServer:
                     {"error": {"code": -32602, "message": "Tool name is required"}},
                     status=400
                 )
+
+            # Apply default values from inputSchema
+            arguments = self.apply_schema_defaults(tool_name, arguments)
 
             # 도구 핸들러 검색
             handler_name = f"handle_{tool_name.replace('-', '_')}"

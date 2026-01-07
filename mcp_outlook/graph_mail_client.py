@@ -415,7 +415,7 @@ class GraphMailClient:
     async def download_attachments(
         self,
         user_email: str,
-        target: Union[List[str], List[Dict[str, str]]],
+        message_attachment_ids: Union[List[str], List[Dict[str, str]]],
         save_directory: str = "downloads",
         skip_duplicates: bool = True,
         select_params: Optional[SelectParams] = None,
@@ -425,7 +425,7 @@ class GraphMailClient:
 
         Args:
             user_email: 사용자 이메일
-            target:
+            message_attachment_ids:
                 - 메일 ID 리스트: ["msg_id1", "msg_id2"] -> 해당 메일의 모든 첨부파일 다운로드
                 - 첨부파일 ID 쌍 리스트: [{"message_id": "...", "attachment_id": "..."}, ...] -> 특정 첨부파일만 다운로드
             save_directory: 저장 디렉토리
@@ -437,10 +437,10 @@ class GraphMailClient:
         """
         self._ensure_initialized()
 
-        if not target:
+        if not message_attachment_ids:
             return {
                 "status": "success",
-                "message": "No targets provided",
+                "message": "No message_attachment_ids provided",
                 "downloaded": 0,
             }
 
@@ -450,13 +450,13 @@ class GraphMailClient:
             handler = GraphAttachmentHandler(base_directory=save_directory)
 
             # 입력 타입 판별
-            if all(isinstance(item, str) for item in target):
+            if all(isinstance(item, str) for item in message_attachment_ids):
                 # 메일 ID 리스트 -> 모든 첨부파일 다운로드
-                print(f"\n📧 Downloading all attachments from {len(target)} emails...")
+                print(f"\n📧 Downloading all attachments from {len(message_attachment_ids)} emails...")
 
                 result = await handler.fetch_and_save(
                     user_email=user_email,
-                    message_ids=target,
+                    message_ids=message_attachment_ids,
                     select_params=select_params,
                     skip_duplicates=skip_duplicates,
                 )
@@ -471,13 +471,13 @@ class GraphMailClient:
                     "errors": result.get("errors", []),
                 }
 
-            elif all(isinstance(item, dict) and "message_id" in item and "attachment_id" in item for item in target):
+            elif all(isinstance(item, dict) and "message_id" in item and "attachment_id" in item for item in message_attachment_ids):
                 # 메일/첨부파일 ID 쌍 -> 특정 첨부파일만 다운로드
-                print(f"\n📎 Downloading {len(target)} specific attachments...")
+                print(f"\n📎 Downloading {len(message_attachment_ids)} specific attachments...")
 
                 result = await handler.fetch_specific_attachments(
                     user_email=user_email,
-                    attachments_info=target,
+                    attachments_info=message_attachment_ids,
                     save_directory=save_directory,
                 )
 
@@ -494,7 +494,7 @@ class GraphMailClient:
             else:
                 return {
                     "status": "error",
-                    "error": "Invalid target format. Use message IDs list or attachment info list",
+                    "error": "Invalid message_attachment_ids format. Use message IDs list or attachment info list",
                 }
 
         except Exception as e:

@@ -15,6 +15,28 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 
 
+def to_python_repr(value: Any) -> str:
+    """Convert a Python value to its Python code representation.
+
+    Unlike json.dumps, this produces valid Python syntax:
+    - True/False instead of true/false
+    - None instead of null
+    - repr() for strings to preserve quotes
+    """
+    if value is None:
+        return 'None'
+    elif isinstance(value, bool):
+        return 'True' if value else 'False'
+    elif isinstance(value, str):
+        return repr(value)
+    elif isinstance(value, (int, float)):
+        return str(value)
+    elif isinstance(value, (list, dict)):
+        return repr(value)
+    else:
+        return repr(value)
+
+
 def load_registry(registry_path: str) -> Dict[str, Any]:
     """Load service registry JSON file"""
     with open(registry_path, 'r', encoding='utf-8') as f:
@@ -372,7 +394,7 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                     'is_required': is_required,
                     'has_default': has_default,
                     'default': default,
-                    'default_json': json.dumps(default) if default is not None else 'None'
+                    'default_json': to_python_repr(default)
                 }
 
                 # Check if it's an object type (Params class)
@@ -383,7 +405,7 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                         'class_name': class_name,
                         'is_optional': 'Optional' in param_type or has_default,
                         'has_default': has_default,
-                        'default_json': json.dumps(default) if default is not None else None
+                        'default_json': to_python_repr(default) if default is not None else None
                     }
 
                 # Build call_params (how to pass to service method)
@@ -411,7 +433,7 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                     'is_required': is_required,
                     'has_default': default is not None,
                     'default': default,
-                    'default_json': json.dumps(default) if default is not None else 'None'
+                    'default_json': to_python_repr(default)
                 }
 
                 if prop_type == 'object':
@@ -420,7 +442,7 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                         'class_name': base_model or 'dict',
                         'is_optional': not is_required,
                         'has_default': default is not None,
-                        'default_json': json.dumps(default) if default is not None else None
+                        'default_json': to_python_repr(default) if default is not None else None
                     }
 
                 # Get targetParam from inputSchema property or default to prop_name
