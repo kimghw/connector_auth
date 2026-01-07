@@ -476,4 +476,51 @@ MCP_TOOLS: List[Dict[str, Any]] = [   {   'description': '지정된 기간의 �
                            'signature': 'user_email: str, url: str, filter_params: Optional[FilterParams] = None, '
                                         'select_params: Optional[SelectParams] = None, client_filter: '
                                         'Optional[ExcludeParams] = None, top: int = 50'},
-        'name': 'mail_query_url'}]
+        'name': 'mail_query_url'},
+    {   'description': '입력인자는  messageID 를 받아서 해당 메일의 첨부파일 메타정보와 메일 정보를 확인한다. 이전 명령에  mail이 조회가 되어야 messageid를 확인 후 '
+                       '사용할 수 있다. ',
+        'inputSchema': {   'properties': {   'message_ids': {'description': '', 'type': 'array'},
+                                             'user_email': {'description': '', 'type': 'string'}},
+                           'required': ['message_ids'],
+                           'type': 'object'},
+        'mcp_service': {   'name': 'fetch_attachments_metadata',
+                           'parameters': [   {   'default': None,
+                                                 'has_default': False,
+                                                 'is_required': True,
+                                                 'name': 'user_email',
+                                                 'type': 'str'},
+                                             {   'default': None,
+                                                 'has_default': False,
+                                                 'is_required': True,
+                                                 'name': 'message_ids',
+                                                 'type': 'List[str]'},
+                                             {   'default': None,
+                                                 'has_default': True,
+                                                 'is_required': False,
+                                                 'name': 'select_params',
+                                                 'type': 'Optional[SelectParams]'}],
+                           'signature': 'user_email: str, message_ids: List[str], select_params: '
+                                        'Optional[SelectParams] = None'},
+        'mcp_service_factors': {   'select_params': {   'baseModel': 'SelectParams',
+                                                        'description': 'SelectParams parameters',
+                                                        'parameters': {   'body': {   'default': True,
+                                                                                      'description': '메시지 본문 (HTML 또는 '
+                                                                                                     '텍스트 형식)',
+                                                                                      'type': 'boolean'},
+                                                                          'id': {   'default': True,
+                                                                                    'description': '메시지 고유 식별자 (읽기 전용)',
+                                                                                    'type': 'boolean'},
+                                                                          'received_date_time': {   'default': True,
+                                                                                                    'description': '메시지 '
+                                                                                                                   '수신 '
+                                                                                                                   '날짜/시간 '
+                                                                                                                   '(ISO '
+                                                                                                                   '8601 '
+                                                                                                                   '형식, '
+                                                                                                                   'UTC)',
+                                                                                                    'type': 'boolean'},
+                                                                          'subject': {   'default': True,
+                                                                                         'description': '메시지 제목',
+                                                                                         'type': 'boolean'}},
+                                                        'source': 'internal'}},
+        'name': 'mail_attachment_meta'}]

@@ -285,6 +285,26 @@ MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
                 "user_email"
             ]
         }
+    },
+    {
+        "name": "mail_attachment_meta",
+        "description": "입력인자는 messageID 를 받아서 해당 메일의 첨부파일 메타정보와 메일 정보를 확인한다. 이전 명령에 mail이 조회가 되어야 messageid를 확인 후 사용할 수 있다.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "message_ids": {
+                    "type": "array",
+                    "description": ""
+                },
+                "user_email": {
+                    "type": "string",
+                    "description": ""
+                }
+            },
+            "required": [
+                "message_ids"
+            ]
+        }
     }
 ]
 """)

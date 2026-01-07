@@ -427,7 +427,11 @@ def extract_service_factors(tools: list) -> tuple[dict, dict]:
                 target_param = param_info.get("targetParam")
                 if not target_param:
                     # 서비스 메서드 파라미터에서 매칭 시도
-                    service_params = tool.get("mcp_service", {}).get("parameters", [])
+                    mcp_service = tool.get("mcp_service", {})
+                    if isinstance(mcp_service, dict):
+                        service_params = mcp_service.get("parameters", [])
+                    else:
+                        service_params = []
                     param_names = [p.get("name") for p in service_params]
 
                     # 1. {name}_params 형태 체크 (예: select → select_params)
@@ -865,6 +869,14 @@ def get_tool_names() -> List[str]:
                 # Clean redundant targetParam and order fields
                 cleaned_schema = clean_redundant_target_params(template_tool["inputSchema"])
                 template_tool["inputSchema"] = order_schema_fields(cleaned_schema)
+
+            # Convert mcp_service from string to dict if needed (frontend sends string)
+            if "mcp_service" in template_tool and isinstance(template_tool["mcp_service"], str):
+                service_name = template_tool["mcp_service"]
+                if service_name:
+                    template_tool["mcp_service"] = {"name": service_name}
+                else:
+                    del template_tool["mcp_service"]
 
             # Add signature if available
             if "mcp_service" in template_tool and isinstance(template_tool["mcp_service"], dict):
