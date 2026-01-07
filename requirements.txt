@@ -3,3 +3,6 @@ aiohttp>=3.8.0
 python-dotenv>=0.19.0
 cryptography>=3.4.8
 psutil>=5.9.0
+
+# MCP Proxy (for Claude Desktop remote connection)
+mcp-proxy>=0.1.0

@@ -949,6 +949,133 @@ async def health_check():
     return {"status": "healthy", "server": "outlook"}
 
 
+@app.post("/mcp/v1")
+async def mcp_request(request: Request):
+    """MCP Streamable HTTP 단일 엔드포인트 - JSON-RPC 2.0"""
+    try:
+        data = await request.json()
+        method = data.get('method', '')
+        request_id = data.get('id')
+        params = data.get('params', {})
+
+        logger.info(f"MCP Request: method={method}, id={request_id}")
+
+        if method == 'initialize':
+            return await _handle_initialize(data)
+        elif method == 'tools/list':
+            return await _handle_tools_list(data)
+        elif method == 'tools/call':
+            return await _handle_tools_call(data)
+        elif method == 'notifications/initialized':
+            return JSONResponse(status_code=204, content=None)
+        elif method == 'ping':
+            return JSONResponse(content={
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {}
+            })
+        else:
+            # MCP 프로토콜: 에러도 HTTP 200으로 응답
+            return JSONResponse(
+                content={"jsonrpc": "2.0", "id": request_id, "error": {"code": -32601, "message": f"Method not found: {method}"}}
+            )
+    except Exception as e:
+        logger.error(f"Error in MCP request: {e}", exc_info=True)
+        return JSONResponse(
+            content={"jsonrpc": "2.0", "id": None, "error": {"code": -32603, "message": str(e)}}
+        )
+
+
+async def _handle_initialize(data: dict):
+    """내부 initialize 처리"""
+    request_id = data.get('id')
+    params = data.get('params', {})
+    client_info = params.get('clientInfo', {})
+    logger.info(f"Client connected: {client_info.get('name', 'unknown')}")
+
+    return JSONResponse(content={
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "result": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {
+                "tools": {}
+            },
+            "serverInfo": {
+                "name": "outlook",
+                "version": "1.0.0"
+            }
+        }
+    })
+
+
+async def _handle_tools_list(data: dict):
+    """내부 tools/list 처리"""
+    request_id = data.get('id')
+
+    tools_list = []
+    for tool in MCP_TOOLS:
+        tools_list.append({
+            "name": tool["name"],
+            "description": tool.get("description", ""),
+            "inputSchema": tool.get("inputSchema", {})
+        })
+
+    return JSONResponse(content={
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "result": {
+            "tools": tools_list
+        }
+    })
+
+
+async def _handle_tools_call(data: dict):
+    """내부 tools/call 처리"""
+    request_id = data.get('id')
+    params = data.get('params', {})
+    tool_name = params.get('name')
+    arguments = params.get('arguments', {})
+
+    if not tool_name:
+        return JSONResponse(
+            content={"jsonrpc": "2.0", "id": request_id, "error": {"code": -32602, "message": "Tool name is required"}}
+        )
+
+    arguments = apply_schema_defaults(tool_name, arguments)
+
+    handler_name = f"handle_{tool_name.replace('-', '_')}"
+    handler = globals().get(handler_name)
+    if not handler:
+        return JSONResponse(
+            content={"jsonrpc": "2.0", "id": request_id, "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"}}
+        )
+
+    try:
+        result = await handler(arguments)
+
+        if isinstance(result, dict) and "content" in result:
+            content = result["content"]
+        elif isinstance(result, str):
+            content = [{"type": "text", "text": result}]
+        else:
+            content = [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]
+
+        return JSONResponse(content={
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "content": content
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
+        # MCP 프로토콜: 에러도 HTTP 200으로 응답, JSON-RPC error로 전달
+        return JSONResponse(
+            content={"jsonrpc": "2.0", "id": request_id, "error": {"code": -32603, "message": str(e)}}
+        )
+
+
 @app.post("/mcp/v1/initialize")
 async def initialize(request: Request):
     """Initialize MCP session"""

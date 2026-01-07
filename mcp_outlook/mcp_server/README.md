@@ -93,6 +93,75 @@ Standard MCP error codes:
 - `-32602`: Invalid parameters
 - `-32603`: Internal error
 
+## Claude Desktop Integration
+
+Claude Desktop에서 원격 MCP 서버에 연결하려면 `mcp-proxy`를 사용해야 합니다.
+
+### 1. mcp-proxy 설치 (Windows)
+
+```powershell
+pip install mcp-proxy
+```
+
+### 2. Claude Desktop 설정
+
+설정 파일 위치:
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+설정 내용:
+
+```json
+{
+  "mcpServers": {
+    "outlook": {
+      "command": "mcp-proxy",
+      "args": [
+        "--transport",
+        "streamablehttp",
+        "http://YOUR_SERVER_IP:8001/mcp/v1"
+      ]
+    }
+  }
+}
+```
+
+예시 (서버 IP: 192.168.210.32):
+
+```json
+{
+  "mcpServers": {
+    "outlook": {
+      "command": "mcp-proxy",
+      "args": [
+        "--transport",
+        "streamablehttp",
+        "http://192.168.210.32:8001/mcp/v1"
+      ]
+    }
+  }
+}
+```
+
+### 3. 서버 실행
+
+```bash
+cd /home/kimghw/Connector_auth
+python mcp_outlook/mcp_server/server_stream.py
+```
+
+### 4. 연결 확인
+
+서버가 정상 실행되면 Claude Desktop을 재시작하여 MCP 도구를 사용할 수 있습니다.
+
+## Server Protocols
+
+| Protocol | File | Port | Use Case |
+|----------|------|------|----------|
+| REST | server_rest.py | 8001 | HTTP API 직접 호출 |
+| STDIO | server_stdio.py | - | 로컬 프로세스 통신 |
+| Streamable HTTP | server_stream.py | 8001 | Claude Desktop 원격 연결 |
+
 ## Development
 
 To modify or extend:
