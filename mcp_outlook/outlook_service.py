@@ -172,6 +172,7 @@ class MailService:
         filter_params: Optional[FilterParams] = None,
         exclude_params: Optional[ExcludeParams] = None,
         select_params: Optional[SelectParams] = None,
+        client_filter: Optional[ExcludeParams] = None,
         top: int = 50,
     ) -> Dict[str, Any]:
         """필터 방식 메일 조회 - query_method 고정"""
@@ -182,6 +183,7 @@ class MailService:
             filter_params=filter_params,
             exclude_params=exclude_params,
             select_params=select_params,
+            client_filter=client_filter,
             top=top,
         )
 

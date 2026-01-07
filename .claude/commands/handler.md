@@ -208,6 +208,42 @@ if existing_value is None:
 - **사용처**: Signature 파라미터, Internal 파라미터 모두
 - **동작**: 핸들러에서 자동 매핑 처리
 
+### targetServiceFactor의 역할 (2026-01-07 추가)
+- **목적**: inputSchema 프로퍼티와 mcp_service_factors 항목을 **이름으로** 명시적 연결
+- **배경**: 이전에는 타입($ref/baseModel)으로 매칭 → 같은 타입의 파라미터가 여러 개일 때 충돌 발생
+- **문제 예시**:
+  ```python
+  # 두 파라미터가 같은 타입(ExcludeParams)을 사용
+  'client_param': {'$ref': '#/$defs/ExcludeParams', ...}  # 클라이언트 필터
+  'exclude': {'$ref': '#/$defs/ExcludeParams', ...}       # 제외 조건
+
+  # 타입 매칭 시 'client_param'이 먼저 나오면 잘못된 factor에 매칭됨
+  ```
+- **해결책**: `targetServiceFactor`로 명시적 연결
+  ```python
+  'client_param': {
+      '$ref': '#/$defs/ExcludeParams',
+      'targetParam': 'client_param',           # 서비스 메서드 파라미터
+      'targetServiceFactor': 'client_defaults' # mcp_service_factors 키
+  },
+  'exclude': {
+      '$ref': '#/$defs/ExcludeParams',
+      'targetParam': 'exclude_params',
+      'targetServiceFactor': 'exclude_defaults'  # 다른 factor
+  }
+  ```
+
+### 매핑 필드 구분
+
+| 필드명 | 용도 | 매핑 대상 |
+|--------|------|----------|
+| `targetParam` | 서비스 메서드 파라미터명 | `service.method(param_name=...)` |
+| `targetServiceFactor` | mcp_service_factors 키 | `mcp_service_factors['factor_key']` |
+
+**매칭 우선순위:**
+1. `targetServiceFactor`가 명시된 경우: factor 이름으로 직접 매칭
+2. 명시되지 않은 경우: 프로퍼티 이름으로 factor_name 추론
+
 ### None 값 처리 원칙 (merge_param_data)
 
 | 조건 | 동작 | 결과 |
@@ -238,14 +274,22 @@ if existing_value is None:
 
 4. **최종 병합 데이터가 서비스 함수에 전달됨**
 
-## 최근 변경사항 (2025-01-05)
+## 최근 변경사항
 
-### Internal Args 처리 방식 변경
+### 2026-01-07: targetServiceFactor 도입
+- **문제**: 타입 기반 매칭으로 같은 타입의 파라미터 충돌 발생
+  - `client_param`과 `exclude` 모두 `ExcludeParams` 타입 사용 시 오매칭
+- **해결**: `targetServiceFactor` 필드 추가로 이름 기반 명시적 매칭
+- **영향 파일**:
+  - `generate_universal_server.py`: 매칭 로직 변경
+  - `tool_definition_templates.py`: inputSchema에 targetServiceFactor 추가 가능
+
+### 2025-01-05: Internal Args 처리 방식 변경
 - **이전**: `tool_internal_args.json` 파일에서 별도 관리
 - **현재**: `tool_definition_templates.py`의 `mcp_service_factors`에 통합
 - **추출**: `extract_internal_args_from_tools()` 함수로 source='internal' 파라미터 추출
 - **템플릿**: `INTERNAL_ARGS`가 context에서 전달되도록 변경 (파일 로드 제거)
 
 ---
-*Last Updated: 2026-01-06*
-*Version: 1.1*
+*Last Updated: 2026-01-07*
+*Version: 1.2*

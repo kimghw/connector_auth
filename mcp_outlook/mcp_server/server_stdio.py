@@ -994,11 +994,9 @@ class StdioMCPServer:
         logger.info(f"Client connected: {client_info.get('name', 'unknown')}")
 
         return {
-            "protocolVersion": "0.1.0",
+            "protocolVersion": "2024-11-05",
             "capabilities": {
-                "tools": {},
-                "prompts": {},
-                "resources": {}
+                "tools": {}
             },
             "serverInfo": {
                 "name": "outlook",
@@ -1120,7 +1118,9 @@ class StdioMCPServer:
         logger.info(f"Received notification: {method}")
 
         # Notifications don't require responses
-        if method == "cancelled":
+        if method == "notifications/initialized":
+            logger.info("Client initialization complete")
+        elif method == "cancelled":
             logger.info(f"Request cancelled: {params.get('id')}")
         elif method == "progress":
             logger.info(f"Progress update: {params}")

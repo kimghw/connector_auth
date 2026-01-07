@@ -2,6 +2,53 @@
 
 ## 최근 세션 기록
 
+### 2026-01-07: MCP 핸들러 전체 테스트 완료
+
+#### 요청 사항
+- MCP Outlook 서버 핸들러 전체 테스트
+- 파라미터 처리 검증 (Signature, Defaults, Internal)
+- client_filter를 통한 수신 후 필터링 테스트
+
+#### 테스트 결과
+
+| 항목 | 결과 | 비고 |
+|------|------|------|
+| 서버 시작 (REST 8001) | ✅ 성공 | uvicorn 정상 구동 |
+| 도구 목록 조회 | ✅ 성공 | 9개 도구 등록 확인 |
+| mail_list_period | ✅ 성공 | 24개 메일 조회 (2026-01-01~07) |
+| mail_list_keyword | ✅ 성공 | 키워드 검색 정상 동작 |
+| mail_fetch_search | ✅ 성공 | 검색 모드 동작 확인 |
+| mail_attachment_meta | ✅ 성공 | 첨부파일 메타정보 조회 |
+| client_filter (수신 후 필터링) | ✅ 성공 | block@krs.co.kr 제외: 24→9개 |
+
+#### 파라미터 처리 검증
+- **Signature 파라미터**: DatePeriodFilter 정상 전달 ✅
+- **Internal 파라미터 (select_params)**: id, subject, sender, bodyPreview, hasAttachments, receivedDateTime, internetMessageId 필드 정상 적용 ✅
+- **targetParam 매핑**: DatePeriodFilter → filter_params 정상 ✅
+- **client_filter (수신 후 필터링)**: exclude_sender_address 정상 동작 ✅
+
+#### 수정된 파일
+- `mcp_outlook/graph_mail_query.py`: `_apply_client_side_filter` 함수 - ExcludeParams 전체 필드 지원 추가
+- `mcp_outlook/mcp_server/server_rest.py`: `handle_mail_fetch_filter` 함수 - client_filter 파라미터 추가
+- `mcp_outlook/outlook_service.py`: `fetch_filter` 함수 - client_filter 파라미터 추가
+
+#### 파라미터 구조
+- **exclude_params**: Graph API `$filter`에 적용 (서버 측 필터링)
+- **client_filter**: 메일 수신 후 클라이언트 측 필터링 (`_apply_client_side_filter`)
+
+#### 등록된 도구 목록
+1. `mail_list_period` - 기간별 메일 목록 조회
+2. `mail_list_keyword` - 키워드로 메일 검색
+3. `mail_query_if_emaidID` - 메일 ID로 상세 조회
+4. `mail_attachment_meta` - 첨부파일 메타정보 조회
+5. `mail_attachment_download` - 첨부파일 다운로드
+6. `mail_fetch_filter` - 필터 조건으로 메일 조회
+7. `mail_fetch_search` - 키워드 검색 (본문 포함)
+8. `mail_process_with_download` - 메일 조회 및 첨부파일 다운로드
+9. `mail_query_url` - Graph API URL 직접 호출
+
+---
+
 ### 2026-01-07: inputSchema default 값 동기화 문제 해결
 
 #### 요청 사항

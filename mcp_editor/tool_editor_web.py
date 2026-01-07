@@ -369,6 +369,69 @@ def ensure_dirs(paths: dict):
     os.makedirs(paths["backup_dir"], exist_ok=True)
 
 
+def convert_params_dict_to_list(params_dict: dict) -> list:
+    """Convert parameters from dict format to unified list format.
+
+    Input (dict format - used in mcp_service_factors):
+        {'subject': {'default': True, 'description': '메시지 제목', 'type': 'boolean'}}
+
+    Output (list format - unified structure):
+        [{'name': 'subject', 'type': 'boolean', 'is_optional': False, 'default': True, 'description': '메시지 제목'}]
+    """
+    if not params_dict:
+        return []
+
+    params_list = []
+    for param_name, param_info in params_dict.items():
+        param_type = param_info.get("type", "string")
+        has_default = "default" in param_info
+        default_val = param_info.get("default")
+
+        # is_optional: True if has default value or type is explicitly optional
+        is_optional = has_default or param_type.lower() in ("optional", "null")
+
+        params_list.append({
+            "name": param_name,
+            "type": param_type,
+            "is_optional": is_optional,
+            "default": default_val,
+            "has_default": has_default,
+            "description": param_info.get("description", ""),
+        })
+
+    return params_list
+
+
+def convert_params_list_to_dict(params_list: list) -> dict:
+    """Convert parameters from list format to dict format (reverse conversion).
+
+    Input (list format):
+        [{'name': 'subject', 'type': 'boolean', 'is_optional': False, 'default': True, 'description': '메시지 제목'}]
+
+    Output (dict format):
+        {'subject': {'default': True, 'description': '메시지 제목', 'type': 'boolean'}}
+    """
+    if not params_list:
+        return {}
+
+    params_dict = {}
+    for param in params_list:
+        name = param.get("name")
+        if not name:
+            continue
+
+        param_dict = {"type": param.get("type", "string")}
+        # Only add default if has_default is True
+        if param.get("has_default", False):
+            param_dict["default"] = param.get("default")
+        if param.get("description"):
+            param_dict["description"] = param["description"]
+
+        params_dict[name] = param_dict
+
+    return params_dict
+
+
 def load_tool_definitions(paths: dict):
     """
     Load MCP_TOOLS, preferring the template file (with mcp_service metadata)
@@ -418,6 +481,16 @@ def extract_service_factors(tools: list) -> tuple[dict, dict]:
         for param_name, param_info in service_factors.items():
             source = param_info.get("source", "internal")  # 기본값은 internal
 
+            # Support both 'type' (new) and 'baseModel' (legacy) field names
+            factor_type = param_info.get("type") or param_info.get("baseModel", "object")
+
+            # Convert parameters from list to dict if needed (for internal structures)
+            params = param_info.get("parameters", [])
+            if isinstance(params, list):
+                params_dict = convert_params_list_to_dict(params)
+            else:
+                params_dict = params  # Already a dict (legacy format)
+
             if source == "internal":
                 # Internal args 구조로 변환
                 if tool_name not in internal_args:
@@ -432,10 +505,10 @@ def extract_service_factors(tools: list) -> tuple[dict, dict]:
                         service_params = mcp_service.get("parameters", [])
                     else:
                         service_params = []
-                    param_names = [p.get("name") for p in service_params]
+                    svc_param_names = [p.get("name") for p in service_params]
 
                     # 1. {name}_params 형태 체크 (예: select → select_params)
-                    if f"{param_name}_params" in param_names:
+                    if f"{param_name}_params" in svc_param_names:
                         target_param = f"{param_name}_params"
                     # 2. _internal 접미사 제거 (예: select_internal → select)
                     elif param_name.endswith("_internal"):
@@ -446,11 +519,11 @@ def extract_service_factors(tools: list) -> tuple[dict, dict]:
 
                 internal_args[tool_name][param_name] = {
                     "description": param_info.get("description", ""),
-                    "type": param_info.get("baseModel", "object"),
+                    "type": factor_type,
                     "original_schema": {
-                        "baseModel": param_info.get("baseModel", "object"),
+                        "baseModel": factor_type,
                         "description": param_info.get("description", ""),
-                        "properties": param_info.get("parameters", {}),
+                        "properties": params_dict,
                         "required": [],
                         "type": "object",
                     },
@@ -464,9 +537,9 @@ def extract_service_factors(tools: list) -> tuple[dict, dict]:
                     signature_defaults[tool_name] = {}
 
                 signature_defaults[tool_name][param_name] = {
-                    "baseModel": param_info.get("baseModel", "object"),
+                    "baseModel": factor_type,
                     "description": param_info.get("description", ""),
-                    "properties": param_info.get("parameters", {}),
+                    "properties": params_dict,
                     "source": "signature_defaults",
                 }
 
@@ -619,6 +692,8 @@ def is_all_none_defaults(factor_data):
 
     Exception: 'internal' source factors are always useful because they indicate
     the parameter should be hidden from LLM, regardless of default values.
+
+    Handles both list format (new) and dict format (legacy) for parameters.
     """
     if not isinstance(factor_data, dict):
         return False
@@ -628,16 +703,26 @@ def is_all_none_defaults(factor_data):
     if factor_data.get("source") == "internal":
         return False
 
-    parameters = factor_data.get("parameters", {})
+    parameters = factor_data.get("parameters", [])
     if not parameters:
         return True  # No parameters = effectively all None
 
-    for param_name, param_def in parameters.items():
-        if isinstance(param_def, dict):
-            default_value = param_def.get("default")
-            # If any default is not None, the factor is useful
-            if default_value is not None:
-                return False
+    # Handle list format (new unified structure)
+    if isinstance(parameters, list):
+        for param in parameters:
+            if isinstance(param, dict):
+                default_value = param.get("default")
+                # If any default is not None, the factor is useful
+                if default_value is not None:
+                    return False
+    # Handle dict format (legacy structure)
+    elif isinstance(parameters, dict):
+        for param_name, param_def in parameters.items():
+            if isinstance(param_def, dict):
+                default_value = param_def.get("default")
+                # If any default is not None, the factor is useful
+                if default_value is not None:
+                    return False
 
     return True  # All defaults are None
 
@@ -904,16 +989,19 @@ def get_tool_names() -> List[str]:
                 for param_name, param_info in internal_args[tool_name].items():
                     # Each key is the actual service method parameter name
                     # Store essential information for internal parameters
+                    # baseModel is the type for this factor
+                    base_model = param_info.get("original_schema", {}).get("baseModel") or param_info.get("type")
                     factor_data = {
                         "source": "internal",
-                        "baseModel": param_info.get("original_schema", {}).get("baseModel") or param_info.get("type"),
+                        "type": base_model,  # Use 'type' instead of 'baseModel' for consistency
                         "description": param_info.get("description", ""),
                     }
 
                     # Add parameters structure from original_schema if available
-                    # The parameters already include default values where needed
+                    # Convert from dict format to unified list format
                     if "original_schema" in param_info and "properties" in param_info["original_schema"]:
-                        factor_data["parameters"] = param_info["original_schema"]["properties"]
+                        props_dict = param_info["original_schema"]["properties"]
+                        factor_data["parameters"] = convert_params_dict_to_list(props_dict)
 
                     # Skip if all defaults are None (useless factor)
                     if not is_all_none_defaults(factor_data):
@@ -924,15 +1012,18 @@ def get_tool_names() -> List[str]:
                 for param_name, param_info in signature_defaults[tool_name].items():
                     # Each key is the actual service method parameter name
                     # Store essential information for signature defaults
+                    base_model = param_info.get("baseModel") or param_info.get("type")
                     factor_data = {
                         "source": "signature_defaults",
-                        "baseModel": param_info.get("baseModel") or param_info.get("type"),
+                        "type": base_model,  # Use 'type' instead of 'baseModel' for consistency
                         "description": param_info.get("description", ""),
                     }
 
                     # Add parameters structure (properties with default values)
+                    # Convert from dict format to unified list format
                     if "properties" in param_info:
-                        factor_data["parameters"] = param_info["properties"]
+                        props_dict = param_info["properties"]
+                        factor_data["parameters"] = convert_params_dict_to_list(props_dict)
 
                     # Skip if all defaults are None (useless factor)
                     if not is_all_none_defaults(factor_data):
@@ -952,7 +1043,7 @@ Signatures extracted from source code using AST parsing
 """
 from typing import List, Dict, Any
 
-MCP_TOOLS: List[Dict[str, Any]] = {pprint.pformat(template_tools, indent=4, width=120, compact=False)}
+MCP_TOOLS: List[Dict[str, Any]] = {pprint.pformat(template_tools, indent=4, width=500, compact=False, sort_dicts=False)}
 '''
 
         # Ensure template directory exists

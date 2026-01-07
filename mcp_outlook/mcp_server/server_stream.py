@@ -1183,7 +1183,8 @@ class StreamableHTTPMCPServer:
         except Exception as e:
             logger.error(f"Error in initialize: {e}")
             return web.json_response(
-                {"jsonrpc": "2.0", "id": None, "error": {"code": -32603, "message": str(e)}}
+                {"jsonrpc": "2.0", "id": None, "error": {"code": -32603, "message": str(e)}},
+                status=500
             )
 
     async def handle_tools_list(self, request: web.Request) -> web.Response:
@@ -1213,7 +1214,8 @@ class StreamableHTTPMCPServer:
         except Exception as e:
             logger.error(f"Error listing tools: {e}")
             return web.json_response(
-                {"jsonrpc": "2.0", "id": None, "error": {"code": -32603, "message": str(e)}}
+                {"jsonrpc": "2.0", "id": None, "error": {"code": -32603, "message": str(e)}},
+                status=500
             )
 
     def apply_schema_defaults(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:

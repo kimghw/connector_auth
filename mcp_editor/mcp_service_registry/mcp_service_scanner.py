@@ -57,6 +57,26 @@ def _annotation_to_str(annotation: Optional[ast.AST]) -> Optional[str]:
         return None
 
 
+def _parse_type_info(type_str: Optional[str]) -> Dict[str, Any]:
+    """Parse type string to extract base type and optional flag.
+
+    Examples:
+        'Optional[str]' -> {'base_type': 'str', 'is_optional': True}
+        'str' -> {'base_type': 'str', 'is_optional': False}
+        'Optional[FilterParams]' -> {'base_type': 'FilterParams', 'is_optional': True}
+        'List[str]' -> {'base_type': 'List[str]', 'is_optional': False}
+    """
+    if type_str is None:
+        return {"base_type": None, "is_optional": False}
+
+    # Check for Optional[...]
+    if type_str.startswith("Optional[") and type_str.endswith("]"):
+        inner_type = type_str[9:-1]  # Remove 'Optional[' and ']'
+        return {"base_type": inner_type, "is_optional": True}
+
+    return {"base_type": type_str, "is_optional": False}
+
+
 def _default_to_value(node: ast.AST) -> Any:
     """Convert an AST default value to a JSON-serializable value or string."""
     if isinstance(node, ast.Constant):
@@ -68,7 +88,15 @@ def _default_to_value(node: ast.AST) -> Any:
 
 
 def _extract_parameters(func_node: ast.FunctionDef | ast.AsyncFunctionDef) -> List[Dict[str, Any]]:
-    """Extract parameter info from a function definition."""
+    """Extract parameter info from a function definition.
+
+    Returns parameters with unified structure:
+    - name: parameter name
+    - type: base type only (without Optional wrapper)
+    - is_optional: True if type was Optional[...] or has default value
+    - default: default value if any
+    - has_default: True if parameter has a default value
+    """
     args = func_node.args
     params: List[Dict[str, Any]] = []
 
@@ -82,42 +110,50 @@ def _extract_parameters(func_node: ast.FunctionDef | ast.AsyncFunctionDef) -> Li
         default_val = None
         if has_default and default_idx < len(args.defaults):
             default_val = _default_to_value(args.defaults[default_idx])
+
+        # Parse type to extract base_type and is_optional
+        raw_type = _annotation_to_str(arg.annotation)
+        type_info = _parse_type_info(raw_type)
+
+        # Parameter is optional if type is Optional[...] or has a default value
+        is_optional = type_info["is_optional"] or has_default
+
         params.append(
             {
                 "name": arg.arg,
-                "type": _annotation_to_str(arg.annotation),
+                "type": type_info["base_type"],
+                "is_optional": is_optional,
+                "is_required": not is_optional,  # Add is_required for compatibility
                 "default": default_val,
                 "has_default": has_default,
-                "is_required": not has_default
-                and not (
-                    arg.annotation
-                    and _annotation_to_str(arg.annotation)
-                    and "Optional" in _annotation_to_str(arg.annotation)
-                ),  # noqa: E501
             }
         )
 
     # *args
     if args.vararg:
+        vararg_type = _annotation_to_str(args.vararg.annotation)
+        vararg_type_info = _parse_type_info(vararg_type)
         params.append(
             {
                 "name": f"*{args.vararg.arg}",
-                "type": _annotation_to_str(args.vararg.annotation),
+                "type": vararg_type_info["base_type"],
+                "is_optional": True,  # *args is always optional
                 "default": None,
                 "has_default": False,
-                "is_required": False,
             }
         )
 
     # **kwargs
     if args.kwarg:
+        kwarg_type = _annotation_to_str(args.kwarg.annotation)
+        kwarg_type_info = _parse_type_info(kwarg_type)
         params.append(
             {
                 "name": f"**{args.kwarg.arg}",
-                "type": _annotation_to_str(args.kwarg.annotation),
+                "type": kwarg_type_info["base_type"],
+                "is_optional": True,  # **kwargs is always optional
                 "default": None,
                 "has_default": False,
-                "is_required": False,
             }
         )
 
@@ -125,7 +161,10 @@ def _extract_parameters(func_node: ast.FunctionDef | ast.AsyncFunctionDef) -> Li
 
 
 def signature_from_parameters(params: List[Dict[str, Any]]) -> str:
-    """Build a signature string like 'param: str, other: int = 1' from param metadata."""
+    """Build a signature string like 'param: str, other: int = 1' from param metadata.
+
+    Uses is_optional to determine if type should be wrapped in Optional[...].
+    """
     parts: List[str] = []
     for param in params:
         name = param.get("name", "")
@@ -134,11 +173,16 @@ def signature_from_parameters(params: List[Dict[str, Any]]) -> str:
 
         param_str = name
         type_str = param.get("type")
+        is_optional = param.get("is_optional", False)
         default = param.get("default")
         has_default = param.get("has_default", False)
 
         if type_str:
-            param_str += f": {type_str}"
+            # Wrap in Optional if is_optional but don't double-wrap
+            if is_optional and not type_str.startswith("Optional["):
+                param_str += f": Optional[{type_str}]"
+            else:
+                param_str += f": {type_str}"
 
         if has_default:
             if (

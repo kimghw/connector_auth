@@ -177,6 +177,7 @@ class GraphMailQuery:
     def _apply_client_side_filter(self, emails: List[Dict], exclude: ExcludeParams) -> List[Dict]:
         """
         Apply client-side filtering to exclude emails based on ExcludeParams
+        Supports all ExcludeParams fields for comprehensive client-side filtering
 
         Args:
             emails: List of email dictionaries
@@ -190,30 +191,140 @@ class GraphMailQuery:
         for email in emails:
             should_include = True
 
-            # Check each exclude condition
+            # === 발신자 제외 ===
+            # exclude_from_address (from 필드) - 단일값/리스트 지원
             if exclude.get("exclude_from_address"):
-                if email.get("from", {}).get("emailAddress", {}).get("address") == exclude["exclude_from_address"]:
+                from_addr = email.get("from", {}).get("emailAddress", {}).get("address", "").lower()
+                exclude_from = exclude.get("exclude_from_address")
+                if isinstance(exclude_from, list):
+                    if from_addr in [addr.lower() for addr in exclude_from]:
+                        should_include = False
+                        continue
+                elif from_addr == exclude_from.lower():
                     should_include = False
                     continue
 
-            if exclude.get("exclude_subject_keywords"):
+            # exclude_sender_address (sender 필드) - 단일값/리스트 지원
+            if exclude.get("exclude_sender_address"):
+                sender_addr = email.get("sender", {}).get("emailAddress", {}).get("address", "").lower()
+                exclude_sender = exclude.get("exclude_sender_address")
+                if isinstance(exclude_sender, list):
+                    if sender_addr in [addr.lower() for addr in exclude_sender]:
+                        should_include = False
+                        continue
+                elif sender_addr == exclude_sender.lower():
+                    should_include = False
+                    continue
+
+            # === 키워드 제외 ===
+            # exclude_subject_keywords
+            if exclude.get("exclude_subject_keywords") and should_include:
                 subject = email.get("subject", "").lower()
-                for keyword in exclude["exclude_subject_keywords"]:
+                for keyword in exclude.get("exclude_subject_keywords"):
                     if keyword.lower() in subject:
                         should_include = False
                         break
 
-            if exclude.get("exclude_importance"):
-                if email.get("importance") == exclude["exclude_importance"]:
+            # exclude_body_keywords
+            if exclude.get("exclude_body_keywords") and should_include:
+                body_content = email.get("body", {}).get("content", "").lower()
+                for keyword in exclude.get("exclude_body_keywords"):
+                    if keyword.lower() in body_content:
+                        should_include = False
+                        break
+
+            # exclude_preview_keywords
+            if exclude.get("exclude_preview_keywords") and should_include:
+                body_preview = email.get("bodyPreview", "").lower()
+                for keyword in exclude.get("exclude_preview_keywords"):
+                    if keyword.lower() in body_preview:
+                        should_include = False
+                        break
+
+            # === 속성 제외 ===
+            # exclude_importance
+            if exclude.get("exclude_importance") and should_include:
+                if email.get("importance") == exclude.get("exclude_importance"):
                     should_include = False
                     continue
 
-            if exclude.get("exclude_read_status") is not None:
-                if email.get("isRead") == exclude["exclude_read_status"]:
+            # exclude_sensitivity
+            if exclude.get("exclude_sensitivity") and should_include:
+                if email.get("sensitivity") == exclude.get("exclude_sensitivity"):
                     should_include = False
                     continue
 
-            # Add more exclude conditions as needed...
+            # exclude_classification (inferenceClassification)
+            if exclude.get("exclude_classification") and should_include:
+                if email.get("inferenceClassification") == exclude.get("exclude_classification"):
+                    should_include = False
+                    continue
+
+            # === 상태 제외 ===
+            # exclude_read_status
+            if exclude.get("exclude_read_status") is not None and should_include:
+                if email.get("isRead") == exclude.get("exclude_read_status"):
+                    should_include = False
+                    continue
+
+            # exclude_draft_status
+            if exclude.get("exclude_draft_status") is not None and should_include:
+                if email.get("isDraft") == exclude.get("exclude_draft_status"):
+                    should_include = False
+                    continue
+
+            # exclude_attachment_status
+            if exclude.get("exclude_attachment_status") is not None and should_include:
+                if email.get("hasAttachments") == exclude.get("exclude_attachment_status"):
+                    should_include = False
+                    continue
+
+            # exclude_delivery_receipt
+            if exclude.get("exclude_delivery_receipt") is not None and should_include:
+                if email.get("isDeliveryReceiptRequested") == exclude.get("exclude_delivery_receipt"):
+                    should_include = False
+                    continue
+
+            # exclude_read_receipt
+            if exclude.get("exclude_read_receipt") is not None and should_include:
+                if email.get("isReadReceiptRequested") == exclude.get("exclude_read_receipt"):
+                    should_include = False
+                    continue
+
+            # === 플래그 및 카테고리 제외 ===
+            # exclude_flag_status
+            if exclude.get("exclude_flag_status") and should_include:
+                flag_status = email.get("flag", {}).get("flagStatus")
+                if flag_status == exclude.get("exclude_flag_status"):
+                    should_include = False
+                    continue
+
+            # exclude_categories
+            if exclude.get("exclude_categories") and should_include:
+                email_categories = email.get("categories", [])
+                for cat in exclude.get("exclude_categories"):
+                    if cat in email_categories:
+                        should_include = False
+                        break
+
+            # === ID 제외 ===
+            # exclude_id
+            if exclude.get("exclude_id") and should_include:
+                if email.get("id") == exclude.get("exclude_id"):
+                    should_include = False
+                    continue
+
+            # exclude_conversation_id
+            if exclude.get("exclude_conversation_id") and should_include:
+                if email.get("conversationId") == exclude.get("exclude_conversation_id"):
+                    should_include = False
+                    continue
+
+            # exclude_parent_folder_id
+            if exclude.get("exclude_parent_folder_id") and should_include:
+                if email.get("parentFolderId") == exclude.get("exclude_parent_folder_id"):
+                    should_include = False
+                    continue
 
             if should_include:
                 filtered_emails.append(email)

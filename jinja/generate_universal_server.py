@@ -43,8 +43,41 @@ def load_registry(registry_path: str) -> Dict[str, Any]:
         return json.load(f)
 
 
+def _convert_params_list_to_dict(params_list: list) -> dict:
+    """Convert parameters from list format to dict format.
+
+    Input (list format):
+        [{'name': 'subject', 'type': 'boolean', 'is_optional': False, 'default': True, 'description': '메시지 제목'}]
+
+    Output (dict format):
+        {'subject': {'default': True, 'description': '메시지 제목', 'type': 'boolean'}}
+    """
+    if not params_list or not isinstance(params_list, list):
+        return {}
+
+    params_dict = {}
+    for param in params_list:
+        name = param.get("name")
+        if not name:
+            continue
+
+        param_dict = {"type": param.get("type", "string")}
+        # Only add default if has_default is True
+        if param.get("has_default", False):
+            param_dict["default"] = param.get("default")
+        if param.get("description"):
+            param_dict["description"] = param["description"]
+
+        params_dict[name] = param_dict
+
+    return params_dict
+
+
 def extract_internal_args_from_tools(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Extract internal args from mcp_service_factors in tool definitions"""
+    """Extract internal args from mcp_service_factors in tool definitions
+
+    Handles both new format (type, list parameters) and legacy format (baseModel, dict parameters).
+    """
     internal_args = {}
 
     for tool in tools:
@@ -55,43 +88,52 @@ def extract_internal_args_from_tools(tools: List[Dict[str, Any]]) -> Dict[str, A
         tool_internal = {}
         for factor_name, factor_data in mcp_service_factors.items():
             if factor_data.get('source') == 'internal':
+                # Support both 'type' (new) and 'baseModel' (legacy) field names
+                factor_type = factor_data.get('type') or factor_data.get('baseModel', '')
+
                 # The factor_name (e.g., 'select') maps to a targetParam (e.g., 'select_params')
                 # We need to find the targetParam from inputSchema
                 input_schema = tool.get('inputSchema', {})
                 properties = input_schema.get('properties', {})
 
-                # Find the property that uses this factor
+                # Find the property that uses this factor using NAME-BASED matching
+                # Priority: 1. Explicit targetServiceFactor, 2. Name matching, 3. Default
                 target_param = None
                 for prop_name, prop_def in properties.items():
-                    # Check if this property maps to our factor
-                    # The factor name should match the baseModel or be referenced somehow
-                    if prop_def.get('$ref') and factor_data.get('baseModel') in prop_def.get('$ref', ''):
-                        # This property uses this factor
+                    # Priority 1: Explicit targetServiceFactor reference
+                    if prop_def.get('targetServiceFactor') == factor_name:
                         target_param = prop_def.get('targetParam', prop_name)
                         break
-                    # Also check if prop_name matches factor_name
+                    # Priority 2: Property name matches factor name
                     elif prop_name == factor_name or prop_name == factor_name + '_params':
                         target_param = prop_def.get('targetParam', prop_name)
                         break
 
                 if not target_param:
-                    # If no matching property found, use the factor_name with _params suffix as targetParam
+                    # Priority 3: Use factor_name with _params suffix as targetParam
                     target_param = factor_name + '_params' if not factor_name.endswith('_params') else factor_name
+
+                # Get parameters - handle both list format (new) and dict format (legacy)
+                raw_params = factor_data.get('parameters', [])
+                if isinstance(raw_params, list):
+                    params_dict = _convert_params_list_to_dict(raw_params)
+                else:
+                    params_dict = raw_params  # Already a dict
 
                 # Extract default values from parameters
                 default_values = {}
-                for param_name, param_def in factor_data.get('parameters', {}).items():
+                for param_name, param_def in params_dict.items():
                     if 'default' in param_def:
                         default_values[param_name] = param_def['default']
 
                 # Build the internal arg structure to match what the template expects
                 tool_internal[factor_name] = {
                     'targetParam': target_param,
-                    'type': factor_data.get('baseModel', ''),
+                    'type': factor_type,
                     'value': default_values,  # Use extracted default values, not full schema
                     'original_schema': {
                         'targetParam': target_param,
-                        'properties': factor_data.get('parameters', {}),
+                        'properties': params_dict,
                         'type': 'object'
                     }
                 }
@@ -374,8 +416,10 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
             for param in mcp_service.get('parameters', []):
                 param_name = param.get('name', '')
                 param_type = param.get('type', 'str')
-                is_required = param.get('is_required', False)
+                # Compute is_required: it's required if not optional and no default
+                is_optional = param.get('is_optional', False)
                 has_default = param.get('has_default', False)
+                is_required = param.get('is_required', not is_optional)  # Use is_required if provided, else derive from is_optional
                 default = param.get('default')
 
                 # Find the input schema property name that maps to this service parameter
