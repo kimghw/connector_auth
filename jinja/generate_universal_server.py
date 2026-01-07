@@ -73,57 +73,104 @@ def _convert_params_list_to_dict(params_list: list) -> dict:
     return params_dict
 
 
-def extract_internal_args_from_tools(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Extract internal args from mcp_service_factors in tool definitions
+def extract_service_factors_from_tools(tools: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Extract service factors from mcp_service_factors in tool definitions
 
+    Processes both 'internal' and 'signature_defaults' sources.
     Requires explicit targetParam field in each factor.
+
+    Returns:
+        Dict with structure:
+        {
+            tool_name: {
+                'internal': { factor_name: {...}, ... },
+                'signature_defaults': { factor_name: {...}, ... }
+            }
+        }
     """
-    internal_args = {}
+    service_factors = {}
 
     for tool in tools:
         tool_name = tool.get('name', '')
         mcp_service_factors = tool.get('mcp_service_factors', {})
 
-        # Find factors with source='internal'
-        tool_internal = {}
+        tool_factors = {
+            'internal': {},
+            'signature_defaults': {}
+        }
+
         for factor_name, factor_data in mcp_service_factors.items():
-            if factor_data.get('source') == 'internal':
-                # Support both 'type' (new) and 'baseModel' (legacy) field names
-                factor_type = factor_data.get('type') or factor_data.get('baseModel', '')
+            source = factor_data.get('source', '')
 
-                # targetParam is REQUIRED - no auto-matching
-                if 'targetParam' not in factor_data:
-                    raise ValueError(
-                        f"Tool '{tool_name}': mcp_service_factors['{factor_name}'] "
-                        f"requires 'targetParam' field to specify target mcp_service parameter"
-                    )
-                target_param = factor_data['targetParam']
+            # Only process 'internal' and 'signature_defaults' sources
+            if source not in ('internal', 'signature_defaults'):
+                continue
 
-                # Get parameters - handle both list format (new) and dict format (legacy)
-                raw_params = factor_data.get('parameters', [])
-                if isinstance(raw_params, list):
-                    params_dict = _convert_params_list_to_dict(raw_params)
-                else:
-                    params_dict = raw_params  # Already a dict
+            # Support both 'type' (new) and 'baseModel' (legacy) field names
+            factor_type = factor_data.get('type') or factor_data.get('baseModel', '')
 
-                # Extract default values from parameters
-                default_values = {}
-                for param_name, param_def in params_dict.items():
-                    if 'default' in param_def:
-                        default_values[param_name] = param_def['default']
+            # targetParam is REQUIRED - no auto-matching
+            if 'targetParam' not in factor_data:
+                raise ValueError(
+                    f"Tool '{tool_name}': mcp_service_factors['{factor_name}'] "
+                    f"requires 'targetParam' field to specify target mcp_service parameter"
+                )
+            target_param = factor_data['targetParam']
 
-                # Build the internal arg structure to match what the template expects
-                tool_internal[factor_name] = {
+            # Get parameters - handle both list format (new) and dict format (legacy)
+            raw_params = factor_data.get('parameters', [])
+            if isinstance(raw_params, list):
+                params_dict = _convert_params_list_to_dict(raw_params)
+            else:
+                params_dict = raw_params  # Already a dict
+
+            # Extract default values from parameters
+            default_values = {}
+            for param_name, param_def in params_dict.items():
+                if 'default' in param_def:
+                    default_values[param_name] = param_def['default']
+
+            # Build the factor structure
+            factor_info = {
+                'targetParam': target_param,
+                'type': factor_type,
+                'source': source,
+                'value': default_values,
+                'original_schema': {
                     'targetParam': target_param,
-                    'type': factor_type,
-                    'value': default_values,  # Use extracted default values, not full schema
-                    'original_schema': {
-                        'targetParam': target_param,
-                        'properties': params_dict,
-                        'type': 'object'
-                    }
+                    'properties': params_dict,
+                    'type': 'object'
                 }
+            }
 
+            tool_factors[source][factor_name] = factor_info
+
+        # Only add if there are any factors
+        if tool_factors['internal'] or tool_factors['signature_defaults']:
+            service_factors[tool_name] = tool_factors
+
+    return service_factors
+
+
+def extract_internal_args_from_tools(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Extract internal args from mcp_service_factors in tool definitions (legacy compatibility)
+
+    Requires explicit targetParam field in each factor.
+    """
+    service_factors = extract_service_factors_from_tools(tools)
+
+    # Convert to legacy internal_args format for backward compatibility
+    internal_args = {}
+    for tool_name, factors in service_factors.items():
+        tool_internal = {}
+        # Combine internal factors
+        for factor_name, factor_info in factors.get('internal', {}).items():
+            tool_internal[factor_name] = {
+                'targetParam': factor_info['targetParam'],
+                'type': factor_info['type'],
+                'value': factor_info['value'],
+                'original_schema': factor_info['original_schema']
+            }
         if tool_internal:
             internal_args[tool_name] = tool_internal
 
@@ -292,10 +339,12 @@ def extract_type_info(registry: Dict[str, Any], tools: List[Dict[str, Any]], ser
     }
 
 
-def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], server_name: str, internal_args: Dict[str, Any] = None, protocol_type: str = 'rest') -> Dict[str, Any]:
-    """Prepare Jinja2 context from registry, tools, and internal args"""
+def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], server_name: str, internal_args: Dict[str, Any] = None, protocol_type: str = 'rest', service_factors: Dict[str, Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Prepare Jinja2 context from registry, tools, internal args, and service factors"""
     if internal_args is None:
         internal_args = {}
+    if service_factors is None:
+        service_factors = {}
 
     # Extract services with proper structure
     services = {}
@@ -343,15 +392,18 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         if class_name not in unique_services:
             unique_services[class_name] = service_info
 
-    # Process tools with internal args and implementation info
+    # Process tools with internal args, signature_defaults, and implementation info
     processed_tools = []
     for tool in tools:
         tool_name = tool.get('name', '')
         tool_internal_args = internal_args.get(tool_name, {})
+        tool_service_factors = service_factors.get(tool_name, {})
 
-        # Add internal_args to the tool
+        # Add internal_args and signature_defaults to the tool
         tool_with_internal = dict(tool)
         tool_with_internal['internal_args'] = tool_internal_args
+        tool_with_internal['signature_defaults'] = tool_service_factors.get('signature_defaults', {})
+        tool_with_internal['service_factors'] = tool_service_factors
 
         # Find implementation info from registry
         # Check mcp_service for the service name mapping
@@ -397,11 +449,23 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
             target_param = prop_def.get('targetParam', prop_name)
             param_mappings[prop_name] = target_param
 
+        # Build a set of Internal parameter targetParams (these are NOT in inputSchema)
+        # Internal parameters should NOT be added to params since they won't come from args
+        internal_target_params = set()
+        for arg_name, arg_info in tool_internal_args.items():
+            target_param = arg_info.get('targetParam') or arg_info.get('original_schema', {}).get('targetParam', arg_name)
+            internal_target_params.add(target_param)
+
         # Get parameters from mcp_service if available
         if isinstance(mcp_service, dict):
             for param in mcp_service.get('parameters', []):
                 param_name = param.get('name', '')
                 param_type = param.get('type', 'str')
+
+                # Skip Internal parameters - they are NOT in inputSchema and will be handled separately
+                if param_name in internal_target_params:
+                    continue
+
                 # Compute is_required: it's required if not optional and no default
                 is_optional = param.get('is_optional', False)
                 has_default = param.get('has_default', False)
@@ -415,9 +479,14 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                         input_param_name = inp_name
                         break
 
-                # If not found in mappings, assume it's the same
+                # If not found in mappings, check if param_name exists directly in inputSchema
                 if input_param_name is None:
-                    input_param_name = param_name
+                    if param_name in properties:
+                        input_param_name = param_name
+                    else:
+                        # This parameter is NOT in inputSchema - skip it
+                        # (It's neither a Signature parameter nor Internal, likely a service-only param)
+                        continue
 
                 params[input_param_name] = {
                     'type': param_type,
@@ -431,18 +500,37 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                 if 'Params' in param_type or param_type == 'object':
                     # Extract class name from type (e.g., Optional[FilterParams] -> FilterParams)
                     class_name = param_type.replace('Optional[', '').replace(']', '')
+
+                    # Get the targetParam for this input param
+                    target_param = param_mappings.get(input_param_name, param_name)
+
+                    # Find matching internal and signature_defaults by targetParam
+                    internal_defaults = {}
+                    sig_defaults_values = {}
+
+                    for factor_name, factor_info in tool_service_factors.get('internal', {}).items():
+                        if factor_info.get('targetParam') == target_param:
+                            internal_defaults = factor_info.get('value', {})
+                            break
+
+                    for factor_name, factor_info in tool_service_factors.get('signature_defaults', {}).items():
+                        if factor_info.get('targetParam') == target_param:
+                            sig_defaults_values = factor_info.get('value', {})
+                            break
+
                     object_params[input_param_name] = {
                         'class_name': class_name,
                         'is_optional': 'Optional' in param_type or has_default,
                         'has_default': has_default,
-                        'default_json': to_python_repr(default) if default is not None else None
+                        'default_json': to_python_repr(default) if default is not None else None,
+                        'target_param': target_param,
+                        'internal_defaults': internal_defaults,
+                        'signature_defaults_values': sig_defaults_values
                     }
 
                 # Build call_params (how to pass to service method)
                 # Map from service param name to the value expression
-                if input_param_name in tool_internal_args:
-                    call_params[param_name] = {'value': input_param_name, 'source_param': input_param_name}
-                elif input_param_name in object_params:
+                if input_param_name in object_params:
                     call_params[param_name] = {'value': input_param_name, 'source_param': input_param_name}
                 else:
                     call_params[param_name] = {'value': input_param_name, 'source_param': input_param_name}
@@ -466,17 +554,36 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                     'default_json': to_python_repr(default)
                 }
 
+                # Get targetParam from inputSchema property or default to prop_name
+                target_param = prop_def.get('targetParam', prop_name)
+
                 if prop_type == 'object':
                     base_model = prop_def.get('baseModel', '')
+
+                    # Find matching internal and signature_defaults by targetParam
+                    internal_defaults = {}
+                    sig_defaults_values = {}
+
+                    for factor_name, factor_info in tool_service_factors.get('internal', {}).items():
+                        if factor_info.get('targetParam') == target_param:
+                            internal_defaults = factor_info.get('value', {})
+                            break
+
+                    for factor_name, factor_info in tool_service_factors.get('signature_defaults', {}).items():
+                        if factor_info.get('targetParam') == target_param:
+                            sig_defaults_values = factor_info.get('value', {})
+                            break
+
                     object_params[prop_name] = {
                         'class_name': base_model or 'dict',
                         'is_optional': not is_required,
                         'has_default': default is not None,
-                        'default_json': to_python_repr(default) if default is not None else None
+                        'default_json': to_python_repr(default) if default is not None else None,
+                        'target_param': target_param,
+                        'internal_defaults': internal_defaults,
+                        'signature_defaults_values': sig_defaults_values
                     }
 
-                # Get targetParam from inputSchema property or default to prop_name
-                target_param = prop_def.get('targetParam', prop_name)
                 call_params[target_param] = {'value': prop_name, 'source_param': prop_name}
 
         # Internal args are handled separately with targetParam mappings
@@ -514,7 +621,8 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         'all_types': type_info['all_types'],       # All custom types
         'type_info': type_info,                    # Full type information
         'MCP_TOOLS': processed_tools,  # Tool definitions with internal args (same as tools)
-        'internal_args': internal_args  # Full internal args for reference
+        'internal_args': internal_args,  # Full internal args for reference (legacy)
+        'service_factors': service_factors  # Full service factors (internal + signature_defaults)
     }
 
     return context
@@ -546,18 +654,22 @@ def generate_server(
     print(f"Loading tool definitions from: {tools_path}")
     tools = load_tool_definitions(tools_path)
 
-    # Extract internal args from mcp_service_factors in tool definitions
-    print(f"Extracting internal args from mcp_service_factors...")
-    internal_args = extract_internal_args_from_tools(tools)
-    if internal_args:
-        print(f"  - Extracted internal args for {len(internal_args)} tools")
-        for tool_name, tool_internal in internal_args.items():
-            print(f"    - {tool_name}: {list(tool_internal.keys())}")
+    # Extract service factors from mcp_service_factors in tool definitions
+    print(f"Extracting service factors from mcp_service_factors...")
+    service_factors = extract_service_factors_from_tools(tools)
+    internal_args = extract_internal_args_from_tools(tools)  # Legacy format for backward compatibility
+
+    if service_factors:
+        print(f"  - Extracted service factors for {len(service_factors)} tools")
+        for tool_name, factors in service_factors.items():
+            internal_count = len(factors.get('internal', {}))
+            defaults_count = len(factors.get('signature_defaults', {}))
+            print(f"    - {tool_name}: internal={internal_count}, signature_defaults={defaults_count}")
     else:
-        print("  - No internal args found in mcp_service_factors")
+        print("  - No service factors found in mcp_service_factors")
 
     # Prepare context
-    context = prepare_context(registry, tools, server_name, internal_args, protocol_type)
+    context = prepare_context(registry, tools, server_name, internal_args, protocol_type, service_factors)
 
     # Setup Jinja2
     template_dir = os.path.dirname(template_path)

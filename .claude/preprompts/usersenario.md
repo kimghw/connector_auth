@@ -2,6 +2,106 @@
 
 ## 최근 세션 기록
 
+### 2026-01-08: targetParam 기준 Internal/Defaults 병합 렌더링 개선
+
+#### 요청 사항
+- 핸들러에서 default(signature_defaults)와 internal을 targetParam 기준으로 **먼저 하드코딩**하여 렌더링
+- 그 후 Signature(사용자 입력)가 default를 덮어쓰도록 구성
+
+#### 문제점 분석
+- 기존: `tool.signature_defaults.get(param_name, {}).get('value', {})`로 찾음
+- `param_name`은 inputSchema의 property name (예: `DatePeriodFilter`)
+- `signature_defaults`의 키는 factor_name이므로 **targetParam 기준 매칭이 안 됨**
+
+#### 해결 방안
+
+**1. generate_universal_server.py 수정**
+- `object_params` 생성 시 targetParam 기준으로 매칭된 값을 미리 계산
+- 새로 추가된 필드:
+  - `target_param`: 서비스 메서드 파라미터명
+  - `internal_defaults`: targetParam 기준 internal factor의 value
+  - `signature_defaults_values`: targetParam 기준 signature_defaults factor의 value
+
+**2. universal_server_template.jinja2 수정**
+- pre-computed된 `param_info.internal_defaults`와 `param_info.signature_defaults_values` 사용
+- 변수 이름 변경: `_internal_data` → `_internal_defaults`, `sig_defaults` → `_sig_defaults`
+- 주석 추가: `# Pre-computed defaults by targetParam: {{ param_info.target_param }}`
+
+#### 생성된 핸들러 코드 예시 (mail_fetch_filter)
+```python
+# Pre-computed defaults by targetParam: filter_params
+filter_params_internal_defaults = {}
+filter_params_sig_defaults = {'test_field': 'test_value'}
+# Merge: Internal < Signature Defaults < Signature (user input)
+filter_params_data = merge_param_data(filter_params_internal_defaults, filter_params, filter_params_sig_defaults)
+```
+
+#### 병합 우선순위
+```
+Internal < Signature Defaults < Signature (사용자 입력)
+```
+
+#### 검증 결과
+- outlook 서버 3개 프로토콜 (REST, STDIO, Stream) 생성 성공
+- `mail_fetch_filter`에서 signature_defaults 정상 적용 확인
+- `mail_list_period`에서 internal args (select_params, client_filter) 정상 적용 확인
+
+#### 수정된 파일
+- `jinja/generate_universal_server.py`: object_params에 targetParam 기준 defaults 추가
+- `jinja/universal_server_template.jinja2`: pre-computed values 사용하도록 수정
+
+---
+
+### 2026-01-07: 핸들러 지침에 따른 제너레이터/템플릿 개선
+
+#### 요청 사항
+- 핸들러 지침(handler.md)에 따라 `generate_universal_server.py`와 `universal_server_template.jinja2` 검토 및 업데이트
+- signature_defaults 처리 로직 추가
+
+#### 문제점 분석
+1. **signature_defaults 미처리**: `extract_internal_args_from_tools()` 함수가 `source='internal'`만 처리하고 `source='signature_defaults'`를 무시
+2. **병합 우선순위 불완전**: Signature → Signature Defaults → Internal 우선순위 미구현
+
+#### 핸들러 파라미터 체계 정리
+- **Signature**: LLM이 제공하는 사용자 입력값 (inputSchema에 정의)
+- **Signature Defaults**: Signature 파라미터의 기본값 (같은 targetParam, mcp_service_factors source='signature_defaults')
+- **Internal**: LLM에게 숨겨진 시스템 고정값 (다른 targetParam, mcp_service_factors source='internal')
+- **중요**: Signature와 Internal은 서로 다른 targetParam을 가리키므로 겹치지 않음
+
+#### 수정 내용
+
+**1. generate_universal_server.py**
+- `extract_service_factors_from_tools()` 함수 추가: `internal`과 `signature_defaults` 모두 처리
+- `extract_internal_args_from_tools()` 함수를 레거시 호환성을 위해 유지
+- `prepare_context()`에 `service_factors` 파라미터 추가
+- 각 tool에 `signature_defaults`, `service_factors` 속성 추가
+
+**2. universal_server_template.jinja2**
+- `SERVICE_FACTORS` 변수 추가 (internal + signature_defaults 구조)
+- `merge_param_data()` 함수 개선: 세 번째 인자로 `signature_defaults` 받음
+- `get_signature_defaults()`, `apply_signature_defaults()`, `merge_with_priority()` 헬퍼 함수 추가
+- object_params 처리 시 signature_defaults 적용
+
+#### 병합 우선순위
+```
+merge_param_data(internal_data, runtime_data, signature_defaults)
+→ 최종값 = internal < signature_defaults < runtime (사용자 입력)
+```
+
+#### 검증 결과
+- outlook 서버 3개 프로토콜 (REST, STDIO, Stream) 생성 성공
+- `mail_fetch_filter`에서 signature_defaults 적용 확인:
+  ```python
+  filter_params_data = merge_param_data(filter_params_internal_data, filter_params, {'test_field': 'test_value'})
+  ```
+- Python 문법 검사 통과
+
+#### 수정된 파일
+- `jinja/generate_universal_server.py`
+- `jinja/universal_server_template.jinja2`
+
+---
+
 ### 2026-01-07: MCP 핸들러 전체 테스트 완료
 
 #### 요청 사항
@@ -140,4 +240,4 @@ server_rest.py / server_stdio.py / server_stream.py
 
 ---
 
-*마지막 업데이트: 2026-01-07*
+*마지막 업데이트: 2026-01-08*

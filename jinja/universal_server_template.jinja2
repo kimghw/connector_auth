@@ -171,10 +171,14 @@ def build_mcp_content(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ============================================================
-# Internal Args Support
+# Service Factors Support (Internal + Signature Defaults)
 # ============================================================
-# Internal args are now embedded in tool definitions via mcp_service_factors
+# Service factors are now embedded in tool definitions via mcp_service_factors
 # This data is passed from the generator as part of the context
+# Structure: { tool_name: { 'internal': {...}, 'signature_defaults': {...} } }
+SERVICE_FACTORS = {{ service_factors | pprint }}
+
+# Legacy format for backward compatibility
 INTERNAL_ARGS = {{ internal_args | pprint }}
 
 # Build INTERNAL_ARG_TYPES dynamically based on imported types
@@ -233,6 +237,83 @@ def build_internal_param(tool_name: str, arg_name: str, runtime_value: dict = No
         return None
 
 
+def get_signature_defaults(tool_name: str, factor_name: str) -> dict:
+    """Get signature default values for a tool factor.
+
+    Signature defaults are used to provide default values for user input parameters.
+    These are applied when the user doesn't provide a value for an optional parameter.
+    """
+    tool_factors = SERVICE_FACTORS.get(tool_name, {})
+    sig_defaults = tool_factors.get('signature_defaults', {})
+    factor_info = sig_defaults.get(factor_name, {})
+    return factor_info.get('value', {})
+
+
+def apply_signature_defaults(signature_data: dict, tool_name: str, factor_name: str) -> dict:
+    """Apply signature defaults to user-provided data.
+
+    Merge order (priority high to low):
+    1. User signature values (non-None)
+    2. Signature defaults
+    3. Schema defaults
+    """
+    if signature_data is None:
+        signature_data = {}
+
+    # Get signature defaults
+    defaults = get_signature_defaults(tool_name, factor_name)
+    if not defaults:
+        return signature_data
+
+    # Merge: defaults first, then user values override
+    merged = {**defaults}
+    for key, value in signature_data.items():
+        if value is not None:
+            merged[key] = value
+
+    return merged
+
+
+def merge_with_priority(signature_value, signature_defaults_value, internal_value):
+    """Merge values with priority: Signature > Signature Defaults > Internal.
+
+    Args:
+        signature_value: User-provided value from LLM
+        signature_defaults_value: Default value for user input
+        internal_value: Hidden system value
+
+    Returns:
+        Final merged value with correct priority
+    """
+    # If all are None, return None
+    if signature_value is None and signature_defaults_value is None and internal_value is None:
+        return None
+
+    # If signature has value, use it (possibly merged with defaults for objects)
+    if signature_value is not None:
+        # For dict/object types, merge with signature_defaults
+        if isinstance(signature_value, dict):
+            base = {}
+            if internal_value and isinstance(internal_value, dict):
+                base = {**internal_value}
+            if signature_defaults_value and isinstance(signature_defaults_value, dict):
+                base = {**base, **signature_defaults_value}
+            return {**base, **signature_value}
+        return signature_value
+
+    # If signature is None but signature_defaults has value
+    if signature_defaults_value is not None:
+        if isinstance(signature_defaults_value, dict):
+            base = {}
+            if internal_value and isinstance(internal_value, dict):
+                base = {**internal_value}
+            return {**base, **signature_defaults_value}
+        return signature_defaults_value
+
+    # Fall back to internal value
+    return internal_value
+
+
 def model_to_dict(model):
     if model is None:
         return {}
@@ -245,12 +326,29 @@ def model_to_dict(model):
     return {}
 
 
-def merge_param_data(internal_data: dict, runtime_data):
-    if not runtime_data:
-        return internal_data or None
-    if internal_data:
-        return {**internal_data, **runtime_data}
-    return runtime_data
+def merge_param_data(internal_data: dict, runtime_data, signature_defaults: dict = None):
+    """Merge parameter data with priority: runtime > signature_defaults > internal.
+
+    Args:
+        internal_data: Internal override data (lowest priority, not used for signature params)
+        runtime_data: User-provided runtime data (highest priority)
+        signature_defaults: Default values for signature params (middle priority)
+    """
+    # Start with internal data as base (if any)
+    result = dict(internal_data) if internal_data else {}
+
+    # Apply signature defaults (overrides internal)
+    if signature_defaults:
+        result = {**result, **signature_defaults}
+
+    # Apply runtime data (highest priority, overrides all)
+    if runtime_data:
+        if isinstance(runtime_data, dict):
+            result = {**result, **runtime_data}
+        else:
+            return runtime_data
+
+    return result if result else None
 
 # Tool handler functions
 {%- for tool in tools %}
@@ -297,31 +395,31 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     # Convert dicts to parameter objects where needed
     {%- for param_name, param_info in tool.object_params.items() %}
     {%- if param_name not in tool.internal_args %}
+    # Pre-computed defaults by targetParam: {{ param_info.target_param | default(param_name) }}
     {%- if param_name in tool.internal_overrides %}
-    {{ param_name }}_internal_data = {{ tool.internal_overrides[param_name].name }}_data
+    {{ param_name }}_internal_defaults = {{ tool.internal_overrides[param_name].name }}_data
     {%- else %}
-    {{ param_name }}_internal_data = {}
+    {{ param_name }}_internal_defaults = {{ param_info.internal_defaults | default({}) | pprint }}
     {%- endif %}
+    {{ param_name }}_sig_defaults = {{ param_info.signature_defaults_values | default({}) | pprint }}
     {%- if not param_info.is_optional %}
-    # Use already extracted raw value or get from args
+    # Merge: Internal < Signature Defaults < Signature (user input)
     {%- if param_name in tool.params %}
-    # Value was already extracted above, use the existing variable
-    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}) or {}
+    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_defaults, {{ param_name }}, {{ param_name }}_sig_defaults) or {}
     {%- else %}
     {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
     {{ param_name }}_raw = args["{{ source_param }}"]
-    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}_raw) or {}
+    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_defaults, {{ param_name }}_raw, {{ param_name }}_sig_defaults) or {}
     {%- endif %}
     {{ param_name }} = {{ param_info.class_name }}(**{{ param_name }}_data)
     {%- elif param_info.has_default %}
-    # Use already extracted value if it exists
+    # Merge: Internal < Signature Defaults < Signature (user input)
     {%- if param_name in tool.params %}
-    # Value was already extracted above, use the existing variable
-    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }})
+    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_defaults, {{ param_name }}, {{ param_name }}_sig_defaults)
     {%- else %}
     {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
     {{ param_name }}_raw = args.get("{{ source_param }}")
-    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}_raw)
+    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_defaults, {{ param_name }}_raw, {{ param_name }}_sig_defaults)
     {%- endif %}
     if {{ param_name }}_data is not None:
         {{ param_name }} = {{ param_info.class_name }}(**{{ param_name }}_data)
@@ -332,14 +430,13 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
         {{ param_name }} = None
         {%- endif %}
     {%- else %}
-    # Use already extracted value if it exists
+    # Merge: Internal < Signature Defaults < Signature (user input)
     {%- if param_name in tool.params %}
-    # Value was already extracted above, use the existing variable
-    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }})
+    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_defaults, {{ param_name }}, {{ param_name }}_sig_defaults)
     {%- else %}
     {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
     {{ param_name }}_raw = args.get("{{ source_param }}")
-    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_data, {{ param_name }}_raw)
+    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_defaults, {{ param_name }}_raw, {{ param_name }}_sig_defaults)
     {%- endif %}
     {{ param_name }} = {{ param_info.class_name }}(**{{ param_name }}_data) if {{ param_name }}_data is not None else None
     {%- endif %}
@@ -354,38 +451,17 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- endfor %}
 
     {%- if tool.internal_args %}
-    # Process internal args with targetParam mappings
+    # Add internal args (Internal has different targetParam from Signature, no overlap)
     {%- for arg_name, arg_info in tool.internal_args.items() %}
     {%- if not arg_name.endswith("_internal") %}
     {%- set target_param = arg_info.original_schema.targetParam | default(arg_info.targetParam) | default(arg_name) %}
-
-    # Build internal arg: {{ arg_name }}
     {%- if arg_info.value is defined and arg_info.value is not none and arg_info.value != {} %}
-    _internal_{{ arg_name }} = {{ arg_info.type }}(**{{ arg_info.value | pprint }})
+    call_args["{{ target_param }}"] = {{ arg_info.type }}(**{{ arg_info.value | pprint }})
     {%- elif arg_info.value is defined and arg_info.value == {} %}
-    _internal_{{ arg_name }} = {{ arg_info.type }}()
+    call_args["{{ target_param }}"] = {{ arg_info.type }}()
     {%- else %}
-    _internal_{{ arg_name }} = build_internal_param("{{ tool.name }}", "{{ arg_name }}")
+    call_args["{{ target_param }}"] = build_internal_param("{{ tool.name }}", "{{ arg_name }}")
     {%- endif %}
-
-    # Check if target param already exists from signature
-    if "{{ target_param }}" in call_args:
-        existing_value = call_args["{{ target_param }}"]
-        if existing_value is None:
-            # Signature value is None, use internal value
-            if _internal_{{ arg_name }} is not None:
-                call_args["{{ target_param }}"] = _internal_{{ arg_name }}
-        elif hasattr(existing_value, '__dict__') and hasattr(_internal_{{ arg_name }}, '__dict__'):
-            # Both are objects - merge them (signature has priority for non-None values)
-            internal_dict = {k: v for k, v in vars(_internal_{{ arg_name }}).items() if v is not None}
-            existing_dict = {k: v for k, v in vars(existing_value).items() if v is not None}
-            merged_dict = {**internal_dict, **existing_dict}
-            call_args["{{ target_param }}"] = type(existing_value)(**merged_dict)
-        # Otherwise keep existing signature value (non-None primitive or incompatible types)
-    else:
-        # No conflict, use internal value with targetParam mapping
-        if _internal_{{ arg_name }} is not None:
-            call_args["{{ target_param }}"] = _internal_{{ arg_name }}
     {%- endif %}
     {%- endfor %}
     {%- endif %}
