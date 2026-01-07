@@ -37,6 +37,12 @@ async def root():
     }
 
 
+@app.post("/")
+async def mcp_request_root(request: Request):
+    """MCP Streamable HTTP - Root endpoint (alias for /mcp/v1)"""
+    return await mcp_request(request)
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
