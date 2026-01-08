@@ -306,6 +306,69 @@ def find_type_locations(server_name: str) -> Dict[str, str]:
     return type_locations
 
 
+def extract_default_implementation(services: Dict[str, Any], server_name: str) -> Dict[str, Any]:
+    """Extract default implementation from registry services
+
+    Finds the most common class_name/module_path/instance pattern
+    from the services and returns it as the default implementation.
+
+    Args:
+        services: Dict of services extracted from registry
+        server_name: Server name (used as fallback for module path)
+
+    Returns:
+        Dict with class_name, module_path, instance, method keys
+    """
+    if not services:
+        # Ultimate fallback with generic naming based on server_name
+        return {
+            'class_name': f'{server_name.title().replace("_", "")}Service',
+            'module_path': f'mcp_{server_name}.{server_name}_service',
+            'instance': f'{server_name}_service',
+            'method': ''
+        }
+
+    # Count occurrences of each (class_name, module_path, instance) tuple
+    from collections import Counter
+    impl_counter = Counter()
+
+    for service_info in services.values():
+        class_name = service_info.get('class_name', '')
+        module_path = service_info.get('module_path', '')
+        instance = service_info.get('instance', '')
+
+        if class_name:
+            impl_counter[(class_name, module_path, instance)] += 1
+
+    if not impl_counter:
+        # Fallback if no valid implementations found
+        first_service = next(iter(services.values()), {})
+        return {
+            'class_name': first_service.get('class_name', ''),
+            'module_path': first_service.get('module_path', ''),
+            'instance': first_service.get('instance', ''),
+            'method': ''
+        }
+
+    # Get the most common implementation
+    most_common = impl_counter.most_common(1)[0][0]
+    class_name, module_path, instance = most_common
+
+    # Normalize module_path for mcp_* convention
+    # If module_path is like 'outlook.outlook_service', convert to 'mcp_outlook.outlook_service'
+    if module_path and not module_path.startswith('mcp_'):
+        parts = module_path.split('.')
+        if len(parts) >= 1 and parts[0] == server_name:
+            module_path = f'mcp_{server_name}.' + '.'.join(parts[1:])
+
+    return {
+        'class_name': class_name,
+        'module_path': module_path,
+        'instance': instance,
+        'method': ''  # Will be set per-tool based on service_name
+    }
+
+
 def extract_type_info(registry: Dict[str, Any], tools: List[Dict[str, Any]], server_name: str = None) -> Dict[str, Any]:
     """Extract type information from registry and tools
 
@@ -447,20 +510,11 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         elif tool_name in tools_map:
             tool_with_internal['implementation'] = tools_map[tool_name]['implementation']
         else:
-            # Fallback: Use a default implementation based on tool configuration
-            # For outlook service, use MailService as default
-            if server_name == 'outlook':
-                tool_with_internal['implementation'] = {
-                    'class_name': 'MailService',
-                    'module_path': 'mcp_outlook.outlook_service',
-                    'instance': 'mail_service',
-                    'method': service_name  # Use service_name from mcp_service
-                }
-            else:
-                # Generic fallback for other servers
-                for svc_name, svc_info in services.items():
-                    tool_with_internal['implementation'] = svc_info
-                    break
+            # Fallback: Auto-extract default implementation from registry services
+            # Uses the most common class_name/module_path/instance pattern
+            default_impl = extract_default_implementation(services, server_name)
+            default_impl['method'] = service_name  # Set method from mcp_service
+            tool_with_internal['implementation'] = default_impl
 
         # Build params from mcp_service.parameters or inputSchema.properties
         params = {}

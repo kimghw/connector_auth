@@ -38,11 +38,10 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 grandparent_dir = os.path.dirname(parent_dir)
 
-# Add paths for imports based on server type
-{%- if server_name == 'file_handler' %}
-file_handler_dir = os.path.join(grandparent_dir, "mcp_file_handler")
-sys.path.insert(0, file_handler_dir)  # For file_handler relative imports
-{%- endif %}
+# Add paths for imports (generalized for all servers)
+server_module_dir = os.path.join(grandparent_dir, "mcp_{{ server_name }}")
+if os.path.isdir(server_module_dir):
+    sys.path.insert(0, server_module_dir)  # For server-specific relative imports
 sys.path.insert(0, grandparent_dir)  # For session module and package imports
 sys.path.insert(0, parent_dir)  # For direct module imports
 
