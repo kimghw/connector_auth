@@ -331,7 +331,14 @@ def discover_mcp_modules(profile_conf: dict | None = None) -> list:
 
             server_name = get_server_name_from_path(module_dir) or get_server_name_from_profile(entry)
             template_path = _get_template_for_server(server_name) or fallback["template_path"]
+            # Prefer the editor's template definitions (with mcp_service_factors) so internal args are preserved
+            editor_template_defs = (
+                os.path.join(ROOT_DIR, "mcp_editor", f"mcp_{server_name}", "tool_definition_templates.py")
+                if server_name
+                else ""
+            )
             tools_candidates = [
+                editor_template_defs,
                 os.path.join(mcp_dir, "tool_definition_templates.py"),
                 os.path.join(mcp_dir, "tool_definitions.py"),
                 fallback["tools_path"],
