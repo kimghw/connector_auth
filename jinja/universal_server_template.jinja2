@@ -469,20 +469,21 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     """Handle {{ tool.name }} tool call"""
     {%- if tool.object_params %}
 
-    # Extract parameters from args
+    # ========================================
+    # Step 1: Signature 파라미터 수신
+    # - LLM으로부터 전달받은 인자 추출
+    # ========================================
     {%- for param_name, param_info in tool.params.items() %}
     {%- if param_info.is_required %}
-    # Extract from input with source param name
     {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
     {{ param_name }} = args["{{ source_param }}"]
     {%- elif param_info.has_default %}
     {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
-    {{ param_name }}_raw = args.get("{{ source_param }}")
+    {{ param_name }}_sig = args.get("{{ source_param }}")
     {%- if param_info.type in enum_types %}
-    # Handle enum type default
-    {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default | replace('"', '') }}
+    {{ param_name }} = {{ param_name }}_sig if {{ param_name }}_sig is not None else {{ param_info.default | replace('"', '') }}
     {%- else %}
-    {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default_json }}
+    {{ param_name }} = {{ param_name }}_sig if {{ param_name }}_sig is not None else {{ param_info.default_json }}
     {%- endif %}
     {%- else %}
     {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
@@ -490,48 +491,29 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- endif %}
     {%- endfor %}
 
-    {%- if tool.internal_overrides %}
-    # Internal overrides for object params
-    {%- for base_name, override in tool.internal_overrides.items() %}
-    {%- set arg_name = override.name %}
-    {%- set arg_info = override.info %}
-    {%- if arg_info.value is defined and arg_info.value is not none %}
-    {{ arg_name }}_data = model_to_dict({{ arg_info.value | pprint }})
-    {%- else %}
-    {{ arg_name }}_params = build_internal_param("{{ tool.name }}", "{{ arg_name }}")
-    {{ arg_name }}_data = model_to_dict({{ arg_name }}_params)
-    {%- endif %}
-    {%- endfor %}
-    {%- endif %}
-
-    # Convert dicts to parameter objects where needed
+    # ========================================
+    # Step 2: Signature Defaults 적용
+    # - 사용자 입력이 없으면 기본값 병합
+    # ========================================
     {%- for param_name, param_info in tool.object_params.items() %}
     {%- if param_name not in tool.internal_args %}
-    # Pre-computed defaults by targetParam: {{ param_info.target_param | default(param_name) }}
-    {%- if param_name in tool.internal_overrides %}
-    {{ param_name }}_internal_defaults = {{ tool.internal_overrides[param_name].name }}_data
-    {%- else %}
-    {{ param_name }}_internal_defaults = {{ param_info.internal_defaults | default({}) | pprint }}
-    {%- endif %}
     {{ param_name }}_sig_defaults = {{ param_info.signature_defaults_values | default({}) | pprint }}
     {%- if not param_info.is_optional %}
-    # Merge: Internal < Signature Defaults < Signature (user input)
     {%- if param_name in tool.params %}
-    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_defaults, {{ param_name }}, {{ param_name }}_sig_defaults) or {}
+    {{ param_name }}_data = merge_param_data({}, {{ param_name }}, {{ param_name }}_sig_defaults) or {}
     {%- else %}
     {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
-    {{ param_name }}_raw = args["{{ source_param }}"]
-    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_defaults, {{ param_name }}_raw, {{ param_name }}_sig_defaults) or {}
+    {{ param_name }}_sig = args["{{ source_param }}"]
+    {{ param_name }}_data = merge_param_data({}, {{ param_name }}_sig, {{ param_name }}_sig_defaults) or {}
     {%- endif %}
     {{ param_name }} = {{ param_info.class_name }}(**{{ param_name }}_data)
     {%- elif param_info.has_default %}
-    # Merge: Internal < Signature Defaults < Signature (user input)
     {%- if param_name in tool.params %}
-    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_defaults, {{ param_name }}, {{ param_name }}_sig_defaults)
+    {{ param_name }}_data = merge_param_data({}, {{ param_name }}, {{ param_name }}_sig_defaults)
     {%- else %}
     {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
-    {{ param_name }}_raw = args.get("{{ source_param }}")
-    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_defaults, {{ param_name }}_raw, {{ param_name }}_sig_defaults)
+    {{ param_name }}_sig = args.get("{{ source_param }}")
+    {{ param_name }}_data = merge_param_data({}, {{ param_name }}_sig, {{ param_name }}_sig_defaults)
     {%- endif %}
     if {{ param_name }}_data is not None:
         {{ param_name }} = {{ param_info.class_name }}(**{{ param_name }}_data)
@@ -542,32 +524,35 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
         {{ param_name }} = None
         {%- endif %}
     {%- else %}
-    # Merge: Internal < Signature Defaults < Signature (user input)
     {%- if param_name in tool.params %}
-    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_defaults, {{ param_name }}, {{ param_name }}_sig_defaults)
+    {{ param_name }}_data = merge_param_data({}, {{ param_name }}, {{ param_name }}_sig_defaults)
     {%- else %}
     {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
-    {{ param_name }}_raw = args.get("{{ source_param }}")
-    {{ param_name }}_data = merge_param_data({{ param_name }}_internal_defaults, {{ param_name }}_raw, {{ param_name }}_sig_defaults)
+    {{ param_name }}_sig = args.get("{{ source_param }}")
+    {{ param_name }}_data = merge_param_data({}, {{ param_name }}_sig, {{ param_name }}_sig_defaults)
     {%- endif %}
     {{ param_name }} = {{ param_info.class_name }}(**{{ param_name }}_data) if {{ param_name }}_data is not None else None
     {%- endif %}
     {%- endif %}
     {%- endfor %}
-    # Prepare call arguments
-    call_args = {}
 
-    # Add signature parameters
+    # ========================================
+    # Step 3: 서비스 호출 인자 구성
+    # - Signature 파라미터 추가
+    # ========================================
+    call_args = {}
     {%- for param_name, param_info in tool.call_params.items() %}
     call_args["{{ param_name }}"] = {{ param_info.value }}
     {%- endfor %}
-
     {%- if tool.internal_args %}
-    # Add internal args ONLY if not already handled by Signature with same targetParam
+
+    # ========================================
+    # Step 4: Internal 파라미터 추가
+    # - LLM에 노출되지 않는 내부 고정값
+    # ========================================
     {%- for arg_name, arg_info in tool.internal_args.items() %}
     {%- if not arg_name.endswith("_internal") %}
     {%- set target_param = arg_info.original_schema.targetParam | default(arg_info.targetParam) | default(arg_name) %}
-    {# Skip if this targetParam was already added by Signature (already merged with Internal defaults) #}
     {%- if target_param not in tool.call_params %}
     {%- if arg_info.value is defined and arg_info.value is not none and arg_info.value != {} %}
     call_args["{{ target_param }}"] = {{ arg_info.type }}(**{{ arg_info.value | pprint }})
@@ -581,23 +566,27 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- endfor %}
     {%- endif %}
 
+    # ========================================
+    # Step 5: 서비스 메서드 호출
+    # ========================================
     return await {{ tool.implementation.instance }}.{{ tool.implementation.method }}(**call_args)
     {%- else %}
 
-    # Extract parameters from args
+    # ========================================
+    # Step 1: Signature 파라미터 수신
+    # - LLM으로부터 전달받은 인자 추출
+    # ========================================
     {%- for param_name, param_info in tool.params.items() %}
     {%- if param_info.is_required %}
-    # Extract from input with source param name
     {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
     {{ param_name }} = args["{{ source_param }}"]
     {%- elif param_info.has_default %}
     {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
-    {{ param_name }}_raw = args.get("{{ source_param }}")
+    {{ param_name }}_sig = args.get("{{ source_param }}")
     {%- if param_info.type in enum_types %}
-    # Handle enum type default
-    {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default | replace('"', '') }}
+    {{ param_name }} = {{ param_name }}_sig if {{ param_name }}_sig is not None else {{ param_info.default | replace('"', '') }}
     {%- else %}
-    {{ param_name }} = {{ param_name }}_raw if {{ param_name }}_raw is not None else {{ param_info.default_json }}
+    {{ param_name }} = {{ param_name }}_sig if {{ param_name }}_sig is not None else {{ param_info.default_json }}
     {%- endif %}
     {%- else %}
     {%- set source_param = tool.call_params[param_name].source_param if param_name in tool.call_params else param_name %}
@@ -605,11 +594,18 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- endif %}
     {%- endfor %}
 
-    return await {{ tool.implementation.instance }}.{{ tool.implementation.method }}(
-        {%- for target_param, param_info in tool.call_params.items() %}
-        {{ target_param }}={{ param_info.value }}{{ "," if not loop.last else "" }}
-        {%- endfor %}
-    )
+    # ========================================
+    # Step 2: 서비스 호출 인자 구성
+    # ========================================
+    call_args = {}
+    {%- for target_param, param_info in tool.call_params.items() %}
+    call_args["{{ target_param }}"] = {{ param_info.value }}
+    {%- endfor %}
+
+    # ========================================
+    # Step 3: 서비스 메서드 호출
+    # ========================================
+    return await {{ tool.implementation.instance }}.{{ tool.implementation.method }}(**call_args)
     {%- endif %}
 {%- endfor %}
 

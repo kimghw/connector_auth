@@ -22,7 +22,10 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 grandparent_dir = os.path.dirname(parent_dir)
 
-# Add paths for imports based on server type
+# Add paths for imports (generalized for all servers)
+server_module_dir = os.path.join(grandparent_dir, "mcp_outlook")
+if os.path.isdir(server_module_dir):
+    sys.path.insert(0, server_module_dir)  # For server-specific relative imports
 sys.path.insert(0, grandparent_dir)  # For session module and package imports
 sys.path.insert(0, parent_dir)  # For direct module imports
 
@@ -441,43 +444,38 @@ def merge_param_data(internal_data: dict, runtime_data, signature_defaults: dict
 async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_list_period tool call"""
 
-    # Extract parameters from args
-    # Extract from input with source param name
+    # ========================================
+    # Step 1: Signature 파라미터 수신
+    # - LLM으로부터 전달받은 인자 추출
+    # ========================================
     user_email = args["user_email"]
-    DatePeriodFilter_raw = args.get("DatePeriodFilter")
-    DatePeriodFilter = DatePeriodFilter_raw if DatePeriodFilter_raw is not None else None
-    client_filter_keyword_raw = args.get("client_filter_keyword")
-    client_filter_keyword = client_filter_keyword_raw if client_filter_keyword_raw is not None else None
+    DatePeriodFilter_sig = args.get("DatePeriodFilter")
+    DatePeriodFilter = DatePeriodFilter_sig if DatePeriodFilter_sig is not None else None
 
-    # Convert dicts to parameter objects where needed
-    # Pre-computed defaults by targetParam: filter_params
-    DatePeriodFilter_internal_defaults = {}
+    # ========================================
+    # Step 2: Signature Defaults 적용
+    # - 사용자 입력이 없으면 기본값 병합
+    # ========================================
     DatePeriodFilter_sig_defaults = {}
-    # Merge: Internal < Signature Defaults < Signature (user input)
-    DatePeriodFilter_data = merge_param_data(DatePeriodFilter_internal_defaults, DatePeriodFilter, DatePeriodFilter_sig_defaults)
+    DatePeriodFilter_data = merge_param_data({}, DatePeriodFilter, DatePeriodFilter_sig_defaults)
     if DatePeriodFilter_data is not None:
         DatePeriodFilter = FilterParams(**DatePeriodFilter_data)
     else:
         DatePeriodFilter = None
-    # Pre-computed defaults by targetParam: client_filter
-    client_filter_keyword_internal_defaults = {'exclude_from_address': 'block@krs.co.kr'}
-    client_filter_keyword_sig_defaults = {}
-    # Merge: Internal < Signature Defaults < Signature (user input)
-    client_filter_keyword_data = merge_param_data(client_filter_keyword_internal_defaults, client_filter_keyword, client_filter_keyword_sig_defaults)
-    if client_filter_keyword_data is not None:
-        client_filter_keyword = ExcludeParams(**client_filter_keyword_data)
-    else:
-        client_filter_keyword = None
-    # Prepare call arguments
-    call_args = {}
 
-    # Add signature parameters
+    # ========================================
+    # Step 3: 서비스 호출 인자 구성
+    # - Signature 파라미터 추가
+    # ========================================
+    call_args = {}
     call_args["user_email"] = user_email
     call_args["filter_params"] = DatePeriodFilter
-    call_args["client_filter"] = client_filter_keyword
-    # Add internal args ONLY if not already handled by Signature with same targetParam
-    
-    
+
+    # ========================================
+    # Step 4: Internal 파라미터 추가
+    # - LLM에 노출되지 않는 내부 고정값
+    # ========================================
+    call_args["client_filter"] = ExcludeParams(**{'exclude_from_address': 'block@krs.co.kr'})
     call_args["select_params"] = SelectParams(**{'bcc_recipients': False,
  'body': False,
  'body_preview': True,
@@ -510,223 +508,284 @@ async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
  'unique_body': False,
  'web_link': False})
 
+    # ========================================
+    # Step 5: 서비스 메서드 호출
+    # ========================================
     return await mail_service.query_mail_list(**call_args)
 
 async def handle_mail_list_keyword(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_list_keyword tool call"""
 
-    # Extract parameters from args
-    # Extract from input with source param name
+    # ========================================
+    # Step 1: Signature 파라미터 수신
+    # - LLM으로부터 전달받은 인자 추출
+    # ========================================
     user_email = args["user_email"]
-    # Extract from input with source param name
     search_keywords = args["search_keywords"]
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 50
+    top_sig = args.get("top")
+    top = top_sig if top_sig is not None else 50
 
-    return await mail_service.fetch_search(
-        user_email=user_email,
-        search_term=search_keywords,
-        top=top
-    )
+    # ========================================
+    # Step 2: 서비스 호출 인자 구성
+    # ========================================
+    call_args = {}
+    call_args["user_email"] = user_email
+    call_args["search_term"] = search_keywords
+    call_args["top"] = top
+
+    # ========================================
+    # Step 3: 서비스 메서드 호출
+    # ========================================
+    return await mail_service.fetch_search(**call_args)
 
 async def handle_mail_query_if_emaidID(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_query_if_emaidID tool call"""
 
-    # Extract parameters from args
-    # Extract from input with source param name
+    # ========================================
+    # Step 1: Signature 파라미터 수신
+    # - LLM으로부터 전달받은 인자 추출
+    # ========================================
     user_email = args["user_email"]
-    # Extract from input with source param name
     message_ids = args["message_ids"]
 
-    return await mail_service.batch_and_fetch(
-        user_email=user_email,
-        message_ids=message_ids
-    )
+    # ========================================
+    # Step 2: 서비스 호출 인자 구성
+    # ========================================
+    call_args = {}
+    call_args["user_email"] = user_email
+    call_args["message_ids"] = message_ids
+
+    # ========================================
+    # Step 3: 서비스 메서드 호출
+    # ========================================
+    return await mail_service.batch_and_fetch(**call_args)
 
 async def handle_mail_attachment_meta(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_attachment_meta tool call"""
 
-    # Extract parameters from args
-    # Extract from input with source param name
+    # ========================================
+    # Step 1: Signature 파라미터 수신
+    # - LLM으로부터 전달받은 인자 추출
+    # ========================================
     user_email = args["user_email"]
-    # Extract from input with source param name
     message_ids = args["message_ids"]
 
-    return await mail_service.fetch_attachments_metadata(
-        user_email=user_email,
-        message_ids=message_ids
-    )
+    # ========================================
+    # Step 2: 서비스 호출 인자 구성
+    # ========================================
+    call_args = {}
+    call_args["user_email"] = user_email
+    call_args["message_ids"] = message_ids
+
+    # ========================================
+    # Step 3: 서비스 메서드 호출
+    # ========================================
+    return await mail_service.fetch_attachments_metadata(**call_args)
 
 async def handle_mail_attachment_download(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_attachment_download tool call"""
 
-    # Extract parameters from args
-    # Extract from input with source param name
+    # ========================================
+    # Step 1: Signature 파라미터 수신
+    # - LLM으로부터 전달받은 인자 추출
+    # ========================================
     user_email = args["user_email"]
-    # Extract from input with source param name
     message_attachment_ids = args["message_attachment_ids"]
-    save_directory_raw = args.get("save_directory")
-    save_directory = save_directory_raw if save_directory_raw is not None else 'downloads'
-    skip_duplicates_raw = args.get("skip_duplicates")
-    skip_duplicates = skip_duplicates_raw if skip_duplicates_raw is not None else True
+    save_directory_sig = args.get("save_directory")
+    save_directory = save_directory_sig if save_directory_sig is not None else 'downloads'
+    skip_duplicates_sig = args.get("skip_duplicates")
+    skip_duplicates = skip_duplicates_sig if skip_duplicates_sig is not None else True
 
-    return await mail_service.download_attachments(
-        user_email=user_email,
-        message_attachment_ids=message_attachment_ids,
-        save_directory=save_directory,
-        skip_duplicates=skip_duplicates
-    )
+    # ========================================
+    # Step 2: 서비스 호출 인자 구성
+    # ========================================
+    call_args = {}
+    call_args["user_email"] = user_email
+    call_args["message_attachment_ids"] = message_attachment_ids
+    call_args["save_directory"] = save_directory
+    call_args["skip_duplicates"] = skip_duplicates
+
+    # ========================================
+    # Step 3: 서비스 메서드 호출
+    # ========================================
+    return await mail_service.download_attachments(**call_args)
 
 async def handle_mail_fetch_filter(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_fetch_filter tool call"""
 
-    # Extract parameters from args
-    # Extract from input with source param name
+    # ========================================
+    # Step 1: Signature 파라미터 수신
+    # - LLM으로부터 전달받은 인자 추출
+    # ========================================
     user_email = args["user_email"]
-    filter_params_raw = args.get("filter_params")
-    filter_params = filter_params_raw if filter_params_raw is not None else None
-    exclude_params_raw = args.get("exclude_params")
-    exclude_params = exclude_params_raw if exclude_params_raw is not None else None
+    filter_params_sig = args.get("filter_params")
+    filter_params = filter_params_sig if filter_params_sig is not None else None
+    exclude_params_sig = args.get("exclude_params")
+    exclude_params = exclude_params_sig if exclude_params_sig is not None else None
 
-    # Convert dicts to parameter objects where needed
-    # Pre-computed defaults by targetParam: filter_params
-    filter_params_internal_defaults = {}
+    # ========================================
+    # Step 2: Signature Defaults 적용
+    # - 사용자 입력이 없으면 기본값 병합
+    # ========================================
     filter_params_sig_defaults = {'test_field': 'test_value'}
-    # Merge: Internal < Signature Defaults < Signature (user input)
-    filter_params_data = merge_param_data(filter_params_internal_defaults, filter_params, filter_params_sig_defaults)
+    filter_params_data = merge_param_data({}, filter_params, filter_params_sig_defaults)
     if filter_params_data is not None:
         filter_params = FilterParams(**filter_params_data)
     else:
         filter_params = None
-    # Pre-computed defaults by targetParam: exclude_params
-    exclude_params_internal_defaults = {}
     exclude_params_sig_defaults = {}
-    # Merge: Internal < Signature Defaults < Signature (user input)
-    exclude_params_data = merge_param_data(exclude_params_internal_defaults, exclude_params, exclude_params_sig_defaults)
+    exclude_params_data = merge_param_data({}, exclude_params, exclude_params_sig_defaults)
     if exclude_params_data is not None:
         exclude_params = ExcludeParams(**exclude_params_data)
     else:
         exclude_params = None
-    # Prepare call arguments
-    call_args = {}
 
-    # Add signature parameters
+    # ========================================
+    # Step 3: 서비스 호출 인자 구성
+    # - Signature 파라미터 추가
+    # ========================================
+    call_args = {}
     call_args["user_email"] = user_email
     call_args["filter_params"] = filter_params
     call_args["exclude_params"] = exclude_params
 
+    # ========================================
+    # Step 5: 서비스 메서드 호출
+    # ========================================
     return await mail_service.fetch_filter(**call_args)
 
 async def handle_mail_fetch_search(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_fetch_search tool call"""
 
-    # Extract parameters from args
-    # Extract from input with source param name
+    # ========================================
+    # Step 1: Signature 파라미터 수신
+    # - LLM으로부터 전달받은 인자 추출
+    # ========================================
     user_email = args["user_email"]
-    # Extract from input with source param name
     search_term = args["search_term"]
-    select_params_raw = args.get("select_params")
-    select_params = select_params_raw if select_params_raw is not None else None
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 50
+    select_params_sig = args.get("select_params")
+    select_params = select_params_sig if select_params_sig is not None else None
+    top_sig = args.get("top")
+    top = top_sig if top_sig is not None else 50
 
-    # Convert dicts to parameter objects where needed
-    # Pre-computed defaults by targetParam: select_params
-    select_params_internal_defaults = {}
+    # ========================================
+    # Step 2: Signature Defaults 적용
+    # - 사용자 입력이 없으면 기본값 병합
+    # ========================================
     select_params_sig_defaults = {}
-    # Merge: Internal < Signature Defaults < Signature (user input)
-    select_params_data = merge_param_data(select_params_internal_defaults, select_params, select_params_sig_defaults)
+    select_params_data = merge_param_data({}, select_params, select_params_sig_defaults)
     if select_params_data is not None:
         select_params = SelectParams(**select_params_data)
     else:
         select_params = None
-    # Prepare call arguments
-    call_args = {}
 
-    # Add signature parameters
+    # ========================================
+    # Step 3: 서비스 호출 인자 구성
+    # - Signature 파라미터 추가
+    # ========================================
+    call_args = {}
     call_args["user_email"] = user_email
     call_args["search_term"] = search_term
     call_args["select_params"] = select_params
     call_args["top"] = top
 
+    # ========================================
+    # Step 5: 서비스 메서드 호출
+    # ========================================
     return await mail_service.fetch_search(**call_args)
 
 async def handle_mail_process_with_download(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_process_with_download tool call"""
 
-    # Extract parameters from args
-    # Extract from input with source param name
+    # ========================================
+    # Step 1: Signature 파라미터 수신
+    # - LLM으로부터 전달받은 인자 추출
+    # ========================================
     user_email = args["user_email"]
-    filter_params_raw = args.get("filter_params")
-    filter_params = filter_params_raw if filter_params_raw is not None else None
-    search_term_raw = args.get("search_term")
-    search_term = search_term_raw if search_term_raw is not None else None
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 50
-    save_directory_raw = args.get("save_directory")
-    save_directory = save_directory_raw if save_directory_raw is not None else None
+    filter_params_sig = args.get("filter_params")
+    filter_params = filter_params_sig if filter_params_sig is not None else None
+    search_term_sig = args.get("search_term")
+    search_term = search_term_sig if search_term_sig is not None else None
+    top_sig = args.get("top")
+    top = top_sig if top_sig is not None else 50
+    save_directory_sig = args.get("save_directory")
+    save_directory = save_directory_sig if save_directory_sig is not None else None
 
-    # Convert dicts to parameter objects where needed
-    # Pre-computed defaults by targetParam: filter_params
-    filter_params_internal_defaults = {}
+    # ========================================
+    # Step 2: Signature Defaults 적용
+    # - 사용자 입력이 없으면 기본값 병합
+    # ========================================
     filter_params_sig_defaults = {}
-    # Merge: Internal < Signature Defaults < Signature (user input)
-    filter_params_data = merge_param_data(filter_params_internal_defaults, filter_params, filter_params_sig_defaults)
+    filter_params_data = merge_param_data({}, filter_params, filter_params_sig_defaults)
     if filter_params_data is not None:
         filter_params = FilterParams(**filter_params_data)
     else:
         filter_params = None
-    # Prepare call arguments
-    call_args = {}
 
-    # Add signature parameters
+    # ========================================
+    # Step 3: 서비스 호출 인자 구성
+    # - Signature 파라미터 추가
+    # ========================================
+    call_args = {}
     call_args["user_email"] = user_email
     call_args["filter_params"] = filter_params
     call_args["search_term"] = search_term
     call_args["top"] = top
     call_args["save_directory"] = save_directory
 
+    # ========================================
+    # Step 5: 서비스 메서드 호출
+    # ========================================
     return await mail_service.process_with_download(**call_args)
 
 async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_query_url tool call"""
 
-    # Extract parameters from args
-    # Extract from input with source param name
+    # ========================================
+    # Step 1: Signature 파라미터 수신
+    # - LLM으로부터 전달받은 인자 추출
+    # ========================================
     user_email = args["user_email"]
-    # Extract from input with source param name
     url = args["url"]
-    filter_params_raw = args.get("filter_params")
-    filter_params = filter_params_raw if filter_params_raw is not None else None
-    top_raw = args.get("top")
-    top = top_raw if top_raw is not None else 50
+    filter_params_sig = args.get("filter_params")
+    filter_params = filter_params_sig if filter_params_sig is not None else None
+    top_sig = args.get("top")
+    top = top_sig if top_sig is not None else 50
 
-    # Convert dicts to parameter objects where needed
-    # Pre-computed defaults by targetParam: filter_params
-    filter_params_internal_defaults = {}
+    # ========================================
+    # Step 2: Signature Defaults 적용
+    # - 사용자 입력이 없으면 기본값 병합
+    # ========================================
     filter_params_sig_defaults = {}
-    # Merge: Internal < Signature Defaults < Signature (user input)
-    filter_params_data = merge_param_data(filter_params_internal_defaults, filter_params, filter_params_sig_defaults)
+    filter_params_data = merge_param_data({}, filter_params, filter_params_sig_defaults)
     if filter_params_data is not None:
         filter_params = FilterParams(**filter_params_data)
     else:
         filter_params = None
-    # Prepare call arguments
-    call_args = {}
 
-    # Add signature parameters
+    # ========================================
+    # Step 3: 서비스 호출 인자 구성
+    # - Signature 파라미터 추가
+    # ========================================
+    call_args = {}
     call_args["user_email"] = user_email
     call_args["url"] = url
     call_args["filter_params"] = filter_params
     call_args["top"] = top
-    # Add internal args ONLY if not already handled by Signature with same targetParam
-    
+
+    # ========================================
+    # Step 4: Internal 파라미터 추가
+    # - LLM에 노출되지 않는 내부 고정값
+    # ========================================
     call_args["select"] = SelectParams(**{'body_preview': True,
  'created_date_time': True,
  'from_recipient': True,
  'id': True,
  'received_date_time': True})
 
+    # ========================================
+    # Step 5: 서비스 메서드 호출
+    # ========================================
     return await mail_service.fetch_url(**call_args)
 
 # ============================================================
