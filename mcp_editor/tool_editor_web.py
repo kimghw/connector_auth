@@ -2391,6 +2391,12 @@ def save_all_definitions():
         print(f"[DEBUG] Received internal_args: {len(internal_args)} tools")
         print(f"[DEBUG] Received signature_defaults: {len(signature_defaults)} tools")
 
+        # Debug mail_list_period internal args
+        if "mail_list_period" in internal_args:
+            import json
+            print(f"\n[DEBUG] mail_list_period internal_args:")
+            print(json.dumps(internal_args["mail_list_period"], indent=2, ensure_ascii=False))
+
         if not tools_data or not isinstance(tools_data, list):
             return jsonify({"error": "tools must be a list"}), 400
 

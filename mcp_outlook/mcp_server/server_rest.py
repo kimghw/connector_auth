@@ -321,14 +321,16 @@ SERVICE_FACTORS = {'mail_attachment_download': {'internal': {'select_params': {'
                                                         'sender': True,
                                                         'subject': True}}},
                       'signature_defaults': {}},
- 'mail_query_url': {'internal': {'select': {'original_schema': {'properties': {'body_preview': {'description': '메시지 '
+ 'mail_query_url': {'internal': {'select': {'original_schema': {'properties': {'body_preview': {'default': True,
+                                                                                                'description': '메시지 '
                                                                                                                '본문의 '
                                                                                                                '처음 '
                                                                                                                '255자 '
                                                                                                                '(텍스트 '
                                                                                                                '형식)',
                                                                                                 'type': 'boolean'},
-                                                                               'created_date_time': {'description': '메시지 '
+                                                                               'created_date_time': {'default': True,
+                                                                                                     'description': '메시지 '
                                                                                                                     '생성 '
                                                                                                                     '날짜/시간 '
                                                                                                                     '(ISO '
@@ -336,20 +338,23 @@ SERVICE_FACTORS = {'mail_attachment_download': {'internal': {'select_params': {'
                                                                                                                     '형식, '
                                                                                                                     'UTC)',
                                                                                                      'type': 'boolean'},
-                                                                               'from_recipient': {'description': '메시지가 '
+                                                                               'from_recipient': {'default': True,
+                                                                                                  'description': '메시지가 '
                                                                                                                  '전송된 '
                                                                                                                  '사서함의 '
                                                                                                                  '소유자 '
                                                                                                                  '(from '
                                                                                                                  '필드)',
                                                                                                   'type': 'boolean'},
-                                                                               'id': {'description': '메시지 '
+                                                                               'id': {'default': True,
+                                                                                      'description': '메시지 '
                                                                                                      '고유 '
                                                                                                      '식별자 '
                                                                                                      '(읽기 '
                                                                                                      '전용)',
                                                                                       'type': 'boolean'},
-                                                                               'received_date_time': {'description': '메시지 '
+                                                                               'received_date_time': {'default': True,
+                                                                                                      'description': '메시지 '
                                                                                                                      '수신 '
                                                                                                                      '날짜/시간 '
                                                                                                                      '(ISO '
@@ -362,7 +367,11 @@ SERVICE_FACTORS = {'mail_attachment_download': {'internal': {'select_params': {'
                                             'source': 'internal',
                                             'targetParam': 'select',
                                             'type': 'SelectParams',
-                                            'value': {}}},
+                                            'value': {'body_preview': True,
+                                                      'created_date_time': True,
+                                                      'from_recipient': True,
+                                                      'id': True,
+                                                      'received_date_time': True}}},
                     'signature_defaults': {}}}
 
 # Legacy format for backward compatibility
@@ -524,14 +533,16 @@ INTERNAL_ARGS = {'mail_attachment_download': {'select_params': {'original_schema
                                            'received_date_time': True,
                                            'sender': True,
                                            'subject': True}}},
- 'mail_query_url': {'select': {'original_schema': {'properties': {'body_preview': {'description': '메시지 '
+ 'mail_query_url': {'select': {'original_schema': {'properties': {'body_preview': {'default': True,
+                                                                                   'description': '메시지 '
                                                                                                   '본문의 '
                                                                                                   '처음 '
                                                                                                   '255자 '
                                                                                                   '(텍스트 '
                                                                                                   '형식)',
                                                                                    'type': 'boolean'},
-                                                                  'created_date_time': {'description': '메시지 '
+                                                                  'created_date_time': {'default': True,
+                                                                                        'description': '메시지 '
                                                                                                        '생성 '
                                                                                                        '날짜/시간 '
                                                                                                        '(ISO '
@@ -539,20 +550,23 @@ INTERNAL_ARGS = {'mail_attachment_download': {'select_params': {'original_schema
                                                                                                        '형식, '
                                                                                                        'UTC)',
                                                                                         'type': 'boolean'},
-                                                                  'from_recipient': {'description': '메시지가 '
+                                                                  'from_recipient': {'default': True,
+                                                                                     'description': '메시지가 '
                                                                                                     '전송된 '
                                                                                                     '사서함의 '
                                                                                                     '소유자 '
                                                                                                     '(from '
                                                                                                     '필드)',
                                                                                      'type': 'boolean'},
-                                                                  'id': {'description': '메시지 '
+                                                                  'id': {'default': True,
+                                                                         'description': '메시지 '
                                                                                         '고유 '
                                                                                         '식별자 '
                                                                                         '(읽기 '
                                                                                         '전용)',
                                                                          'type': 'boolean'},
-                                                                  'received_date_time': {'description': '메시지 '
+                                                                  'received_date_time': {'default': True,
+                                                                                         'description': '메시지 '
                                                                                                         '수신 '
                                                                                                         '날짜/시간 '
                                                                                                         '(ISO '
@@ -564,7 +578,11 @@ INTERNAL_ARGS = {'mail_attachment_download': {'select_params': {'original_schema
                                                    'type': 'object'},
                                'targetParam': 'select',
                                'type': 'SelectParams',
-                               'value': {}}}}
+                               'value': {'body_preview': True,
+                                         'created_date_time': True,
+                                         'from_recipient': True,
+                                         'id': True,
+                                         'received_date_time': True}}}}
 
 # Build INTERNAL_ARG_TYPES dynamically based on imported types
 INTERNAL_ARG_TYPES = {}
@@ -984,7 +1002,11 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     call_args["filter_params"] = filter_params
     call_args["top"] = top
     # Add internal args (Internal has different targetParam from Signature, no overlap)
-    call_args["select"] = SelectParams()
+    call_args["select"] = SelectParams(**{'body_preview': True,
+ 'created_date_time': True,
+ 'from_recipient': True,
+ 'id': True,
+ 'received_date_time': True})
 
     return await mail_service.fetch_url(**call_args)
 # ============================================================

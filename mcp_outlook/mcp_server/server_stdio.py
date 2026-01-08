@@ -144,10 +144,444 @@ def build_mcp_content(payload: Dict[str, Any]) -> Dict[str, Any]:
 # Service factors are now embedded in tool definitions via mcp_service_factors
 # This data is passed from the generator as part of the context
 # Structure: { tool_name: { 'internal': {...}, 'signature_defaults': {...} } }
-SERVICE_FACTORS = {}
+SERVICE_FACTORS = {'mail_attachment_download': {'internal': {'select_params': {'original_schema': {'properties': {'body': {'description': '메시지 '
+                                                                                                                        '본문 '
+                                                                                                                        '(HTML '
+                                                                                                                        '또는 '
+                                                                                                                        '텍스트 '
+                                                                                                                        '형식)',
+                                                                                                         'type': 'boolean'},
+                                                                                                'categories': {'description': '메시지에 '
+                                                                                                                              '연결된 '
+                                                                                                                              '카테고리 '
+                                                                                                                              '목록',
+                                                                                                               'type': 'boolean'},
+                                                                                                'change_key': {'description': '메시지 '
+                                                                                                                              '버전 '
+                                                                                                                              '키',
+                                                                                                               'type': 'boolean'},
+                                                                                                'created_date_time': {'description': '메시지 '
+                                                                                                                                     '생성 '
+                                                                                                                                     '날짜/시간 '
+                                                                                                                                     '(ISO '
+                                                                                                                                     '8601 '
+                                                                                                                                     '형식, '
+                                                                                                                                     'UTC)',
+                                                                                                                      'type': 'boolean'},
+                                                                                                'id': {'description': '메시지 '
+                                                                                                                      '고유 '
+                                                                                                                      '식별자 '
+                                                                                                                      '(읽기 '
+                                                                                                                      '전용)',
+                                                                                                       'type': 'boolean'},
+                                                                                                'last_modified_date_time': {'description': '메시지 '
+                                                                                                                                           '최종 '
+                                                                                                                                           '수정 '
+                                                                                                                                           '날짜/시간 '
+                                                                                                                                           '(ISO '
+                                                                                                                                           '8601 '
+                                                                                                                                           '형식, '
+                                                                                                                                           'UTC)',
+                                                                                                                            'type': 'boolean'},
+                                                                                                'subject': {'description': '메시지 '
+                                                                                                                           '제목',
+                                                                                                            'type': 'boolean'}},
+                                                                                 'targetParam': 'select_params',
+                                                                                 'type': 'object'},
+                                                             'source': 'internal',
+                                                             'targetParam': 'select_params',
+                                                             'type': 'object',
+                                                             'value': {}}},
+                              'signature_defaults': {}},
+ 'mail_attachment_meta': {'internal': {'select_params': {'original_schema': {'properties': {'body': {'default': True,
+                                                                                                     'description': '메시지 '
+                                                                                                                    '본문 '
+                                                                                                                    '(HTML '
+                                                                                                                    '또는 '
+                                                                                                                    '텍스트 '
+                                                                                                                    '형식)',
+                                                                                                     'type': 'boolean'},
+                                                                                            'id': {'default': True,
+                                                                                                   'description': '메시지 '
+                                                                                                                  '고유 '
+                                                                                                                  '식별자 '
+                                                                                                                  '(읽기 '
+                                                                                                                  '전용)',
+                                                                                                   'type': 'boolean'},
+                                                                                            'received_date_time': {'default': True,
+                                                                                                                   'description': '메시지 '
+                                                                                                                                  '수신 '
+                                                                                                                                  '날짜/시간 '
+                                                                                                                                  '(ISO '
+                                                                                                                                  '8601 '
+                                                                                                                                  '형식, '
+                                                                                                                                  'UTC)',
+                                                                                                                   'type': 'boolean'},
+                                                                                            'subject': {'default': True,
+                                                                                                        'description': '메시지 '
+                                                                                                                       '제목',
+                                                                                                        'type': 'boolean'}},
+                                                                             'targetParam': 'select_params',
+                                                                             'type': 'object'},
+                                                         'source': 'internal',
+                                                         'targetParam': 'select_params',
+                                                         'type': 'SelectParams',
+                                                         'value': {'body': True,
+                                                                   'id': True,
+                                                                   'received_date_time': True,
+                                                                   'subject': True}}},
+                          'signature_defaults': {}},
+ 'mail_fetch_filter': {'internal': {},
+                       'signature_defaults': {'filter_params': {'original_schema': {'properties': {'test_field': {'default': 'test_value',
+                                                                                                                  'type': 'string'}},
+                                                                                    'targetParam': 'filter_params',
+                                                                                    'type': 'object'},
+                                                                'source': 'signature_defaults',
+                                                                'targetParam': 'filter_params',
+                                                                'type': 'FilterParams',
+                                                                'value': {'test_field': 'test_value'}}}},
+ 'mail_list_keyword': {'internal': {'select_params': {'original_schema': {'properties': {},
+                                                                          'targetParam': 'select_params',
+                                                                          'type': 'object'},
+                                                      'source': 'internal',
+                                                      'targetParam': 'select_params',
+                                                      'type': 'SelectParams',
+                                                      'value': {}}},
+                       'signature_defaults': {}},
+ 'mail_list_period': {'internal': {'client_filter': {'original_schema': {'properties': {'exclude_from_address': {'default': 'block@krs.co.kr',
+                                                                                                                 'description': '제외할 '
+                                                                                                                                '발신자 '
+                                                                                                                                '주소 '
+                                                                                                                                '(from '
+                                                                                                                                '필드)',
+                                                                                                                 'type': 'string'}},
+                                                                         'targetParam': 'client_filter',
+                                                                         'type': 'object'},
+                                                     'source': 'internal',
+                                                     'targetParam': 'client_filter',
+                                                     'type': 'ExcludeParams',
+                                                     'value': {'exclude_from_address': 'block@krs.co.kr'}},
+                                   'select': {'original_schema': {'properties': {'body_preview': {'default': True,
+                                                                                                  'description': '메시지 '
+                                                                                                                 '본문의 '
+                                                                                                                 '처음 '
+                                                                                                                 '255자 '
+                                                                                                                 '(텍스트 '
+                                                                                                                 '형식)',
+                                                                                                  'type': 'boolean'},
+                                                                                 'has_attachments': {'default': True,
+                                                                                                     'description': '첨부파일 '
+                                                                                                                    '포함 '
+                                                                                                                    '여부',
+                                                                                                     'type': 'boolean'},
+                                                                                 'id': {'default': True,
+                                                                                        'description': '메시지 '
+                                                                                                       '고유 '
+                                                                                                       '식별자 '
+                                                                                                       '(읽기 '
+                                                                                                       '전용)',
+                                                                                        'type': 'boolean'},
+                                                                                 'internet_message_id': {'default': True,
+                                                                                                         'description': 'RFC2822 '
+                                                                                                                        '형식의 '
+                                                                                                                        '메시지 '
+                                                                                                                        'ID',
+                                                                                                         'type': 'boolean'},
+                                                                                 'received_date_time': {'default': True,
+                                                                                                        'description': '메시지 '
+                                                                                                                       '수신 '
+                                                                                                                       '날짜/시간 '
+                                                                                                                       '(ISO '
+                                                                                                                       '8601 '
+                                                                                                                       '형식, '
+                                                                                                                       'UTC)',
+                                                                                                        'type': 'boolean'},
+                                                                                 'sender': {'default': True,
+                                                                                            'description': '메시지를 '
+                                                                                                           '생성하는 '
+                                                                                                           '데 '
+                                                                                                           '사용된 '
+                                                                                                           '계정',
+                                                                                            'type': 'boolean'},
+                                                                                 'subject': {'default': True,
+                                                                                             'description': '메시지 '
+                                                                                                            '제목',
+                                                                                             'type': 'boolean'}},
+                                                                  'targetParam': 'select_params',
+                                                                  'type': 'object'},
+                                              'source': 'internal',
+                                              'targetParam': 'select_params',
+                                              'type': 'SelectParams',
+                                              'value': {'body_preview': True,
+                                                        'has_attachments': True,
+                                                        'id': True,
+                                                        'internet_message_id': True,
+                                                        'received_date_time': True,
+                                                        'sender': True,
+                                                        'subject': True}}},
+                      'signature_defaults': {}},
+ 'mail_query_url': {'internal': {'select': {'original_schema': {'properties': {'body_preview': {'default': True,
+                                                                                                'description': '메시지 '
+                                                                                                               '본문의 '
+                                                                                                               '처음 '
+                                                                                                               '255자 '
+                                                                                                               '(텍스트 '
+                                                                                                               '형식)',
+                                                                                                'type': 'boolean'},
+                                                                               'created_date_time': {'default': True,
+                                                                                                     'description': '메시지 '
+                                                                                                                    '생성 '
+                                                                                                                    '날짜/시간 '
+                                                                                                                    '(ISO '
+                                                                                                                    '8601 '
+                                                                                                                    '형식, '
+                                                                                                                    'UTC)',
+                                                                                                     'type': 'boolean'},
+                                                                               'from_recipient': {'default': True,
+                                                                                                  'description': '메시지가 '
+                                                                                                                 '전송된 '
+                                                                                                                 '사서함의 '
+                                                                                                                 '소유자 '
+                                                                                                                 '(from '
+                                                                                                                 '필드)',
+                                                                                                  'type': 'boolean'},
+                                                                               'id': {'default': True,
+                                                                                      'description': '메시지 '
+                                                                                                     '고유 '
+                                                                                                     '식별자 '
+                                                                                                     '(읽기 '
+                                                                                                     '전용)',
+                                                                                      'type': 'boolean'},
+                                                                               'received_date_time': {'default': True,
+                                                                                                      'description': '메시지 '
+                                                                                                                     '수신 '
+                                                                                                                     '날짜/시간 '
+                                                                                                                     '(ISO '
+                                                                                                                     '8601 '
+                                                                                                                     '형식, '
+                                                                                                                     'UTC)',
+                                                                                                      'type': 'boolean'}},
+                                                                'targetParam': 'select',
+                                                                'type': 'object'},
+                                            'source': 'internal',
+                                            'targetParam': 'select',
+                                            'type': 'SelectParams',
+                                            'value': {'body_preview': True,
+                                                      'created_date_time': True,
+                                                      'from_recipient': True,
+                                                      'id': True,
+                                                      'received_date_time': True}}},
+                    'signature_defaults': {}}}
 
 # Legacy format for backward compatibility
-INTERNAL_ARGS = {}
+INTERNAL_ARGS = {'mail_attachment_download': {'select_params': {'original_schema': {'properties': {'body': {'description': '메시지 '
+                                                                                                           '본문 '
+                                                                                                           '(HTML '
+                                                                                                           '또는 '
+                                                                                                           '텍스트 '
+                                                                                                           '형식)',
+                                                                                            'type': 'boolean'},
+                                                                                   'categories': {'description': '메시지에 '
+                                                                                                                 '연결된 '
+                                                                                                                 '카테고리 '
+                                                                                                                 '목록',
+                                                                                                  'type': 'boolean'},
+                                                                                   'change_key': {'description': '메시지 '
+                                                                                                                 '버전 '
+                                                                                                                 '키',
+                                                                                                  'type': 'boolean'},
+                                                                                   'created_date_time': {'description': '메시지 '
+                                                                                                                        '생성 '
+                                                                                                                        '날짜/시간 '
+                                                                                                                        '(ISO '
+                                                                                                                        '8601 '
+                                                                                                                        '형식, '
+                                                                                                                        'UTC)',
+                                                                                                         'type': 'boolean'},
+                                                                                   'id': {'description': '메시지 '
+                                                                                                         '고유 '
+                                                                                                         '식별자 '
+                                                                                                         '(읽기 '
+                                                                                                         '전용)',
+                                                                                          'type': 'boolean'},
+                                                                                   'last_modified_date_time': {'description': '메시지 '
+                                                                                                                              '최종 '
+                                                                                                                              '수정 '
+                                                                                                                              '날짜/시간 '
+                                                                                                                              '(ISO '
+                                                                                                                              '8601 '
+                                                                                                                              '형식, '
+                                                                                                                              'UTC)',
+                                                                                                               'type': 'boolean'},
+                                                                                   'subject': {'description': '메시지 '
+                                                                                                              '제목',
+                                                                                               'type': 'boolean'}},
+                                                                    'targetParam': 'select_params',
+                                                                    'type': 'object'},
+                                                'targetParam': 'select_params',
+                                                'type': 'object',
+                                                'value': {}}},
+ 'mail_attachment_meta': {'select_params': {'original_schema': {'properties': {'body': {'default': True,
+                                                                                        'description': '메시지 '
+                                                                                                       '본문 '
+                                                                                                       '(HTML '
+                                                                                                       '또는 '
+                                                                                                       '텍스트 '
+                                                                                                       '형식)',
+                                                                                        'type': 'boolean'},
+                                                                               'id': {'default': True,
+                                                                                      'description': '메시지 '
+                                                                                                     '고유 '
+                                                                                                     '식별자 '
+                                                                                                     '(읽기 '
+                                                                                                     '전용)',
+                                                                                      'type': 'boolean'},
+                                                                               'received_date_time': {'default': True,
+                                                                                                      'description': '메시지 '
+                                                                                                                     '수신 '
+                                                                                                                     '날짜/시간 '
+                                                                                                                     '(ISO '
+                                                                                                                     '8601 '
+                                                                                                                     '형식, '
+                                                                                                                     'UTC)',
+                                                                                                      'type': 'boolean'},
+                                                                               'subject': {'default': True,
+                                                                                           'description': '메시지 '
+                                                                                                          '제목',
+                                                                                           'type': 'boolean'}},
+                                                                'targetParam': 'select_params',
+                                                                'type': 'object'},
+                                            'targetParam': 'select_params',
+                                            'type': 'SelectParams',
+                                            'value': {'body': True,
+                                                      'id': True,
+                                                      'received_date_time': True,
+                                                      'subject': True}}},
+ 'mail_list_keyword': {'select_params': {'original_schema': {'properties': {},
+                                                             'targetParam': 'select_params',
+                                                             'type': 'object'},
+                                         'targetParam': 'select_params',
+                                         'type': 'SelectParams',
+                                         'value': {}}},
+ 'mail_list_period': {'client_filter': {'original_schema': {'properties': {'exclude_from_address': {'default': 'block@krs.co.kr',
+                                                                                                    'description': '제외할 '
+                                                                                                                   '발신자 '
+                                                                                                                   '주소 '
+                                                                                                                   '(from '
+                                                                                                                   '필드)',
+                                                                                                    'type': 'string'}},
+                                                            'targetParam': 'client_filter',
+                                                            'type': 'object'},
+                                        'targetParam': 'client_filter',
+                                        'type': 'ExcludeParams',
+                                        'value': {'exclude_from_address': 'block@krs.co.kr'}},
+                      'select': {'original_schema': {'properties': {'body_preview': {'default': True,
+                                                                                     'description': '메시지 '
+                                                                                                    '본문의 '
+                                                                                                    '처음 '
+                                                                                                    '255자 '
+                                                                                                    '(텍스트 '
+                                                                                                    '형식)',
+                                                                                     'type': 'boolean'},
+                                                                    'has_attachments': {'default': True,
+                                                                                        'description': '첨부파일 '
+                                                                                                       '포함 '
+                                                                                                       '여부',
+                                                                                        'type': 'boolean'},
+                                                                    'id': {'default': True,
+                                                                           'description': '메시지 '
+                                                                                          '고유 '
+                                                                                          '식별자 '
+                                                                                          '(읽기 '
+                                                                                          '전용)',
+                                                                           'type': 'boolean'},
+                                                                    'internet_message_id': {'default': True,
+                                                                                            'description': 'RFC2822 '
+                                                                                                           '형식의 '
+                                                                                                           '메시지 '
+                                                                                                           'ID',
+                                                                                            'type': 'boolean'},
+                                                                    'received_date_time': {'default': True,
+                                                                                           'description': '메시지 '
+                                                                                                          '수신 '
+                                                                                                          '날짜/시간 '
+                                                                                                          '(ISO '
+                                                                                                          '8601 '
+                                                                                                          '형식, '
+                                                                                                          'UTC)',
+                                                                                           'type': 'boolean'},
+                                                                    'sender': {'default': True,
+                                                                               'description': '메시지를 '
+                                                                                              '생성하는 '
+                                                                                              '데 '
+                                                                                              '사용된 '
+                                                                                              '계정',
+                                                                               'type': 'boolean'},
+                                                                    'subject': {'default': True,
+                                                                                'description': '메시지 '
+                                                                                               '제목',
+                                                                                'type': 'boolean'}},
+                                                     'targetParam': 'select_params',
+                                                     'type': 'object'},
+                                 'targetParam': 'select_params',
+                                 'type': 'SelectParams',
+                                 'value': {'body_preview': True,
+                                           'has_attachments': True,
+                                           'id': True,
+                                           'internet_message_id': True,
+                                           'received_date_time': True,
+                                           'sender': True,
+                                           'subject': True}}},
+ 'mail_query_url': {'select': {'original_schema': {'properties': {'body_preview': {'default': True,
+                                                                                   'description': '메시지 '
+                                                                                                  '본문의 '
+                                                                                                  '처음 '
+                                                                                                  '255자 '
+                                                                                                  '(텍스트 '
+                                                                                                  '형식)',
+                                                                                   'type': 'boolean'},
+                                                                  'created_date_time': {'default': True,
+                                                                                        'description': '메시지 '
+                                                                                                       '생성 '
+                                                                                                       '날짜/시간 '
+                                                                                                       '(ISO '
+                                                                                                       '8601 '
+                                                                                                       '형식, '
+                                                                                                       'UTC)',
+                                                                                        'type': 'boolean'},
+                                                                  'from_recipient': {'default': True,
+                                                                                     'description': '메시지가 '
+                                                                                                    '전송된 '
+                                                                                                    '사서함의 '
+                                                                                                    '소유자 '
+                                                                                                    '(from '
+                                                                                                    '필드)',
+                                                                                     'type': 'boolean'},
+                                                                  'id': {'default': True,
+                                                                         'description': '메시지 '
+                                                                                        '고유 '
+                                                                                        '식별자 '
+                                                                                        '(읽기 '
+                                                                                        '전용)',
+                                                                         'type': 'boolean'},
+                                                                  'received_date_time': {'default': True,
+                                                                                         'description': '메시지 '
+                                                                                                        '수신 '
+                                                                                                        '날짜/시간 '
+                                                                                                        '(ISO '
+                                                                                                        '8601 '
+                                                                                                        '형식, '
+                                                                                                        'UTC)',
+                                                                                         'type': 'boolean'}},
+                                                   'targetParam': 'select',
+                                                   'type': 'object'},
+                               'targetParam': 'select',
+                               'type': 'SelectParams',
+                               'value': {'body_preview': True,
+                                         'created_date_time': True,
+                                         'from_recipient': True,
+                                         'id': True,
+                                         'received_date_time': True}}}}
 
 # Build INTERNAL_ARG_TYPES dynamically based on imported types
 INTERNAL_ARG_TYPES = {}
@@ -327,22 +761,35 @@ async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
 
     # Extract parameters from args
     # Extract from input with source param name
-    DatePeriodFilter = args["DatePeriodFilter"]
-    user_email = args.get("user_email")
+    user_email = args["user_email"]
+    DatePeriodFilter_raw = args.get("DatePeriodFilter")
+    DatePeriodFilter = DatePeriodFilter_raw if DatePeriodFilter_raw is not None else None
 
     # Convert dicts to parameter objects where needed
     # Pre-computed defaults by targetParam: filter_params
     DatePeriodFilter_internal_defaults = {}
     DatePeriodFilter_sig_defaults = {}
     # Merge: Internal < Signature Defaults < Signature (user input)
-    DatePeriodFilter_data = merge_param_data(DatePeriodFilter_internal_defaults, DatePeriodFilter, DatePeriodFilter_sig_defaults) or {}
-    DatePeriodFilter = FilterParams(**DatePeriodFilter_data)
+    DatePeriodFilter_data = merge_param_data(DatePeriodFilter_internal_defaults, DatePeriodFilter, DatePeriodFilter_sig_defaults)
+    if DatePeriodFilter_data is not None:
+        DatePeriodFilter = FilterParams(**DatePeriodFilter_data)
+    else:
+        DatePeriodFilter = None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
-    call_args["filter_params"] = DatePeriodFilter
     call_args["user_email"] = user_email
+    call_args["filter_params"] = DatePeriodFilter
+    # Add internal args (Internal has different targetParam from Signature, no overlap)
+    call_args["client_filter"] = ExcludeParams(**{'exclude_from_address': 'block@krs.co.kr'})
+    call_args["select_params"] = SelectParams(**{'body_preview': True,
+ 'has_attachments': True,
+ 'id': True,
+ 'internet_message_id': True,
+ 'received_date_time': True,
+ 'sender': True,
+ 'subject': True})
 
     return await mail_service.query_mail_list(**call_args)
 
@@ -351,26 +798,30 @@ async def handle_mail_list_keyword(args: Dict[str, Any]) -> Dict[str, Any]:
 
     # Extract parameters from args
     # Extract from input with source param name
+    user_email = args["user_email"]
+    # Extract from input with source param name
     search_keywords = args["search_keywords"]
-    top = args.get("top")
-    user_email = args.get("user_email")
+    top_raw = args.get("top")
+    top = top_raw if top_raw is not None else 50
 
     return await mail_service.fetch_search(
+        user_email=user_email,
         search_term=search_keywords,
-        top=top,
-        user_email=user_email
+        top=top
     )
 
 async def handle_mail_query_if_emaidID(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_query_if_emaidID tool call"""
 
     # Extract parameters from args
-    message_ids = args.get("message_ids")
-    user_email = args.get("user_email")
+    # Extract from input with source param name
+    user_email = args["user_email"]
+    # Extract from input with source param name
+    message_ids = args["message_ids"]
 
     return await mail_service.batch_and_fetch(
-        message_ids=message_ids,
-        user_email=user_email
+        user_email=user_email,
+        message_ids=message_ids
     )
 
 async def handle_mail_attachment_meta(args: Dict[str, Any]) -> Dict[str, Any]:
@@ -378,61 +829,72 @@ async def handle_mail_attachment_meta(args: Dict[str, Any]) -> Dict[str, Any]:
 
     # Extract parameters from args
     # Extract from input with source param name
+    user_email = args["user_email"]
+    # Extract from input with source param name
     message_ids = args["message_ids"]
-    user_email = args.get("user_email")
 
     return await mail_service.fetch_attachments_metadata(
-        message_ids=message_ids,
-        user_email=user_email
+        user_email=user_email,
+        message_ids=message_ids
     )
 
 async def handle_mail_attachment_download(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_attachment_download tool call"""
 
     # Extract parameters from args
-    message_attachment_ids = args.get("message_attachment_ids")
-    save_directory_raw = args.get("save_directory")
-    save_directory = save_directory_raw if save_directory_raw is not None else 'downloadsssss'
-    skip_duplicates_raw = args.get("skip_duplicates")
-    skip_duplicates = skip_duplicates_raw if skip_duplicates_raw is not None else False
     # Extract from input with source param name
     user_email = args["user_email"]
+    # Extract from input with source param name
+    message_attachment_ids = args["message_attachment_ids"]
+    save_directory_raw = args.get("save_directory")
+    save_directory = save_directory_raw if save_directory_raw is not None else 'downloads'
+    skip_duplicates_raw = args.get("skip_duplicates")
+    skip_duplicates = skip_duplicates_raw if skip_duplicates_raw is not None else True
 
     return await mail_service.download_attachments(
+        user_email=user_email,
         message_attachment_ids=message_attachment_ids,
         save_directory=save_directory,
-        skip_duplicates=skip_duplicates,
-        user_email=user_email
+        skip_duplicates=skip_duplicates
     )
 
 async def handle_mail_fetch_filter(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_fetch_filter tool call"""
 
     # Extract parameters from args
-    exclude_params = args.get("exclude_params")
-    filter_params = args.get("filter_params")
-    user_email = args.get("user_email")
+    # Extract from input with source param name
+    user_email = args["user_email"]
+    filter_params_raw = args.get("filter_params")
+    filter_params = filter_params_raw if filter_params_raw is not None else None
+    exclude_params_raw = args.get("exclude_params")
+    exclude_params = exclude_params_raw if exclude_params_raw is not None else None
 
     # Convert dicts to parameter objects where needed
+    # Pre-computed defaults by targetParam: filter_params
+    filter_params_internal_defaults = {}
+    filter_params_sig_defaults = {'test_field': 'test_value'}
+    # Merge: Internal < Signature Defaults < Signature (user input)
+    filter_params_data = merge_param_data(filter_params_internal_defaults, filter_params, filter_params_sig_defaults)
+    if filter_params_data is not None:
+        filter_params = FilterParams(**filter_params_data)
+    else:
+        filter_params = None
     # Pre-computed defaults by targetParam: exclude_params
     exclude_params_internal_defaults = {}
     exclude_params_sig_defaults = {}
     # Merge: Internal < Signature Defaults < Signature (user input)
     exclude_params_data = merge_param_data(exclude_params_internal_defaults, exclude_params, exclude_params_sig_defaults)
-    exclude_params = ExcludeParams(**exclude_params_data) if exclude_params_data is not None else None
-    # Pre-computed defaults by targetParam: filter_params
-    filter_params_internal_defaults = {}
-    filter_params_sig_defaults = {}
-    # Merge: Internal < Signature Defaults < Signature (user input)
-    filter_params_data = merge_param_data(filter_params_internal_defaults, filter_params, filter_params_sig_defaults)
-    filter_params = FilterParams(**filter_params_data) if filter_params_data is not None else None
+    if exclude_params_data is not None:
+        exclude_params = ExcludeParams(**exclude_params_data)
+    else:
+        exclude_params = None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
-    call_args["exclude_params"] = exclude_params
-    call_args["filter_params"] = filter_params
     call_args["user_email"] = user_email
+    call_args["filter_params"] = filter_params
+    call_args["exclude_params"] = exclude_params
 
     return await mail_service.fetch_filter(**call_args)
 
@@ -441,11 +903,13 @@ async def handle_mail_fetch_search(args: Dict[str, Any]) -> Dict[str, Any]:
 
     # Extract parameters from args
     # Extract from input with source param name
+    user_email = args["user_email"]
+    # Extract from input with source param name
     search_term = args["search_term"]
-    select_params = args.get("select_params")
+    select_params_raw = args.get("select_params")
+    select_params = select_params_raw if select_params_raw is not None else None
     top_raw = args.get("top")
     top = top_raw if top_raw is not None else 50
-    user_email = args.get("user_email")
 
     # Convert dicts to parameter objects where needed
     # Pre-computed defaults by targetParam: select_params
@@ -453,15 +917,18 @@ async def handle_mail_fetch_search(args: Dict[str, Any]) -> Dict[str, Any]:
     select_params_sig_defaults = {}
     # Merge: Internal < Signature Defaults < Signature (user input)
     select_params_data = merge_param_data(select_params_internal_defaults, select_params, select_params_sig_defaults)
-    select_params = SelectParams(**select_params_data) if select_params_data is not None else None
+    if select_params_data is not None:
+        select_params = SelectParams(**select_params_data)
+    else:
+        select_params = None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
+    call_args["user_email"] = user_email
     call_args["search_term"] = search_term
     call_args["select_params"] = select_params
     call_args["top"] = top
-    call_args["user_email"] = user_email
 
     return await mail_service.fetch_search(**call_args)
 
@@ -469,12 +936,16 @@ async def handle_mail_process_with_download(args: Dict[str, Any]) -> Dict[str, A
     """Handle mail_process_with_download tool call"""
 
     # Extract parameters from args
-    filter_params = args.get("filter_params")
-    save_directory = args.get("save_directory")
-    search_term = args.get("search_term")
+    # Extract from input with source param name
+    user_email = args["user_email"]
+    filter_params_raw = args.get("filter_params")
+    filter_params = filter_params_raw if filter_params_raw is not None else None
+    search_term_raw = args.get("search_term")
+    search_term = search_term_raw if search_term_raw is not None else None
     top_raw = args.get("top")
     top = top_raw if top_raw is not None else 50
-    user_email = args.get("user_email")
+    save_directory_raw = args.get("save_directory")
+    save_directory = save_directory_raw if save_directory_raw is not None else None
 
     # Convert dicts to parameter objects where needed
     # Pre-computed defaults by targetParam: filter_params
@@ -482,16 +953,19 @@ async def handle_mail_process_with_download(args: Dict[str, Any]) -> Dict[str, A
     filter_params_sig_defaults = {}
     # Merge: Internal < Signature Defaults < Signature (user input)
     filter_params_data = merge_param_data(filter_params_internal_defaults, filter_params, filter_params_sig_defaults)
-    filter_params = FilterParams(**filter_params_data) if filter_params_data is not None else None
+    if filter_params_data is not None:
+        filter_params = FilterParams(**filter_params_data)
+    else:
+        filter_params = None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
+    call_args["user_email"] = user_email
     call_args["filter_params"] = filter_params
-    call_args["save_directory"] = save_directory
     call_args["search_term"] = search_term
     call_args["top"] = top
-    call_args["user_email"] = user_email
+    call_args["save_directory"] = save_directory
 
     return await mail_service.process_with_download(**call_args)
 
@@ -499,12 +973,14 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle mail_query_url tool call"""
 
     # Extract parameters from args
-    filter_params = args.get("filter_params")
+    # Extract from input with source param name
+    user_email = args["user_email"]
+    # Extract from input with source param name
+    url = args["url"]
+    filter_params_raw = args.get("filter_params")
+    filter_params = filter_params_raw if filter_params_raw is not None else None
     top_raw = args.get("top")
     top = top_raw if top_raw is not None else 50
-    url_raw = args.get("url")
-    url = url_raw if url_raw is not None else 'https://graph.microsoft.com/v1.0/me/mailFolders/junkemail/messages?'
-    user_email = args.get("user_email")
 
     # Convert dicts to parameter objects where needed
     # Pre-computed defaults by targetParam: filter_params
@@ -512,15 +988,24 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     filter_params_sig_defaults = {}
     # Merge: Internal < Signature Defaults < Signature (user input)
     filter_params_data = merge_param_data(filter_params_internal_defaults, filter_params, filter_params_sig_defaults)
-    filter_params = FilterParams(**filter_params_data) if filter_params_data is not None else None
+    if filter_params_data is not None:
+        filter_params = FilterParams(**filter_params_data)
+    else:
+        filter_params = None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
+    call_args["user_email"] = user_email
+    call_args["url"] = url
     call_args["filter_params"] = filter_params
     call_args["top"] = top
-    call_args["url"] = url
-    call_args["user_email"] = user_email
+    # Add internal args (Internal has different targetParam from Signature, no overlap)
+    call_args["select"] = SelectParams(**{'body_preview': True,
+ 'created_date_time': True,
+ 'from_recipient': True,
+ 'id': True,
+ 'received_date_time': True})
 
     return await mail_service.fetch_url(**call_args)
 
