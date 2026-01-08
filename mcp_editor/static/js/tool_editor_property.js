@@ -1246,3 +1246,202 @@ function removeProperty(index, propName) {
         renderToolEditor(tool, index);
     }
 }
+
+// ============================================================
+// Nested Properties Tab & JSON Editor Functions
+// ============================================================
+
+// Switch between GUI and JSON tabs with auto-sync
+function switchNestedTab(index, propName, tab) {
+    const safeId = propName.replace(/[^a-zA-Z0-9]/g, '_');
+    const jsonEditor = document.getElementById(`nested-json-editor-${index}-${safeId}`);
+    const guiEditor = document.getElementById(`nested-gui-editor-${index}-${safeId}`);
+    const guiBtn = document.getElementById(`tab-gui-${index}-${safeId}`);
+    const jsonBtn = document.getElementById(`tab-json-${index}-${safeId}`);
+    const textarea = document.getElementById(`nested-json-textarea-${index}-${safeId}`);
+
+    if (!jsonEditor || !guiEditor) {
+        console.error('Tab containers not found for:', propName);
+        return;
+    }
+
+    const tool = tools[index];
+    const toolName = tool.name;
+    const isInternal = !tool.inputSchema?.properties?.[propName] && internalArgs[toolName]?.[propName];
+
+    if (tab === 'json') {
+        // Switching to JSON: sync GUI → JSON
+        let properties = {};
+        if (isInternal) {
+            properties = internalArgs[toolName][propName].original_schema?.properties || {};
+        } else {
+            const propDef = tool.inputSchema?.properties?.[propName];
+            properties = propDef?.properties || {};
+        }
+        textarea.value = JSON.stringify(properties, null, 2);
+
+        // Show JSON, hide GUI
+        jsonEditor.style.display = 'block';
+        guiEditor.style.display = 'none';
+
+        // Update tab button styles
+        jsonBtn.style.background = 'var(--primary-color)';
+        jsonBtn.style.color = 'white';
+        guiBtn.style.background = '#f5f5f5';
+        guiBtn.style.color = '#666';
+    } else {
+        // Switching to GUI: sync JSON → GUI (auto-apply)
+        try {
+            const jsonText = textarea.value.trim();
+            if (jsonText) {
+                const newProperties = JSON.parse(jsonText);
+
+                // Validate structure
+                if (typeof newProperties !== 'object' || Array.isArray(newProperties)) {
+                    throw new Error('Properties must be an object');
+                }
+
+                // Apply to data model
+                if (isInternal) {
+                    if (!internalArgs[toolName][propName].original_schema) {
+                        internalArgs[toolName][propName].original_schema = { type: 'object' };
+                    }
+                    internalArgs[toolName][propName].original_schema.properties = newProperties;
+                } else {
+                    if (!tool.inputSchema.properties[propName]) {
+                        tool.inputSchema.properties[propName] = { type: 'object' };
+                    }
+                    tool.inputSchema.properties[propName].properties = newProperties;
+
+                    // Sync to signatureDefaults if enabled
+                    if (signatureDefaults[toolName]?.[propName]) {
+                        signatureDefaults[toolName][propName].properties = JSON.parse(JSON.stringify(newProperties));
+                    }
+                }
+            }
+        } catch (e) {
+            showNotification(`JSON parse error: ${e.message}`, 'error');
+            // Stay on JSON tab if error
+            return;
+        }
+
+        // Re-render GUI and stay on GUI tab
+        renderToolEditor(tool, index);
+
+        // After re-render, ensure GUI tab is visible
+        setTimeout(() => {
+            const newJsonEditor = document.getElementById(`nested-json-editor-${index}-${safeId}`);
+            const newGuiEditor = document.getElementById(`nested-gui-editor-${index}-${safeId}`);
+            const newGuiBtn = document.getElementById(`tab-gui-${index}-${safeId}`);
+            const newJsonBtn = document.getElementById(`tab-json-${index}-${safeId}`);
+
+            if (newJsonEditor) newJsonEditor.style.display = 'none';
+            if (newGuiEditor) newGuiEditor.style.display = 'block';
+            if (newGuiBtn) {
+                newGuiBtn.style.background = 'var(--primary-color)';
+                newGuiBtn.style.color = 'white';
+            }
+            if (newJsonBtn) {
+                newJsonBtn.style.background = '#f5f5f5';
+                newJsonBtn.style.color = '#666';
+            }
+        }, 10);
+    }
+}
+
+// Legacy toggle function (kept for compatibility)
+function toggleNestedJsonEditor(index, propName) {
+    const safeId = propName.replace(/[^a-zA-Z0-9]/g, '_');
+    const editorDiv = document.getElementById(`nested-json-editor-${index}-${safeId}`);
+
+    if (!editorDiv) {
+        console.error('JSON editor not found for:', propName);
+        return;
+    }
+
+    if (editorDiv.style.display === 'none') {
+        switchNestedTab(index, propName, 'json');
+    } else {
+        switchNestedTab(index, propName, 'gui');
+    }
+}
+
+function applyNestedJsonEdit(index, propName) {
+    const safeId = propName.replace(/[^a-zA-Z0-9]/g, '_');
+    const textarea = document.getElementById(`nested-json-textarea-${index}-${safeId}`);
+    const editorDiv = document.getElementById(`nested-json-editor-${index}-${safeId}`);
+
+    if (!textarea) {
+        console.error('Textarea not found for:', propName);
+        return;
+    }
+
+    try {
+        const newProperties = JSON.parse(textarea.value);
+
+        // Validate structure
+        if (typeof newProperties !== 'object' || Array.isArray(newProperties)) {
+            throw new Error('Properties must be an object');
+        }
+
+        // Validate each property has at least a type
+        for (const [key, value] of Object.entries(newProperties)) {
+            if (typeof value !== 'object' || !value.type) {
+                throw new Error(`Property "${key}" must have a "type" field`);
+            }
+        }
+
+        // Apply to tool
+        const tool = tools[index];
+        const toolName = tool.name;
+
+        // Check if this is an internal property
+        const isInternal = !tool.inputSchema?.properties?.[propName] && internalArgs[toolName]?.[propName];
+
+        if (isInternal) {
+            // Update internalArgs.original_schema.properties
+            if (!internalArgs[toolName][propName].original_schema) {
+                internalArgs[toolName][propName].original_schema = { type: 'object' };
+            }
+            internalArgs[toolName][propName].original_schema.properties = newProperties;
+            console.log('[DEBUG] Updated internal arg properties:', toolName, propName);
+        } else {
+            // Update inputSchema.properties
+            if (!tool.inputSchema.properties[propName]) {
+                tool.inputSchema.properties[propName] = { type: 'object' };
+            }
+            tool.inputSchema.properties[propName].properties = newProperties;
+
+            // Also sync to signatureDefaults if enabled
+            if (signatureDefaults[toolName]?.[propName]) {
+                signatureDefaults[toolName][propName].properties = JSON.parse(JSON.stringify(newProperties));
+                console.log('[DEBUG] Synced JSON edit to signatureDefaults:', toolName, propName);
+            }
+        }
+
+        // Hide editor and re-render
+        editorDiv.style.display = 'none';
+        renderToolEditor(tool, index);
+        showNotification(`Nested properties updated for "${propName}"`, 'success');
+
+    } catch (e) {
+        showNotification(`Invalid JSON: ${e.message}`, 'error');
+    }
+}
+
+function copyNestedJsonToClipboard(index, propName) {
+    const safeId = propName.replace(/[^a-zA-Z0-9]/g, '_');
+    const textarea = document.getElementById(`nested-json-textarea-${index}-${safeId}`);
+
+    if (!textarea) {
+        console.error('Textarea not found for:', propName);
+        return;
+    }
+
+    navigator.clipboard.writeText(textarea.value).then(() => {
+        showNotification('Nested properties JSON copied to clipboard', 'success');
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        showNotification('Failed to copy to clipboard', 'error');
+    });
+}

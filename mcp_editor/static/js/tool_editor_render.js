@@ -252,27 +252,12 @@ function renderToolEditor(tool, index) {
                            value="${(propDef.description || '').replace(/"/g, '&quot;')}"
                            onchange="updatePropertyField(${index}, '${propName}', 'description', this.value)">
                 </div>
+                ${propDef.type !== 'object' ? `
                 <div class="form-group" id="default-value-group-${propId}">
-                    <label style="font-size: 11px; display: flex; justify-content: space-between; align-items: center;">
-                        <span>Default Value ${propDef.type === 'array' || propDef.type === 'object' ? '(JSON)' : ''}</span>
-                        ${propDef.type === 'object' ? `
-                        <div style="display: flex; gap: 4px;">
-                            <button type="button" class="btn btn-sm" title="Copy nested properties from JSON default value"
-                                    style="padding: 2px 8px; font-size: 10px; background: #e3f2fd; color: #1976d2; border: 1px solid #90caf9; border-radius: 4px;"
-                                    onclick="copyNestedFromDefault(${index}, '${propName}')">
-                                <span class="material-icons" style="font-size: 12px; vertical-align: middle;">content_copy</span> Copy Nested
-                            </button>
-                            <button type="button" class="btn btn-sm" title="Paste JSON as nested properties"
-                                    style="padding: 2px 8px; font-size: 10px; background: #fff3e0; color: #ef6c00; border: 1px solid #ffcc80; border-radius: 4px;"
-                                    onclick="pasteNestedFromClipboard(${index}, '${propName}')">
-                                <span class="material-icons" style="font-size: 12px; vertical-align: middle;">content_paste</span> Paste Nested
-                            </button>
-                        </div>
-                        ` : ''}
-                    </label>
-                    ${propDef.type === 'array' || propDef.type === 'object' ? `
+                    <label style="font-size: 11px;">Default Value ${propDef.type === 'array' ? '(JSON)' : ''}</label>
+                    ${propDef.type === 'array' ? `
                     <textarea class="form-control" style="font-family: monospace; font-size: 12px; min-height: 120px; padding: 6px 8px;"
-                              placeholder='${propDef.type === 'array' ? '["item1", "item2"]' : '{"key": "value"}'}'
+                              placeholder='["item1", "item2"]'
                               onchange="updatePropertyField(${index}, '${propName}', 'default', parseDefaultValue(this.value, '${propDef.type}'))">${propDef.default !== undefined ? (typeof propDef.default === 'string' ? propDef.default : JSON.stringify(propDef.default, null, 2)) : ''}</textarea>
                     ` : `
                     <input class="form-control" style="font-size: 12px; padding: 6px 8px; height: 30px;"
@@ -281,6 +266,7 @@ function renderToolEditor(tool, index) {
                            onchange="updatePropertyField(${index}, '${propName}', 'default', parseDefaultValue(this.value, '${propDef.type}'))">
                     `}
                 </div>
+                ` : ''}
                 ${propDef.enum ? `
                 <div class="form-group">
                     <label>Enum Values (comma-separated)</label>
@@ -306,6 +292,21 @@ function renderToolEditor(tool, index) {
                     <label style="display: flex; justify-content: space-between; align-items: center;">
                         <span>Nested Properties</span>
                         <div style="display: flex; gap: 6px; align-items: center;">
+                            <!-- Tab buttons -->
+                            <div style="display: flex; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden;">
+                                <button type="button" id="tab-gui-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}"
+                                        class="nested-tab-btn active"
+                                        style="padding: 4px 12px; font-size: 10px; font-weight: 600; background: var(--primary-color); color: white; border: none; cursor: pointer; transition: all 0.2s;"
+                                        onclick="switchNestedTab(${index}, '${propName}', 'gui')">
+                                    GUI
+                                </button>
+                                <button type="button" id="tab-json-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}"
+                                        class="nested-tab-btn"
+                                        style="padding: 4px 12px; font-size: 10px; font-weight: 600; background: #f5f5f5; color: #666; border: none; border-left: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s;"
+                                        onclick="switchNestedTab(${index}, '${propName}', 'json')">
+                                    JSON
+                                </button>
+                            </div>
                             <label style="font-size: 10px; color: var(--text-secondary); display: flex; align-items: center; margin: 0; cursor: pointer;">
                                 <input type="checkbox" id="nested-select-all-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}"
                                        onchange="toggleAllNestedCheckboxes(${index}, '${propName}', this.checked)"
@@ -321,6 +322,26 @@ function renderToolEditor(tool, index) {
                             </button>
                         </div>
                     </label>
+                    <!-- JSON Editor Tab (hidden by default) -->
+                    <div id="nested-json-editor-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}" class="nested-tab-content" style="display: none; margin-top: 8px;">
+                        <textarea id="nested-json-textarea-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}"
+                                  style="width: 100%; min-height: 250px; font-family: monospace; font-size: 11px; padding: 8px; border: 1px solid #90caf9; border-radius: 4px; background: #fafafa;"
+                                  placeholder='{"propertyName": {"type": "string", "default": "value", "description": "설명"}}'
+                                  onchange="markNestedJsonDirty(${index}, '${propName}')"></textarea>
+                        <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center;">
+                            <button type="button" class="btn btn-sm" style="background: var(--success-color); color: white; padding: 4px 12px; border-radius: 4px; font-size: 11px;"
+                                    onclick="applyNestedJsonEdit(${index}, '${propName}')">
+                                <span class="material-icons" style="font-size: 12px; vertical-align: middle;">check</span> Apply & Sync to GUI
+                            </button>
+                            <button type="button" class="btn btn-sm" style="background: #fff3e0; color: #ef6c00; padding: 4px 12px; border-radius: 4px; font-size: 11px;"
+                                    onclick="copyNestedJsonToClipboard(${index}, '${propName}')">
+                                <span class="material-icons" style="font-size: 12px; vertical-align: middle;">content_copy</span> Copy
+                            </button>
+                            <span id="nested-json-status-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}" style="font-size: 10px; color: var(--text-secondary); margin-left: auto;"></span>
+                        </div>
+                    </div>
+                    <!-- GUI Tab (shown by default) -->
+                    <div id="nested-gui-editor-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}" class="nested-tab-content" style="margin-top: 8px;">
                     <div style="padding: 12px; background: var(--bg-color); border-left: 3px solid ${propDef.baseModel ? 'var(--success-color)' : 'var(--primary-color)'}; border-radius: var(--radius-sm);">
                         ${Object.entries(propDef.properties).map(([nestedPropName, nestedProp]) => {
                             const nestedIsRequired = propDef.required && propDef.required.includes(nestedPropName);
@@ -494,6 +515,7 @@ function renderToolEditor(tool, index) {
                             <span class="material-icons" style="font-size: 14px;">add</span> Add from ${window.typesName || 'types'}
                         </button>` : ''}
                     </div>
+                    </div><!-- Close GUI Tab container -->
                 </div>
                 ` : propDef.type === 'object' ? `
                 <div class="form-group">
