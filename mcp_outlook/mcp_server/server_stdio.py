@@ -475,13 +475,37 @@ async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
     # Add internal args ONLY if not already handled by Signature with same targetParam
     
     
-    call_args["select_params"] = SelectParams(**{'body_preview': True,
+    call_args["select_params"] = SelectParams(**{'bcc_recipients': False,
+ 'body': False,
+ 'body_preview': True,
+ 'categories': False,
+ 'cc_recipients': False,
+ 'change_key': False,
+ 'conversation_id': False,
+ 'conversation_index': False,
+ 'created_date_time': False,
+ 'flag': False,
+ 'from_recipient': True,
  'has_attachments': True,
  'id': True,
+ 'importance': False,
+ 'inference_classification': False,
+ 'internet_message_headers': False,
  'internet_message_id': True,
- 'received_date_time': True,
+ 'is_delivery_receipt_requested': False,
+ 'is_draft': False,
+ 'is_read': False,
+ 'is_read_receipt_requested': False,
+ 'last_modified_date_time': False,
+ 'parent_folder_id': False,
+ 'received_date_time': False,
+ 'reply_to': False,
  'sender': True,
- 'subject': True})
+ 'sent_date_time': False,
+ 'subject': True,
+ 'to_recipients': False,
+ 'unique_body': False,
+ 'web_link': False})
 
     return await mail_service.query_mail_list(**call_args)
 
