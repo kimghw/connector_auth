@@ -564,16 +564,19 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- endfor %}
 
     {%- if tool.internal_args %}
-    # Add internal args (Internal has different targetParam from Signature, no overlap)
+    # Add internal args ONLY if not already handled by Signature with same targetParam
     {%- for arg_name, arg_info in tool.internal_args.items() %}
     {%- if not arg_name.endswith("_internal") %}
     {%- set target_param = arg_info.original_schema.targetParam | default(arg_info.targetParam) | default(arg_name) %}
+    {# Skip if this targetParam was already added by Signature (already merged with Internal defaults) #}
+    {%- if target_param not in tool.call_params %}
     {%- if arg_info.value is defined and arg_info.value is not none and arg_info.value != {} %}
     call_args["{{ target_param }}"] = {{ arg_info.type }}(**{{ arg_info.value | pprint }})
     {%- elif arg_info.value is defined and arg_info.value == {} %}
     call_args["{{ target_param }}"] = {{ arg_info.type }}()
     {%- else %}
     call_args["{{ target_param }}"] = build_internal_param("{{ tool.name }}", "{{ arg_name }}")
+    {%- endif %}
     {%- endif %}
     {%- endif %}
     {%- endfor %}

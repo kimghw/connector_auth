@@ -477,12 +477,18 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
             target_param = prop_def.get('targetParam', prop_name)
             param_mappings[prop_name] = target_param
 
-        # Build a set of Internal parameter targetParams (these are NOT in inputSchema)
-        # Internal parameters should NOT be added to params since they won't come from args
+        # Build a set of Internal parameter targetParams
+        # Note: Internal parameters may also have Signature counterparts with the same targetParam
         internal_target_params = set()
         for arg_name, arg_info in tool_internal_args.items():
             target_param = arg_info.get('targetParam') or arg_info.get('original_schema', {}).get('targetParam', arg_name)
             internal_target_params.add(target_param)
+
+        # Build a set of Signature targetParams (from inputSchema properties)
+        signature_target_params = set()
+        for prop_name, prop_def in properties.items():
+            target_param = prop_def.get('targetParam', prop_name)
+            signature_target_params.add(target_param)
 
         # Get parameters from mcp_service if available
         if isinstance(mcp_service, dict):
@@ -490,8 +496,9 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                 param_name = param.get('name', '')
                 param_type = param.get('type', 'str')
 
-                # Skip Internal parameters - they are NOT in inputSchema and will be handled separately
-                if param_name in internal_target_params:
+                # Skip Internal parameters ONLY if they don't have a Signature counterpart in inputSchema
+                # If both Internal and Signature exist with same targetParam, process it (merge will happen)
+                if param_name in internal_target_params and param_name not in signature_target_params:
                     continue
 
                 # Compute is_required: it's required if not optional and no default

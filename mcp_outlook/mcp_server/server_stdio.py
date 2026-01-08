@@ -443,6 +443,8 @@ async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
     user_email = args["user_email"]
     DatePeriodFilter_raw = args.get("DatePeriodFilter")
     DatePeriodFilter = DatePeriodFilter_raw if DatePeriodFilter_raw is not None else None
+    client_filter_keyword_raw = args.get("client_filter_keyword")
+    client_filter_keyword = client_filter_keyword_raw if client_filter_keyword_raw is not None else None
 
     # Convert dicts to parameter objects where needed
     # Pre-computed defaults by targetParam: filter_params
@@ -454,14 +456,25 @@ async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
         DatePeriodFilter = FilterParams(**DatePeriodFilter_data)
     else:
         DatePeriodFilter = None
+    # Pre-computed defaults by targetParam: client_filter
+    client_filter_keyword_internal_defaults = {'exclude_from_address': 'block@krs.co.kr'}
+    client_filter_keyword_sig_defaults = {}
+    # Merge: Internal < Signature Defaults < Signature (user input)
+    client_filter_keyword_data = merge_param_data(client_filter_keyword_internal_defaults, client_filter_keyword, client_filter_keyword_sig_defaults)
+    if client_filter_keyword_data is not None:
+        client_filter_keyword = ExcludeParams(**client_filter_keyword_data)
+    else:
+        client_filter_keyword = None
     # Prepare call arguments
     call_args = {}
 
     # Add signature parameters
     call_args["user_email"] = user_email
     call_args["filter_params"] = DatePeriodFilter
-    # Add internal args (Internal has different targetParam from Signature, no overlap)
-    call_args["client_filter"] = ExcludeParams(**{'exclude_from_address': 'block@krs.co.kr'})
+    call_args["client_filter"] = client_filter_keyword
+    # Add internal args ONLY if not already handled by Signature with same targetParam
+    
+    
     call_args["select_params"] = SelectParams(**{'body_preview': True,
  'has_attachments': True,
  'id': True,
@@ -679,7 +692,8 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     call_args["url"] = url
     call_args["filter_params"] = filter_params
     call_args["top"] = top
-    # Add internal args (Internal has different targetParam from Signature, no overlap)
+    # Add internal args ONLY if not already handled by Signature with same targetParam
+    
     call_args["select"] = SelectParams(**{'body_preview': True,
  'created_date_time': True,
  'from_recipient': True,

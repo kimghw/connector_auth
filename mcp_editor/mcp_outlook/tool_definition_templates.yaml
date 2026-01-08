@@ -35,6 +35,18 @@ tools:
         - received_date_to
         baseModel: FilterParams
         targetParam: filter_params
+      client_filter_keyword:
+        type: object
+        description: ExcludeParams parameters
+        properties:
+          exclude_subject_keywords:
+            type: string
+            description: 제목에서 제외할 키워드 목록
+            default: teams
+            targetParam: exclude_subject_keywords
+        required: []
+        baseModel: ExcludeParams
+        targetParam: client_filter
       user_email:
         type: string
         description: 이메일 주소를 입력하고 입력하지 않을 경우 내부에서 연결정보를 메일 주소를 추정함
@@ -122,6 +134,12 @@ tools:
         default: block@krs.co.kr
         has_default: true
         description: 제외할 발신자 주소 (from 필드)
+      - name: exclude_subject_keywords
+        type: string
+        is_optional: false
+        default: null
+        has_default: false
+        description: 제목에서 제외할 키워드 목록
     select:
       source: internal
       type: SelectParams
