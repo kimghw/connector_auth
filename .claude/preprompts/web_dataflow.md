@@ -27,7 +27,7 @@ description: MCP 웹에디터 데이터 흐름 및 핸들러 처리 가이드 (p
 │                           데이터 소스 (Source Files)                         │
 ├────────────────────────────────┬────────────────────────────────────────────┤
 │ 1. 소스코드                     │ 2. 템플릿 정의                              │
-│ @mcp_service 데코레이터         │ tool_definition_templates.py               │
+│ @mcp_service 데코레이터         │ tool_definition_templates.yaml             │
 │                                │ (LLM 스키마 + mcp_service_factors)          │
 └────────────────┬───────────────┴────────────────┬───────────────────────────┘
                  │                                │
@@ -49,8 +49,8 @@ description: MCP 웹에디터 데이터 흐름 및 핸들러 처리 가이드 (p
 │                     저장 & 생성 (Save & Generate)                          │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
 │  │ POST /api/tools/save-all                                            │  │
-│  │  → tool_definitions.py (clean - LLM API용)                          │  │
-│  │  → tool_definition_templates.py (mcp_service_factors 포함)          │  │
+│  │  → tool_definition_templates.yaml (Single Source of Truth)          │  │
+│  │    (mcp_service_factors 포함, tool_definitions.py는 더 이상 생성 안함)│  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
 │  │ POST /api/server/generate                                           │  │
@@ -64,10 +64,10 @@ description: MCP 웹에디터 데이터 흐름 및 핸들러 처리 가이드 (p
 │  ┌─────────────────────┐    ┌─────────────────────────────────────────┐   │
 │  │ Input Files:        │    │ Output Files:                           │   │
 │  │ • registry.json     │───▶│ • server_rest.py                        │   │
-│  │ • templates.py      │    │ • server_stdio.py                       │   │
+│  │ • templates.yaml    │    │ • server_stdio.py                       │   │
 │  │   (mcp_service_     │    │ • server_stream.py                      │   │
-│  │    factors 포함)    │    │ • tool_definitions.py                   │   │
-│  │ • *.jinja2          │    │                                         │   │
+│  │    factors 포함)    │    │                                         │   │
+│  │ • *.jinja2          │    │ (런타임에 YAML에서 MCP_TOOLS 로드)       │   │
 │  └─────────────────────┘    └─────────────────────────────────────────┘   │
 └──────────────────────────────────┬─────────────────────────────────────────┘
                                    │
@@ -100,9 +100,9 @@ description: MCP 웹에디터 데이터 흐름 및 핸들러 처리 가이드 (p
              ▼
   ┌─────────────────────┐      ┌──────────────────────────┐
   │ registry_{server}   │      │ tool_definition_         │
-  │ .json               │      │ templates.py             │
+  │ .json               │      │ templates.yaml           │
   └──────────┬──────────┘      └───────────┬──────────────┘
-             │ JSON.load()                 │ importlib.exec_module
+             │ JSON.load()                 │ yaml.safe_load()
              ▼                             ▼
   ┌─────────────────────┐      ┌──────────────────────────┐
   │ services dict       │      │ MCP_TOOLS 리스트         │
@@ -157,27 +157,25 @@ description: MCP 웹에디터 데이터 흐름 및 핸들러 처리 가이드 (p
                     │   버튼 클릭       │
                     └─────────┬─────────┘
                               │
-              ┌───────────────┴───────────────┐
-              │                               │
-              ▼                               ▼
-  ┌────────────────────────┐ ┌─────────────────────────────────┐
-  │ tool_definitions.py    │ │ tool_definition_templates.py    │
-  └──────────┬─────────────┘ └────────────────┬────────────────┘
-             │                                │
-             ▼                                ▼
-  ┌────────────────────────┐ ┌─────────────────────────────────┐
-  │ • name                 │ │ • name                          │
-  │ • description          │ │ • description                   │
-  │ • inputSchema (clean)  │ │ • inputSchema                   │
-  │                        │ │ • mcp_service (서비스 매핑)      │
-  │ 용도:                  │ │ • mcp_service_factors           │
-  │ Claude/OpenAI API용    │ │   ├─ Internal 파라미터           │
-  │ (메타데이터 없음)       │ │   │   (source: "internal")       │
-  │                        │ │   └─ Signature Defaults          │
-  │                        │ │       (source: "signature_defaults")│
-  │                        │ │                                 │
-  │                        │ │ 용도: 서버 생성 템플릿용          │
-  └────────────────────────┘ └─────────────────────────────────┘
+              │
+              ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │ tool_definition_templates.yaml (Single Source of Truth)    │
+  └─────────────────────────────────────────────────────────────┘
+              │
+              ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │ • name                                                      │
+  │ • description                                               │
+  │ • inputSchema                                               │
+  │ • mcp_service (서비스 매핑)                                 │
+  │ • mcp_service_factors                                       │
+  │   ├─ Internal 파라미터 (source: "internal")                 │
+  │   └─ Signature Defaults (source: "signature_defaults")      │
+  │                                                             │
+  │ 용도: 웹에디터 저장 + 서버 런타임 로드                        │
+  │ (tool_definitions.py는 더 이상 생성 안함)                    │
+  └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -595,20 +593,18 @@ Signature 내부 Internal + 사용자 입력 = Signature 파라미터 객체
 │ 타입/기본값    │                  │                           │                  │
 ├────────────────┼──────────────────┼───────────────────────────┼──────────────────┤
 │ LLM용 스키마   │ 웹에디터 편집    │ tool_definition_          │ Claude API       │
-│                │                  │ templates.py              │                  │
+│                │                  │ templates.yaml            │                  │
 ├────────────────┼──────────────────┼───────────────────────────┼──────────────────┤
 │ targetParam    │ 웹에디터 설정    │ tool_definition_          │ 파라미터 변환    │
-│ 매핑           │                  │ templates.py              │                  │
+│ 매핑           │                  │ templates.yaml            │                  │
 ├────────────────┼──────────────────┼───────────────────────────┼──────────────────┤
 │ Internal       │ 웹에디터 토글    │ tool_definition_          │ 런타임 주입      │
-│ 파라미터       │                  │ templates.py              │                  │
+│ 파라미터       │                  │ templates.yaml            │                  │
 │                │                  │ (mcp_service_factors)     │                  │
 ├────────────────┼──────────────────┼───────────────────────────┼──────────────────┤
 │ Signature      │ 웹에디터 토글    │ tool_definition_          │ 기본값 제공      │
-│ Defaults       │                  │ templates.py              │                  │
+│ Defaults       │                  │ templates.yaml            │                  │
 │                │                  │ (mcp_service_factors)     │                  │
-├────────────────┼──────────────────┼───────────────────────────┼──────────────────┤
-│ 클린 도구 정의 │ Save 시 생성     │ tool_definitions.py       │ 프로덕션 API     │
 └────────────────┴──────────────────┴───────────────────────────┴──────────────────┘
 ```
 
@@ -876,7 +872,7 @@ mcp_{service}/mcp_server/server_{protocol}.py
 │                          2개 파일의 역할 분담 (단순화)                        │
 ├────────────────────────────────────────────────────────────────────────────┤
 │                                                                            │
-│  registry_{server}.json                    tool_definition_templates.py    │
+│  registry_{server}.json                    tool_definition_templates.yaml  │
 │  (구현 정보)                               (LLM 스키마 + 파라미터 설정)      │
 │                                                                            │
 │  ┌──────────────────┐                   ┌──────────────────────────────┐  │
@@ -923,7 +919,7 @@ mcp_{service}/mcp_server/server_{protocol}.py
 | 파일 | 변경 시점 | 변경 주체 |
 |------|----------|----------|
 | `registry_{server}.json` | 소스코드 변경 후 스캔 시 | `mcp_service_scanner.py` 자동 생성 |
-| `tool_definition_templates.py` | 웹에디터에서 Save 시 | 웹에디터 UI (mcp_service_factors 포함) |
+| `tool_definition_templates.yaml` | 웹에디터에서 Save 시 | 웹에디터 UI (mcp_service_factors 포함) |
 
 ---
 
@@ -934,15 +930,16 @@ mcp_{service}/mcp_server/server_{protocol}.py
 | 웹에디터 | `mcp_editor/tool_editor_web.py` |
 | 레지스트리 스캐너 | `mcp_editor/mcp_service_registry/mcp_service_scanner.py` |
 | 레지스트리 | `mcp_editor/mcp_service_registry/registry_{server}.json` |
-| 템플릿 정의 | `mcp_editor/mcp_{server}/tool_definition_templates.py` |
+| 템플릿 정의 | `mcp_editor/mcp_{server}/tool_definition_templates.yaml` |
 | 서버 생성 | `jinja/generate_universal_server.py` |
 | Jinja2 템플릿 | `jinja/universal_server_template.jinja2` |
 | 생성된 서버 | `mcp_{service}/mcp_server/server_{protocol}.py` |
-| 도구 정의 | `mcp_{service}/mcp_server/tool_definitions.py` |
+
+> **Note**: `tool_definitions.py`는 더 이상 생성되지 않음. 서버 코드가 런타임에 YAML에서 직접 로드.
 
 ---
 
 *관련: terminology.md, web.md, handler.md*
-*Version: 2.6*
-*Last Updated: 2026-01-06*
-*변경사항: tool_internal_args.json 삭제, mcp_service_factors 통합, extract_internal_args_from_tools 추가*
+*Version: 3.0*
+*Last Updated: 2026-01-08*
+*변경사항: YAML Single Source of Truth 적용, tool_definitions.py 제거, 런타임 YAML 로드*

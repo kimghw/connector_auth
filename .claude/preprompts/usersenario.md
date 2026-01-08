@@ -2,6 +2,62 @@
 
 ## 최근 세션 기록
 
+### 2026-01-08: YAML Single Source of Truth 리팩토링
+
+#### 요청 사항
+- `tool_definitions.py`와 `tool_definition_templates.yaml` 중복 제거
+- YAML 파일을 Single Source of Truth로 통합
+- 웹에디터 Save 시 YAML만 저장
+- 서버 코드가 런타임에 YAML에서 직접 로드
+
+#### 문제점 분석
+- 기존: 웹에디터 Save 시 두 개 파일 생성
+  - `tool_definitions.py`: LLM API용 클린 버전
+  - `tool_definition_templates.yaml`: mcp_service_factors 포함
+- `tool_definitions.py`의 모든 내용이 YAML에도 있어 중복됨
+
+#### 해결 방안
+
+**1. universal_server_template.jinja2 수정**
+- `from tool_definitions import MCP_TOOLS` 제거
+- `_load_mcp_tools()` 함수 추가: YAML에서 직접 로드
+```python
+def _load_mcp_tools() -> List[Dict[str, Any]]:
+    yaml_path = Path(current_dir).parent.parent / "mcp_editor" / "mcp_{server}" / "tool_definition_templates.yaml"
+    with open(yaml_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+        return data.get("tools", [])
+
+MCP_TOOLS = _load_mcp_tools()
+```
+
+**2. tool_editor_web.py 수정**
+- `tool_definitions.py` 생성 로직 제거 (라인 856-942)
+- YAML만 저장하도록 변경
+- 반환값 변경: `{"success": True, "saved": yaml_path}`
+
+**3. 삭제된 파일**
+- `/home/kimghw/Connector_auth/mcp_outlook/mcp_server/tool_definitions.py`
+- `/home/kimghw/Connector_auth/mcp_file_handler/mcp_server/tool_definitions.py`
+
+#### 검증 결과
+- 웹에디터 Save API 테스트 ✅
+  - `tool_definitions.py` 생성 안 됨 ✅
+  - `tool_definition_templates.yaml` 저장 성공 (9개 도구) ✅
+- 서버 재생성 테스트 ✅
+  - 3개 프로토콜 (REST, STDIO, Stream) 생성 성공 ✅
+- 런타임 YAML 로드 테스트 ✅
+  - MCP_TOOLS: 9개 도구 로드 ✅
+  - SERVICE_FACTORS: 6개 도구 추출 ✅
+
+#### 수정된 파일
+- `jinja/universal_server_template.jinja2`: YAML 런타임 로드 추가
+- `mcp_editor/tool_editor_web.py`: tool_definitions.py 생성 로직 제거
+- `.claude/commands/web.md`: v3.0 업데이트
+- `.claude/commands/handler.md`: YAML 참조로 변경
+
+---
+
 ### 2026-01-08: targetParam 기준 Internal/Defaults 병합 렌더링 개선
 
 #### 요청 사항

@@ -64,9 +64,10 @@ inputSchema 프로퍼티
 
 | 파일 | 역할 |
 |------|------|
-| `tool_definition_templates.py` | inputSchema + mcp_service_factors 정의 |
-| `tool_definitions.py` | LLM API용 클린 도구 정의 |
+| `tool_definition_templates.yaml` | inputSchema + mcp_service_factors 정의 (**Single Source of Truth**) |
 | `{service}_service.py` | 비즈니스 로직 (서비스 메서드) |
 
+> **Note**: `tool_definitions.py`는 더 이상 사용되지 않음. 서버 코드가 런타임에 YAML에서 직접 로드.
+
 ---
-*Last Updated: 2026-01-07*
+*Last Updated: 2026-01-08*

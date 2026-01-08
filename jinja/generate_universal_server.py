@@ -178,14 +178,29 @@ def extract_internal_args_from_tools(tools: List[Dict[str, Any]]) -> Dict[str, A
 
 
 def load_tool_definitions(tool_def_path: str) -> List[Dict[str, Any]]:
-    """Load tool definitions from Python module or JSON file"""
+    """Load tool definitions from Python module, JSON, or YAML file"""
+    import yaml
     path = Path(tool_def_path)
+
+    # Try YAML file first (preferred format)
+    yaml_path = path.with_suffix('.yaml') if path.suffix == '.py' else path
+    if yaml_path.suffix == '.yaml' and yaml_path.exists():
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data.get('tools', data.get('MCP_TOOLS', data))
 
     if path.suffix == '.json':
         with open(path, 'r') as f:
             data = json.load(f)
             return data.get('MCP_TOOLS', data)
     elif path.suffix == '.py':
+        # Check for companion YAML file
+        yaml_companion = path.with_suffix('.yaml')
+        if yaml_companion.exists():
+            with open(yaml_companion, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+                return data.get('tools', data.get('MCP_TOOLS', data))
+
         # Use AST to parse the file without importing
         import ast
 
@@ -204,8 +219,9 @@ def load_tool_definitions(tool_def_path: str) -> List[Dict[str, Any]]:
                                 # json.loads("""...""")
                                 if node.value.args and isinstance(node.value.args[0], ast.Constant):
                                     return json.loads(node.value.args[0].value)
-                        # Handle literal list/dict
-                        return ast.literal_eval(node.value)
+                        # Handle literal list/dict (skip function calls)
+                        if not isinstance(node.value, ast.Call):
+                            return ast.literal_eval(node.value)
 
             # Handle type-annotated assignment
             if isinstance(node, ast.AnnAssign):
@@ -215,9 +231,21 @@ def load_tool_definitions(tool_def_path: str) -> List[Dict[str, Any]]:
                         if hasattr(func, 'attr') and func.attr == 'loads':
                             if node.value.args and isinstance(node.value.args[0], ast.Constant):
                                 return json.loads(node.value.args[0].value)
-                    return ast.literal_eval(node.value)
+                        # Skip other function calls (like _load_tools_from_yaml())
+                        # Try to load from YAML companion file
+                        yaml_companion = path.with_suffix('.yaml')
+                        if yaml_companion.exists():
+                            with open(yaml_companion, 'r', encoding='utf-8') as f:
+                                data = yaml.safe_load(f)
+                                return data.get('tools', data.get('MCP_TOOLS', data))
+                    else:
+                        return ast.literal_eval(node.value)
 
         raise ValueError("Could not find MCP_TOOLS in the Python file")
+    elif path.suffix == '.yaml':
+        with open(path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data.get('tools', data.get('MCP_TOOLS', data))
     else:
         raise ValueError(f"Unsupported file type: {path.suffix}")
 

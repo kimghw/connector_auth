@@ -94,6 +94,7 @@ import json
 import os
 import sys
 import pprint
+import yaml
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -441,18 +442,32 @@ def convert_params_list_to_dict(params_list: list) -> dict:
 
 def load_tool_definitions(paths: dict):
     """
-    Load MCP_TOOLS, preferring the template file (with mcp_service metadata)
+    Load MCP_TOOLS, preferring YAML template file (with mcp_service metadata)
     Templates are auto-generated with AST-extracted signatures
+
+    Load priority:
+    1. YAML template (.yaml) - preferred format
+    2. Python template (.py) - legacy format, loads via YAML internally
+    3. Python definitions (.py) - fallback, cleaned definitions
     """
     try:
-        # Try loading from templates first (has metadata)
-        if os.path.exists(paths["template_path"]):
-            spec = importlib.util.spec_from_file_location("tool_definition_templates", paths["template_path"])
+        template_path = paths["template_path"]
+
+        # 1. Try YAML template first (preferred format)
+        yaml_path = template_path.replace('.py', '.yaml') if template_path.endswith('.py') else template_path
+        if os.path.exists(yaml_path):
+            with open(yaml_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            return data.get("tools", [])
+
+        # 2. Try Python template (legacy - it loads YAML internally now)
+        if os.path.exists(template_path):
+            spec = importlib.util.spec_from_file_location("tool_definition_templates", template_path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             return module.MCP_TOOLS
 
-        # Fallback to cleaned definitions
+        # 3. Fallback to cleaned definitions
         spec = importlib.util.spec_from_file_location("tool_definitions", paths["tool_path"])
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -830,103 +845,16 @@ def save_tool_definitions(
         signature_defaults = {}
     try:
         ensure_dirs(paths)
-        backup_filename = None
-        # Create backup first (unless caller is handling backups)
-        if not skip_backup:
-            backup_filename = f"tool_definitions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py"
-            backup_path = os.path.join(paths["backup_dir"], backup_filename)
-            if os.path.exists(paths["tool_path"]):
-                shutil.copy2(paths["tool_path"], backup_path)
 
-        # 1. Save tool_definitions.py (without mcp_service fields)
-        # Remove mcp_service field from all tools before saving
-        # and reorder fields for better readability
-        cleaned_tools = []
-        for tool in tools_data:
-            # Create cleaned tool with specific field order
-            cleaned_tool = {}
-            # Add fields in desired order
-            if "name" in tool:
-                cleaned_tool["name"] = tool["name"]
-            if "description" in tool:
-                # Remove newline characters from description to prevent JSON parsing errors
-                cleaned_description = tool["description"].replace("\n", " ").replace("\r", " ")
-                # Also remove multiple spaces that might result from the replacement
-                cleaned_description = " ".join(cleaned_description.split())
-                cleaned_tool["description"] = cleaned_description
-            if "inputSchema" in tool:
-                # Keep defaults for runtime apply_schema_defaults() function
-                cleaned_input = copy.deepcopy(tool["inputSchema"])
-                # Note: remove_defaults() removed - default values are now preserved
-                # for use by apply_schema_defaults() in server_rest.py
-                # Recursively clean newlines from all descriptions in inputSchema
-                cleaned_input = clean_newlines_from_schema(cleaned_input)
-                # Ensure all properties have targetParam field
-                cleaned_input = ensure_target_params(cleaned_input)
-                cleaned_tool["inputSchema"] = order_schema_fields(cleaned_input)
-            # Add mcp_service (only name field needed for server generation)
-            if "mcp_service" in tool and isinstance(tool["mcp_service"], dict):
-                mcp_service = tool["mcp_service"]
-                if "name" in mcp_service:
-                    cleaned_tool["mcp_service"] = {"name": mcp_service["name"]}
-            # Add any other fields except mcp_service_factors (internal metadata)
-            for k, v in tool.items():
-                if k not in ["name", "description", "inputSchema", "mcp_service", "mcp_service_factors"]:
-                    cleaned_tool[k] = v
-            cleaned_tools.append(cleaned_tool)
+        # tool_definitions.py is deprecated - YAML is now the Single Source of Truth
+        # Server code loads directly from tool_definition_templates.yaml
 
-        # Generate tool_definitions.py content
+        # Get server name for service signature extraction
         server_name = get_server_name_from_path(paths.get("tool_path", "")) or get_server_name_from_path(
             paths.get("template_path", "")
         )
-        server_label = (server_name or "MCP").replace("_", " ").title()
-        content = f'''"""
-MCP Tool Definitions for {server_label} Server - AUTO-GENERATED FILE
-DO NOT EDIT THIS FILE MANUALLY!
 
-This file is automatically generated when you save changes in the MCP Tool Editor.
-It contains tool definitions for use with Claude/OpenAI APIs and MCP Server generation.
-The mcp_service.name field is preserved for server method mapping.
-Internal metadata field (mcp_service_factors) is removed.
-
-Generated from: MCP Tool Editor Web Interface
-To modify: Use the web editor at http://localhost:8091
-"""
-
-from typing import List, Dict, Any
-import json
-
-# MCP Tool Definitions
-MCP_TOOLS: List[Dict[str, Any]] = json.loads(r"""
-'''
-
-        # Format the tools data using JSON for consistent alignment/readability
-        formatted_tools = json.dumps(cleaned_tools, indent=4, ensure_ascii=False)
-        content += formatted_tools
-        content += '\n""")\n\n'
-
-        # Add helper functions
-        content += '''
-
-
-def get_tool_by_name(tool_name: str) -> Dict[str, Any] | None:
-    """Get a specific tool definition by name"""
-    for tool in MCP_TOOLS:
-        if tool["name"] == tool_name:
-            return tool
-    return None
-
-
-def get_tool_names() -> List[str]:
-    """Get list of all available tool names"""
-    return [tool["name"] for tool in MCP_TOOLS]
-'''
-
-        # Write tool_definitions.py
-        with open(paths["tool_path"], "w", encoding="utf-8") as f:
-            f.write(content)
-
-        # 2. Save tool_definition_templates.py (with AST-extracted metadata)
+        # Save tool_definition_templates.yaml (with AST-extracted metadata)
         # Extract signatures from source code using AST (cached)
         services_by_name = {}
         if server_name:
@@ -1038,27 +966,54 @@ def get_tool_names() -> List[str]:
 
             template_tools.append(template_tool)
 
-        # Write template file (use path from config, which includes server folder structure)
+        # Write template file as YAML (use path from config, which includes server folder structure)
         template_path = paths.get("template_path")
 
-        template_content = f'''"""
-MCP Tool Definition Templates - AUTO-GENERATED
-Signatures extracted from source code using AST parsing
-"""
-from typing import List, Dict, Any
+        # Convert .py path to .yaml path
+        if template_path.endswith('.py'):
+            yaml_path = template_path.replace('.py', '.yaml')
+        else:
+            yaml_path = template_path + '.yaml' if not template_path.endswith('.yaml') else template_path
 
-MCP_TOOLS: List[Dict[str, Any]] = {pprint.pformat(template_tools, indent=4, width=500, compact=False, sort_dicts=False)}
-'''
+        # Build YAML structure with metadata header
+        yaml_data = {
+            "tools": template_tools
+        }
+
+        # Custom YAML representer for multiline strings
+        def str_representer(dumper, data):
+            if '\n' in data:
+                return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+            return dumper.represent_scalar('tag:yaml.org,2002:str', data)
+
+        yaml.add_representer(str, str_representer)
+
+        # Generate YAML content with header comments
+        yaml_header = """# =============================================================================
+# MCP Tool Definition Templates - AUTO-GENERATED
+# =============================================================================
+# Signatures extracted from source code using AST parsing
+#
+# 구조 설명:
+#   - name: MCP 도구 이름 (고유 식별자)
+#   - description: 도구 설명 (에이전트가 도구 선택 시 참고)
+#   - inputSchema: 입력 파라미터 스키마 (JSON Schema 형식)
+#   - mcp_service: 백엔드 서비스 연결 정보
+#   - mcp_service_factors: 내부 파라미터 기본값 설정
+# =============================================================================
+
+"""
+        yaml_content = yaml.dump(yaml_data, default_flow_style=False, allow_unicode=True, sort_keys=False, indent=2)
 
         # Ensure template directory exists
-        os.makedirs(os.path.dirname(template_path), exist_ok=True)
+        os.makedirs(os.path.dirname(yaml_path), exist_ok=True)
 
-        with open(template_path, "w", encoding="utf-8") as f:
-            f.write(template_content)
+        with open(yaml_path, "w", encoding="utf-8") as f:
+            f.write(yaml_header + yaml_content)
 
-        print(f"Saved template to: {os.path.relpath(template_path, BASE_DIR)}")
+        print(f"Saved template to: {os.path.relpath(yaml_path, BASE_DIR)}")
 
-        return {"success": True, "backup": backup_filename}
+        return {"success": True, "saved": os.path.relpath(yaml_path, BASE_DIR)}
     except Exception as e:
         return {"error": str(e)}
 
