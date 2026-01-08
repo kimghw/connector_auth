@@ -878,7 +878,18 @@ def save_tool_definitions(
         # internal_args는 파라미터로 전달됨 (중간 파일 없이 직접 사용)
 
         for tool in tools_data:
-            template_tool = {k: v for k, v in tool.items()}
+            # Create template_tool with ordered keys (name first for readability)
+            template_tool = {}
+            # 1. name first (most important identifier)
+            if "name" in tool:
+                template_tool["name"] = tool["name"]
+            # 2. description second
+            if "description" in tool:
+                template_tool["description"] = tool["description"]
+            # 3. Copy remaining fields in order
+            for k, v in tool.items():
+                if k not in template_tool:
+                    template_tool[k] = v
             if "inputSchema" in template_tool:
                 # Ensure all properties have targetParam and order fields
                 cleaned_schema = ensure_target_params(template_tool["inputSchema"])
@@ -980,13 +991,19 @@ def save_tool_definitions(
             "tools": template_tools
         }
 
-        # Custom YAML representer for multiline strings
+        # Custom YAML Dumper to disable anchors/aliases and handle multiline strings
+        class NoAliasDumper(yaml.SafeDumper):
+            """Custom YAML Dumper that disables anchors/aliases for cleaner output."""
+            def ignore_aliases(self, data):
+                return True
+
+        # Custom representer for multiline strings
         def str_representer(dumper, data):
             if '\n' in data:
                 return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
             return dumper.represent_scalar('tag:yaml.org,2002:str', data)
 
-        yaml.add_representer(str, str_representer)
+        NoAliasDumper.add_representer(str, str_representer)
 
         # Generate YAML content with header comments
         yaml_header = """# =============================================================================
@@ -1003,7 +1020,7 @@ def save_tool_definitions(
 # =============================================================================
 
 """
-        yaml_content = yaml.dump(yaml_data, default_flow_style=False, allow_unicode=True, sort_keys=False, indent=2)
+        yaml_content = yaml.dump(yaml_data, Dumper=NoAliasDumper, default_flow_style=False, allow_unicode=True, sort_keys=False, indent=2)
 
         # Ensure template directory exists
         os.makedirs(os.path.dirname(yaml_path), exist_ok=True)
