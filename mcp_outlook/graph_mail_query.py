@@ -192,9 +192,11 @@ class GraphMailQuery:
             should_include = True
 
             # === 발신자 제외 ===
-            # exclude_from_address (from 필드) - 단일값/리스트 지원
+            # exclude_from_address (from 또는 sender 필드) - 단일값/리스트 지원
+            # Note: Graph API 응답에서 from이 없으면 sender를 사용
             if exclude.get("exclude_from_address"):
-                from_addr = email.get("from", {}).get("emailAddress", {}).get("address", "").lower()
+                from_data = email.get("from") or email.get("sender")
+                from_addr = from_data.get("emailAddress", {}).get("address", "").lower() if from_data else ""
                 exclude_from = exclude.get("exclude_from_address")
                 if isinstance(exclude_from, list):
                     if from_addr in [addr.lower() for addr in exclude_from]:
