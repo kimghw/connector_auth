@@ -329,6 +329,7 @@ tools:
       type: integer
       targetParam: top
       description: ''
+      default: 500
       parameters: []
 - name: mail_list_keyword
   description: New tool description

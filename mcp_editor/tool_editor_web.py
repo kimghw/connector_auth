@@ -528,6 +528,15 @@ def extract_service_factors(tools: list) -> tuple[dict, dict]:
                 # Extract primitive default for primitive types (integer, string, boolean)
                 primitive_default = param_info.get("default")
 
+                # If no explicit default, try to get from mcp_service.parameters using targetParam
+                if primitive_default is None and not params_dict:
+                    mcp_service = tool.get("mcp_service", {})
+                    service_params = mcp_service.get("parameters", [])
+                    for sp in service_params:
+                        if sp.get("name") == target_param and sp.get("default") is not None:
+                            primitive_default = sp["default"]
+                            break
+
                 # Determine if this is a primitive type (no nested properties)
                 is_primitive = not params_dict
                 schema_type = factor_type if is_primitive else "object"
