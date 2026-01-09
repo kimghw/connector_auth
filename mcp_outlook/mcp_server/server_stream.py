@@ -34,13 +34,52 @@ from mcp_outlook.outlook_types import ExcludeParams, FilterParams, SelectParams
 from mcp_outlook.graph_mail_client import ProcessingMode, QueryMethod
 
 # Load tool definitions from YAML (Single Source of Truth)
+def _convert_boolean_schema_to_enabled_disabled(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert boolean type properties to enabled/disabled enum for OpenAI compatibility.
+
+    OpenAI API does not support boolean type in function parameters.
+    This converts at runtime:
+        type: boolean, default: true  -> type: string, enum: ["enabled", "disabled"], default: "enabled"
+        type: boolean, default: false -> type: string, enum: ["enabled", "disabled"], default: "disabled"
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    result = dict(schema)
+
+    if 'properties' in result:
+        new_properties = {}
+        for prop_name, prop_def in result['properties'].items():
+            if isinstance(prop_def, dict) and prop_def.get('type') == 'boolean':
+                new_prop = dict(prop_def)
+                new_prop['type'] = 'string'
+                new_prop['enum'] = ['enabled', 'disabled']
+                if 'default' in new_prop:
+                    new_prop['default'] = 'enabled' if new_prop['default'] else 'disabled'
+                new_properties[prop_name] = new_prop
+            elif isinstance(prop_def, dict) and prop_def.get('type') == 'object':
+                new_properties[prop_name] = _convert_boolean_schema_to_enabled_disabled(prop_def)
+            else:
+                new_properties[prop_name] = prop_def
+        result['properties'] = new_properties
+
+    return result
+
+
 def _load_mcp_tools() -> List[Dict[str, Any]]:
-    """Load MCP tools from tool_definition_templates.yaml."""
+    """Load MCP tools from tool_definition_templates.yaml and convert boolean types."""
     yaml_path = Path(current_dir).parent.parent / "mcp_editor" / "mcp_outlook" / "tool_definition_templates.yaml"
     if yaml_path.exists():
         with open(yaml_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
-            return data.get("tools", [])
+            tools = data.get("tools", [])
+
+            # Convert boolean types to enabled/disabled for OpenAI compatibility
+            for tool in tools:
+                if 'inputSchema' in tool:
+                    tool['inputSchema'] = _convert_boolean_schema_to_enabled_disabled(tool['inputSchema'])
+
+            return tools
     raise FileNotFoundError(f"Tool definition YAML not found: {yaml_path}")
 
 MCP_TOOLS = _load_mcp_tools()
@@ -48,6 +87,40 @@ MCP_TOOLS = _load_mcp_tools()
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# Boolean Parameter Conversion (enabled/disabled <-> bool)
+# ============================================================
+# OpenAI API does not support boolean type in function parameters.
+# We use "enabled"/"disabled" strings externally and convert to bool internally.
+
+def convert_enabled_to_bool(value: Any) -> bool:
+    """Convert enabled/disabled string to boolean.
+
+    Args:
+        value: "enabled", "disabled", True, False, or None
+
+    Returns:
+        True if enabled, False otherwise
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() == "enabled"
+    return False
+
+
+def convert_bool_to_enabled(value: bool) -> str:
+    """Convert boolean to enabled/disabled string.
+
+    Args:
+        value: Boolean value
+
+    Returns:
+        "enabled" if True, "disabled" if False
+    """
+    return "enabled" if value else "disabled"
 
 # Import service classes (unique)
 from mcp_outlook.outlook_service import MailService
@@ -594,7 +667,26 @@ async def handle_mail_attachment_download(args: Dict[str, Any]) -> Dict[str, Any
     save_directory_sig = args.get("save_directory")
     save_directory = save_directory_sig if save_directory_sig is not None else 'downloads'
     skip_duplicates_sig = args.get("skip_duplicates")
-    skip_duplicates = skip_duplicates_sig if skip_duplicates_sig is not None else True
+    skip_duplicates = skip_duplicates_sig if skip_duplicates_sig is not None else 'enabled'
+    save_file_sig = args.get("save_file")
+    save_file = save_file_sig if save_file_sig is not None else 'enabled'
+    storage_type_sig = args.get("storage_type")
+    storage_type = storage_type_sig if storage_type_sig is not None else 'local'
+    convert_to_txt_sig = args.get("convert_to_txt")
+    convert_to_txt = convert_to_txt_sig if convert_to_txt_sig is not None else 'disabled'
+    include_body_sig = args.get("include_body")
+    include_body = include_body_sig if include_body_sig is not None else 'enabled'
+    onedrive_folder_sig = args.get("onedrive_folder")
+    onedrive_folder = onedrive_folder_sig if onedrive_folder_sig is not None else '/Attachments'
+
+    # ========================================
+    # Step 1.5: Boolean 파라미터 변환
+    # - enabled/disabled -> True/False
+    # ========================================
+    skip_duplicates = convert_enabled_to_bool(skip_duplicates)
+    save_file = convert_enabled_to_bool(save_file)
+    convert_to_txt = convert_enabled_to_bool(convert_to_txt)
+    include_body = convert_enabled_to_bool(include_body)
 
     # ========================================
     # Step 2: 서비스 호출 인자 구성
@@ -604,6 +696,11 @@ async def handle_mail_attachment_download(args: Dict[str, Any]) -> Dict[str, Any
     call_args["message_attachment_ids"] = message_attachment_ids
     call_args["save_directory"] = save_directory
     call_args["skip_duplicates"] = skip_duplicates
+    call_args["save_file"] = save_file
+    call_args["storage_type"] = storage_type
+    call_args["convert_to_txt"] = convert_to_txt
+    call_args["include_body"] = include_body
+    call_args["onedrive_folder"] = onedrive_folder
 
     # ========================================
     # Step 3: 서비스 메서드 호출

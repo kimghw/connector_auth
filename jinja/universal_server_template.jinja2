@@ -66,13 +66,52 @@ from {{ server_name }}_types import {{ param_types | join(', ') }}
 {%- endif %}
 
 # Load tool definitions from YAML (Single Source of Truth)
+def _convert_boolean_schema_to_enabled_disabled(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert boolean type properties to enabled/disabled enum for OpenAI compatibility.
+
+    OpenAI API does not support boolean type in function parameters.
+    This converts at runtime:
+        type: boolean, default: true  -> type: string, enum: ["enabled", "disabled"], default: "enabled"
+        type: boolean, default: false -> type: string, enum: ["enabled", "disabled"], default: "disabled"
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    result = dict(schema)
+
+    if 'properties' in result:
+        new_properties = {}
+        for prop_name, prop_def in result['properties'].items():
+            if isinstance(prop_def, dict) and prop_def.get('type') == 'boolean':
+                new_prop = dict(prop_def)
+                new_prop['type'] = 'string'
+                new_prop['enum'] = ['enabled', 'disabled']
+                if 'default' in new_prop:
+                    new_prop['default'] = 'enabled' if new_prop['default'] else 'disabled'
+                new_properties[prop_name] = new_prop
+            elif isinstance(prop_def, dict) and prop_def.get('type') == 'object':
+                new_properties[prop_name] = _convert_boolean_schema_to_enabled_disabled(prop_def)
+            else:
+                new_properties[prop_name] = prop_def
+        result['properties'] = new_properties
+
+    return result
+
+
 def _load_mcp_tools() -> List[Dict[str, Any]]:
-    """Load MCP tools from tool_definition_templates.yaml."""
+    """Load MCP tools from tool_definition_templates.yaml and convert boolean types."""
     yaml_path = Path(current_dir).parent.parent / "mcp_editor" / "mcp_{{ server_name }}" / "tool_definition_templates.yaml"
     if yaml_path.exists():
         with open(yaml_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
-            return data.get("tools", [])
+            tools = data.get("tools", [])
+
+            # Convert boolean types to enabled/disabled for OpenAI compatibility
+            for tool in tools:
+                if 'inputSchema' in tool:
+                    tool['inputSchema'] = _convert_boolean_schema_to_enabled_disabled(tool['inputSchema'])
+
+            return tools
     raise FileNotFoundError(f"Tool definition YAML not found: {yaml_path}")
 
 MCP_TOOLS = _load_mcp_tools()
@@ -80,6 +119,40 @@ MCP_TOOLS = _load_mcp_tools()
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# Boolean Parameter Conversion (enabled/disabled <-> bool)
+# ============================================================
+# OpenAI API does not support boolean type in function parameters.
+# We use "enabled"/"disabled" strings externally and convert to bool internally.
+
+def convert_enabled_to_bool(value: Any) -> bool:
+    """Convert enabled/disabled string to boolean.
+
+    Args:
+        value: "enabled", "disabled", True, False, or None
+
+    Returns:
+        True if enabled, False otherwise
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() == "enabled"
+    return False
+
+
+def convert_bool_to_enabled(value: bool) -> str:
+    """Convert boolean to enabled/disabled string.
+
+    Args:
+        value: Boolean value
+
+    Returns:
+        "enabled" if True, "disabled" if False
+    """
+    return "enabled" if value else "disabled"
 
 {#- Build unique services dict to avoid duplicate imports #}
 {%- set unique_services = {} %}
@@ -490,6 +563,16 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {{ param_name }} = args.get("{{ source_param }}")
     {%- endif %}
     {%- endfor %}
+    {%- if tool.boolean_params %}
+
+    # ========================================
+    # Step 1.5: Boolean 파라미터 변환
+    # - enabled/disabled -> True/False
+    # ========================================
+    {%- for bool_param in tool.boolean_params %}
+    {{ bool_param }} = convert_enabled_to_bool({{ bool_param }})
+    {%- endfor %}
+    {%- endif %}
 
     # ========================================
     # Step 2: Signature Defaults 적용
@@ -593,6 +676,16 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {{ param_name }} = args.get("{{ source_param }}")
     {%- endif %}
     {%- endfor %}
+    {%- if tool.boolean_params %}
+
+    # ========================================
+    # Step 1.5: Boolean 파라미터 변환
+    # - enabled/disabled -> True/False
+    # ========================================
+    {%- for bool_param in tool.boolean_params %}
+    {{ bool_param }} = convert_enabled_to_bool({{ bool_param }})
+    {%- endfor %}
+    {%- endif %}
 
     # ========================================
     # Step 2: 서비스 호출 인자 구성

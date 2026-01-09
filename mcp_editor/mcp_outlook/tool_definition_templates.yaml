@@ -514,33 +514,6 @@ tools:
   inputSchema:
     type: object
     properties:
-      message_attachment_ids:
-        type: array
-        description: '메일 ID 리스트 또는 첨부파일 ID 쌍. 예: ["msg_id1", "msg_id2"] 또는 [{"message_id": "...", "attachment_id": "..."}]'
-        targetParam: message_attachment_ids
-      save_directory:
-        type: string
-        description: 저장 디렉토리 경로 (save_file=true일 때 사용)
-        default: downloads
-        targetParam: save_directory
-      skip_duplicates:
-        type: boolean
-        description: 이미 처리된 메일 건너뛰기
-        default: true
-        targetParam: skip_duplicates
-      save_file:
-        type: boolean
-        description: 파일 저장 여부. false면 메모리로 반환 (LLM이 직접 내용 확인 가능)
-        default: true
-        targetParam: save_file
-      storage_type:
-        type: string
-        description: '저장소 유형: "local" (로컬 디스크) 또는 "onedrive" (OneDrive 업로드)'
-        default: local
-        enum:
-          - local
-          - onedrive
-        targetParam: storage_type
       convert_to_txt:
         type: boolean
         description: 첨부파일을 TXT로 변환. PDF, DOCX, XLSX, PPTX, HWP 등 지원
@@ -551,11 +524,39 @@ tools:
         description: 메일 본문 포함 여부
         default: true
         targetParam: include_body
+      message_attachment_ids:
+        type: array
+        description: '메일 ID 리스트 또는 첨부파일 ID 쌍. 예: ["msg_id1", "msg_id2"] 또는 [{"message_id":
+          "...", "attachment_id": "..."}]'
+        targetParam: message_attachment_ids
       onedrive_folder:
         type: string
         description: OneDrive 저장 폴더 경로 (storage_type=onedrive일 때 사용)
         default: /Attachments
         targetParam: onedrive_folder
+      save_directory:
+        type: string
+        description: 저장 디렉토리 경로 (save_file=true일 때 사용)
+        default: downloads
+        targetParam: save_directory
+      save_file:
+        type: boolean
+        description: 파일 저장 여부. false면 메모리로 반환 (LLM이 직접 내용 확인 가능)
+        default: true
+        targetParam: save_file
+      skip_duplicates:
+        type: boolean
+        description: 이미 처리된 메일 건너뛰기
+        default: true
+        targetParam: skip_duplicates
+      storage_type:
+        type: string
+        description: '저장소 유형: "local" (로컬 디스크) 또는 "onedrive" (OneDrive 업로드)'
+        enum:
+        - local
+        - onedrive
+        default: local
+        targetParam: storage_type
       user_email:
         type: string
         description: 사용자 이메일 주소

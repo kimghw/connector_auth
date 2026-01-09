@@ -37,6 +37,70 @@ def to_python_repr(value: Any) -> str:
         return repr(value)
 
 
+def convert_boolean_to_enabled_disabled(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert boolean type properties to enabled/disabled enum for OpenAI compatibility.
+
+    OpenAI API does not support boolean type in function parameters.
+    This converts:
+        type: boolean, default: true  -> type: string, enum: ["enabled", "disabled"], default: "enabled"
+        type: boolean, default: false -> type: string, enum: ["enabled", "disabled"], default: "disabled"
+
+    Args:
+        schema: JSON Schema dict with properties
+
+    Returns:
+        Modified schema with boolean types converted to enabled/disabled enums
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    result = dict(schema)
+
+    # Process 'properties' if present
+    if 'properties' in result:
+        new_properties = {}
+        for prop_name, prop_def in result['properties'].items():
+            if isinstance(prop_def, dict) and prop_def.get('type') == 'boolean':
+                # Convert boolean to enabled/disabled enum
+                new_prop = dict(prop_def)
+                new_prop['type'] = 'string'
+                new_prop['enum'] = ['enabled', 'disabled']
+
+                # Convert default value
+                if 'default' in new_prop:
+                    new_prop['default'] = 'enabled' if new_prop['default'] else 'disabled'
+
+                # Update description to clarify the values
+                if 'description' in new_prop:
+                    new_prop['description'] = f"{new_prop['description']} (enabled=true, disabled=false)"
+
+                new_properties[prop_name] = new_prop
+            elif isinstance(prop_def, dict) and prop_def.get('type') == 'object':
+                # Recursively process nested objects
+                new_properties[prop_name] = convert_boolean_to_enabled_disabled(prop_def)
+            else:
+                new_properties[prop_name] = prop_def
+        result['properties'] = new_properties
+
+    return result
+
+
+def convert_enabled_disabled_default(value: Any, param_type: str) -> str:
+    """Convert enabled/disabled default value to Python repr.
+
+    Args:
+        value: The default value (bool or string)
+        param_type: The parameter type
+
+    Returns:
+        Python code representation
+    """
+    if param_type == 'boolean' or isinstance(value, bool):
+        # Convert bool to enabled/disabled string
+        return repr('enabled' if value else 'disabled')
+    return to_python_repr(value)
+
+
 def load_registry(registry_path: str) -> Dict[str, Any]:
     """Load service registry JSON file"""
     with open(registry_path, 'r', encoding='utf-8') as f:
@@ -520,10 +584,16 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         params = {}
         object_params = {}
         call_params = {}
+        boolean_params = []  # Track boolean params for conversion
 
         # First, get the inputSchema to understand the mappings
         input_schema = tool.get('inputSchema', {})
         properties = input_schema.get('properties', {})
+
+        # Convert boolean properties to enabled/disabled for OpenAI compatibility
+        converted_input_schema = convert_boolean_to_enabled_disabled(input_schema)
+        tool_with_internal['inputSchema'] = converted_input_schema
+        converted_properties = converted_input_schema.get('properties', {})
 
         # Create a mapping from inputSchema property name to targetParam (service method param name)
         param_mappings = {}
@@ -577,12 +647,24 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                         # (It's neither a Signature parameter nor Internal, likely a service-only param)
                         continue
 
+                # Check if this param was originally a boolean (from inputSchema)
+                original_prop = properties.get(input_param_name, {})
+                is_boolean_param = original_prop.get('type') == 'boolean'
+
+                # For boolean params, convert default to enabled/disabled
+                if is_boolean_param:
+                    boolean_params.append(input_param_name)
+                    default_json = convert_enabled_disabled_default(default, 'boolean')
+                else:
+                    default_json = to_python_repr(default)
+
                 params[input_param_name] = {
                     'type': param_type,
                     'is_required': is_required,
                     'has_default': has_default,
                     'default': default,
-                    'default_json': to_python_repr(default)
+                    'default_json': default_json,
+                    'is_boolean': is_boolean_param  # Track original boolean type
                 }
 
                 # Check if it's an object type (Params class)
@@ -682,6 +764,7 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         tool_with_internal['params'] = params
         tool_with_internal['object_params'] = object_params
         tool_with_internal['call_params'] = call_params
+        tool_with_internal['boolean_params'] = boolean_params  # Track boolean params for enabled/disabled conversion
         internal_overrides = {}
         for arg_name, arg_info in tool_internal_args.items():
             if not arg_name.endswith("_internal"):
