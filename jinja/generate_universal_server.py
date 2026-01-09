@@ -188,18 +188,31 @@ def extract_service_factors_from_tools(tools: List[Dict[str, Any]]) -> Dict[str,
             else:
                 params_dict = raw_params  # Already a dict
 
-            # Extract default values from parameters
+            # Extract default values from parameters (for object types)
             default_values = {}
             for param_name, param_def in params_dict.items():
                 if 'default' in param_def:
                     default_values[param_name] = param_def['default']
+
+            # Extract primitive default (for primitive types like integer, string, boolean)
+            # This is used when the factor itself has a default value, not nested parameters
+            primitive_default = factor_data.get('default')
+
+            # Determine value: use object properties defaults or primitive default
+            if default_values:
+                value = default_values
+            elif primitive_default is not None:
+                value = primitive_default
+            else:
+                value = {}
 
             # Build the factor structure
             factor_info = {
                 'targetParam': target_param,
                 'type': factor_type,
                 'source': source,
-                'value': default_values,
+                'value': value,
+                'primitive_default': primitive_default,  # Store separately for template rendering
                 'original_schema': {
                     'targetParam': target_param,
                     'properties': params_dict,

@@ -2,6 +2,62 @@
 
 ## 최근 세션 기록
 
+### 2026-01-09: Internal 파라미터 Primitive 타입 기본값 렌더링 수정
+
+#### 요청 사항
+- `mcp_service_factors`의 internal 파라미터에서 primitive 타입(integer, string, boolean)의 기본값이 핸들러에 렌더링되지 않는 문제 해결
+- 예: `call_args["top"] = integer()` → `call_args["top"] = 50`으로 수정되어야 함
+
+#### 문제 분석
+- **근본 원인**: Primitive 타입은 `parameters: []`로 저장되어 `properties = {}`가 되므로 default 값이 추출되지 않음
+- **영향 받는 조건**: 템플릿의 `arg_info.value != {}` 조건이 primitive 타입을 처리하지 못함
+- **결과**: `integer()` → `0`으로 렌더링되어 기본값 손실
+
+#### 해결 방안
+
+**1. YAML 구조 확장**
+```yaml
+ttt:
+  source: internal
+  type: integer
+  targetParam: top
+  default: 50               # ← primitive 기본값 필드 추가
+  description: 'top 파라미터 기본값'
+  parameters: []
+```
+
+**2. generate_universal_server.py 수정**
+- `extract_service_factors_from_tools()` 함수에서 `primitive_default` 추출 로직 추가
+- `factor_data.get('default')`로 primitive 기본값 추출
+- `factor_info`에 `primitive_default` 필드 추가
+
+**3. universal_server_template.jinja2 수정**
+- primitive 타입 목록 정의: `['integer', 'int', 'string', 'str', 'boolean', 'bool', 'number', 'float']`
+- primitive 타입 분기 처리: `arg_info.primitive_default` 값 직접 렌더링
+- 객체 unpacking 없이 값 할당
+
+**4. tool_editor_web.py 수정**
+- `extract_service_factors()` 함수에서 `primitive_default` 저장
+
+#### 렌더링 결과 비교
+
+| 수정 전 | 수정 후 |
+|--------|--------|
+| `call_args["top"] = integer()` | `call_args["top"] = 50` |
+| 값: 0 (손실) | 값: 50 (정상) |
+
+#### 검증 결과
+- outlook 서버 3개 프로토콜 (REST, STDIO, Stream) 생성 성공 ✅
+- `server_rest.py`, `server_stdio.py`, `server_stream.py` 모두 `call_args["top"] = 50` 확인 ✅
+
+#### 수정된 파일
+- `jinja/generate_universal_server.py`: primitive_default 추출 로직 추가
+- `jinja/universal_server_template.jinja2`: primitive 타입 렌더링 조건 추가
+- `mcp_editor/tool_editor_web.py`: primitive_default 저장 추가
+- `mcp_editor/mcp_outlook/tool_definition_templates.yaml`: ttt에 default 값 추가
+
+---
+
 ### 2026-01-09: fetch_and_save() 옵션 추가 (save_file, include_body)
 
 #### 요청 사항

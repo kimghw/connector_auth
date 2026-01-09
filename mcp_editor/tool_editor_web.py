@@ -525,9 +525,13 @@ def extract_service_factors(tools: list) -> tuple[dict, dict]:
                     # Use param_name as fallback for backward compatibility during migration
                     target_param = param_name
 
+                # Extract primitive default for primitive types (integer, string, boolean)
+                primitive_default = param_info.get("default")
+
                 internal_args[tool_name][param_name] = {
                     "description": param_info.get("description", ""),
                     "type": factor_type,
+                    "primitive_default": primitive_default,  # Store primitive default value
                     "original_schema": {
                         "baseModel": factor_type,
                         "description": param_info.get("description", ""),
@@ -937,9 +941,19 @@ def save_tool_definitions(
 
                     # Add parameters structure from original_schema if available
                     # Convert from dict format to unified list format
-                    if "original_schema" in param_info and "properties" in param_info["original_schema"]:
-                        props_dict = param_info["original_schema"]["properties"]
+                    original_schema = param_info.get("original_schema", {})
+                    props_dict = original_schema.get("properties", {})
+
+                    if props_dict:
+                        # Object type with nested properties
                         factor_data["parameters"] = convert_params_dict_to_list(props_dict)
+                    else:
+                        # Primitive type (integer, string, boolean, etc.)
+                        # Store default value directly in factor_data
+                        primitive_default = original_schema.get("default")
+                        if primitive_default is not None:
+                            factor_data["default"] = primitive_default
+                        factor_data["parameters"] = []
 
                     # Skip if all defaults are None (useless factor)
                     if not is_all_none_defaults(factor_data):

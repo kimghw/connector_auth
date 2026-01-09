@@ -637,7 +637,18 @@ async def handle_{{ tool.tool_name or tool.name }}(args: Dict[str, Any]) -> Dict
     {%- if not arg_name.endswith("_internal") %}
     {%- set target_param = arg_info.original_schema.targetParam | default(arg_info.targetParam) | default(arg_name) %}
     {%- if target_param not in tool.call_params %}
-    {%- if arg_info.value is defined and arg_info.value is not none and arg_info.value != {} %}
+    {#- Check if this is a primitive type #}
+    {%- set primitive_types = ['integer', 'int', 'string', 'str', 'boolean', 'bool', 'number', 'float'] %}
+    {%- if arg_info.type in primitive_types %}
+    {#- Primitive type: render value directly without object unpacking #}
+    {%- if arg_info.primitive_default is defined and arg_info.primitive_default is not none %}
+    call_args["{{ target_param }}"] = {{ arg_info.primitive_default }}
+    {%- elif arg_info.value is defined and arg_info.value is not none and arg_info.value is not mapping %}
+    call_args["{{ target_param }}"] = {{ arg_info.value }}
+    {%- else %}
+    call_args["{{ target_param }}"] = {{ arg_info.type }}()
+    {%- endif %}
+    {%- elif arg_info.value is defined and arg_info.value is not none and arg_info.value != {} %}
     call_args["{{ target_param }}"] = {{ arg_info.type }}(**{{ arg_info.value | pprint }})
     {%- elif arg_info.value is defined and arg_info.value == {} %}
     call_args["{{ target_param }}"] = {{ arg_info.type }}()

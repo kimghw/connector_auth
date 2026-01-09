@@ -13,8 +13,8 @@
 
 tools:
 - name: mail_list_period
-  description: 지정된 기간의 메일 목록을 미리보기 형태로 조회합니다. 메일 본문 전체가 아닌 제목, 발신자, 날짜, 요약 등 핵심 정보만을
-    효율적으로 가져와 테이블 형태로 정리합니다.
+  description: '지정된 기간의 메일 목록을 미리보기 형태로 조회합니다. 메일 본문 전체가 아닌 제목, 발신자, 날짜, 요약 등 핵심 정보만을
+    효율적으로 가져와 테이블 형태로 정리합니다. '
   inputSchema:
     type: object
     properties:
@@ -38,6 +38,7 @@ tools:
       user_email:
         type: string
         description: 이메일 주소를 입력하고 입력하지 않을 경우 내부에서 연결정보를 메일 주소를 추정함
+        default: kimghw@krs.co.kr
         targetParam: user_email
     required:
     - DatePeriodFilter
@@ -323,6 +324,13 @@ tools:
         default: false
         has_default: true
         description: Outlook Web에서 메시지를 열기 위한 URL
+    top:
+      source: internal
+      type: integer
+      targetParam: top
+      description: ''
+      default: 500
+      parameters: []
 - name: mail_list_keyword
   description: New tool description
   inputSchema:

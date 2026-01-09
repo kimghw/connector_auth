@@ -579,6 +579,7 @@ async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
  'to_recipients': False,
  'unique_body': False,
  'web_link': False})
+    call_args["top"] = 50
 
     # ========================================
     # Step 5: 서비스 메서드 호출
