@@ -528,6 +528,10 @@ def extract_service_factors(tools: list) -> tuple[dict, dict]:
                 # Extract primitive default for primitive types (integer, string, boolean)
                 primitive_default = param_info.get("default")
 
+                # Determine if this is a primitive type (no nested properties)
+                is_primitive = not params_dict
+                schema_type = factor_type if is_primitive else "object"
+
                 internal_args[tool_name][param_name] = {
                     "description": param_info.get("description", ""),
                     "type": factor_type,
@@ -537,7 +541,8 @@ def extract_service_factors(tools: list) -> tuple[dict, dict]:
                         "description": param_info.get("description", ""),
                         "properties": params_dict,
                         "required": [],
-                        "type": "object",
+                        "type": schema_type,  # Preserve original type for primitives
+                        "default": primitive_default,  # Store default for primitives
                     },
                     "targetParam": target_param,
                     "was_required": False,
