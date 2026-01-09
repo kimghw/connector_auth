@@ -333,62 +333,47 @@ def get_services_map(base_dir: str, server_name: Optional[str] = None) -> Dict[s
 
 def export_services_to_json(base_dir: str, server_name: str, output_dir: str) -> Dict[str, str]:
     """
-    Export services to the two JSON formats used by the editor:
-    - {server}_mcp_services.json (simple) - saved in {output_dir}/{server_name}/
-    - {server}_mcp_services_detailed.json (detailed) - saved in {output_dir}/{server_name}/
+    Export services to registry_{server_name}.json format used by the web editor.
+    The registry format is compatible with tool_editor_web.py's load_services_from_registry().
     """
+    import json
+    from datetime import datetime
+
     services = scan_codebase_for_mcp_services(base_dir, server_name)
     services_items = sorted(services.items(), key=lambda item: (item[1]["file"], item[1]["line"]))
 
-    function_names = [service["metadata"].get("tool_name") or name for name, service in services_items]
-    # Build services_with_signatures with richer data
-    services_with_signatures = []
+    # Build registry format (used by web editor)
+    registry_output = {
+        "version": "1.0",
+        "generated_at": datetime.now().isoformat(),
+        "server_name": server_name,
+        "services": {}
+    }
+
     for name, service in services_items:
-        entry = {
-            "name": name,
+        service_name = service.get("metadata", {}).get("service_name", name)
+        registry_output["services"][service_name] = {
+            "service_name": service_name,
+            "handler": {
+                "class_name": service.get("class"),
+                "module_path": f"mcp_{server_name}.{service.get('module', f'{server_name}_service')}",
+                "instance": service.get("instance"),
+                "method": service.get("method", name),
+                "is_async": service.get("is_async", True),
+                "file": str(Path(service.get("file", "")).resolve()),
+                "line": service.get("line", 0)
+            },
+            "signature": service.get("signature", ""),
             "parameters": service.get("parameters", []),
-            "is_async": service.get("is_async", False),
-            "signature": service.get("signature"),
+            "metadata": service.get("metadata", {})
         }
-        services_with_signatures.append(entry)
 
-    simple_output = {
-        "decorated_services": function_names,
-        "services_with_signatures": services_with_signatures,
-        "count": len(function_names),
-        "description": "List of actual functions with @mcp_service decorator in codebase with signatures",
-    }
-
-    detailed_output = {
-        "services": [svc for _, svc in services_items],
-        "count": len(services_items),
-        "by_file": {},
-        "description": "Detailed information about @mcp_service decorated functions",
-    }
-
-    for name, service in services_items:
-        detailed_output.setdefault(service["file"], []).append(service.get("metadata", {}).get("tool_name") or name)
-
-    # Save to server-specific folder: {output_dir}/{server_name}/
-    output_dir_path = Path(output_dir) / server_name
-    output_dir_path.mkdir(parents=True, exist_ok=True)
-
-    simple_path = output_dir_path / f"{server_name}_mcp_services.json"
-    detailed_path = output_dir_path / f"{server_name}_mcp_services_detailed.json"
-
-    import json
-
-    simple_path.write_text(json.dumps(simple_output, indent=2, ensure_ascii=False), encoding="utf-8")
-    detailed_path.write_text(json.dumps(detailed_output, indent=2, ensure_ascii=False), encoding="utf-8")
-
-    # Legacy path for backward compatibility (outlook only, at root level)
-    legacy_path = None
-    if server_name == "outlook":
-        legacy_path = Path(output_dir) / "mcp_services.json"
-        legacy_path.write_text(json.dumps(simple_output, indent=2, ensure_ascii=False), encoding="utf-8")
+    # Save registry file directly in output_dir (no subfolder)
+    output_dir_path = Path(output_dir)
+    registry_path = output_dir_path / f"registry_{server_name}.json"
+    registry_path.write_text(json.dumps(registry_output, indent=2, ensure_ascii=False), encoding="utf-8")
 
     return {
-        "simple": str(simple_path),
-        "detailed": str(detailed_path),
-        "legacy": str(legacy_path) if legacy_path else "",
+        "registry": str(registry_path),
+        "count": len(registry_output["services"])
     }

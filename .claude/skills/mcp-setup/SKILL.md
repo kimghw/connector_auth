@@ -48,6 +48,9 @@ Goal: turn an existing project into an MCP server the web editor can manage (dec
 
 5) Seed tool templates (LLM-facing schemas)
 - Copy `references/tool_definition_templates_sample.py` to `mcp_editor/mcp_{server}/tool_definition_templates.py` and align entries with your decorated functions.
+- **Ask user preference**: Before writing `tool_definition_templates.yaml`, ask the user:
+  - **Interactive mode**: Interview the user about each tool's purpose, required vs optional params, descriptions, and internal defaults. Creates more tailored schemas.
+  - **Auto mode**: Agent analyzes `{server}_service.py` and generates initial schemas based on function signatures, docstrings, and type hints. Faster but may need refinement in web editor.
 - Use `mcp_editor/mcp_service_registry/mcp_service_decorator.generate_inputschema_from_service` if you want to auto-derive a starting `inputSchema` from the captured signature; then refine descriptions and required fields.
 - Keep `MCP_TOOLS` in sync with the facade: names, signatures, and targetParam mappings should mirror the `@mcp_service` parameters. Include at least one default entry so the editor UI is not empty.
 
@@ -59,6 +62,17 @@ Goal: turn an existing project into an MCP server the web editor can manage (dec
 - In the web editor, adjust schemas/internal args as needed and click Save to write `mcp_{server}/mcp_server/tool_definitions.py`.
 - Generate the server scaffold when ready: `python jinja/generate_universal_server.py {server}`. Do not edit generated `server.py` or `tool_definitions.py` directly; modify templates/facades instead.
 - Smoke test: `python mcp_{server}/mcp_server/server.py` then invoke one tool manually to confirm wiring.
+
+8) Final verification checklist
+Before completing, verify all artifacts were created:
+- [ ] `mcp_{server}/{server}_service.py` exists with `@mcp_service` decorators
+- [ ] `mcp_{server}/{server}_types.py` exists (if complex types are used)
+- [ ] `mcp_editor/mcp_{server}/tool_definition_templates.py` exists (YAML loader)
+- [ ] `mcp_editor/mcp_{server}/tool_definition_templates.yaml` exists **and contains at least one tool definition** (not empty)
+- [ ] `mcp_editor/mcp_{server}/backups/` directory exists
+- [ ] `mcp_editor/editor_config.json` has the `{server}` profile
+- [ ] `mcp_editor/mcp_service_registry/registry_{server}.json` exists
+- If any item is missing or empty, complete it before finishing.
 
 ## Agent notes for auto-extraction
 - **Prioritize business value**: Identify the most important business logic first. Focus on functions that users will call frequently or that provide unique value.
