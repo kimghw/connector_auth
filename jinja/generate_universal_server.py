@@ -198,6 +198,15 @@ def extract_service_factors_from_tools(tools: List[Dict[str, Any]]) -> Dict[str,
             # This is used when the factor itself has a default value, not nested parameters
             primitive_default = factor_data.get('default')
 
+            # If no explicit default, try to get from mcp_service.parameters using targetParam
+            if primitive_default is None and not params_dict:
+                mcp_service = tool.get('mcp_service', {})
+                service_params = mcp_service.get('parameters', [])
+                for sp in service_params:
+                    if sp.get('name') == target_param and sp.get('default') is not None:
+                        primitive_default = sp['default']
+                        break
+
             # Determine value: use object properties defaults or primitive default
             if default_values:
                 value = default_values
