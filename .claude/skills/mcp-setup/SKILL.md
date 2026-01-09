@@ -20,6 +20,11 @@ Goal: turn an existing project into an MCP server the web editor can manage (dec
 - Generate the server when ready: `python jinja/generate_universal_server.py demo` (do not hand-edit generated files).
 
 ## Workflow
+0) Verify prerequisites
+- **Check required folders first**: Before starting, verify that all required infrastructure folders exist. See `references/required_folders.md` for the full list.
+- Required folders: `.claude/skills/mcp-setup/`, `.claude/commands/`, `mcp_editor/`, `mcp_editor/mcp_service_registry/`, `jinja/`
+- If any folder is missing, inform the user that they need to copy the MCP infrastructure from a configured project.
+
 1) Prepare the target project
 - Normalize naming: folders and editor config keys should be `mcp_{server}`. Place server code under `mcp_{server}/mcp_server/`.
 - Keep business logic importable by the facade (no heavy side effects on import; move those behind functions).
@@ -66,6 +71,7 @@ Goal: turn an existing project into an MCP server the web editor can manage (dec
 - **Iterative refinement**: After initial setup, ask the user if they want to add more services or adjust priorities.
 
 ## References to load when needed
+- `.claude/skills/mcp-setup/references/required_folders.md` — **prerequisite check**: folders that must exist before running this skill.
 - `.claude/skills/mcp-setup/references/service_facade_template.py` — facade + decorator usage example.
 - `.claude/skills/mcp-setup/references/tool_definition_templates_sample.py` — minimal MCP_TOOLS template (Python loader).
 - `.claude/skills/mcp-setup/references/tool_definition_templates_sample.yaml` — **annotated YAML template** with detailed comments explaining data flow, field sources, and call paths.
