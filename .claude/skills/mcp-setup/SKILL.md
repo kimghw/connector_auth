@@ -25,13 +25,16 @@ Goal: turn an existing project into an MCP server the web editor can manage (dec
 - Keep business logic importable by the facade (no heavy side effects on import; move those behind functions).
 
 2) Select functions to expose (agent-assisted)
+- **Review the project first**: Analyze the codebase structure, identify core business logic, and understand the domain before proposing services.
+- **Propose candidate services**: Present a ranked list of functions suitable for MCP exposure to the user, explaining why each was selected (importance, frequency of use, API suitability).
+- **Get user feedback**: Ask the user to confirm, modify, or add to the proposed list before proceeding. Use AskUserQuestion to clarify priorities or resolve ambiguities.
 - Scan for public, side-effect-safe entry points that return serializable data or clear status (controllers, service layer, use-cases). Prefer functions with simple parameters over deeply coupled internals.
 - Extract docstrings/comments for descriptions and note default values/Optional hints. Avoid exposing constructors or low-level helpers unless necessary.
 
 3) Build the facade with decorators
 - Start from `references/service_facade_template.py`; copy to `mcp_{server}/{server}_service.py` (or `service.py`).
 - For each exposed function, wrap the underlying call and annotate with `@mcp_service(tool_name=..., server_name=..., service_name=..., description=..., tags=..., category=...)`.
-- Keep return values JSON-serializable. If you need richer types, define Pydantic models in `{server}_types.py` and import them.
+- Keep return values JSON-serializable. If you need richer types for parameters or return values, define Pydantic models in `{server}_types.py` and import them. The web editor uses `types_files` config to extract property information from these models for internal parameter configuration.
 - Prefer pure wrappers so scanning stays stable; avoid doing I/O at module import time.
 
 4) Register services
@@ -53,12 +56,18 @@ Goal: turn an existing project into an MCP server the web editor can manage (dec
 - Smoke test: `python mcp_{server}/mcp_server/server.py` then invoke one tool manually to confirm wiring.
 
 ## Agent notes for auto-extraction
+- **Prioritize business value**: Identify the most important business logic first. Focus on functions that users will call frequently or that provide unique value.
+- **Generate artifacts**: After user confirmation, the agent MUST create:
+  1. `{server}_service.py` with `@mcp_service` decorators for approved functions
+  2. Initial `tool_definition_templates.yaml` with LLM-facing schemas for key tools
 - Use heuristics to rank candidate functions: high-level orchestration, minimal side effects, good docstrings, and parameters that map cleanly to JSON. Skip functions requiring global state unless you can inject dependencies in the facade.
 - When unsure about parameter schemas, default to strings and mark optional; let the web editor refine types. Populate `description` from docstrings/comments.
-- Always add a couple of safe defaults (health/ping, list/sample) in `tool_definition_templates.py` so users see working examples immediately.
+- Always add a couple of safe defaults (health/ping, list/sample) in `tool_definition_templates.yaml` so users see working examples immediately.
+- **Iterative refinement**: After initial setup, ask the user if they want to add more services or adjust priorities.
 
 ## References to load when needed
 - `.claude/skills/mcp-setup/references/service_facade_template.py` — facade + decorator usage example.
-- `.claude/skills/mcp-setup/references/tool_definition_templates_sample.py` — minimal MCP_TOOLS template with two sample tools.
+- `.claude/skills/mcp-setup/references/tool_definition_templates_sample.py` — minimal MCP_TOOLS template (Python loader).
+- `.claude/skills/mcp-setup/references/tool_definition_templates_sample.yaml` — **annotated YAML template** with detailed comments explaining data flow, field sources, and call paths.
 - `.claude/skills/mcp-setup/references/editor_config_snippet.json` — profile block shape for `mcp_{server}`.
 - Project docs: `mcp_editor/tool_editor_web.py`, `.claude/commands/web-editor.md`, `.claude/commands/terminology.md`, `mcp_editor/mcp_service_registry/mcp_service_decorator.py` for decorator details.

@@ -1,0 +1,192 @@
+# =============================================================================
+# MCP Tool Definition Templates - SAMPLE WITH ANNOTATIONS
+# =============================================================================
+# 이 파일은 웹에디터가 MCP 도구를 정의하고 서버 코드를 생성하는 데 사용됩니다.
+#
+# 데이터 흐름:
+#   1. @mcp_service 데코레이터 → registry_{server}.json (스캐너가 추출)
+#   2. registry + types_property → 웹에디터 UI에서 편집
+#   3. 웹에디터 Save → tool_definition_templates.yaml (이 파일)
+#   4. 서버 생성 시 → tool_definitions.py + server_{protocol}.py
+#
+# 호출 흐름:
+#   LLM → inputSchema 기반 요청 → server.py → tool_definitions.py
+#   → mcp_service.name 함수 호출 → 결과 반환
+# =============================================================================
+
+tools:
+
+# -----------------------------------------------------------------------------
+# 도구 정의 예시 (mail_list_period)
+# -----------------------------------------------------------------------------
+- name: mail_list_period
+  # [name] MCP 도구의 고유 식별자
+  # - 출처: 웹에디터에서 사용자가 정의
+  # - 사용처: LLM이 도구 호출 시 이 이름을 사용
+  # - server.py의 @mcp.tool(name=...) 데코레이터에 매핑됨
+
+  description: '지정된 기간의 메일 목록을 조회합니다.'
+  # [description] 도구 설명 (LLM이 도구 선택 시 참고)
+  # - 출처: 웹에디터에서 사용자가 작성
+  # - 사용처: LLM이 어떤 도구를 사용할지 판단할 때 참조
+  # - 명확하고 구체적으로 작성해야 LLM이 올바른 도구를 선택함
+
+  # ---------------------------------------------------------------------------
+  # inputSchema: LLM이 보는 입력 파라미터 스키마 (JSON Schema 형식)
+  # ---------------------------------------------------------------------------
+  # - 출처: 웹에디터 UI에서 사용자가 설계
+  # - 사용처: LLM이 도구 호출 시 어떤 인자를 전달해야 하는지 파악
+  # - targetParam: inputSchema 필드 → mcp_service 파라미터 매핑
+  # - baseModel: 복합 객체일 경우 {server}_types.py의 Pydantic 모델명
+  inputSchema:
+    type: object
+    properties:
+      # 복합 객체 파라미터 예시 (object type)
+      DatePeriodFilter:
+        type: object
+        description: '검색할 기간 필터'
+        properties:
+          received_date_from:
+            type: string
+            description: 시작 날짜 (YYYY-MM-DD)
+            targetParam: received_date_from
+            # [targetParam] 이 값이 mcp_service의 어떤 파라미터로 매핑되는지
+          received_date_to:
+            type: string
+            description: 종료 날짜 (YYYY-MM-DD)
+            targetParam: received_date_to
+        required:
+          - received_date_from
+          - received_date_to
+        baseModel: FilterParams
+        # [baseModel] {server}_types.py에 정의된 Pydantic 모델명
+        # - types_files 설정을 통해 웹에디터가 이 모델의 속성 정보를 로드
+        targetParam: filter_params
+        # [targetParam] mcp_service.parameters 중 filter_params에 매핑
+
+      # 단순 파라미터 예시 (string type)
+      user_email:
+        type: string
+        description: 사용자 이메일 주소
+        default: user@example.com
+        targetParam: user_email
+    required:
+      - DatePeriodFilter
+
+  # ---------------------------------------------------------------------------
+  # mcp_service: 백엔드 서비스 연결 정보
+  # ---------------------------------------------------------------------------
+  # - 출처: registry_{server}.json에서 자동 추출 (@mcp_service 데코레이터 스캔)
+  # - 사용처: 서버 생성 시 실제 함수 호출 코드 생성에 사용
+  # - 웹에디터 "연결된 서비스" 드롭다운에서 선택
+  mcp_service:
+    name: query_mail_list
+    # [name] {server}_service.py의 @mcp_service(service_name=...) 값
+    # - 실제 호출될 함수명
+
+    parameters:
+    # [parameters] 서비스 함수의 시그니처에서 추출된 파라미터 목록
+    # - 출처: mcp_service_scanner.py가 AST 파싱으로 추출
+    # - registry_{server}.json의 services.{name}.parameters에 저장됨
+    - name: user_email
+      type: str
+      is_optional: false
+      is_required: true
+      default: null
+      has_default: false
+    - name: filter_params
+      type: FilterParams
+      # [type] {server}_types.py에 정의된 Pydantic 모델명
+      is_optional: true
+      is_required: false
+      default: null
+      has_default: true
+    - name: top
+      type: int
+      is_optional: true
+      is_required: false
+      default: 50
+      has_default: true
+
+    signature: 'user_email: str, filter_params: Optional[FilterParams] = None, top: Optional[int] = 50'
+    # [signature] 함수 시그니처 문자열 (참조용)
+
+  # ---------------------------------------------------------------------------
+  # mcp_service_factors: 내부 파라미터 설정 (LLM에게 노출되지 않음)
+  # ---------------------------------------------------------------------------
+  # - 출처: 웹에디터 UI에서 사용자가 설정
+  # - 사용처: LLM 요청에 포함되지 않지만, 서버에서 자동으로 주입되는 값
+  # - source: internal → LLM에게 숨김, source: llm → LLM이 제공
+  mcp_service_factors:
+    client_filter:
+      source: internal
+      # [source] internal = 서버에서 자동 주입, llm = LLM이 제공
+      type: ExcludeParams
+      # [type] {server}_types.py의 Pydantic 모델명
+      targetParam: client_filter
+      # [targetParam] mcp_service.parameters 중 어떤 파라미터에 매핑되는지
+      description: 제외할 발신자/키워드 필터
+      parameters:
+      # [parameters] 이 복합 객체의 하위 필드들
+      # - 출처: types_property_{server}.json에서 추출 (Pydantic 모델 분석)
+      - name: exclude_from_address
+        type: array
+        is_optional: true
+        default:
+          - spam@example.com
+          - noreply@example.com
+        has_default: true
+        description: 제외할 발신자 주소 목록
+      - name: exclude_subject_keywords
+        type: string
+        is_optional: true
+        default: null
+        has_default: false
+        description: 제외할 제목 키워드
+
+    select:
+      source: internal
+      type: SelectParams
+      targetParam: select_params
+      description: 조회할 필드 선택
+      parameters:
+      - name: body_preview
+        type: boolean
+        is_optional: true
+        default: true
+        has_default: true
+        description: 본문 미리보기 포함 여부
+      - name: subject
+        type: boolean
+        is_optional: true
+        default: true
+        has_default: true
+        description: 제목 포함 여부
+
+# -----------------------------------------------------------------------------
+# 추가 도구 정의 예시 (단순한 도구)
+# -----------------------------------------------------------------------------
+- name: health_check
+  description: '서버 상태를 확인합니다.'
+  inputSchema:
+    type: object
+    properties: {}
+    # 파라미터가 없는 도구
+  mcp_service:
+    name: health_check
+    parameters: []
+    signature: ''
+  mcp_service_factors: {}
+  # 내부 파라미터가 없는 경우 빈 객체
+
+# =============================================================================
+# 관련 파일 참조
+# =============================================================================
+# - {server}_service.py: @mcp_service 데코레이터가 있는 서비스 파일
+# - {server}_types.py: Pydantic 모델 정의 (baseModel, type 참조)
+# - registry_{server}.json: 스캐너가 생성한 서비스 레지스트리
+# - types_property_{server}.json: Pydantic 모델의 속성 정보
+# - editor_config.json: 웹에디터 프로필 설정 (types_files 경로 등)
+# - tool_definitions.py: 웹에디터 Save로 생성되는 최종 도구 정의
+# - server_{protocol}.py: jinja 템플릿으로 생성되는 MCP 서버 코드
+# =============================================================================
