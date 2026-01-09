@@ -94,7 +94,68 @@ result = await handler.fetch_specific_attachments(
 
 ---
 
-### 3.2 SingleAttachmentHandler
+### 3.2 GraphMailClient (통합 클라이언트)
+
+```python
+from mcp_outlook.graph_mail_client import GraphMailClient, ProcessingMode
+
+client = GraphMailClient()
+await client.initialize()
+```
+
+#### 3.2.1 ProcessingMode 열거형
+
+| 모드 | 값 | 설명 |
+|------|---|------|
+| `FETCH_ONLY` | `"fetch_only"` | 메일만 가져오기 |
+| `FETCH_AND_DOWNLOAD` | `"fetch_download"` | 메일 + 첨부파일 로컬 저장 |
+| `FETCH_AND_CONVERT` | `"fetch_convert"` | 메일 + 첨부파일 TXT 변환 |
+| `FULL_PROCESS` | `"full_process"` | 전체 처리 (저장 + 변환) |
+| `FETCH_TO_ONEDRIVE` | `"fetch_onedrive"` | 메일 + 첨부파일 OneDrive 저장 |
+| `FETCH_MEMORY_ONLY` | `"fetch_memory"` | 메모리 반환만 (저장 안함) |
+
+#### 3.2.2 fetch_and_process() - 쿼리 + 처리
+
+```python
+result = await client.fetch_and_process(
+    user_email="user@example.com",
+    query_method=QueryMethod.FILTER,
+    filter_params=filter_params,
+    processing_mode=ProcessingMode.FETCH_AND_DOWNLOAD,
+    save_directory="downloads",
+)
+```
+
+#### 3.2.3 download_attachments() - 첨부파일 다운로드 통합
+
+```python
+result = await client.download_attachments(
+    user_email: str,
+    message_attachment_ids: List[str] | List[Dict],  # 메일 ID 또는 첨부파일 ID 쌍
+    save_directory: str = "downloads",
+    skip_duplicates: bool = True,
+    select_params: SelectParams = None,
+    # 새 옵션
+    save_file: bool = True,               # 저장 여부
+    storage_type: str = "local",          # "local" | "onedrive"
+    convert_to_txt: bool = False,         # TXT 변환 여부
+    include_body: bool = True,            # 본문 포함 여부
+    onedrive_folder: str = "/Attachments",# OneDrive 경로
+)
+```
+
+#### 3.2.4 fetch_attachments_metadata() - 메타데이터 조회
+
+```python
+result = await client.fetch_attachments_metadata(
+    user_email="user@example.com",
+    message_ids=["msg_id_1", "msg_id_2"],
+)
+```
+
+---
+
+### 3.3 SingleAttachmentHandler
 
 ```python
 from mcp_outlook.mail_attachment import SingleAttachmentHandler
@@ -154,6 +215,57 @@ saved_path = await handler.download_attachment(
 |:------------:|------|
 | `True` (기본값) | 본문을 `mail_content.txt`로 저장/반환 |
 | `False` | 첨부파일만 처리 (본문 제외) |
+
+### 4.3 옵션 간 상호 관계 및 제약
+
+#### 4.3.1 `save_file`과 다른 옵션의 관계
+
+| `save_file` | `storage_type` | `save_directory` | `onedrive_folder` | 설명 |
+|:-----------:|:--------------:|:----------------:|:-----------------:|------|
+| `False` | **무시됨** | **무시됨** | **무시됨** | 저장하지 않으므로 저장 관련 옵션 무효 |
+| `True` | `"local"` | **유효** | **무시됨** | 로컬 저장이므로 `save_directory` 사용 |
+| `True` | `"onedrive"` | **무시됨** | **유효** | OneDrive 저장이므로 `onedrive_folder` 사용 |
+
+> **주의**: `save_file=False`일 때 `storage_type`, `save_directory`, `onedrive_folder`를 지정해도 무시됩니다.
+
+#### 4.3.2 `convert_to_txt`와 파일 형식 제약
+
+| 파일 형식 | `convert_to_txt=True` 시 동작 |
+|----------|------------------------------|
+| PDF, DOCX, XLSX, PPTX, HWP | TXT 변환 성공 → `.txt` 파일로 저장/반환 |
+| TXT, CSV, JSON, XML | 원본 그대로 (이미 텍스트) |
+| DOC, XLS, PPT (구 형식) | 변환 실패 → **원본 파일로 fallback** |
+| 이미지, 바이너리 | 변환 불가 → **원본 파일로 fallback** |
+
+> **주의**: 변환 실패 시 에러가 아닌 원본 파일로 저장됩니다.
+
+#### 4.3.3 유효하지 않은 조합 (논리적 모순)
+
+다음 조합은 기술적으로 동작하지만 **실용적이지 않음**:
+
+| 조합 | 문제점 |
+|-----|-------|
+| `save_file=False` + `storage_type="onedrive"` | OneDrive 저장 불가 (저장 안 함) |
+| `save_file=False` + `save_directory="custom"` | 디렉토리 사용 안 됨 |
+| `storage_type="onedrive"` + `save_directory="path"` | `save_directory` 무시됨 |
+| `storage_type="local"` + `onedrive_folder="/folder"` | `onedrive_folder` 무시됨 |
+
+#### 4.3.4 권장 조합 패턴
+
+| 사용 목적 | 권장 옵션 조합 |
+|----------|---------------|
+| LLM이 내용 분석 | `save_file=False`, `convert_to_txt=True` |
+| 로컬 백업 (원본) | `save_file=True`, `storage_type="local"` |
+| 로컬 백업 (텍스트) | `save_file=True`, `storage_type="local"`, `convert_to_txt=True` |
+| 클라우드 저장 | `save_file=True`, `storage_type="onedrive"` |
+| 메타데이터만 조회 | `fetch_metadata_only()` 함수 사용 |
+
+#### 4.3.5 `include_body`와 저장 위치
+
+| `include_body` | `save_file=True` | `save_file=False` |
+|:--------------:|:----------------:|:-----------------:|
+| `True` | `mail_content.txt` 파일 생성 | `body_contents` 배열에 추가 |
+| `False` | 본문 파일 미생성 | 본문 반환 없음 |
 
 ---
 
@@ -355,6 +467,11 @@ saved_path = await handler.download_attachment(
 
 ```
 mcp_outlook/
+├── graph_mail_client.py           # 통합 클라이언트 (상위 진입점)
+│   ├── GraphMailClient            # 메일 쿼리 + 첨부파일 처리 통합
+│   ├── QueryMethod                # 쿼리 방법 열거형
+│   └── ProcessingMode             # 처리 모드 열거형
+│
 ├── mail_attachment.py             # 핸들러 (진입점 + 오케스트레이터)
 │   ├── BatchAttachmentHandler     # 배치 처리 진입점
 │   │   └── _process_mail_with_options()  # 오케스트레이터 (processor 호출)
@@ -390,6 +507,7 @@ mcp_outlook/
 
 | 모듈 | 역할 | 의존성 |
 |------|------|--------|
+| `graph_mail_client.py` | 상위 통합 클라이언트, 쿼리+처리 조합 | mail_attachment, graph_mail_query |
 | `mail_attachment.py` | 진입점, 오케스트레이션, API 조회 | storage, processor, converter |
 | `mail_attachment_processor.py` | 처리 로직 (순수 함수) | storage, converter |
 | `mail_attachment_storage.py` | 저장소 추상화 (Local/OneDrive) | - |
@@ -398,6 +516,14 @@ mcp_outlook/
 ### 8.2 호출 흐름
 
 ```
+GraphMailClient (상위 진입점)
+├── fetch_and_process()
+│   ├── build_and_fetch() → GraphMailQuery
+│   └── BatchAttachmentHandler.fetch_and_save()
+│
+└── download_attachments()
+    └── BatchAttachmentHandler.fetch_and_save()
+
 BatchAttachmentHandler.fetch_and_save()
     └── _process_mail_with_options()  [오케스트레이터]
         ├── storage.create_folder()

@@ -13,10 +13,67 @@ Functions:
 
 import re
 import base64
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 from .mail_attachment_storage import StorageBackend
 from .mail_attachment_converter import ConversionPipeline
+
+
+# 토큰 제한 상수
+DEFAULT_MAX_TOKENS = 50000
+CHARS_PER_TOKEN = 4  # 평균적으로 1토큰 ≈ 4자 (한글/영어 혼합 기준)
+
+
+def estimate_token_count(text: str) -> int:
+    """
+    텍스트의 토큰 수 추정
+
+    Args:
+        text: 토큰 수를 추정할 텍스트
+
+    Returns:
+        추정 토큰 수
+    """
+    return len(text) // CHARS_PER_TOKEN
+
+
+def truncate_to_token_limit(
+    text: str,
+    max_tokens: int = DEFAULT_MAX_TOKENS
+) -> Tuple[str, bool, int]:
+    """
+    텍스트를 토큰 제한에 맞게 truncate
+
+    Args:
+        text: 원본 텍스트
+        max_tokens: 최대 토큰 수 (기본값: 50000)
+
+    Returns:
+        (truncate된 텍스트, truncate 여부, 원본 토큰 수)
+    """
+    original_tokens = estimate_token_count(text)
+
+    if original_tokens <= max_tokens:
+        return text, False, original_tokens
+
+    # 토큰 제한에 맞게 문자 수 계산
+    max_chars = max_tokens * CHARS_PER_TOKEN
+
+    # 단어 경계에서 자르기 (가능하면)
+    truncated = text[:max_chars]
+
+    # 마지막 완전한 문장/줄에서 자르기 시도
+    last_newline = truncated.rfind('\n')
+    last_period = truncated.rfind('. ')
+
+    cut_point = max(last_newline, last_period)
+    if cut_point > max_chars * 0.8:  # 80% 이상 유지되면 문장 경계에서 자름
+        truncated = truncated[:cut_point + 1]
+
+    # Truncation 표시 추가
+    truncated += f"\n\n... [TRUNCATED: 원본 {original_tokens:,} 토큰 중 {max_tokens:,} 토큰만 반환됨]"
+
+    return truncated, True, original_tokens
 
 
 async def process_body_content(
@@ -158,6 +215,9 @@ async def process_attachment_with_conversion(
     if text:
         txt_filename = converter.convert_to_txt_filename(att_name)
 
+        # 토큰 제한 적용
+        text, was_truncated, original_tokens = truncate_to_token_limit(text)
+
         if save_file and storage:
             txt_content = text.encode("utf-8")
             att_file = await storage.save_file(
@@ -165,24 +225,34 @@ async def process_attachment_with_conversion(
             )
             if att_file:
                 result["saved_attachments"].append(att_file)
-                result["converted_files"].append({
+                converted_info = {
                     "original": att_name,
                     "converted": txt_filename,
                     "path": att_file
-                })
-                print(f"  [CONVERTED] {att_name} → {txt_filename}")
+                }
+                if was_truncated:
+                    converted_info["truncated"] = True
+                    converted_info["original_tokens"] = original_tokens
+                result["converted_files"].append(converted_info)
+                truncate_msg = f" (truncated: {original_tokens:,} → {DEFAULT_MAX_TOKENS:,} tokens)" if was_truncated else ""
+                print(f"  [CONVERTED] {att_name} → {txt_filename}{truncate_msg}")
                 return att_file
         else:
             # 메모리 반환
-            result["attachment_contents"].append({
+            content_info = {
                 "message_id": message_id,
                 "original_name": att_name,
                 "converted_name": txt_filename,
                 "content_type": "text/plain",
                 "content": text,
                 "size": len(text)
-            })
-            print(f"  [CONVERTED] {att_name} → 메모리 반환")
+            }
+            if was_truncated:
+                content_info["truncated"] = True
+                content_info["original_tokens"] = original_tokens
+            result["attachment_contents"].append(content_info)
+            truncate_msg = f" (truncated: {original_tokens:,} → {DEFAULT_MAX_TOKENS:,} tokens)" if was_truncated else ""
+            print(f"  [CONVERTED] {att_name} → 메모리 반환{truncate_msg}")
     else:
         # 변환 실패 시 원본 처리
         print(f"  [WARN] {att_name} 변환 실패: {error}, 원본 처리")

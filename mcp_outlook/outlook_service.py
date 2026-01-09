@@ -449,6 +449,11 @@ class MailService:
         save_directory: str = "downloads",
         skip_duplicates: bool = True,
         select_params: Optional[SelectParams] = None,
+        save_file: bool = True,
+        storage_type: str = "local",
+        convert_to_txt: bool = False,
+        include_body: bool = True,
+        onedrive_folder: str = "/Attachments",
     ) -> Dict[str, Any]:
         """
         첨부파일 다운로드 - GraphMailClient.download_attachments 위임
@@ -461,6 +466,11 @@ class MailService:
             save_directory: 저장 디렉토리
             skip_duplicates: 중복 건너뛰기
             select_params: 선택할 필드
+            save_file: 파일 저장 여부 (False면 메모리 반환)
+            storage_type: 저장소 유형 ("local" 또는 "onedrive")
+            convert_to_txt: 첨부파일을 TXT로 변환 여부
+            include_body: 메일 본문 포함 여부
+            onedrive_folder: OneDrive 저장 폴더 경로
 
         Returns:
             다운로드 결과
@@ -473,6 +483,11 @@ class MailService:
             save_directory=save_directory,
             skip_duplicates=skip_duplicates,
             select_params=select_params,
+            save_file=save_file,
+            storage_type=storage_type,
+            convert_to_txt=convert_to_txt,
+            include_body=include_body,
+            onedrive_folder=onedrive_folder,
         )
 
     def format_results(self, results: Dict[str, Any], verbose: bool = False) -> str:

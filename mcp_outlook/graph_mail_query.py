@@ -662,7 +662,7 @@ class GraphMailQuery:
         Returns:
             처리된 결과
         """
-        from .graph_mail_attachment import GraphAttachmentHandler
+        from .mail_attachment import BatchAttachmentHandler
 
         # 메일 목록 추출
         if isinstance(mail_data, dict):
@@ -674,7 +674,7 @@ class GraphMailQuery:
         if attachment_handling in ["download", "convert", "convert_delete"]:
             message_ids = [email.get("id") for email in emails if email.get("id")]
             if message_ids:
-                handler = GraphAttachmentHandler(base_directory=save_directory or "downloads")
+                handler = BatchAttachmentHandler(base_directory=save_directory or "downloads")
                 attachment_result = await handler.fetch_and_save(
                     user_email=user_email,
                     message_ids=message_ids,

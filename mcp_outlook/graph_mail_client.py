@@ -25,9 +25,11 @@ class ProcessingMode(Enum):
     """처리 모드 열거형"""
 
     FETCH_ONLY = "fetch_only"  # 메일만 가져오기
-    FETCH_AND_DOWNLOAD = "fetch_download"  # 메일 + 첨부파일 다운로드
-    FETCH_AND_CONVERT = "fetch_convert"  # 메일 + 첨부파일 변환
+    FETCH_AND_DOWNLOAD = "fetch_download"  # 메일 + 첨부파일 다운로드 (로컬)
+    FETCH_AND_CONVERT = "fetch_convert"  # 메일 + 첨부파일 TXT 변환
     FULL_PROCESS = "full_process"  # 전체 처리 (저장, 변환 등)
+    FETCH_TO_ONEDRIVE = "fetch_onedrive"  # 메일 + 첨부파일 OneDrive 저장
+    FETCH_MEMORY_ONLY = "fetch_memory"  # 메일 + 첨부파일 메모리 반환 (저장 안함)
 
 
 class GraphMailClient:
@@ -262,23 +264,40 @@ class GraphMailClient:
                 "query_method": query_method.value,
             }
 
-        # 5. 추가 처리가 필요한 경우 - GraphAttachmentHandler 사용
+        # 5. 추가 처리가 필요한 경우 - BatchAttachmentHandler 사용
         print(f"\n🔧 Processing emails with mode: {processing_mode.value}")
 
-        # 첨부파일 처리가 필요한 경우 GraphAttachmentHandler 사용
-        if processing_mode in [ProcessingMode.FETCH_AND_DOWNLOAD, ProcessingMode.FULL_PROCESS]:
-            from .graph_mail_attachment import GraphAttachmentHandler
+        # 첨부파일 처리가 필요한 경우 BatchAttachmentHandler 사용
+        processing_modes_with_attachments = [
+            ProcessingMode.FETCH_AND_DOWNLOAD,
+            ProcessingMode.FETCH_AND_CONVERT,
+            ProcessingMode.FULL_PROCESS,
+            ProcessingMode.FETCH_TO_ONEDRIVE,
+            ProcessingMode.FETCH_MEMORY_ONLY,
+        ]
+
+        if processing_mode in processing_modes_with_attachments:
+            from .mail_attachment import BatchAttachmentHandler
 
             message_ids = [email.get("id") for email in emails if email.get("id")]
             if message_ids:
-                handler = GraphAttachmentHandler(base_directory=save_directory or "downloads")
+                handler = BatchAttachmentHandler(base_directory=save_directory or "downloads")
                 try:
+                    # 처리 모드에 따른 옵션 설정
+                    save_file = processing_mode != ProcessingMode.FETCH_MEMORY_ONLY
+                    storage_type = "onedrive" if processing_mode == ProcessingMode.FETCH_TO_ONEDRIVE else "local"
+                    convert_to_txt = processing_mode in [ProcessingMode.FETCH_AND_CONVERT, ProcessingMode.FULL_PROCESS]
+
                     attachment_result = await handler.fetch_and_save(
                         user_email=user_email,
                         message_ids=message_ids,
                         skip_duplicates=True,
+                        save_file=save_file,
+                        storage_type=storage_type,
+                        convert_to_txt=convert_to_txt,
+                        include_body=True,
                     )
-                    print(f"📎 Processed {attachment_result.get('total_processed', 0)} emails with attachments")
+                    print(f"📎 Processed {attachment_result.get('processed', 0)} emails with attachments")
                     return {
                         "status": "success",
                         "value": emails,
@@ -390,10 +409,10 @@ class GraphMailClient:
             }
 
         try:
-            from .graph_mail_attachment import GraphAttachmentHandler
+            from .mail_attachment import BatchAttachmentHandler
 
             print(f"\n📋 Fetching metadata for {len(message_ids)} emails...")
-            handler = GraphAttachmentHandler()
+            handler = BatchAttachmentHandler()
 
             result = await handler.fetch_metadata_only(
                 user_email=user_email,
@@ -419,6 +438,12 @@ class GraphMailClient:
         save_directory: str = "downloads",
         skip_duplicates: bool = True,
         select_params: Optional[SelectParams] = None,
+        # 새 옵션 (mail_attachment.py 반영)
+        save_file: bool = True,
+        storage_type: str = "local",
+        convert_to_txt: bool = False,
+        include_body: bool = True,
+        onedrive_folder: str = "/Attachments",
     ) -> Dict[str, Any]:
         """
         첨부파일 다운로드 통합 함수
@@ -431,6 +456,11 @@ class GraphMailClient:
             save_directory: 저장 디렉토리
             skip_duplicates: 중복 건너뛰기 (메일 ID 리스트일 때만 적용)
             select_params: 선택할 필드 (메일 ID 리스트일 때만 적용)
+            save_file: 파일 저장 여부 (False면 메모리 반환만)
+            storage_type: 저장 위치 ("local" 또는 "onedrive")
+            convert_to_txt: TXT 변환 여부
+            include_body: 본문 포함 여부
+            onedrive_folder: OneDrive 저장 폴더 경로
 
         Returns:
             다운로드 결과
@@ -445,9 +475,9 @@ class GraphMailClient:
             }
 
         try:
-            from .graph_mail_attachment import GraphAttachmentHandler
+            from .mail_attachment import BatchAttachmentHandler
 
-            handler = GraphAttachmentHandler(base_directory=save_directory)
+            handler = BatchAttachmentHandler(base_directory=save_directory)
 
             # 입력 타입 판별
             if all(isinstance(item, str) for item in message_attachment_ids):
@@ -459,6 +489,11 @@ class GraphMailClient:
                     message_ids=message_attachment_ids,
                     select_params=select_params,
                     skip_duplicates=skip_duplicates,
+                    save_file=save_file,
+                    storage_type=storage_type,
+                    convert_to_txt=convert_to_txt,
+                    include_body=include_body,
+                    onedrive_folder=onedrive_folder,
                 )
 
                 return {
@@ -467,8 +502,14 @@ class GraphMailClient:
                     "total_mails": result.get("total_requested", 0),
                     "processed": result.get("processed", 0),
                     "saved_attachments": result.get("saved_attachments", []),
+                    "converted_files": result.get("converted_files", []),
+                    "body_contents": result.get("body_contents", []),
+                    "attachment_contents": result.get("attachment_contents", []),
                     "skipped_duplicates": result.get("skipped_duplicates", 0),
                     "errors": result.get("errors", []),
+                    "storage_type": storage_type,
+                    "save_file": save_file,
+                    "convert_to_txt": convert_to_txt,
                 }
 
             elif all(isinstance(item, dict) and "message_id" in item and "attachment_id" in item for item in message_attachment_ids):
