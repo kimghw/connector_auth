@@ -2,6 +2,113 @@
 
 ## 최근 세션 기록
 
+### 2026-01-09: fetch_and_save() 옵션 추가 (save_file, include_body)
+
+#### 요청 사항
+- `attachment.md` 문서에 정의된 `save_file`, `include_body` 옵션 구현
+- 저장하지 않고 메모리로 반환하는 기능 (`save_file=False`)
+- 본문 포함/제외 선택 기능 (`include_body=False`)
+
+#### 구현 완료 항목
+
+**1. fetch_and_save() 새 옵션**
+```python
+async def fetch_and_save(
+    user_email: str,
+    message_ids: List[str],
+    save_file: bool = True,           # 신규: 저장 여부
+    storage_type: str = "local",
+    convert_to_txt: bool = False,
+    include_body: bool = True,        # 신규: 본문 포함 여부
+    onedrive_folder: str = "/Attachments",
+    ...
+)
+```
+
+**2. 반환 결과 구조 확장**
+```python
+result = {
+    ...
+    "body_contents": [],          # save_file=False 시 본문
+    "attachment_contents": [],    # save_file=False 시 첨부파일
+    "save_file": True,
+    "include_body": True,
+}
+```
+
+**3. 옵션 조합**
+
+| save_file | include_body | 결과 |
+|:---------:|:------------:|------|
+| True | True | 본문 + 첨부파일 저장 (기본) |
+| True | False | 첨부파일만 저장 |
+| False | True | 본문 + 첨부파일 메모리 반환 |
+| False | False | 첨부파일만 메모리 반환 |
+
+#### 수정된 파일
+- `mcp_outlook/mail_attachment.py`: fetch_and_save(), _process_mail_with_options() 수정
+- `.claude/preprompts/attachment.md`: API 문서 업데이트
+
+---
+
+### 2026-01-09: 첨부파일 저장 시스템 테스트 구현
+
+#### 요청 사항
+- `attachment_storage_plan.md` 문서에 따라 테스트 코드 작성
+- 8가지 테스트 시나리오 검증 (로컬 저장, TXT 변환, OneDrive 업로드 등)
+- OneDrive 청크 업로드 로직 개선
+
+#### 구현 완료 항목
+
+**1. 테스트 디렉토리 구조**
+```
+mcp_outlook/tests/
+├── __init__.py
+├── conftest.py                      # 테스트 공통 Fixtures
+├── test_mail_attachment.py          # MailFolderManager, MailMetadataManager 테스트
+├── test_mail_attachment_converter.py # FileConverter, ConversionPipeline 테스트
+├── test_mail_attachment_storage.py  # StorageBackend 테스트
+├── test_integration.py              # 통합 테스트
+└── run_tests.py                     # 독립 실행 테스트 스크립트
+```
+
+**2. OneDrive 청크 업로드 로직 개선**
+- `mail_attachment_storage.py`의 `_upload_large()` 메서드 개선
+- 마지막 청크에서만 200/201을 처리하도록 `is_last_chunk` 플래그 추가
+- 비정상 종료(모든 청크가 202로 끝남) 시 에러 메시지 출력
+
+**3. 테스트 결과: 19/19 통과**
+- ConversionPipeline 테스트: 6개 ✓
+- LocalStorageBackend 테스트: 8개 ✓
+- 통합 워크플로우 테스트: 1개 ✓
+- 메타데이터 관리 테스트: 4개 ✓
+
+#### 테스트 시나리오 검증 현황
+
+| 시나리오 | 상태 | 비고 |
+|---------|------|------|
+| 1. 로컬 저장 + 원본 | ✅ | test_integration.py |
+| 2. 로컬 저장 + TXT 변환 | ✅ | test_integration.py |
+| 3. OneDrive 저장 + 원본 (4MB 이하) | ⚠️ | 모킹 테스트 |
+| 4. OneDrive 저장 + 청크 업로드 | ⚠️ | 모킹 테스트 |
+| 5. OneDrive + TXT 변환 | ⚠️ | 모킹 테스트 |
+| 6. 변환 실패 시 fallback | ✅ | 원본 저장 확인 |
+| 7. 중복 파일명 처리 | ✅ | file_1.txt 자동 생성 |
+| 8. 메타데이터 중복 제거 | ✅ | filter_new_messages() |
+
+#### 테스트 실행 방법
+```bash
+# 독립 실행 스크립트 (ROS 환경 충돌 방지)
+python mcp_outlook/tests/run_tests.py
+```
+
+#### 수정된 파일
+- `mcp_outlook/mail_attachment_storage.py`: 청크 업로드 로직 개선
+- `mcp_outlook/docs/attachment_storage_plan.md`: 테스트 현황 업데이트
+- `mcp_outlook/tests/*`: 테스트 파일 추가
+
+---
+
 ### 2026-01-08: YAML Single Source of Truth 리팩토링
 
 #### 요청 사항
@@ -296,4 +403,4 @@ server_rest.py / server_stdio.py / server_stream.py
 
 ---
 
-*마지막 업데이트: 2026-01-08*
+*마지막 업데이트: 2026-01-09*

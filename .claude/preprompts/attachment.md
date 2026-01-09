@@ -1,120 +1,413 @@
-# 첨부파일 다운로드 관련 파일 정리
+# 메일 첨부파일 처리 API 가이드
 
-## 변경된 파일 목록 (Git 기준)
+## 1. 개요
 
-### 1. **mcp_outlook/graph_mail_attachment.py** (+240 lines)
-첨부파일 처리의 핵심 모듈
+메일 첨부파일을 조회하고 처리하는 외부 API 인터페이스 설명.
+내부 구현은 고려하지 않고, **호출 가능한 함수와 옵션**만 정의함.
 
-#### 주요 클래스
-- `MailFolderManager`: 메일별 폴더 생성 및 파일 저장 관리
-- `MailMetadataManager`: 메타정보 저장 및 중복 제거
-- `GraphAttachmentHandler`: 배치 첨부파일 처리
-- `AttachmentHandler`: 개별 첨부파일 처리
+---
 
-#### 핵심 메서드
+## 2. 조회 방식
+
+### 2.1 조회 파라미터
+
+| 파라미터 | 필수 | 설명 |
+|---------|:----:|------|
+| `user_email` | ✅ | 사용자 이메일 (user_id) |
+| `message_ids` | ✅ | 메일 ID 목록 |
+| `attachment_id` | ❌ | 특정 첨부파일 ID (선택적) |
+
+### 2.2 조회 유형
+
+| 조회 방식 | 함수 | 설명 |
+|----------|------|------|
+| **Batch** (message_id만) | `BatchAttachmentHandler.fetch_and_save()` | 여러 메일의 모든 첨부파일 일괄 처리 |
+| **Batch** (메타데이터만) | `BatchAttachmentHandler.fetch_metadata_only()` | 첨부파일 다운로드 없이 메타정보만 조회 |
+| **Single** (message_id + attachment_id) | `BatchAttachmentHandler.fetch_specific_attachments()` | 특정 첨부파일만 선택 다운로드 |
+| **Single** (첨부파일 목록) | `SingleAttachmentHandler.list_attachments()` | 특정 메일의 첨부파일 목록 조회 |
+| **Single** (첨부파일 상세) | `SingleAttachmentHandler.get_attachment()` | 특정 첨부파일 상세 정보 조회 |
+
+---
+
+## 3. 진입 함수 (Entry Points)
+
+### 3.1 BatchAttachmentHandler
+
 ```python
-# GraphAttachmentHandler 클래스
-- fetch_metadata_only()      # 메타데이터만 조회 (다운로드 없음)
-- fetch_and_save()           # 메일 ID로 모든 첨부파일 다운로드
-- fetch_specific_attachments() # 특정 첨부파일만 선택적 다운로드
+from mcp_outlook.mail_attachment import BatchAttachmentHandler
 
-# AttachmentHandler 클래스  
-- list_attachments()         # 특정 메일의 첨부파일 목록 조회
-- get_attachment()           # 특정 첨부파일 상세 정보 조회
-- download_attachment()      # 개별 첨부파일 다운로드
+handler = BatchAttachmentHandler(
+    base_directory="downloads",           # 로컬 저장 기본 경로
+    metadata_file="mail_metadata.json"    # 중복 관리용 메타데이터 파일
+)
 ```
 
-### 2. **mcp_outlook/graph_mail_client.py** (+118 lines)
-통합 메일 처리 클라이언트
+#### 3.1.1 fetch_and_save() - 배치 조회 + 저장
 
-#### 새로 추가된 통합 함수
 ```python
-async def fetch_attachments_metadata(
+result = await handler.fetch_and_save(
+    # === 필수 ===
+    user_email: str,                      # 사용자 이메일
+    message_ids: List[str],               # 메일 ID 목록
+
+    # === 조회 옵션 ===
+    select_params: SelectParams = None,   # 추가 조회 필드
+
+    # === 저장 옵션 ===
+    save_file: bool = True,               # 저장 여부 (False면 메모리 반환만)
+    storage_type: str = "local",          # "local" | "onedrive"
+    onedrive_folder: str = "/Attachments",# OneDrive 저장 경로
+
+    # === 변환 옵션 ===
+    convert_to_txt: bool = False,         # TXT 변환 여부
+
+    # === 본문 옵션 ===
+    include_body: bool = True,            # 본문 포함 여부
+
+    # === 중복 처리 ===
+    skip_duplicates: bool = True,         # 이미 처리된 메일 건너뛰기
+)
+```
+
+> **참고**: `save_file=False`면 저장하지 않고 변환된 내용을 메모리로 반환
+> **참고**: `include_body=False`면 첨부파일만 처리 (본문 제외)
+
+#### 3.1.2 fetch_metadata_only() - 메타데이터만 조회
+
+```python
+result = await handler.fetch_metadata_only(
     user_email: str,
     message_ids: List[str],
-    select_params: Optional[SelectParams] = None
-) -> Dict[str, Any]
-# 메일과 첨부파일의 메타데이터만 조회
+    select_params: SelectParams = None,
+)
+```
 
-async def download_attachments(
+#### 3.1.3 fetch_specific_attachments() - 특정 첨부파일 다운로드
+
+```python
+result = await handler.fetch_specific_attachments(
     user_email: str,
-    target: Union[List[str], List[Dict[str, str]]],
-    save_directory: str = "downloads",
-    skip_duplicates: bool = True,
-    select_params: Optional[SelectParams] = None
-) -> Dict[str, Any]
-# 입력 타입에 따라 자동 처리:
-# - 메일 ID 리스트: 모든 첨부파일 다운로드
-# - 첨부파일 ID 쌍: 특정 첨부파일만 다운로드
-```
-
-### 3. **mcp_outlook/outlook_service.py** (+78 lines)
-MCP 서비스 Facade 레이어
-
-#### MCP 서비스 함수
-```python
-@mcp_service(tool_name="handle_attachments_metadata")
-async def fetch_attachments_metadata()
-# GraphMailClient.fetch_attachments_metadata() 위임
-
-@mcp_service(tool_name="handle_download_attachments")
-async def download_attachments()
-# GraphMailClient.download_attachments() 위임
-```
-
-## 파일 처리 흐름
-
-```
-1. MCP Tools Layer
-   └── outlook_service.py (Facade)
-       └── graph_mail_client.py (통합 인터페이스)
-           └── graph_mail_attachment.py (실제 처리 로직)
-               ├── MailFolderManager (폴더/파일 관리)
-               ├── MailMetadataManager (메타데이터 관리)
-               └── AttachmentHandler (Graph API 통신)
-```
-
-## 주요 기능
-
-### 1. 메타데이터 조회 (다운로드 없음)
-- 메일 본문(body) 포함
-- 첨부파일 정보(이름, 크기, 타입) 포함
-- $expand=attachments 파라미터 사용
-
-### 2. 첨부파일 다운로드
-- **전체 다운로드**: 메일 ID 리스트로 해당 메일의 모든 첨부파일
-- **선택적 다운로드**: message_id + attachment_id 쌍으로 특정 첨부파일만
-- 폴더 구조: `{날짜}_{발신자}_{제목}/`
-- 메일 본문도 `mail_content.txt`로 저장
-
-### 3. 중복 처리
-- `mail_metadata.json` 파일로 처리 이력 관리
-- skip_duplicates 옵션으로 중복 다운로드 방지
-
-## 관련 타입 정의
-```python
-# 입력 타입
-Union[List[str], List[Dict[str, str]]]  # 메일 ID 또는 첨부파일 ID 쌍
-
-# SelectParams
-Optional[SelectParams]  # 필드 선택 파라미터
-
-# 반환 타입
-Dict[str, Any]  # 처리 결과 (status, value, errors 등)
-```
-
-## 테스트 파일
-- `test_attachment_functions.py`: 함수 존재 및 시그니처 확인
-- `test_real_attachments.py`: 실제 메일 데이터로 테스트
-
-## 저장 구조 예시
-```
-downloads/
-└── 20251231_한국항해항만학회_[제목]/
-    ├── mail_content.txt     # 메일 본문
-    └── attachment.gif       # 첨부파일
+    attachments_info: List[Dict[str, str]],  # [{"message_id": "...", "attachment_id": "..."}]
+    save_directory: str = None,
+)
 ```
 
 ---
-*최종 업데이트: 2025-01-07*
-*변경 규모: 3개 파일, 총 +436 lines*
+
+### 3.2 SingleAttachmentHandler
+
+```python
+from mcp_outlook.mail_attachment import SingleAttachmentHandler
+
+handler = SingleAttachmentHandler(access_token="...")
+```
+
+#### 3.2.1 list_attachments() - 첨부파일 목록 조회
+
+```python
+attachments = await handler.list_attachments(
+    message_id: str,
+    user_id: str = "me",    # 사용자 이메일 또는 "me"
+)
+```
+
+#### 3.2.2 get_attachment() - 첨부파일 상세 조회
+
+```python
+attachment = await handler.get_attachment(
+    message_id: str,
+    attachment_id: str,
+    user_id: str = "me",
+)
+```
+
+#### 3.2.3 download_attachment() - 첨부파일 다운로드
+
+```python
+saved_path = await handler.download_attachment(
+    message_id: str,
+    attachment_id: str,
+    save_path: str = None,  # None이면 downloads/{message_id[:8]}/
+    user_id: str = "me",
+)
+```
+
+---
+
+## 4. 옵션 조합표
+
+### 4.1 전체 옵션 조합
+
+| save_file | convert_to_txt | storage_type | include_body | 결과 |
+|:---------:|:--------------:|:------------:|:------------:|------|
+| `False` | `False` | - | - | 원본 조회 → 메모리 반환 |
+| `False` | `True` | - | - | TXT 변환 → 메모리 반환 |
+| `True` | `False` | `"local"` | `True` | 원본 + 본문 → 로컬 저장 |
+| `True` | `False` | `"local"` | `False` | 원본만 → 로컬 저장 |
+| `True` | `True` | `"local"` | `True` | TXT 변환 + 본문 → 로컬 저장 |
+| `True` | `False` | `"onedrive"` | `True` | 원본 + 본문 → OneDrive 저장 |
+| `True` | `True` | `"onedrive"` | `True` | TXT 변환 + 본문 → OneDrive 저장 |
+
+### 4.2 본문 처리
+
+| include_body | 결과 |
+|:------------:|------|
+| `True` (기본값) | 본문을 `mail_content.txt`로 저장/반환 |
+| `False` | 첨부파일만 처리 (본문 제외) |
+
+---
+
+## 5. 사용 예시
+
+### 5.1 배치 조회 + 로컬 저장 (기본)
+
+```python
+handler = BatchAttachmentHandler(base_directory="downloads")
+
+result = await handler.fetch_and_save(
+    user_email="user@example.com",
+    message_ids=["msg_id_1", "msg_id_2", "msg_id_3"],
+)
+# 결과: downloads/{날짜}_{보낸사람}_{제목}/ 폴더에 저장
+```
+
+### 5.2 TXT 변환 + 로컬 저장
+
+```python
+result = await handler.fetch_and_save(
+    user_email="user@example.com",
+    message_ids=["msg_id_1"],
+    convert_to_txt=True,
+)
+# 결과: PDF/DOCX/XLSX/PPTX → TXT 변환 후 저장
+```
+
+### 5.3 OneDrive 저장
+
+```python
+result = await handler.fetch_and_save(
+    user_email="user@example.com",
+    message_ids=["msg_id_1"],
+    storage_type="onedrive",
+    onedrive_folder="/Mail/Attachments",
+)
+# 결과: OneDrive의 /Mail/Attachments/ 폴더에 저장
+```
+
+### 5.4 TXT 변환 + OneDrive 저장
+
+```python
+result = await handler.fetch_and_save(
+    user_email="user@example.com",
+    message_ids=["msg_id_1"],
+    storage_type="onedrive",
+    onedrive_folder="/Mail/Converted",
+    convert_to_txt=True,
+)
+```
+
+### 5.5 TXT 변환 → 메모리 반환 (저장 안함)
+
+```python
+result = await handler.fetch_and_save(
+    user_email="user@example.com",
+    message_ids=["msg_id_1"],
+    convert_to_txt=True,
+    save_file=False,           # 저장하지 않음
+)
+# 결과: result["converted_contents"]에 TXT 내용이 담김
+```
+
+### 5.6 첨부파일만 (본문 제외)
+
+```python
+result = await handler.fetch_and_save(
+    user_email="user@example.com",
+    message_ids=["msg_id_1"],
+    include_body=False,        # 본문 제외
+)
+# 결과: 첨부파일만 저장, mail_content.txt 생성 안됨
+```
+
+### 5.7 메타데이터만 조회 (다운로드 없음)
+
+```python
+result = await handler.fetch_metadata_only(
+    user_email="user@example.com",
+    message_ids=["msg_id_1", "msg_id_2"],
+)
+# 결과: 첨부파일 이름, 크기, contentType 등 메타정보만 반환
+```
+
+### 5.6 특정 첨부파일만 다운로드
+
+```python
+result = await handler.fetch_specific_attachments(
+    user_email="user@example.com",
+    attachments_info=[
+        {"message_id": "msg_id_1", "attachment_id": "att_id_1"},
+        {"message_id": "msg_id_2", "attachment_id": "att_id_5"},
+    ],
+)
+```
+
+### 5.7 Single 방식 - 첨부파일 목록 조회
+
+```python
+handler = SingleAttachmentHandler(access_token="...")
+
+attachments = await handler.list_attachments(
+    message_id="msg_id_1",
+    user_id="user@example.com",
+)
+# 결과: [{"id": "...", "name": "file.pdf", "size": 1024, ...}, ...]
+```
+
+### 5.8 Single 방식 - 특정 첨부파일 다운로드
+
+```python
+saved_path = await handler.download_attachment(
+    message_id="msg_id_1",
+    attachment_id="att_id_1",
+    save_path="/tmp/myfile.pdf",
+    user_id="user@example.com",
+)
+```
+
+---
+
+## 6. 반환 결과 구조
+
+### 6.1 fetch_and_save() 결과
+
+```python
+{
+    "success": True,
+    "total_requested": 3,
+    "processed": 3,
+    "skipped_duplicates": 0,
+    "saved_mails": ["path/to/mail_content.txt", ...],
+    "saved_attachments": ["path/to/file.pdf", ...],
+    "converted_files": [
+        {"original": "report.pdf", "converted": "report.txt", "path": "..."}
+    ],
+    "errors": [],
+    "storage_type": "local",
+    "convert_to_txt": False,
+}
+```
+
+### 6.2 fetch_metadata_only() 결과
+
+```python
+{
+    "success": True,
+    "messages": [
+        {
+            "id": "msg_id_1",
+            "subject": "제목",
+            "from": {"name": "...", "address": "..."},
+            "receivedDateTime": "2025-01-09T10:00:00Z",
+            "hasAttachments": True,
+            "attachments": [
+                {"id": "att_1", "name": "file.pdf", "size": 1024, "contentType": "application/pdf"}
+            ]
+        }
+    ],
+    "total_processed": 1,
+    "attachments_count": 1,
+}
+```
+
+### 6.3 fetch_specific_attachments() 결과
+
+```python
+{
+    "success": True,
+    "total_requested": 2,
+    "downloaded": 2,
+    "failed": 0,
+    "results": [
+        {"message_id": "...", "attachment_id": "...", "file_path": "...", "success": True}
+    ],
+}
+```
+
+---
+
+## 7. TXT 변환 지원 형식
+
+| 형식 | 지원 | 라이브러리 |
+|------|:----:|-----------|
+| PDF | ✅ | pdfplumber |
+| DOCX | ✅ | python-docx |
+| XLSX | ✅ | openpyxl |
+| PPTX | ✅ | python-pptx |
+| HWP/HWPX | ✅ | olefile |
+| TXT/CSV/JSON/XML | ✅ | 내장 |
+| DOC/XLS/PPT | ❌ | 구 형식 미지원 |
+
+**변환 실패 시**: 원본 파일로 저장 (fallback)
+
+---
+
+## 8. 파일 구조
+
+```
+mcp_outlook/
+├── mail_attachment.py             # 핸들러 (진입점 + 오케스트레이터)
+│   ├── BatchAttachmentHandler     # 배치 처리 진입점
+│   │   └── _process_mail_with_options()  # 오케스트레이터 (processor 호출)
+│   ├── SingleAttachmentHandler    # 개별 처리
+│   └── MailMetadataManager        # 중복 관리
+│
+├── mail_attachment_processor.py   # 처리 로직 (순수 함수)
+│   ├── process_body_content()     # 메일 본문 처리
+│   ├── process_attachments()      # 첨부파일 목록 처리
+│   ├── process_attachment_with_conversion()  # TXT 변환 처리
+│   └── process_attachment_original()         # 원본 저장 처리
+│
+├── mail_attachment_storage.py     # 저장소 Backend
+│   ├── StorageBackend             # 추상 기본 클래스
+│   ├── LocalStorageBackend        # 로컬 저장
+│   ├── OneDriveStorageBackend     # OneDrive 저장
+│   ├── MailFolderManager          # 폴더/파일 관리 (LocalStorageBackend 상속)
+│   └── get_storage_backend()      # 팩토리 함수
+│
+└── mail_attachment_converter.py   # 파일 변환기
+    ├── FileConverter              # 추상 기본 클래스
+    ├── PlainTextConverter         # TXT/CSV 변환
+    ├── PdfConverter               # PDF 변환
+    ├── WordConverter              # DOCX 변환
+    ├── ExcelConverter             # XLSX 변환
+    ├── PowerPointConverter        # PPTX 변환
+    ├── HwpConverter               # HWP/HWPX 변환
+    ├── ConversionPipeline         # 변환 파이프라인
+    └── get_conversion_pipeline()  # 싱글톤 팩토리
+```
+
+### 8.1 모듈 역할 분리
+
+| 모듈 | 역할 | 의존성 |
+|------|------|--------|
+| `mail_attachment.py` | 진입점, 오케스트레이션, API 조회 | storage, processor, converter |
+| `mail_attachment_processor.py` | 처리 로직 (순수 함수) | storage, converter |
+| `mail_attachment_storage.py` | 저장소 추상화 (Local/OneDrive) | - |
+| `mail_attachment_converter.py` | 파일 형식 변환 | 외부 라이브러리 |
+
+### 8.2 호출 흐름
+
+```
+BatchAttachmentHandler.fetch_and_save()
+    └── _process_mail_with_options()  [오케스트레이터]
+        ├── storage.create_folder()
+        ├── processor.process_body_content()
+        │   └── storage.save_mail_content()
+        ├── processor.process_attachments()
+        │   ├── processor.process_attachment_with_conversion()
+        │   │   ├── converter.convert()
+        │   │   └── storage.save_file()
+        │   └── processor.process_attachment_original()
+        │       └── storage.save_file()
+        └── metadata_manager.add_processed_mail()
+```

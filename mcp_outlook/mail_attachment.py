@@ -8,10 +8,13 @@ $batch + $expand=attachments로 조회된 메일의 첨부파일을 처리
     - 메타데이터 관리 및 중복 제거
 
 Classes:
-    - MailFolderManager: 폴더 생성 및 파일 저장
     - MailMetadataManager: 메타정보 저장 및 중복 제거
-    - GraphAttachmentHandler: 배치 첨부파일 처리
-    - AttachmentHandler: 개별 첨부파일 처리
+    - BatchAttachmentHandler: 배치 첨부파일 처리
+    - SingleAttachmentHandler: 개별 첨부파일 처리
+
+Note:
+    MailFolderManager는 mail_attachment_storage.py로 이동됨
+    (LocalStorageBackend의 alias로 하위 호환성 유지)
 """
 
 import os
@@ -30,202 +33,14 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session.auth_manager import AuthManager
 from .graph_mail_url import ExpandBuilder, GraphMailUrlBuilder
-
-
-class MailFolderManager:
-    """
-    메일 폴더 및 파일 관리
-    메일별로 폴더를 생성하고 첨부파일/메일 본문을 저장
-
-    폴더명 형식: {날짜}_{보낸사람}_{제목}
-    """
-
-    # 파일시스템에서 사용 불가한 특수문자
-    INVALID_CHARS = r'[<>:"/\\|?*\x00-\x1f]'
-
-    def __init__(self, base_directory: str = "downloads"):
-        """
-        초기화
-
-        Args:
-            base_directory: 기본 저장 디렉토리
-        """
-        self.base_directory = Path(base_directory)
-        self.base_directory.mkdir(parents=True, exist_ok=True)
-
-    def sanitize_filename(self, name: str, max_length: int = 50) -> str:
-        """
-        파일명에서 특수문자 제거
-
-        Args:
-            name: 원본 파일명
-            max_length: 최대 길이
-
-        Returns:
-            정제된 파일명
-        """
-        # 특수문자 제거
-        sanitized = re.sub(self.INVALID_CHARS, "", name)
-        # 공백 정리
-        sanitized = re.sub(r"\s+", " ", sanitized).strip()
-        # 길이 제한
-        if len(sanitized) > max_length:
-            sanitized = sanitized[:max_length]
-        # 빈 문자열 방지
-        if not sanitized:
-            sanitized = "untitled"
-        return sanitized
-
-    def create_folder_name(self, mail_data: Dict[str, Any]) -> str:
-        """
-        메일 데이터로부터 폴더명 생성
-
-        Args:
-            mail_data: 메일 데이터 (subject, from, receivedDateTime 필요)
-
-        Returns:
-            폴더명 (형식: YYYYMMDD_보낸사람_제목)
-        """
-        # 날짜 추출
-        received_dt = mail_data.get("receivedDateTime", "")
-        if received_dt:
-            try:
-                dt = datetime.fromisoformat(received_dt.replace("Z", "+00:00"))
-                date_str = dt.strftime("%Y%m%d")
-            except (ValueError, AttributeError):
-                date_str = datetime.now().strftime("%Y%m%d")
-        else:
-            date_str = datetime.now().strftime("%Y%m%d")
-
-        # 보낸 사람 추출
-        from_info = mail_data.get("from", {})
-        email_addr = from_info.get("emailAddress", {})
-        sender = email_addr.get("name") or email_addr.get("address", "unknown")
-        sender = self.sanitize_filename(sender, max_length=30)
-
-        # 제목 추출
-        subject = mail_data.get("subject", "no_subject")
-        subject = self.sanitize_filename(subject, max_length=50)
-
-        return f"{date_str}_{sender}_{subject}"
-
-    def get_mail_folder_path(self, mail_data: Dict[str, Any]) -> Path:
-        """
-        메일에 해당하는 폴더 경로 반환 (필요시 생성)
-
-        Args:
-            mail_data: 메일 데이터
-
-        Returns:
-            폴더 경로
-        """
-        folder_name = self.create_folder_name(mail_data)
-        folder_path = self.base_directory / folder_name
-        folder_path.mkdir(parents=True, exist_ok=True)
-        return folder_path
-
-    def save_attachment(
-        self, folder_path: Path, attachment: Dict[str, Any]
-    ) -> Optional[str]:
-        """
-        첨부파일 저장
-
-        Args:
-            folder_path: 저장할 폴더 경로
-            attachment: 첨부파일 데이터 (name, contentBytes 필요)
-
-        Returns:
-            저장된 파일 경로 또는 None
-        """
-        name = attachment.get("name", "attachment")
-        content_bytes = attachment.get("contentBytes")
-
-        if not content_bytes:
-            print(f"  [SKIP] {name} - contentBytes 없음 (대용량 파일)")
-            return None
-
-        # 파일명 정제
-        safe_name = self.sanitize_filename(name, max_length=100)
-
-        # 중복 파일명 처리
-        file_path = folder_path / safe_name
-        counter = 1
-        while file_path.exists():
-            name_parts = safe_name.rsplit(".", 1)
-            if len(name_parts) == 2:
-                new_name = f"{name_parts[0]}_{counter}.{name_parts[1]}"
-            else:
-                new_name = f"{safe_name}_{counter}"
-            file_path = folder_path / new_name
-            counter += 1
-
-        try:
-            # Base64 디코딩 및 저장
-            file_content = base64.b64decode(content_bytes)
-            with open(file_path, "wb") as f:
-                f.write(file_content)
-
-            print(f"  [SAVED] {file_path.name} ({len(file_content):,} bytes)")
-            return str(file_path)
-
-        except Exception as e:
-            print(f"  [ERROR] {name} 저장 실패: {e}")
-            return None
-
-    def save_mail_content(
-        self, folder_path: Path, mail_data: Dict[str, Any]
-    ) -> Optional[str]:
-        """
-        메일 본문을 txt 파일로 저장
-
-        Args:
-            folder_path: 저장할 폴더 경로
-            mail_data: 메일 데이터
-
-        Returns:
-            저장된 파일 경로 또는 None
-        """
-        try:
-            file_path = folder_path / "mail_content.txt"
-
-            # 메일 정보 구성
-            content_lines = [
-                "=" * 60,
-                f"Subject: {mail_data.get('subject', 'N/A')}",
-                f"From: {mail_data.get('from', {}).get('emailAddress', {}).get('address', 'N/A')}",
-                f"Received: {mail_data.get('receivedDateTime', 'N/A')}",
-                f"Message ID: {mail_data.get('id', 'N/A')}",
-                "=" * 60,
-                "",
-            ]
-
-            # 본문 추출
-            body = mail_data.get("body", {})
-            body_content = body.get("content", "")
-            body_type = body.get("contentType", "text")
-
-            if body_type == "html":
-                # HTML 태그 간단히 제거
-                import re
-
-                body_content = re.sub(r"<[^>]+>", "", body_content)
-                body_content = re.sub(r"&nbsp;", " ", body_content)
-                body_content = re.sub(r"&lt;", "<", body_content)
-                body_content = re.sub(r"&gt;", ">", body_content)
-                body_content = re.sub(r"&amp;", "&", body_content)
-
-            content_lines.append(body_content)
-
-            # 파일 저장
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(content_lines))
-
-            print(f"  [SAVED] mail_content.txt")
-            return str(file_path)
-
-        except Exception as e:
-            print(f"  [ERROR] 메일 본문 저장 실패: {e}")
-            return None
+from .mail_attachment_storage import StorageBackend, LocalStorageBackend, OneDriveStorageBackend, get_storage_backend, MailFolderManager
+from .mail_attachment_converter import ConversionPipeline, get_conversion_pipeline
+from .mail_attachment_processor import (
+    process_body_content,
+    process_attachments,
+    process_attachment_with_conversion,
+    process_attachment_original,
+)
 
 
 class MailMetadataManager:
@@ -330,9 +145,9 @@ class MailMetadataManager:
         return [mid for mid in message_ids if not self.is_duplicate(mid)]
 
 
-class GraphAttachmentHandler:
+class BatchAttachmentHandler:
     """
-    Graph API 첨부파일 핸들러
+    배치 첨부파일 핸들러
     $batch + $expand=attachments로 메일과 첨부파일을 한번에 조회 및 저장
     """
 
@@ -407,7 +222,13 @@ class GraphAttachmentHandler:
                 # 리스트인 경우 그대로 사용 (하위 호환성)
                 select_fields = select_params
 
-        # 기본 필드 + 사용자 정의 필드
+        # 기본 필드 (필수) + 사용자 정의 필드
+        # - id: 메일 식별, 중복 체크
+        # - subject: 폴더명 생성
+        # - from: 폴더명 생성 (보낸사람)
+        # - receivedDateTime: 폴더명 생성 (날짜)
+        # - body: 메일 본문 저장
+        # - hasAttachments: 첨부파일 유무 확인
         default_fields = ["id", "subject", "from", "receivedDateTime", "body", "hasAttachments"]
         if select_fields:
             all_fields = list(set(default_fields + select_fields))
@@ -554,6 +375,11 @@ class GraphAttachmentHandler:
         message_ids: List[str],
         select_params: Optional[Any] = None,  # SelectParams 또는 List[str]
         skip_duplicates: bool = True,
+        save_file: bool = True,
+        storage_type: str = "local",
+        convert_to_txt: bool = False,
+        include_body: bool = True,
+        onedrive_folder: str = "/Attachments",
     ) -> Dict[str, Any]:
         """
         메일과 첨부파일을 조회하여 저장
@@ -563,6 +389,11 @@ class GraphAttachmentHandler:
             message_ids: 메일 ID 목록
             select_params: SelectParams 객체 또는 필드 목록
             skip_duplicates: 중복 메일 건너뛰기
+            save_file: 파일 저장 여부 (False면 메모리 반환만)
+            storage_type: 저장 위치 ("local" 또는 "onedrive")
+            convert_to_txt: 첨부파일을 TXT로 변환 여부
+            include_body: 본문 포함 여부 (False면 첨부파일만)
+            onedrive_folder: OneDrive 저장 폴더 경로
 
         Returns:
             처리 결과
@@ -574,7 +405,14 @@ class GraphAttachmentHandler:
             "skipped_duplicates": 0,
             "saved_mails": [],
             "saved_attachments": [],
+            "converted_files": [],
+            "body_contents": [],          # save_file=False일 때 본문 내용
+            "attachment_contents": [],    # save_file=False일 때 첨부파일 내용
             "errors": [],
+            "storage_type": storage_type,
+            "save_file": save_file,
+            "convert_to_txt": convert_to_txt,
+            "include_body": include_body,
         }
 
         if not message_ids:
@@ -599,6 +437,20 @@ class GraphAttachmentHandler:
             result["errors"].append("토큰 획득 실패")
             return result
 
+        # Storage Backend 생성 (저장 모드일 때만)
+        storage = None
+        if save_file:
+            storage = get_storage_backend(
+                storage_type=storage_type,
+                auth_manager=self.auth_manager,
+                user_email=user_email,
+                base_directory=str(self.folder_manager.base_directory),
+                base_folder=onedrive_folder,
+            )
+
+        # Converter 생성 (필요시)
+        converter = get_conversion_pipeline() if convert_to_txt else None
+
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
@@ -610,7 +462,10 @@ class GraphAttachmentHandler:
             for i in range(0, len(message_ids), self.max_batch_size)
         ]
 
-        print(f"\n처리할 메일: {len(message_ids)}개 ({len(batches)} 배치)")
+        storage_label = "메모리 반환" if not save_file else ("OneDrive" if storage_type == "onedrive" else "Local")
+        convert_label = " + TXT변환" if convert_to_txt else ""
+        body_label = " + 본문" if include_body else ""
+        print(f"\n처리할 메일: {len(message_ids)}개 ({len(batches)} 배치) [{storage_label}{convert_label}{body_label}]")
 
         async with aiohttp.ClientSession() as session:
             for batch_num, batch_ids in enumerate(batches, 1):
@@ -645,7 +500,10 @@ class GraphAttachmentHandler:
                                 continue
 
                             mail_data = resp.get("body", {})
-                            await self._process_mail(mail_data, result)
+                            await self._process_mail_with_options(
+                                mail_data, result, storage, converter,
+                                save_file=save_file, include_body=include_body
+                            )
 
                 except Exception as e:
                     result["errors"].append(f"배치 {batch_num} 예외: {str(e)}")
@@ -698,6 +556,67 @@ class GraphAttachmentHandler:
         except Exception as e:
             result["errors"].append(f"메일 처리 실패 ({subject[:30]}...): {str(e)}")
 
+    async def _process_mail_with_options(
+        self,
+        mail_data: Dict[str, Any],
+        result: Dict[str, Any],
+        storage: Optional[StorageBackend],
+        converter: Optional[ConversionPipeline] = None,
+        save_file: bool = True,
+        include_body: bool = True
+    ):
+        """
+        단일 메일 처리 오케스트레이터 (Storage Backend 및 Converter 옵션 적용)
+
+        본문 처리와 첨부파일 처리를 mail_attachment_processor 모듈에 위임
+
+        Args:
+            mail_data: 메일 데이터
+            result: 결과 딕셔너리 (업데이트됨)
+            storage: 저장소 백엔드 (Local 또는 OneDrive), save_file=False면 None
+            converter: 텍스트 변환기 (None이면 원본 저장)
+            save_file: 파일 저장 여부 (False면 메모리 반환만)
+            include_body: 본문 포함 여부
+        """
+        message_id = mail_data.get("id", "")
+        subject = mail_data.get("subject", "제목 없음")
+
+        mode_label = "저장" if save_file else "반환"
+        print(f"\n[{mode_label}] {subject[:50]}...")
+
+        try:
+            folder_path = None
+            saved_files = []
+
+            # Step 1: 저장 모드일 때만 폴더 생성
+            if save_file and storage:
+                folder_path = await storage.create_folder(mail_data)
+
+            # Step 2: 메일 본문 처리 (processor 모듈 호출)
+            if include_body:
+                body_saved = await process_body_content(
+                    mail_data, result, storage, folder_path, save_file
+                )
+                if body_saved:
+                    saved_files.append(body_saved)
+
+            # Step 3: 첨부파일 처리 (processor 모듈 호출)
+            attachment_saved = await process_attachments(
+                mail_data, result, storage, converter, folder_path, save_file
+            )
+            saved_files.extend(attachment_saved)
+
+            # Step 4: 메타데이터 저장 (저장 모드일 때만)
+            if save_file:
+                self.metadata_manager.add_processed_mail(
+                    message_id, mail_data, str(folder_path) if folder_path else "", saved_files
+                )
+
+            result["processed"] += 1
+
+        except Exception as e:
+            result["errors"].append(f"메일 처리 실패 ({subject[:30]}...): {str(e)}")
+
     async def fetch_specific_attachments(
         self,
         user_email: str,
@@ -735,7 +654,7 @@ class GraphAttachmentHandler:
             result["errors"].append("Failed to acquire access token")
             return result
 
-        handler = AttachmentHandler(access_token)
+        handler = SingleAttachmentHandler(access_token)
 
         for info in attachments_info:
             message_id = info.get("message_id")
@@ -794,10 +713,9 @@ class GraphAttachmentHandler:
         """리소스 정리"""
         await self.auth_manager.close()
 
-
-class AttachmentHandler:
+class SingleAttachmentHandler:
     """
-    개별 첨부파일 조회/다운로드용 어댑터 클래스
+    개별 첨부파일 조회/다운로드용 핸들러
 
     메서드:
         - list_attachments(message_id, user_id="me")
