@@ -550,7 +550,8 @@ async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
     # ========================================
     call_args["client_filter"] = ExcludeParams(**{'exclude_from_address': ['block@krs.co.kr',
                           'no-reply@teams.mail.microsoft',
-                          'reminders@facebookmail.com']})
+                          'reminders@facebookmail.com',
+                          'no-reply@sharepointonline.com']})
     call_args["select_params"] = SelectParams(**{'bcc_recipients': False,
  'body': False,
  'body_preview': True,

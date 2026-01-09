@@ -124,6 +124,7 @@ tools:
         - block@krs.co.kr
         - no-reply@teams.mail.microsoft
         - reminders@facebookmail.com
+        - no-reply@sharepointonline.com
         has_default: true
         description: 제외할 발신자 주소 (from 필드)
       - name: exclude_subject_keywords
