@@ -1183,7 +1183,6 @@ function parseDefaultValue(value, type) {
         case 'boolean':
             return value === 'true' || value === true;
         case 'object':
-        case 'array':
             if (typeof value === 'string') {
                 try {
                     return JSON.parse(value);
@@ -1191,6 +1190,20 @@ function parseDefaultValue(value, type) {
                     console.error('Invalid JSON for default value:', e.message);
                     return undefined;
                 }
+            }
+            return value;
+        case 'array':
+            if (typeof value === 'string') {
+                // JSON 형식이면 파싱
+                if (value.trim().startsWith('[')) {
+                    try {
+                        return JSON.parse(value);
+                    } catch (e) {
+                        console.error('Invalid JSON for default value:', e.message);
+                    }
+                }
+                // 콤마로 구분된 문자열이면 배열로 변환
+                return value.split(',').map(s => s.trim()).filter(s => s);
             }
             return value;
         default:

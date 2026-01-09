@@ -117,9 +117,12 @@ tools:
       description: ExcludeParams parameters
       parameters:
       - name: exclude_from_address
-        type: string
+        type: array
         is_optional: true
-        default: block@krs.co.kr
+        default:
+        - block@krs.co.kr
+        - no-reply@teams.mail.microsoft
+        - reminders@facebookmail.com
         has_default: true
         description: 제외할 발신자 주소 (from 필드)
       - name: exclude_subject_keywords
@@ -521,7 +524,7 @@ tools:
         targetParam: convert_to_txt
       include_body:
         type: boolean
-        description: 메일 본문 포함 여부
+        description: 메일 조회와 별개로 첨부파일 조회 시 메일 본문 포함 해서 반환하는 파라미터 설정
         default: true
         targetParam: include_body
       message_attachment_ids:

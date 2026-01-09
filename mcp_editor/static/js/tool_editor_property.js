@@ -270,11 +270,45 @@ function updatePropertyField(index, propName, field, value) {
             tool.inputSchema.properties[propName] = {};
         }
         tool.inputSchema.properties[propName][field] = value;
+
+        // Sync default value to mcp_service.parameters
+        if (field === 'default') {
+            syncMcpServiceParameterDefault(tool, propName, value);
+        }
     }
 
     // If targetParam was changed, update the service method params display
     if (field === 'targetParam') {
         loadAndDisplayServiceMethodParams(index);
+    }
+}
+
+/**
+ * Sync mcp_service.parameters when default value changes
+ * Updates has_default and default in mcp_service.parameters
+ */
+function syncMcpServiceParameterDefault(tool, propName, defaultValue) {
+    if (!tool.mcp_service || !tool.mcp_service.parameters) {
+        return;
+    }
+
+    // Find the parameter in mcp_service.parameters by name or targetParam
+    const propDef = tool.inputSchema?.properties?.[propName];
+    const targetParam = propDef?.targetParam || propName;
+
+    const param = tool.mcp_service.parameters.find(p =>
+        p.name === propName || p.name === targetParam
+    );
+
+    if (param) {
+        if (defaultValue !== undefined && defaultValue !== null && defaultValue !== '') {
+            param.has_default = true;
+            param.default = defaultValue;
+        } else {
+            param.has_default = false;
+            param.default = null;
+        }
+        console.log(`[syncMcpServiceParameterDefault] Updated ${propName}: has_default=${param.has_default}, default=${param.default}`);
     }
 }
 
@@ -354,8 +388,50 @@ function toggleRequired(index, propName, isChecked) {
         }
     }
 
+    // Sync mcp_service.parameters with inputSchema required status
+    syncMcpServiceParameterRequired(tool, propName, isChecked);
+
     // Re-render to update the JSON view (this will show/hide default field)
     renderToolEditor(tool, index);
+}
+
+/**
+ * Sync mcp_service.parameters when Required checkbox changes
+ * Updates is_required, is_optional, has_default based on inputSchema
+ */
+function syncMcpServiceParameterRequired(tool, propName, isRequired) {
+    if (!tool.mcp_service || !tool.mcp_service.parameters) {
+        return;
+    }
+
+    // Find the parameter in mcp_service.parameters by name or targetParam
+    const propDef = tool.inputSchema?.properties?.[propName];
+    const targetParam = propDef?.targetParam || propName;
+
+    const param = tool.mcp_service.parameters.find(p =>
+        p.name === propName || p.name === targetParam
+    );
+
+    if (param) {
+        if (isRequired) {
+            // Mark as required
+            param.is_required = true;
+            param.is_optional = false;
+            // Required params should not have default
+            param.has_default = false;
+            param.default = null;
+        } else {
+            // Mark as optional
+            param.is_required = false;
+            param.is_optional = true;
+            // Check if there's a default value in inputSchema
+            if (propDef?.default !== undefined) {
+                param.has_default = true;
+                param.default = propDef.default;
+            }
+        }
+        console.log(`[syncMcpServiceParameterRequired] Updated ${propName}: is_required=${param.is_required}, has_default=${param.has_default}`);
+    }
 }
 
 function parseDefaultValue(value, type) {
@@ -368,8 +444,7 @@ function parseDefaultValue(value, type) {
         case 'boolean':
             return value === 'true' || value === true;
         case 'object':
-        case 'array':
-            // Parse JSON for object and array types
+            // Parse JSON for object types
             if (typeof value === 'string') {
                 try {
                     return JSON.parse(value);
@@ -377,6 +452,20 @@ function parseDefaultValue(value, type) {
                     console.error('Invalid JSON for default value:', e.message);
                     return undefined;
                 }
+            }
+            return value;
+        case 'array':
+            if (typeof value === 'string') {
+                // JSON 형식이면 파싱
+                if (value.trim().startsWith('[')) {
+                    try {
+                        return JSON.parse(value);
+                    } catch (e) {
+                        console.error('Invalid JSON for default value:', e.message);
+                    }
+                }
+                // 콤마로 구분된 문자열이면 배열로 변환
+                return value.split(',').map(s => s.trim()).filter(s => s);
             }
             return value;
         default:

@@ -548,7 +548,9 @@ async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 4: Internal 파라미터 추가
     # - LLM에 노출되지 않는 내부 고정값
     # ========================================
-    call_args["client_filter"] = ExcludeParams(**{'exclude_from_address': 'block@krs.co.kr'})
+    call_args["client_filter"] = ExcludeParams(**{'exclude_from_address': ['block@krs.co.kr',
+                          'no-reply@teams.mail.microsoft',
+                          'reminders@facebookmail.com']})
     call_args["select_params"] = SelectParams(**{'bcc_recipients': False,
  'body': False,
  'body_preview': True,

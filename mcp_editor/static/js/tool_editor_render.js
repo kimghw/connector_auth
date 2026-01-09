@@ -1,5 +1,62 @@
 /* Tool Editor Render - Tool List and Editor Rendering */
 
+// ============================================================
+// Utility Functions for HTML Attribute Escaping
+// ============================================================
+
+/**
+ * Escape a string for safe use in HTML attributes
+ * Handles quotes, ampersands, and other special characters
+ */
+function escapeHtmlAttr(str) {
+    if (str === undefined || str === null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+/**
+ * Format a nested property's default value for display in an input field
+ * Arrays of strings are displayed as comma-separated values for easier editing
+ * Complex arrays/objects use JSON format
+ * @param {*} value - The default value
+ * @param {string} type - The property type
+ * @returns {string} - Formatted string for display
+ */
+function formatNestedDefaultValue(value, type) {
+    if (value === undefined || value === null) return '';
+
+    if (type === 'array') {
+        if (Array.isArray(value)) {
+            // Check if all items are simple strings (no commas, no quotes needed)
+            const allSimpleStrings = value.every(item =>
+                typeof item === 'string' && !item.includes(',') && !item.includes('"')
+            );
+            if (allSimpleStrings && value.length > 0) {
+                // Display as comma-separated for easier editing
+                return value.join(', ');
+            }
+            // For complex arrays, use JSON format
+            return JSON.stringify(value);
+        }
+        // If it's already a string (shouldn't happen but handle it)
+        return String(value);
+    }
+
+    if (type === 'object') {
+        if (typeof value === 'object') {
+            return JSON.stringify(value);
+        }
+        return String(value);
+    }
+
+    // For primitive types, just convert to string
+    return String(value);
+}
+
 function renderToolList() {
     console.log('[DEBUG] renderToolList() called');
     console.log('[DEBUG] tools.length:', tools.length);
@@ -194,7 +251,51 @@ function renderToolEditor(tool, index) {
                                 onclick="showBaseModelSelector(${index}, '${propName}')">
                             ${propDef.baseModel || 'Select BaseModel'}
                         </button>
-                        ` : ''}
+                        ` : `
+                        <!-- Inline default value for non-object types -->
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span style="font-size: 10px; color: var(--text-secondary);">default:</span>
+                            ${propDef.type === 'boolean' ? `
+                            <button type="button"
+                                    style="padding: 2px 6px; font-size: 10px; border-radius: 3px; cursor: pointer; transition: all 0.2s;
+                                           ${propDef.default === false ? 'background: #ffebee; color: #c62828; border: 1px solid #ef9a9a;' : 'background: #f5f5f5; color: #666; border: 1px solid #ddd;'}"
+                                    onclick="event.stopPropagation(); updatePropertyField(${index}, '${propName}', 'default', false); renderToolEditor(tools[${index}], ${index});">
+                                F
+                            </button>
+                            <button type="button"
+                                    style="padding: 2px 6px; font-size: 10px; border-radius: 3px; cursor: pointer; transition: all 0.2s;
+                                           ${propDef.default === true ? 'background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7;' : 'background: #f5f5f5; color: #666; border: 1px solid #ddd;'}"
+                                    onclick="event.stopPropagation(); updatePropertyField(${index}, '${propName}', 'default', true); renderToolEditor(tools[${index}], ${index});">
+                                T
+                            </button>
+                            ${propDef.default !== undefined ? `
+                            <button type="button" title="Clear default"
+                                    style="padding: 2px 4px; font-size: 10px; border-radius: 3px; cursor: pointer; background: transparent; color: #999; border: none;"
+                                    onclick="event.stopPropagation(); updatePropertyField(${index}, '${propName}', 'default', undefined); renderToolEditor(tools[${index}], ${index});">
+                                <span class="material-icons" style="font-size: 12px;">close</span>
+                            </button>` : ''}
+                            ` : `
+                            <input type="text"
+                                   id="inline-default-${propId}"
+                                   style="font-size: 10px; padding: 2px 6px; border: 1px solid var(--border-color); border-radius: 4px; background: white; width: 160px;"
+                                   placeholder="(none)"
+                                   value="${propDef.default !== undefined ? String(propDef.default).replace(/"/g, '&quot;') : ''}"
+                                   onclick="event.stopPropagation();"
+                                   onchange="event.stopPropagation(); updatePropertyField(${index}, '${propName}', 'default', parseDefaultValue(this.value, '${propDef.type}')); renderToolEditor(tools[${index}], ${index});">
+                            `}
+                        </div>
+                        <!-- Inline targetParam selector for non-object types -->
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span style="font-size: 10px; color: var(--text-secondary);">param:</span>
+                            <select class="form-control"
+                                    id="inline-targetparam-${propId}"
+                                    style="font-size: 10px; padding: 2px 4px; width: 100px; height: 22px;"
+                                    onclick="event.stopPropagation();"
+                                    onchange="event.stopPropagation(); updatePropertyField(${index}, '${propName}', 'targetParam', this.value || undefined)">
+                                <option value="">= ${propName}</option>
+                            </select>
+                        </div>
+                        `}
                         <label style="display: flex; align-items: center; cursor: pointer; margin: 0;">
                             <input type="checkbox" ${isRequired ? 'checked' : ''}
                                    onchange="toggleRequired(${index}, '${propName}', this.checked)"
@@ -399,7 +500,7 @@ function renderToolEditor(tool, index) {
                                             <input type="text"
                                                    style="font-size: 10px; padding: 2px 4px; border: 1px solid var(--border-color); border-radius: 4px; background: white; width: 80px;"
                                                    placeholder="(none)"
-                                                   value="${nestedProp.default !== undefined ? String(nestedProp.default).replace(/"/g, '&quot;') : ''}"
+                                                   value="${escapeHtmlAttr(formatNestedDefaultValue(nestedProp.default, nestedProp.type))}"
                                                    onclick="event.stopPropagation();"
                                                    onchange="event.stopPropagation(); updateNestedPropertyDefault(${index}, '${propName}', '${nestedPropName}', parseDefaultValue(this.value, '${nestedProp.type}')); renderToolEditor(tools[${index}], ${index});">
                                             `}
@@ -459,10 +560,10 @@ function renderToolEditor(tool, index) {
                                         </div>
                                         ` : `
                                         <div>
-                                            <label style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Default</label>
+                                            <label style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase;">Default ${nestedProp.type === 'array' ? '<span style="font-weight: normal; text-transform: none;">(comma separated)</span>' : ''}</label>
                                             <input class="form-control" style="font-size: 11px; padding: 5px;"
-                                                   placeholder="default value"
-                                                   value="${nestedProp.default !== undefined ? nestedProp.default : ''}"
+                                                   placeholder="${nestedProp.type === 'array' ? 'value1, value2' : 'default value'}"
+                                                   value="${escapeHtmlAttr(formatNestedDefaultValue(nestedProp.default, nestedProp.type))}"
                                                    onchange="updateNestedPropertyDefault(${index}, '${propName}', '${nestedPropName}', parseDefaultValue(this.value, '${nestedProp.type}'))">
                                         </div>
                                         `}
@@ -665,26 +766,35 @@ function loadTargetParamsForExistingProperties(index) {
                         allProperties[propName] = propDef;
                     });
 
-                    // Update each property's targetParam dropdown
+                    // Update each property's targetParam dropdown (both original and inline)
                     Object.entries(allProperties).forEach(([propName, propDef]) => {
                         const propId = `prop-${index}-${propName.replace(/[^a-zA-Z0-9]/g, '_')}`;
-                        const select = document.getElementById(`targetparam-${propId}`);
 
-                        if (select) {
-                            // Clear existing options except the first one
-                            select.innerHTML = `<option value="">-- Same as Input Schema Name (${propName}) --</option>`;
+                        // Get both dropdown IDs (original in content area and inline in header)
+                        const selectIds = [`targetparam-${propId}`, `inline-targetparam-${propId}`];
 
-                            // Add service method parameters as options
-                            service.parameters.forEach(param => {
-                                const option = document.createElement('option');
-                                option.value = param.name;
-                                option.textContent = `${param.name} (${param.type})`;
-                                if (propDef.targetParam === param.name) {
-                                    option.selected = true;
-                                }
-                                select.appendChild(option);
-                            });
-                        }
+                        selectIds.forEach(selectId => {
+                            const select = document.getElementById(selectId);
+
+                            if (select) {
+                                // Clear existing options except the first one
+                                const isInline = selectId.startsWith('inline-');
+                                select.innerHTML = isInline
+                                    ? `<option value="">= ${propName}</option>`
+                                    : `<option value="">-- Same as Input Schema Name (${propName}) --</option>`;
+
+                                // Add service method parameters as options
+                                service.parameters.forEach(param => {
+                                    const option = document.createElement('option');
+                                    option.value = param.name;
+                                    option.textContent = isInline ? param.name : `${param.name} (${param.type})`;
+                                    if (propDef.targetParam === param.name) {
+                                        option.selected = true;
+                                    }
+                                    select.appendChild(option);
+                                });
+                            }
+                        });
                     });
                 }
             }
