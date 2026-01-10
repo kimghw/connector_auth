@@ -296,6 +296,200 @@ async function showMoveToolsModal(sourceProfile, selectedIndices) {
   modal.style.display = 'flex';
 }
 
+// ========================================
+// MCP 서버 삭제 관련 함수들
+// ========================================
+
+// 삭제할 프로필 이름 저장
+let deleteTargetProfile = null;
+
+// 프로필 상세 정보 조회
+async function getProfileInfo(profile) {
+  const response = await fetch(`/api/profiles/${profile}/info`);
+  return response.json();
+}
+
+// MCP 서버 삭제 API 호출
+async function deleteMcpServer(profileName, confirmText) {
+  const response = await fetch('/api/delete-mcp-server', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      profile_name: profileName,
+      confirm: confirmText
+    })
+  });
+  return response.json();
+}
+
+// 삭제 모달 표시
+async function showDeleteServerModal(profile) {
+  if (!profile) {
+    if (typeof showNotification === 'function') {
+      showNotification('삭제할 프로필을 선택하세요', 'warning');
+    } else {
+      alert('삭제할 프로필을 선택하세요');
+    }
+    return;
+  }
+
+  const modal = document.getElementById('delete-server-modal');
+  if (!modal) return;
+
+  deleteTargetProfile = profile;
+
+  // 프로필 정보 로드
+  try {
+    const info = await getProfileInfo(profile);
+
+    // 보호된 프로필 확인
+    if (info.is_protected) {
+      if (typeof showNotification === 'function') {
+        showNotification(`'${profile}'는 보호된 프로필입니다. 삭제할 수 없습니다.`, 'error');
+      } else {
+        alert(`'${profile}'는 보호된 프로필입니다. 삭제할 수 없습니다.`);
+      }
+      return;
+    }
+
+    // 모달 내용 업데이트
+    document.getElementById('delete-target-profile').textContent = profile;
+
+    // 삭제될 항목 업데이트
+    const deleteList = document.getElementById('delete-items-list');
+    deleteList.innerHTML = `
+      <li><code>mcp_editor/mcp_${profile}/</code> (웹에디터 정의)</li>
+      <li><code>mcp_${profile}/mcp_server/</code> (생성된 서버)</li>
+      <li><code>registry_${profile}.json</code> (레지스트리)</li>
+      <li><code>editor_config.json</code>에서 프로필 항목</li>
+    `;
+
+    // 유지될 항목 업데이트
+    const keepList = document.getElementById('keep-items-list');
+    if (info.paths && info.paths.service_files && info.paths.service_files.length > 0) {
+      keepList.innerHTML = info.paths.service_files
+        .map(f => `<li><code>mcp_${profile}/${f}</code></li>`)
+        .join('');
+    } else {
+      keepList.innerHTML = `
+        <li><code>${profile}_service.py</code> (서비스 로직)</li>
+        <li><code>${profile}_types.py</code> (타입 정의)</li>
+        <li>기타 서비스 파일들</li>
+      `;
+    }
+
+    // 확인 코드 업데이트
+    const confirmCode = `DELETE ${profile}`;
+    document.getElementById('delete-confirm-code').textContent = confirmCode;
+    document.getElementById('delete-confirm-input').value = '';
+    document.getElementById('delete-confirm-input').placeholder = confirmCode;
+    document.getElementById('delete-confirm-error').style.display = 'none';
+    document.getElementById('delete-confirm-btn').disabled = true;
+
+    // 입력 이벤트 리스너 추가
+    const input = document.getElementById('delete-confirm-input');
+    input.oninput = function() {
+      const isValid = this.value === confirmCode;
+      document.getElementById('delete-confirm-btn').disabled = !isValid;
+
+      if (this.value && !isValid) {
+        document.getElementById('delete-confirm-error').textContent =
+          `입력값이 일치하지 않습니다. "${confirmCode}"를 정확히 입력하세요.`;
+        document.getElementById('delete-confirm-error').style.display = 'block';
+      } else {
+        document.getElementById('delete-confirm-error').style.display = 'none';
+      }
+    };
+
+    modal.style.display = 'flex';
+
+  } catch (e) {
+    console.error('Failed to load profile info:', e);
+    if (typeof showNotification === 'function') {
+      showNotification('프로필 정보를 불러올 수 없습니다: ' + e.message, 'error');
+    } else {
+      alert('프로필 정보를 불러올 수 없습니다: ' + e.message);
+    }
+  }
+}
+
+// 삭제 모달 닫기
+function closeDeleteServerModal() {
+  const modal = document.getElementById('delete-server-modal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+  deleteTargetProfile = null;
+}
+
+// 삭제 확인
+async function confirmDeleteServer() {
+  if (!deleteTargetProfile) {
+    alert('삭제할 프로필이 지정되지 않았습니다.');
+    return;
+  }
+
+  const confirmInput = document.getElementById('delete-confirm-input').value;
+  const expectedConfirm = `DELETE ${deleteTargetProfile}`;
+
+  if (confirmInput !== expectedConfirm) {
+    document.getElementById('delete-confirm-error').textContent =
+      `입력값이 일치하지 않습니다. "${expectedConfirm}"를 정확히 입력하세요.`;
+    document.getElementById('delete-confirm-error').style.display = 'block';
+    return;
+  }
+
+  // 삭제 버튼 비활성화 (중복 클릭 방지)
+  const btn = document.getElementById('delete-confirm-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-icons" style="font-size: 18px;">hourglass_empty</span> 삭제 중...';
+
+  try {
+    const result = await deleteMcpServer(deleteTargetProfile, confirmInput);
+
+    if (result.success) {
+      closeDeleteServerModal();
+
+      // 성공 메시지
+      const message = `MCP 서버 '${deleteTargetProfile}'가 삭제되었습니다.\n\n` +
+        `삭제된 항목:\n${result.deleted_paths.map(p => '  - ' + p).join('\n')}\n\n` +
+        (result.kept_paths.length > 0
+          ? `유지된 항목:\n${result.kept_paths.map(p => '  - ' + p).join('\n')}`
+          : '');
+
+      if (typeof showNotification === 'function') {
+        showNotification(`MCP 서버 '${deleteTargetProfile}'가 삭제되었습니다.`, 'success');
+      }
+
+      // 상세 정보는 콘솔에 출력
+      console.log('Delete result:', result);
+
+      // 프로필 목록 새로고침
+      if (typeof loadProfiles === 'function') {
+        await loadProfiles();
+      }
+
+      // 다른 프로필로 전환
+      setTimeout(() => {
+        if (typeof loadProfiles === 'function') {
+          location.reload();
+        }
+      }, 1500);
+
+    } else {
+      alert('삭제 오류: ' + result.error);
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-icons" style="font-size: 18px;">delete_forever</span> 삭제';
+    }
+
+  } catch (e) {
+    console.error('Delete failed:', e);
+    alert('삭제 중 오류가 발생했습니다: ' + e.message);
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-icons" style="font-size: 18px;">delete_forever</span> 삭제';
+  }
+}
+
 // 전역 함수로 내보내기
 window.deriveProfile = deriveProfile;
 window.getSiblingProfiles = getSiblingProfiles;
@@ -310,3 +504,10 @@ window.openMoveToolsDialog = openMoveToolsDialog;
 window.addToolCheckboxes = addToolCheckboxes;
 window.removeToolCheckboxes = removeToolCheckboxes;
 window.getSelectedToolIndices = getSelectedToolIndices;
+
+// 삭제 관련 함수 내보내기
+window.showDeleteServerModal = showDeleteServerModal;
+window.closeDeleteServerModal = closeDeleteServerModal;
+window.confirmDeleteServer = confirmDeleteServer;
+window.getProfileInfo = getProfileInfo;
+window.deleteMcpServer = deleteMcpServer;

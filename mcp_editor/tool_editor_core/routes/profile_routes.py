@@ -36,6 +36,7 @@ from ..profile_management import (
     create_reused_profile,
     delete_mcp_profile,
     create_derived_profile,
+    delete_mcp_server_only,
 )
 
 
@@ -467,6 +468,135 @@ def get_profile_family_api(profile: str):
         family = get_profile_family(profile)
 
         return jsonify(family)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@profile_bp.route("/api/delete-mcp-server", methods=["DELETE"])
+def delete_mcp_server_api():
+    """
+    Delete MCP server-related files only (keep service code).
+
+    This is a safer deletion that preserves:
+    - {profile}_service.py (business logic)
+    - {profile}_types.py (type definitions)
+
+    Request:
+    {
+        "profile_name": "outlook_read",
+        "confirm": "DELETE outlook_read"  # Must match pattern: DELETE {profile_name}
+    }
+
+    Response:
+    {
+        "success": true,
+        "message": "Successfully deleted MCP server: outlook_read",
+        "deleted_paths": [...],
+        "kept_paths": [...]
+    }
+    """
+    global profiles
+
+    try:
+        data = request.json or {}
+        profile_name = data.get("profile_name", "").strip()
+        confirm = data.get("confirm", "").strip()
+
+        if not profile_name:
+            return jsonify({"error": "profile_name is required"}), 400
+
+        # Validate confirmation text
+        expected_confirm = f"DELETE {profile_name}"
+        if confirm != expected_confirm:
+            return jsonify({
+                "error": f"Confirmation text must be exactly: {expected_confirm}",
+                "expected": expected_confirm,
+                "received": confirm
+            }), 400
+
+        # Prevent deletion of protected profiles
+        protected_profiles = ["outlook", "calendar", "file_handler"]
+        if profile_name in protected_profiles:
+            return jsonify({
+                "error": f"Cannot delete protected profile: {profile_name}",
+                "hint": "Protected profiles are core system profiles"
+            }), 403
+
+        # Check if profile exists
+        existing_profiles = list_profile_names()
+        if profile_name not in existing_profiles:
+            return jsonify({"error": f"Profile '{profile_name}' not found"}), 404
+
+        # Execute deletion
+        result = delete_mcp_server_only(profile_name)
+
+        if not result.get("success"):
+            return jsonify({"error": result.get("error", "Unknown error")}), 500
+
+        # Reload profiles
+        profiles = list_profile_names()
+
+        return jsonify({
+            "success": True,
+            "message": f"Successfully deleted MCP server: {profile_name}",
+            "deleted_paths": result.get("deleted_paths", []),
+            "kept_paths": result.get("kept_paths", [])
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@profile_bp.route("/api/profiles/<profile>/info", methods=["GET"])
+def get_profile_info_api(profile: str):
+    """
+    Get detailed profile information for deletion preview.
+
+    Response:
+    {
+        "profile": "outlook_read",
+        "exists": true,
+        "is_protected": false,
+        "paths": {
+            "editor_dir": "mcp_editor/mcp_outlook_read/",
+            "mcp_server_dir": "mcp_outlook_read/mcp_server/",
+            "registry_file": "registry_outlook_read.json",
+            "service_files": ["outlook_read_service.py", "outlook_read_types.py"]
+        }
+    }
+    """
+    try:
+        # Check if protected
+        protected_profiles = ["outlook", "calendar", "file_handler"]
+        is_protected = profile in protected_profiles
+
+        # Check if exists
+        exists = profile in list_profile_names()
+
+        # Build paths info
+        paths = {
+            "editor_dir": f"mcp_editor/mcp_{profile}/",
+            "mcp_server_dir": f"mcp_{profile}/mcp_server/",
+            "registry_file": f"registry_{profile}.json",
+            "service_files": []
+        }
+
+        # Check for actual service files
+        project_dir = os.path.join(ROOT_DIR, f"mcp_{profile}")
+        if os.path.exists(project_dir):
+            for filename in os.listdir(project_dir):
+                if filename.endswith("_service.py") or filename.endswith("_types.py"):
+                    paths["service_files"].append(filename)
+                elif os.path.isfile(os.path.join(project_dir, filename)):
+                    paths["service_files"].append(filename)
+
+        return jsonify({
+            "profile": profile,
+            "exists": exists,
+            "is_protected": is_protected,
+            "paths": paths
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

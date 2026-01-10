@@ -46,6 +46,9 @@
                 <button class="btn btn-tooltip btn-expandable" data-debug-id="BTN_DERIVE_SERVER" onclick="showDeriveModal(window.currentProfile || 'outlook')" style="background: linear-gradient(135deg, #a855f7, #7c3aed); color: white;" data-tooltip="🔀 현재 프로필에서 파생 서버 생성&#10;📁 동일 서비스 재사용&#10;🔧 도구만 분리 관리&#10;&#10;Create derived server from current profile">
                     <span class="material-icons">call_split</span><span class="btn-text">Derive</span>
                 </button>
+                <button class="btn btn-tooltip btn-expandable" data-debug-id="BTN_DELETE_SERVER" onclick="showDeleteServerModal(window.currentProfile || '')" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white;" data-tooltip="🗑️ MCP 서버 삭제&#10;📁 웹에디터 정의 삭제&#10;⚠️ 서비스 코드는 유지&#10;&#10;Delete MCP server (keeps service code)">
+                    <span class="material-icons">delete_forever</span><span class="btn-text">Delete</span>
+                </button>
             </div>
         </div>
         <div id="profileTabs" data-debug-id="AREA_PROFILE_TABS" style="display: flex; justify-content: flex-start; gap: 8px; padding: 10px 20px; background: #f7f7f7; border-bottom: 1px solid #e5e5e5;">
@@ -712,6 +715,79 @@
                 <button class="btn btn-secondary" onclick="closeMoveModal()">취소</button>
                 <button class="btn btn-primary" onclick="confirmMoveTools()">
                     <span class="material-icons" style="font-size: 18px;">check</span> 확인
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MCP 서버 삭제 모달 -->
+    <div id="delete-server-modal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width: 550px;">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); display: flex; align-items: center; justify-content: center;">
+                        <span class="material-icons" style="color: white; font-size: 24px;">delete_forever</span>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; font-size: 18px; font-weight: 600;">MCP 서버 삭제</h3>
+                        <p style="margin: 4px 0 0 0; font-size: 12px; color: #86868b;">서비스 코드는 유지됩니다</p>
+                    </div>
+                </div>
+                <button class="btn btn-icon" onclick="closeDeleteServerModal()" style="position: absolute; top: 16px; right: 16px;">✕</button>
+            </div>
+            <div class="modal-body">
+                <!-- 삭제 대상 정보 -->
+                <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <span class="material-icons" style="color: #dc2626; font-size: 20px;">warning</span>
+                        <span style="font-weight: 600; color: #dc2626;">삭제 대상 프로필: <span id="delete-target-profile">-</span></span>
+                    </div>
+                    <p style="margin: 0; font-size: 12px; color: #991b1b;">이 작업은 되돌릴 수 없습니다.</p>
+                </div>
+
+                <!-- 삭제될 항목 -->
+                <div style="margin-bottom: 16px;">
+                    <label style="font-size: 13px; font-weight: 600; color: #dc2626; margin-bottom: 8px; display: block;">
+                        <span class="material-icons" style="font-size: 16px; vertical-align: middle;">delete</span>
+                        삭제될 항목:
+                    </label>
+                    <ul id="delete-items-list" style="margin: 0; padding-left: 20px; font-size: 12px; color: #666; line-height: 1.8;">
+                        <li>mcp_editor/mcp_{profile}/ (웹에디터 정의)</li>
+                        <li>mcp_{profile}/mcp_server/ (생성된 서버)</li>
+                        <li>registry_{profile}.json (레지스트리)</li>
+                        <li>editor_config.json에서 프로필 항목</li>
+                    </ul>
+                </div>
+
+                <!-- 유지될 항목 -->
+                <div style="margin-bottom: 16px;">
+                    <label style="font-size: 13px; font-weight: 600; color: #16a34a; margin-bottom: 8px; display: block;">
+                        <span class="material-icons" style="font-size: 16px; vertical-align: middle;">check_circle</span>
+                        유지될 항목:
+                    </label>
+                    <ul id="keep-items-list" style="margin: 0; padding-left: 20px; font-size: 12px; color: #666; line-height: 1.8;">
+                        <li>{profile}_service.py (서비스 로직)</li>
+                        <li>{profile}_types.py (타입 정의)</li>
+                        <li>기타 서비스 파일들</li>
+                    </ul>
+                </div>
+
+                <!-- 확인 입력 -->
+                <div class="form-group">
+                    <label style="font-size: 13px; font-weight: 600; color: #1d1d1f; margin-bottom: 6px; display: block;">
+                        삭제 확인 <span style="color: red;">*</span>
+                    </label>
+                    <p style="margin: 0 0 8px 0; font-size: 12px; color: #666;">
+                        삭제를 확인하려면 아래에 <code id="delete-confirm-code" style="background: #fee2e2; padding: 2px 6px; border-radius: 4px; color: #dc2626; font-weight: 600;">DELETE {profile_name}</code>을 정확히 입력하세요.
+                    </p>
+                    <input type="text" id="delete-confirm-input" class="form-control" placeholder="DELETE profile_name" style="font-family: monospace;">
+                    <p id="delete-confirm-error" style="margin-top: 6px; color: #dc2626; font-size: 12px; display: none;"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDeleteServerModal()">취소</button>
+                <button class="btn" id="delete-confirm-btn" onclick="confirmDeleteServer()" style="background: #dc2626; color: white;" disabled>
+                    <span class="material-icons" style="font-size: 18px;">delete_forever</span> 삭제
                 </button>
             </div>
         </div>

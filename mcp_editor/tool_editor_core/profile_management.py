@@ -505,3 +505,134 @@ def remove_from_derived_list(base_profile: str, derived_profile: str) -> bool:
     except Exception as e:
         print(f"Error removing from derived list: {e}")
         return False
+
+
+def delete_mcp_server_only(profile_name: str) -> dict:
+    """
+    Delete MCP server-related files only, keeping service code intact.
+
+    This function deletes:
+    - mcp_editor/mcp_{profile}/ folder (web editor definitions)
+    - mcp_{profile}/mcp_server/ folder (generated server code)
+    - mcp_editor/mcp_service_registry/registry_{profile}.json
+    - Profile entry from editor_config.json
+
+    This function KEEPS:
+    - mcp_{profile}/{profile}_service.py (business logic)
+    - mcp_{profile}/{profile}_types.py (type definitions)
+    - mcp_{profile}/ folder itself (only mcp_server subfolder deleted)
+
+    Args:
+        profile_name: Profile name (e.g., "outlook_read")
+
+    Returns:
+        {
+            "success": bool,
+            "deleted_paths": list,
+            "kept_paths": list,
+            "error": str (on failure)
+        }
+
+    Example:
+        >>> delete_mcp_server_only("outlook_read")
+        {
+            "success": True,
+            "deleted_paths": [
+                "mcp_editor/mcp_outlook_read/",
+                "mcp_outlook_read/mcp_server/",
+                "registry_outlook_read.json",
+                "editor_config.json:outlook_read"
+            ],
+            "kept_paths": [
+                "mcp_outlook_read/outlook_read_service.py"
+            ]
+        }
+    """
+    try:
+        deleted_paths = []
+        kept_paths = []
+        base_dir = os.path.dirname(os.path.dirname(__file__))  # mcp_editor/
+        root_dir = os.path.dirname(base_dir)   # /home/kimghw/Connector_auth/
+
+        # 1. Delete editor profile folder (mcp_editor/mcp_{profile}/)
+        editor_dir = os.path.join(base_dir, f"mcp_{profile_name}")
+        if os.path.exists(editor_dir):
+            shutil.rmtree(editor_dir)
+            deleted_paths.append(f"mcp_editor/mcp_{profile_name}/")
+
+        # 2. Delete only mcp_server folder inside project (NOT the entire project)
+        project_dir = os.path.join(root_dir, f"mcp_{profile_name}")
+        mcp_server_dir = os.path.join(project_dir, "mcp_server")
+
+        if os.path.exists(mcp_server_dir):
+            shutil.rmtree(mcp_server_dir)
+            deleted_paths.append(f"mcp_{profile_name}/mcp_server/")
+
+        # Record kept service files
+        if os.path.exists(project_dir):
+            service_file = os.path.join(project_dir, f"{profile_name}_service.py")
+            types_file = os.path.join(project_dir, f"{profile_name}_types.py")
+
+            if os.path.exists(service_file):
+                kept_paths.append(f"mcp_{profile_name}/{profile_name}_service.py")
+            if os.path.exists(types_file):
+                kept_paths.append(f"mcp_{profile_name}/{profile_name}_types.py")
+
+            # List other kept files
+            for item in os.listdir(project_dir):
+                item_path = os.path.join(project_dir, item)
+                if os.path.isfile(item_path) and item not in [f"{profile_name}_service.py", f"{profile_name}_types.py"]:
+                    kept_paths.append(f"mcp_{profile_name}/{item}")
+
+        # 3. Delete registry file (mcp_editor/mcp_service_registry/registry_{profile}.json)
+        registry_dir = os.path.join(base_dir, "mcp_service_registry")
+        registry_file = os.path.join(registry_dir, f"registry_{profile_name}.json")
+
+        if os.path.exists(registry_file):
+            os.remove(registry_file)
+            deleted_paths.append(f"registry_{profile_name}.json")
+
+        # 4. Remove from editor_config.json
+        config_path = os.path.join(base_dir, "editor_config.json")
+
+        if os.path.exists(config_path):
+            with open(config_path, encoding='utf-8') as f:
+                editor_config = json.load(f)
+
+            if profile_name in editor_config:
+                # Check if this profile has a base_profile (is derived)
+                base_profile = editor_config[profile_name].get("base_profile")
+
+                # Delete the profile entry
+                del editor_config[profile_name]
+
+                # Update base profile's derived_profiles list if applicable
+                if base_profile and base_profile in editor_config:
+                    derived_list = editor_config[base_profile].get("derived_profiles", [])
+                    if profile_name in derived_list:
+                        derived_list.remove(profile_name)
+                        editor_config[base_profile]["derived_profiles"] = derived_list
+
+                        # If no more derived profiles, remove is_base flag
+                        if not derived_list:
+                            editor_config[base_profile].pop("is_base", None)
+                            editor_config[base_profile].pop("derived_profiles", None)
+
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    json.dump(editor_config, f, indent=2, ensure_ascii=False)
+
+                deleted_paths.append(f"editor_config.json:{profile_name}")
+
+        return {
+            "success": True,
+            "deleted_paths": deleted_paths,
+            "kept_paths": kept_paths
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "deleted_paths": [],
+            "kept_paths": [],
+            "error": str(e)
+        }

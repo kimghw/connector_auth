@@ -33,5 +33,18 @@
     ],
     "host": "0.0.0.0",
     "port": 8091
+  },
+  "outlook_test": {
+    "source_dir": "../mcp_outlook",
+    "template_definitions_path": "mcp_outlook_test/tool_definition_templates.py",
+    "tool_definitions_path": "../mcp_outlook_test/mcp_server/tool_definitions.py",
+    "backup_dir": "mcp_outlook_test/backups",
+    "types_files": [
+      "../mcp_outlook/outlook_types.py"
+    ],
+    "host": "0.0.0.0",
+    "port": 8092,
+    "is_reused": true,
+    "base_profile": "outlook"
   }
 }
