@@ -74,6 +74,11 @@ def scan_all_registries():
         registry_manager = MetaRegisterManager()
 
         for profile_name, profile_config in config.items():
+            # Skip merged profiles - they don't have their own service files
+            if profile_config.get("is_merged"):
+                print(f"  Skipping {profile_name}: merged profile (registry preserved)")
+                continue
+
             source_dir = profile_config.get("source_dir")
             if not source_dir:
                 print(f"  Skipping {profile_name}: no source_dir configured")

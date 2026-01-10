@@ -275,3 +275,121 @@ def update_server_port():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@server_bp.route("/api/merge-servers", methods=["POST"])
+def merge_servers():
+    """
+    Merge multiple MCP servers into a single server.
+
+    Request:
+    {
+        "name": "merged_server",
+        "sources": ["outlook", "calendar"],
+        "port": 8090,
+        "prefix_mode": "auto",  # auto, always, none
+        "protocol": "all"       # all, sse, stdio, streamable_http
+    }
+
+    Response:
+    {
+        "success": true,
+        "merged_name": "merged_server",
+        "tool_count": 15,
+        "service_count": 10,
+        "types_count": 30
+    }
+    """
+    try:
+        import subprocess
+        import sys
+
+        data = request.json or {}
+        name = data.get("name", "").strip()
+        sources = data.get("sources", [])
+        port = data.get("port", 8090)
+        prefix_mode = data.get("prefix_mode", "auto")
+        protocol = data.get("protocol", "all")
+
+        # Validation
+        if not name:
+            return jsonify({"success": False, "error": "Merged server name is required"}), 400
+
+        if len(sources) < 2:
+            return jsonify({"success": False, "error": "At least 2 source profiles are required"}), 400
+
+        # Build command
+        sources_str = ",".join(sources)
+        cmd = [
+            sys.executable,
+            os.path.join(ROOT_DIR, "jinja", "generate_universal_server.py"),
+            "merge",
+            "--name", name,
+            "--sources", sources_str,
+            "--port", str(port),
+            "--protocol", protocol,
+            "--prefix-mode", prefix_mode
+        ]
+
+        print(f"Running merge command: {' '.join(cmd)}")
+
+        # Run the merge command
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=ROOT_DIR
+        )
+
+        if result.returncode != 0:
+            error_msg = result.stderr or result.stdout or "Unknown error"
+            print(f"Merge failed: {error_msg}")
+            return jsonify({"success": False, "error": error_msg}), 500
+
+        # Parse output for counts
+        output = result.stdout
+        print(f"Merge output: {output}")
+
+        # Try to extract counts from output
+        tool_count = None
+        service_count = None
+        types_count = None
+
+        for line in output.split('\n'):
+            if 'tools' in line.lower() and 'merged' in line.lower():
+                try:
+                    import re
+                    match = re.search(r'(\d+)\s*tools', line.lower())
+                    if match:
+                        tool_count = int(match.group(1))
+                except:
+                    pass
+            if 'services' in line.lower():
+                try:
+                    import re
+                    match = re.search(r'(\d+)\s*services', line.lower())
+                    if match:
+                        service_count = int(match.group(1))
+                except:
+                    pass
+            if 'types' in line.lower():
+                try:
+                    import re
+                    match = re.search(r'(\d+)\s*types', line.lower())
+                    if match:
+                        types_count = int(match.group(1))
+                except:
+                    pass
+
+        return jsonify({
+            "success": True,
+            "merged_name": name,
+            "tool_count": tool_count,
+            "service_count": service_count,
+            "types_count": types_count,
+            "output": output
+        })
+
+    except Exception as e:
+        print(f"Merge error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500

@@ -115,22 +115,45 @@ def get_mcp_services():
                     # New registry format from mcp_service_registry
                     decorated = []
                     detailed = []
+                    # Groups for merged profiles: class_name -> list of services
+                    groups = {}
 
                     for service_name, service_info in data["services"].items():
                         # Add to decorated services (use service_name, not tool_name)
                         # Service name should match what's selected in the UI
                         decorated.append(service_name)
 
-                        # Build detailed info with service_name (not tool_name)
-                        detailed.append(
-                            {
-                                "name": service_name,  # Use service_name consistently
-                                "parameters": service_info.get("parameters", []),
-                                "signature": service_info.get("signature", ""),
-                            }
-                        )
+                        # Get handler info for grouping
+                        handler = service_info.get("handler", {})
+                        class_name = handler.get("class_name", "Unknown")
+                        module_path = handler.get("module_path", "")
 
-                    return jsonify({"services": decorated, "services_with_signatures": detailed})
+                        # Build detailed info with service_name (not tool_name)
+                        service_detail = {
+                            "name": service_name,  # Use service_name consistently
+                            "parameters": service_info.get("parameters", []),
+                            "signature": service_info.get("signature", ""),
+                            "class_name": class_name,
+                            "module_path": module_path,
+                        }
+                        detailed.append(service_detail)
+
+                        # Group by class_name for merged profile dropdown
+                        if class_name not in groups:
+                            groups[class_name] = []
+                        groups[class_name].append(service_name)
+
+                    # Check if this is a merged profile
+                    is_merged = data.get("is_merged", False)
+                    source_profiles = data.get("source_profiles", [])
+
+                    return jsonify({
+                        "services": decorated,
+                        "services_with_signatures": detailed,
+                        "groups": groups,
+                        "is_merged": is_merged,
+                        "source_profiles": source_profiles
+                    })
                 else:
                     # Old format (backward compatibility)
                     decorated = data.get("decorated_services", [])

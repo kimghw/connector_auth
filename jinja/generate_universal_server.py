@@ -1047,21 +1047,606 @@ def find_tools_file(server_name: str) -> Optional[str]:
     return None
 
 
+# =============================================================================
+# MCP Server Merge Functions
+# =============================================================================
+
+def merge_tool_definitions(source_profiles: List[str], prefix_mode: str = 'auto') -> List[Dict[str, Any]]:
+    """Merge tool definitions from multiple profiles into a single list
+
+    Args:
+        source_profiles: List of profile names to merge (e.g., ['outlook', 'calendar'])
+        prefix_mode: 'auto' = add prefix on conflict, 'always' = always add prefix, 'none' = no prefix
+
+    Returns:
+        Merged list of tool definitions with optional prefixes applied
+    """
+    import yaml
+    import importlib.util
+
+    all_tools = []
+    tool_names_seen = {}  # track tool_name -> source_profile
+
+    for profile in source_profiles:
+        # Find YAML file for this profile
+        yaml_path = PROJECT_ROOT / "mcp_editor" / f"mcp_{profile}" / "tool_definition_templates.yaml"
+        py_path = PROJECT_ROOT / "mcp_editor" / f"mcp_{profile}" / "tool_definition_templates.py"
+
+        tools = []
+
+        if yaml_path.exists():
+            # Load from YAML file
+            with open(yaml_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+            tools = data.get('tools', [])
+            print(f"    Loaded {len(tools)} tools from {yaml_path.name}")
+        elif py_path.exists():
+            # Fallback to Python file
+            try:
+                spec = importlib.util.spec_from_file_location(f"tools_{profile}", py_path)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                tools = getattr(module, 'MCP_TOOLS', [])
+                print(f"    Loaded {len(tools)} tools from {py_path.name}")
+            except Exception as e:
+                print(f"⚠️ Warning: Failed to load Python tool definitions for profile '{profile}': {e}")
+                continue
+        else:
+            print(f"⚠️ Warning: No tool definitions found for profile '{profile}'")
+            print(f"    Tried: {yaml_path}")
+            print(f"    Tried: {py_path}")
+            continue
+
+        for tool in tools:
+            original_name = tool.get('name', '')
+
+            # Determine if prefix is needed
+            needs_prefix = False
+            if prefix_mode == 'always':
+                needs_prefix = True
+            elif prefix_mode == 'auto':
+                if original_name in tool_names_seen:
+                    # Conflict detected - add prefix to both
+                    needs_prefix = True
+                    # Also update the previously seen tool
+                    prev_profile = tool_names_seen[original_name]
+                    for prev_tool in all_tools:
+                        if prev_tool.get('name') == original_name:
+                            prev_tool['name'] = f"{prev_profile}_{original_name}"
+                            prev_tool['_original_name'] = original_name
+                            prev_tool['_source_profile'] = prev_profile
+                            break
+
+            # Apply prefix if needed
+            tool_copy = dict(tool)
+            if needs_prefix:
+                tool_copy['name'] = f"{profile}_{original_name}"
+                tool_copy['_original_name'] = original_name
+            else:
+                tool_copy['_original_name'] = original_name
+
+            tool_copy['_source_profile'] = profile
+
+            # Track tool name
+            if original_name not in tool_names_seen:
+                tool_names_seen[original_name] = profile
+
+            all_tools.append(tool_copy)
+
+    print(f"📦 Merged {len(all_tools)} tools from {len(source_profiles)} profiles")
+    return all_tools
+
+
+def normalize_module_path(module_path: str, source_profile: str) -> str:
+    """Normalize module_path to include mcp_ prefix
+
+    Converts 'outlook.outlook_service' -> 'mcp_outlook.outlook_service'
+
+    Args:
+        module_path: Original module path (e.g., 'calendar.calendar_service')
+        source_profile: Source profile name (e.g., 'calendar')
+
+    Returns:
+        Normalized module path (e.g., 'mcp_calendar.calendar_service')
+    """
+    if not module_path:
+        return module_path
+
+    # Already has mcp_ prefix
+    if module_path.startswith('mcp_'):
+        return module_path
+
+    parts = module_path.split('.')
+    if len(parts) >= 1:
+        # Check if first part matches source_profile
+        if parts[0] == source_profile:
+            parts[0] = f'mcp_{source_profile}'
+        else:
+            # Prepend mcp_ to first part
+            parts[0] = f'mcp_{parts[0]}'
+
+    return '.'.join(parts)
+
+
+def merge_registries(source_profiles: List[str], merged_name: str) -> Dict[str, Any]:
+    """Merge registries from multiple profiles into a single registry
+
+    Args:
+        source_profiles: List of profile names to merge
+        merged_name: Name for the merged server
+
+    Returns:
+        Merged registry dict with normalized module_paths
+    """
+    merged_registry = {
+        "version": "1.0",
+        "generated_at": None,  # Will be set when saving
+        "server_name": merged_name,
+        "is_merged": True,
+        "source_profiles": source_profiles,
+        "services": {}
+    }
+
+    for profile in source_profiles:
+        registry_path = find_registry_file(profile)
+        if not registry_path:
+            print(f"⚠️ Warning: Registry not found for profile '{profile}'")
+            continue
+
+        with open(registry_path, 'r', encoding='utf-8') as f:
+            registry = json.load(f)
+
+        for service_name, service_data in registry.get('services', {}).items():
+            # Create unique service name if conflict
+            unique_name = service_name
+            if service_name in merged_registry['services']:
+                unique_name = f"{profile}_{service_name}"
+
+            # Normalize module_path
+            handler = service_data.get('handler', {})
+            original_module_path = handler.get('module_path', '')
+            normalized_path = normalize_module_path(original_module_path, profile)
+
+            # Create service entry with normalized path
+            service_copy = dict(service_data)
+            service_copy['_source_profile'] = profile
+
+            if 'handler' in service_copy:
+                service_copy['handler'] = dict(service_copy['handler'])
+                service_copy['handler']['module_path'] = normalized_path
+
+            merged_registry['services'][unique_name] = service_copy
+
+    print(f"📋 Merged {len(merged_registry['services'])} services from {len(source_profiles)} registries")
+    return merged_registry
+
+
+def find_type_locations_multi(source_profiles: List[str]) -> Dict[str, str]:
+    """Find type locations across multiple source profiles
+
+    Unlike find_type_locations which searches single server,
+    this searches all source profiles' mcp_* directories.
+
+    Args:
+        source_profiles: List of profile names (e.g., ['outlook', 'calendar'])
+
+    Returns:
+        Dict mapping type names to their import paths
+    """
+    import ast
+    import glob
+
+    type_locations = {}
+
+    for profile in source_profiles:
+        # Search patterns for this profile
+        search_paths = [
+            PROJECT_ROOT / f"mcp_{profile}" / "*.py",
+            PROJECT_ROOT / f"{profile}" / "*.py",
+            PROJECT_ROOT / "mcp_editor" / f"mcp_{profile}" / "*.py",
+        ]
+
+        for pattern in search_paths:
+            for file_path in glob.glob(str(pattern)):
+                try:
+                    with open(file_path, 'r') as f:
+                        tree = ast.parse(f.read())
+
+                    # Extract module name from file path
+                    module_parts = Path(file_path).stem
+                    if 'mcp_' in str(file_path):
+                        if 'mcp_editor' in str(file_path):
+                            module_name = f"mcp_editor.mcp_{profile}.{module_parts}"
+                        else:
+                            module_name = f"mcp_{profile}.{module_parts}"
+                    else:
+                        module_name = f"{profile}.{module_parts}"
+
+                    # Find class definitions and enums
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.ClassDef):
+                            is_enum = any(
+                                base.id == 'Enum' if isinstance(base, ast.Name) else
+                                (base.attr == 'Enum' if isinstance(base, ast.Attribute) else False)
+                                for base in node.bases
+                            )
+
+                            if node.name not in type_locations:
+                                type_locations[node.name] = {
+                                    'module': module_name,
+                                    'is_enum': is_enum,
+                                    'file': file_path,
+                                    'source_profile': profile
+                                }
+                except:
+                    continue
+
+    print(f"🔍 Found {len(type_locations)} types across {len(source_profiles)} profiles")
+    return type_locations
+
+
+def check_tool_name_conflicts(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Check for tool name conflicts and report them
+
+    Args:
+        tools: List of tool definitions
+
+    Returns:
+        List of conflicts: [{'name': str, 'profiles': [str, ...]}]
+    """
+    name_to_profiles = {}
+
+    for tool in tools:
+        name = tool.get('_original_name', tool.get('name', ''))
+        profile = tool.get('_source_profile', 'unknown')
+
+        if name not in name_to_profiles:
+            name_to_profiles[name] = []
+        name_to_profiles[name].append(profile)
+
+    conflicts = []
+    for name, profiles in name_to_profiles.items():
+        if len(profiles) > 1:
+            conflicts.append({'name': name, 'profiles': profiles})
+
+    return conflicts
+
+
+def save_merged_yaml(tools: List[Dict[str, Any]], output_path: Path):
+    """Save merged tool definitions to YAML file
+
+    Args:
+        tools: List of merged tool definitions
+        output_path: Path to save the YAML file
+    """
+    import yaml
+
+    # Clean up internal fields before saving
+    clean_tools = []
+    for tool in tools:
+        tool_copy = dict(tool)
+        # Remove internal tracking fields
+        tool_copy.pop('_original_name', None)
+        tool_copy.pop('_source_profile', None)
+        clean_tools.append(tool_copy)
+
+    output_data = {'tools': clean_tools}
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, 'w', encoding='utf-8') as f:
+        yaml.dump(output_data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+    print(f"💾 Saved merged YAML to: {output_path}")
+
+
+def save_merged_registry(registry: Dict[str, Any], output_path: Path):
+    """Save merged registry to JSON file
+
+    Args:
+        registry: Merged registry dict
+        output_path: Path to save the JSON file
+    """
+    from datetime import datetime
+
+    # Add generation timestamp
+    registry_copy = dict(registry)
+    registry_copy['generated_at'] = datetime.now().isoformat()
+
+    # Clean up internal fields in services
+    for service_name, service_data in registry_copy.get('services', {}).items():
+        if isinstance(service_data, dict):
+            service_data.pop('_source_profile', None)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(registry_copy, f, indent=2, ensure_ascii=False)
+
+    print(f"💾 Saved merged registry to: {output_path}")
+
+
+def update_editor_config_for_merge(merged_name: str, source_profiles: List[str], port: int):
+    """Update editor_config.json with merged profile entry
+
+    Args:
+        merged_name: Name for the merged server
+        source_profiles: List of source profile names
+        port: Server port number
+    """
+    config = load_editor_config()
+
+    # Collect types_files from all source profiles
+    types_files = []
+    for profile in source_profiles:
+        profile_config = config.get(profile, {})
+        profile_types = profile_config.get('types_files', [])
+        if profile_types:
+            types_files.extend(profile_types)
+        else:
+            # Default types file
+            types_files.append(f"../mcp_{profile}/{profile}_types.py")
+
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_types_files = []
+    for f in types_files:
+        if f not in seen:
+            seen.add(f)
+            unique_types_files.append(f)
+
+    # Create merged profile entry with all required fields
+    merged_config = {
+        "source_dir": f"../mcp_{merged_name}",
+        "template_definitions_path": f"mcp_{merged_name}/tool_definition_templates.yaml",
+        "tool_definitions_path": f"../mcp_{merged_name}/mcp_server/tool_definitions.py",
+        "backup_dir": f"mcp_{merged_name}/backups",
+        "host": "0.0.0.0",
+        "port": port,
+        "is_merged": True,
+        "source_profiles": source_profiles,
+        "types_files": unique_types_files
+    }
+
+    config[merged_name] = merged_config
+
+    with open(EDITOR_CONFIG_PATH, 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+
+    print(f"📝 Updated editor_config.json with merged profile: {merged_name}")
+
+
+def generate_merged_server(
+    merged_name: str,
+    source_profiles: List[str],
+    port: int = 8080,
+    protocol: str = 'all',
+    prefix_mode: str = 'auto'
+):
+    """Generate a merged MCP server from multiple source profiles
+
+    Args:
+        merged_name: Name for the merged server (e.g., 'ms365')
+        source_profiles: List of profile names to merge (e.g., ['outlook', 'calendar'])
+        port: Server port number
+        protocol: Protocol type ('rest', 'stdio', 'stream', 'all')
+        prefix_mode: Tool name prefix mode ('auto', 'always', 'none')
+    """
+    print(f"\n{'='*60}")
+    print(f"🔀 MCP Server Merge: {merged_name}")
+    print(f"{'='*60}")
+    print(f"  Source profiles: {', '.join(source_profiles)}")
+    print(f"  Port: {port}")
+    print(f"  Protocol: {protocol}")
+    print(f"  Prefix mode: {prefix_mode}")
+    print()
+
+    # Step 1: Merge tool definitions (YAML)
+    print("📋 Step 1: Merging tool definitions...")
+    merged_tools = merge_tool_definitions(source_profiles, prefix_mode)
+
+    # Check for conflicts
+    conflicts = check_tool_name_conflicts(merged_tools)
+    if conflicts:
+        print(f"⚠️ Tool name conflicts detected (resolved with prefix):")
+        for conflict in conflicts:
+            print(f"    - {conflict['name']}: {', '.join(conflict['profiles'])}")
+
+    # Step 2: Merge registries
+    print("\n📋 Step 2: Merging service registries...")
+    merged_registry = merge_registries(source_profiles, merged_name)
+
+    # Step 3: Find types across all profiles
+    print("\n📋 Step 3: Scanning types from source profiles...")
+    type_locations = find_type_locations_multi(source_profiles)
+
+    # Step 4: Create output directories and save merged files
+    print("\n📋 Step 4: Creating merged profile files...")
+
+    merged_editor_dir = PROJECT_ROOT / "mcp_editor" / f"mcp_{merged_name}"
+    merged_server_dir = PROJECT_ROOT / f"mcp_{merged_name}" / "mcp_server"
+    registry_dir = PROJECT_ROOT / "mcp_editor" / "mcp_service_registry"
+
+    # Create directories
+    merged_editor_dir.mkdir(parents=True, exist_ok=True)
+    merged_server_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save merged YAML
+    merged_yaml_path = merged_editor_dir / "tool_definition_templates.yaml"
+    save_merged_yaml(merged_tools, merged_yaml_path)
+
+    # Save merged registry
+    merged_registry_path = registry_dir / f"registry_{merged_name}.json"
+    save_merged_registry(merged_registry, merged_registry_path)
+
+    # Update editor_config.json
+    update_editor_config_for_merge(merged_name, source_profiles, port)
+
+    # Step 5: Generate server files
+    print("\n📋 Step 5: Generating server files...")
+
+    protocols_to_generate = ['rest', 'stdio', 'stream'] if protocol == 'all' else [protocol]
+    template_path = str(SCRIPT_DIR / "universal_server_template.jinja2")
+
+    success_count = 0
+    for proto in protocols_to_generate:
+        output_path = str(merged_server_dir / f"server_{proto}.py")
+
+        try:
+            # Prepare context for merged server
+            service_factors = extract_service_factors_from_tools(merged_tools)
+            internal_args = extract_internal_args_from_tools(merged_tools)
+
+            context = prepare_context(
+                merged_registry,
+                merged_tools,
+                merged_name,
+                internal_args,
+                proto,
+                service_factors,
+                profile_name=merged_name,
+                port=port,
+                base_profile=None,
+                base_service_paths=None
+            )
+
+            # Override type_info with multi-profile types
+            context['type_info']['type_locations'] = type_locations
+
+            # Add merged server metadata
+            context['is_merged_server'] = True
+            context['source_profiles'] = source_profiles
+
+            # Setup Jinja2
+            template_dir = os.path.dirname(template_path)
+            env = Environment(loader=FileSystemLoader(template_dir))
+
+            def raise_error(message):
+                raise ValueError(message)
+            env.filters['raise_error'] = raise_error
+
+            template = env.get_template(os.path.basename(template_path))
+
+            # Render template
+            rendered = template.render(**context)
+
+            # Write output
+            with open(output_path, 'w') as f:
+                f.write(rendered)
+
+            print(f"  ✅ Generated: {output_path}")
+            success_count += 1
+
+        except Exception as e:
+            print(f"  ❌ Failed to generate {proto}: {e}")
+            import traceback
+            traceback.print_exc()
+
+    # Step 6: Print summary
+    print(f"\n{'='*60}")
+    print(f"📊 MERGE SUMMARY")
+    print(f"{'='*60}")
+    print(f"  Merged server: {merged_name}")
+    print(f"  Source profiles: {', '.join(source_profiles)}")
+    print(f"  Total tools: {len(merged_tools)}")
+    print(f"  Total services: {len(merged_registry['services'])}")
+    print(f"  Total types: {len(type_locations)}")
+    print(f"  Servers generated: {success_count}/{len(protocols_to_generate)}")
+    print()
+    print(f"📁 Created files:")
+    print(f"  - {merged_yaml_path}")
+    print(f"  - {merged_registry_path}")
+    for proto in protocols_to_generate:
+        print(f"  - {merged_server_dir / f'server_{proto}.py'}")
+    print()
+
+    if success_count == len(protocols_to_generate):
+        print(f"🎉 Merge completed successfully!")
+        return True
+    else:
+        print(f"⚠️ Merge completed with errors")
+        return False
+
+
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Generate MCP server from universal template")
-    parser.add_argument("server_name", help="Server name (e.g., 'outlook', 'file_handler')")
-    parser.add_argument("--protocol", help="Protocol type",
-                       choices=['rest', 'stdio', 'stream', 'all'], default='rest')
-    parser.add_argument("--registry", help="Path to registry JSON file (auto-detected if not specified)")
-    parser.add_argument("--tools", help="Path to tool definitions file (auto-detected if not specified)")
-    parser.add_argument("--template", help="Path to Jinja2 template",
-                       default=str(SCRIPT_DIR / "universal_server_template.jinja2"))
-    parser.add_argument("--output", help="Output path for generated server.py")
+    parser = argparse.ArgumentParser(
+        description="Generate MCP server from universal template or merge multiple servers"
+    )
+    subparsers = parser.add_subparsers(dest='command', help='Commands')
 
-    args = parser.parse_args()
+    # =========================================================================
+    # Generate command (default behavior)
+    # =========================================================================
+    generate_parser = subparsers.add_parser('generate', help='Generate single MCP server')
+    generate_parser.add_argument("server_name", help="Server name (e.g., 'outlook', 'file_handler')")
+    generate_parser.add_argument("--protocol", help="Protocol type",
+                                  choices=['rest', 'stdio', 'stream', 'all'], default='rest')
+    generate_parser.add_argument("--registry", help="Path to registry JSON file (auto-detected if not specified)")
+    generate_parser.add_argument("--tools", help="Path to tool definitions file (auto-detected if not specified)")
+    generate_parser.add_argument("--template", help="Path to Jinja2 template",
+                                  default=str(SCRIPT_DIR / "universal_server_template.jinja2"))
+    generate_parser.add_argument("--output", help="Output path for generated server.py")
 
+    # =========================================================================
+    # Merge command
+    # =========================================================================
+    merge_parser = subparsers.add_parser('merge', help='Merge multiple MCP servers into one')
+    merge_parser.add_argument("--name", required=True, help="Name for merged server (e.g., 'ms365')")
+    merge_parser.add_argument("--sources", required=True, help="Comma-separated source profiles (e.g., 'outlook,calendar')")
+    merge_parser.add_argument("--port", type=int, default=8080, help="Server port (default: 8080)")
+    merge_parser.add_argument("--protocol", choices=['rest', 'stdio', 'stream', 'all'], default='all',
+                              help="Protocol type (default: all)")
+    merge_parser.add_argument("--prefix", choices=['auto', 'always', 'none'], default='auto',
+                              help="Tool name prefix mode: auto=on conflict, always=always add, none=no prefix (default: auto)")
+
+    # For backward compatibility: if no subcommand, treat first arg as server_name
+    args, unknown = parser.parse_known_args()
+
+    # If no command specified but there's an argument, use legacy generate mode
+    if args.command is None and len(sys.argv) > 1:
+        # Check if first argument looks like a server name (not a flag)
+        first_arg = sys.argv[1]
+        if not first_arg.startswith('-'):
+            # Legacy mode: treat as generate command
+            legacy_parser = argparse.ArgumentParser(description="Generate MCP server from universal template")
+            legacy_parser.add_argument("server_name", help="Server name")
+            legacy_parser.add_argument("--protocol", choices=['rest', 'stdio', 'stream', 'all'], default='rest')
+            legacy_parser.add_argument("--registry", help="Path to registry JSON file")
+            legacy_parser.add_argument("--tools", help="Path to tool definitions file")
+            legacy_parser.add_argument("--template", default=str(SCRIPT_DIR / "universal_server_template.jinja2"))
+            legacy_parser.add_argument("--output", help="Output path for generated server.py")
+            args = legacy_parser.parse_args()
+            args.command = 'generate'
+        else:
+            parser.print_help()
+            sys.exit(1)
+    elif args.command is None:
+        parser.print_help()
+        sys.exit(0)
+
+    # =========================================================================
+    # Handle MERGE command
+    # =========================================================================
+    if args.command == 'merge':
+        source_profiles = [p.strip() for p in args.sources.split(',')]
+
+        if len(source_profiles) < 2:
+            print("❌ Error: At least 2 source profiles are required for merge")
+            sys.exit(1)
+
+        success = generate_merged_server(
+            merged_name=args.name,
+            source_profiles=source_profiles,
+            port=args.port,
+            protocol=args.protocol,
+            prefix_mode=args.prefix
+        )
+
+        sys.exit(0 if success else 1)
+
+    # =========================================================================
+    # Handle GENERATE command
+    # =========================================================================
     # Find registry file
     registry_path = args.registry or find_registry_file(args.server_name)
     if not registry_path:

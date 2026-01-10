@@ -46,6 +46,9 @@
                 <button class="btn btn-tooltip btn-expandable" data-debug-id="BTN_DERIVE_SERVER" onclick="showDeriveModal(window.currentProfile || 'outlook')" style="background: linear-gradient(135deg, #a855f7, #7c3aed); color: white;" data-tooltip="🔀 현재 프로필에서 파생 서버 생성&#10;📁 동일 서비스 재사용&#10;🔧 도구만 분리 관리&#10;&#10;Create derived server from current profile">
                     <span class="material-icons">call_split</span><span class="btn-text">Derive</span>
                 </button>
+                <button class="btn btn-tooltip btn-expandable" data-debug-id="BTN_MERGE_SERVERS" onclick="showMergeServersModal()" style="background: linear-gradient(135deg, #0ea5e9, #0284c7); color: white;" data-tooltip="🔗 여러 MCP 서버 병합&#10;📁 outlook + calendar → ms365&#10;⚙️ 도구 충돌 자동 처리&#10;&#10;Merge multiple MCP servers into one">
+                    <span class="material-icons">merge_type</span><span class="btn-text">Merge</span>
+                </button>
                 <button class="btn btn-tooltip btn-expandable" data-debug-id="BTN_DELETE_SERVER" onclick="showDeleteServerModal(window.currentProfile || '')" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white;" data-tooltip="🗑️ MCP 서버 삭제&#10;📁 웹에디터 정의 삭제&#10;⚠️ 서비스 코드는 유지&#10;&#10;Delete MCP server (keeps service code)">
                     <span class="material-icons">delete_forever</span><span class="btn-text">Delete</span>
                 </button>
@@ -329,6 +332,72 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-debug-id="BTN_PROJECT_CANCEL" onclick="closeModal('createProjectModal')">Cancel</button>
                 <button class="btn btn-primary" data-debug-id="BTN_PROJECT_CREATE" onclick="createNewProject()">Create Project</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Merge Servers Modal -->
+    <div id="mergeServersModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 style="display: flex; align-items: center; gap: 10px;">
+                    <span class="material-icons" style="color: #0ea5e9;">merge_type</span>
+                    Merge MCP Servers
+                </h2>
+                <button class="btn btn-icon" data-debug-id="BTN_MERGE_CLOSE" onclick="closeModal('mergeServersModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Merged Server Name <span style="color: red;">*</span></label>
+                    <input id="mergeServerName" class="form-control" data-debug-id="FIELD_MERGE_NAME" placeholder="e.g., ms365, productivity, unified">
+                    <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        Name for the merged server. Will create mcp_{name} folder.
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label>Source Profiles <span style="color: red;">*</span></label>
+                    <div id="mergeSourceProfiles" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; background: #f9f9f9;">
+                        <!-- Profile checkboxes will be populated here -->
+                    </div>
+                    <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        Select 2 or more profiles to merge. Tools from all selected profiles will be combined.
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label>Port</label>
+                    <input id="mergeServerPort" type="number" class="form-control" data-debug-id="FIELD_MERGE_PORT" value="8090" min="1024" max="65535">
+                    <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        Server port number (1024-65535)
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label>Tool Name Prefix Mode</label>
+                    <select id="mergePrefixMode" class="form-control" data-debug-id="FIELD_MERGE_PREFIX">
+                        <option value="auto" selected>Auto (prefix only on conflict)</option>
+                        <option value="always">Always (add prefix to all tools)</option>
+                        <option value="none">None (no prefix, error on conflict)</option>
+                    </select>
+                    <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        How to handle tool name conflicts: Auto adds prefix only when needed, Always adds prefix to all tools.
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label>Protocol</label>
+                    <select id="mergeProtocol" class="form-control" data-debug-id="FIELD_MERGE_PROTOCOL">
+                        <option value="all" selected>All (SSE, Stdio, Streamable HTTP)</option>
+                        <option value="sse">SSE only</option>
+                        <option value="stdio">Stdio only</option>
+                        <option value="streamable_http">Streamable HTTP only</option>
+                    </select>
+                </div>
+                <div id="mergeServersResult" style="margin-top: 15px; padding: 12px; border-radius: 6px; display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-debug-id="BTN_MERGE_CANCEL" onclick="closeModal('mergeServersModal')">Cancel</button>
+                <button class="btn btn-primary" data-debug-id="BTN_MERGE_CREATE" onclick="executeMergeServers()">
+                    <span class="material-icons" style="font-size: 16px; margin-right: 4px;">merge_type</span>
+                    Merge Servers
+                </button>
             </div>
         </div>
     </div>

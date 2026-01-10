@@ -2,6 +2,82 @@
 
 ## 최근 세션 기록
 
+### 2026-01-10: MCP 서버 병합(Merge) 기능 구현
+
+#### 요청 사항
+- 2개 이상의 MCP 서버(예: outlook + calendar)를 하나의 통합 MCP 서버로 병합
+- 기존 서비스 코드 수정 없이 여러 서비스를 하나의 서버에서 제공
+- CLI 명령으로 병합 서버 생성
+
+#### 구현 완료 항목
+
+**1. 병합 핵심 함수 (generate_universal_server.py)**
+
+| 함수명 | 기능 |
+|-------|------|
+| `merge_tool_definitions()` | 여러 프로필의 YAML 도구 정의 병합, 충돌 시 prefix 자동 추가 |
+| `normalize_module_path()` | module_path에 mcp_ prefix 정규화 (outlook → mcp_outlook) |
+| `merge_registries()` | 서비스 레지스트리 병합, module_path 정규화 포함 |
+| `find_type_locations_multi()` | 여러 프로필의 타입 정의 스캔 (Pydantic, Enum) |
+| `check_tool_name_conflicts()` | 도구 이름 충돌 검사 및 보고 |
+| `save_merged_yaml()` | 병합된 도구 정의 YAML 저장 |
+| `save_merged_registry()` | 병합된 레지스트리 JSON 저장 |
+| `update_editor_config_for_merge()` | editor_config.json에 병합 프로필 추가 |
+| `generate_merged_server()` | 병합 서버 생성 메인 함수 |
+
+**2. CLI 명령 추가**
+```bash
+# 병합 서버 생성
+python jinja/generate_universal_server.py merge \
+    --name ms365 \
+    --sources outlook,calendar \
+    --port 8090 \
+    --protocol all \
+    --prefix auto
+```
+
+**옵션:**
+- `--name`: 병합 서버 이름 (필수)
+- `--sources`: 병합할 프로필 목록, 콤마 구분 (필수)
+- `--port`: 서버 포트 (기본: 8080)
+- `--protocol`: 프로토콜 타입 (rest/stdio/stream/all, 기본: all)
+- `--prefix`: 도구명 prefix 모드 (auto/always/none, 기본: auto)
+
+**3. 생성되는 파일**
+- `mcp_editor/mcp_{merged_name}/tool_definition_templates.yaml` - 병합된 도구 정의
+- `mcp_editor/mcp_service_registry/registry_{merged_name}.json` - 병합된 레지스트리
+- `mcp_{merged_name}/mcp_server/server_rest.py` - REST 서버
+- `mcp_{merged_name}/mcp_server/server_stdio.py` - STDIO 서버
+- `mcp_{merged_name}/mcp_server/server_stream.py` - Stream 서버
+- `mcp_editor/editor_config.json` - 병합 프로필 추가
+
+#### 설계 문서
+- `/home/kimghw/Connector_auth/docs/mcp_server_merge_design.md`
+
+#### 해결된 병목 지점
+| 병목 | 해결 방법 |
+|------|----------|
+| YAML 단일 파일 전제 | `merge_tool_definitions()` - 빌드타임 병합 |
+| Registry 단일 서버 전제 | `merge_registries()` - 통합 registry 생성 |
+| module_path 정규화 | `normalize_module_path()` - mcp_ prefix 자동 추가 |
+| 타입 스캔 단일 서버 | `find_type_locations_multi()` - 멀티 루트 스캔 |
+| 도구 이름 충돌 | prefix 정책 (auto/always/none) |
+
+#### 테스트 결과
+- outlook + calendar 병합 → ms365 서버 생성 성공
+- 13개 도구 병합 (outlook: 7, calendar: 6)
+- 18개 서비스 통합
+- 53개 타입 스캔
+- 3개 프로토콜 서버 생성 (REST, STDIO, Stream)
+- import 테스트 통과 (MailService, CalendarService, FilterParams, EventFilterParams)
+
+#### 수정된 파일
+| 파일 | 수정 내용 |
+|------|----------|
+| `jinja/generate_universal_server.py` | 9개 병합 함수 추가, CLI merge 명령 추가 |
+
+---
+
 ### 2026-01-10: MCP 파생 서버 생성 및 도구 이동 기능 구현
 
 #### 요청 사항

@@ -668,14 +668,26 @@ function renderToolEditor(tool, index) {
                        onchange="updateToolField(${index}, 'name', this.value)">
             </div>
             <div class="form-group" style="flex: 1; min-width: 260px; margin-bottom: 0;">
-                <label>MCP Service Method</label>
+                <label>MCP Service Method ${window.mcpServiceIsMerged ? '<span style="font-size: 10px; color: #6c757d;">(Merged)</span>' : ''}</label>
                 <select class="form-control" id="mcpService" data-debug-id="FIELD_TOOL_SERVICE"
                         onchange="updateMcpService(${index}, this.value)">
                     <option value="">-- Select MCP Service Method --</option>
-                    ${window.mcpServices ? window.mcpServices.map(service => {
+                    ${(() => {
                         const currentService = typeof tool.mcp_service === 'object' ? tool.mcp_service?.name : tool.mcp_service;
-                        return `<option value="${service}" ${currentService === service ? 'selected' : ''}>${service}</option>`;
-                    }).join('') : ''}
+                        // If merged profile with groups, render optgroups
+                        if (window.mcpServiceIsMerged && window.mcpServiceGroups && Object.keys(window.mcpServiceGroups).length > 1) {
+                            return Object.entries(window.mcpServiceGroups).map(([className, services]) => {
+                                const optionsHtml = services.map(service =>
+                                    `<option value="${service}" ${currentService === service ? 'selected' : ''}>${service}</option>`
+                                ).join('');
+                                return `<optgroup label="${className}">${optionsHtml}</optgroup>`;
+                            }).join('');
+                        }
+                        // Default flat list
+                        return window.mcpServices ? window.mcpServices.map(service =>
+                            `<option value="${service}" ${currentService === service ? 'selected' : ''}>${service}</option>`
+                        ).join('') : '';
+                    })()}
                 </select>
             </div>
         </div>

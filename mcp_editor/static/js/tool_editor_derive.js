@@ -511,3 +511,144 @@ window.closeDeleteServerModal = closeDeleteServerModal;
 window.confirmDeleteServer = confirmDeleteServer;
 window.getProfileInfo = getProfileInfo;
 window.deleteMcpServer = deleteMcpServer;
+
+// ========================================
+// MCP 서버 병합 관련 함수들
+// ========================================
+
+// 병합 모달 표시
+async function showMergeServersModal() {
+  const modal = document.getElementById('mergeServersModal');
+  if (!modal) return;
+
+  // 프로필 목록 로드
+  try {
+    const response = await fetch('/api/profiles');
+    const data = await response.json();
+    const profiles = data.profiles || [];
+
+    // 프로필 체크박스 생성 (merged 프로필 제외)
+    const container = document.getElementById('mergeSourceProfiles');
+    if (container) {
+      container.innerHTML = profiles
+        .filter(p => {
+          // merged 프로필 필터링 (is_merged 또는 이름에 merged 포함)
+          return p && !p.includes('merged') && !p.includes('_test');
+        })
+        .map(profile => `
+          <label style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: white; border-radius: 4px; cursor: pointer; border: 1px solid #ddd;">
+            <input type="checkbox" class="merge-profile-checkbox" value="${profile}">
+            <span>${profile}</span>
+          </label>
+        `).join('');
+    }
+
+    // 결과 영역 초기화
+    const resultEl = document.getElementById('mergeServersResult');
+    if (resultEl) {
+      resultEl.style.display = 'none';
+      resultEl.textContent = '';
+    }
+
+    // 입력 필드 초기화
+    document.getElementById('mergeServerName').value = '';
+    document.getElementById('mergeServerPort').value = '8090';
+    document.getElementById('mergePrefixMode').value = 'auto';
+    document.getElementById('mergeProtocol').value = 'all';
+
+    modal.classList.add('show');
+  } catch (e) {
+    console.error('Failed to load profiles for merge:', e);
+    if (typeof showNotification === 'function') {
+      showNotification('프로필 목록 로드 실패', 'error');
+    }
+  }
+}
+
+// 병합 실행
+async function executeMergeServers() {
+  const name = document.getElementById('mergeServerName').value.trim();
+  const port = parseInt(document.getElementById('mergeServerPort').value) || 8090;
+  const prefixMode = document.getElementById('mergePrefixMode').value;
+  const protocol = document.getElementById('mergeProtocol').value;
+
+  // 선택된 프로필 수집
+  const selectedProfiles = [];
+  document.querySelectorAll('.merge-profile-checkbox:checked').forEach(cb => {
+    selectedProfiles.push(cb.value);
+  });
+
+  const resultEl = document.getElementById('mergeServersResult');
+
+  // 유효성 검사
+  if (!name) {
+    resultEl.style.display = 'block';
+    resultEl.style.backgroundColor = '#ffebee';
+    resultEl.textContent = '병합 서버 이름을 입력하세요.';
+    return;
+  }
+
+  if (!/^[a-zA-Z0-9_]+$/.test(name)) {
+    resultEl.style.display = 'block';
+    resultEl.style.backgroundColor = '#ffebee';
+    resultEl.textContent = '서버 이름은 영문, 숫자, 언더스코어만 사용 가능합니다.';
+    return;
+  }
+
+  if (selectedProfiles.length < 2) {
+    resultEl.style.display = 'block';
+    resultEl.style.backgroundColor = '#ffebee';
+    resultEl.textContent = '병합할 프로필을 2개 이상 선택하세요.';
+    return;
+  }
+
+  resultEl.style.display = 'block';
+  resultEl.style.backgroundColor = '#e3f2fd';
+  resultEl.innerHTML = '<span class="material-icons" style="font-size: 14px; vertical-align: middle; animation: spin 1s linear infinite;">sync</span> 서버 병합 중...';
+
+  try {
+    const response = await fetch('/api/merge-servers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name,
+        sources: selectedProfiles,
+        port: port,
+        prefix_mode: prefixMode,
+        protocol: protocol
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      resultEl.style.backgroundColor = '#e8f5e9';
+      resultEl.innerHTML = `
+        <strong>병합 완료!</strong><br>
+        생성된 서버: mcp_${name}<br>
+        도구 수: ${data.tool_count || 'N/A'}<br>
+        서비스 수: ${data.service_count || 'N/A'}<br><br>
+        <strong>다음 단계:</strong><br>
+        1. 페이지를 새로고침하여 새 프로필 확인<br>
+        2. "${name}" 탭에서 도구 편집<br>
+        3. "Generate Server"로 서버 코드 생성
+      `;
+
+      // 3초 후 자동 새로고침
+      setTimeout(() => {
+        location.reload();
+      }, 3000);
+    } else {
+      resultEl.style.backgroundColor = '#ffebee';
+      resultEl.textContent = '오류: ' + (data.error || '알 수 없는 오류');
+    }
+  } catch (e) {
+    console.error('Merge failed:', e);
+    resultEl.style.backgroundColor = '#ffebee';
+    resultEl.textContent = '병합 실패: ' + e.message;
+  }
+}
+
+// 병합 관련 함수 내보내기
+window.showMergeServersModal = showMergeServersModal;
+window.executeMergeServers = executeMergeServers;

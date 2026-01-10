@@ -46,5 +46,56 @@
     "port": 8092,
     "is_reused": true,
     "base_profile": "outlook"
+  },
+  "ms365": {
+    "source_dir": "../mcp_ms365",
+    "template_definitions_path": "mcp_ms365/tool_definition_templates.yaml",
+    "tool_definitions_path": "../mcp_ms365/mcp_server/tool_definitions.py",
+    "backup_dir": "mcp_ms365/backups",
+    "host": "0.0.0.0",
+    "port": 8090,
+    "is_merged": true,
+    "source_profiles": [
+      "outlook",
+      "calendar"
+    ],
+    "types_files": [
+      "../mcp_outlook/outlook_types.py",
+      "../mcp_calendar/calendar_types.py"
+    ]
+  },
+  "test": {
+    "source_dir": "../mcp_test",
+    "template_definitions_path": "mcp_test/tool_definition_templates.yaml",
+    "tool_definitions_path": "../mcp_test/mcp_server/tool_definitions.py",
+    "backup_dir": "mcp_test/backups",
+    "host": "0.0.0.0",
+    "port": 8090,
+    "is_merged": true,
+    "source_profiles": [
+      "outlook",
+      "file_handler"
+    ],
+    "types_files": [
+      "../mcp_outlook/outlook_types.py",
+      "../mcp_file_handler/file_handler_types.py"
+    ]
+  },
+  "test2": {
+    "source_dir": "../mcp_test2",
+    "template_definitions_path": "mcp_test2/tool_definition_templates.yaml",
+    "tool_definitions_path": "../mcp_test2/mcp_server/tool_definitions.py",
+    "backup_dir": "mcp_test2/backups",
+    "host": "0.0.0.0",
+    "port": 8092,
+    "is_merged": true,
+    "source_profiles": [
+      "outlook",
+      "file_handler"
+    ],
+    "types_files": [
+      "../mcp_outlook/outlook_types.py",
+      "../mcp_file_handler/file_handler_types.py"
+    ]
   }
 }

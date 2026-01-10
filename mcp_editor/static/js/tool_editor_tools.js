@@ -138,8 +138,14 @@ function loadMcpServices() {
             } else {
                 window.mcpServices = data.services || [];
             }
+            // Store grouping info for merged profiles
+            window.mcpServiceGroups = data.groups || {};
+            window.mcpServiceIsMerged = data.is_merged || false;
+            window.mcpServiceSourceProfiles = data.source_profiles || [];
+
             console.log('MCP Services loaded:', window.mcpServices, 'from profile:', originalProfile || 'default');
             console.log('MCP Service details loaded:', window.mcpServiceDetails);
+            console.log('MCP Service groups:', window.mcpServiceGroups, 'is_merged:', window.mcpServiceIsMerged);
 
             if (currentToolIndex >= 0) {
                 renderToolEditor(tools[currentToolIndex], currentToolIndex);
@@ -149,6 +155,9 @@ function loadMcpServices() {
             console.error('Error loading MCP services:', error);
             window.mcpServices = [];
             window.mcpServiceDetails = [];
+            window.mcpServiceGroups = {};
+            window.mcpServiceIsMerged = false;
+            window.mcpServiceSourceProfiles = [];
         });
 }
 
