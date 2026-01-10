@@ -7,11 +7,22 @@ MCP 서버 제어 API 엔드포인트:
 - POST /api/server/stop
 - POST /api/server/restart
 - GET /api/server/logs
+- GET /api/server/dashboard - 모든 프로필 상태 조회
+- PUT /api/server/port - 서버 포트 변경
 """
 
+import os
+import json
 from flask import request, jsonify
 
 from . import server_bp
+
+# Get root directory
+# __file__ = mcp_editor/tool_editor_core/routes/server_routes.py
+# ROOT_DIR = Connector_auth/
+# EDITOR_DIR = mcp_editor/
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+EDITOR_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 @server_bp.route("/api/server/status", methods=["GET"])
@@ -21,7 +32,8 @@ def get_server_status():
         from mcp_server_controller import MCPServerManager
 
         profile = request.args.get("profile", "default")
-        manager = MCPServerManager(profile)
+        protocol = request.args.get("protocol", "stream")
+        manager = MCPServerManager(profile, protocol)
         result = manager.status()
 
         return jsonify(result)
@@ -36,7 +48,8 @@ def start_server():
         from mcp_server_controller import MCPServerManager
 
         profile = request.args.get("profile", "default")
-        manager = MCPServerManager(profile)
+        protocol = request.args.get("protocol", "stream")
+        manager = MCPServerManager(profile, protocol)
         result = manager.start()
 
         if result.get("success"):
@@ -54,8 +67,9 @@ def stop_server():
         from mcp_server_controller import MCPServerManager
 
         profile = request.args.get("profile", "default")
+        protocol = request.args.get("protocol", "stream")
         force = request.json.get("force", False) if request.json else False
-        manager = MCPServerManager(profile)
+        manager = MCPServerManager(profile, protocol)
         result = manager.stop(force=force)
 
         if result.get("success"):
@@ -73,7 +87,8 @@ def restart_server():
         from mcp_server_controller import MCPServerManager
 
         profile = request.args.get("profile", "default")
-        manager = MCPServerManager(profile)
+        protocol = request.args.get("protocol", "stream")
+        manager = MCPServerManager(profile, protocol)
         result = manager.restart()
 
         if result.get("success"):
@@ -91,10 +106,172 @@ def get_server_logs():
         from mcp_server_controller import MCPServerManager
 
         profile = request.args.get("profile", "default")
+        protocol = request.args.get("protocol", "stream")
         lines = int(request.args.get("lines", 50))
-        manager = MCPServerManager(profile)
+        manager = MCPServerManager(profile, protocol)
         logs = manager.logs(lines=lines)
 
-        return jsonify({"success": True, "logs": logs, "profile": profile})
+        return jsonify({"success": True, "logs": logs, "profile": profile, "protocol": protocol})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@server_bp.route("/api/server/dashboard", methods=["GET"])
+def get_server_dashboard():
+    """
+    Get dashboard data for all server profiles.
+
+    Returns:
+    {
+        "profiles": [
+            {
+                "profile": "outlook",
+                "server_name": "mcp_outlook",
+                "host": "0.0.0.0",
+                "port": 8091,
+                "protocols": {
+                    "rest": {"running": true, "pid": 12345},
+                    "stdio": {"running": false, "pid": null},
+                    "stream": {"running": false, "pid": null}
+                },
+                "available_protocols": ["rest", "stdio", "stream"],
+                "is_base": true,
+                "derived_profiles": ["outlook_test"]
+            },
+            ...
+        ]
+    }
+    """
+    try:
+        from mcp_server_controller import MCPServerManager
+
+        config_path = os.path.join(EDITOR_DIR, "editor_config.json")
+        if not os.path.exists(config_path):
+            return jsonify({"profiles": [], "error": "editor_config.json not found"})
+
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+
+        profiles_data = []
+        for profile_name, profile_config in config.items():
+            # Determine server name from source_dir or tool_definitions_path
+            source_dir = profile_config.get("source_dir", "")
+            if source_dir:
+                server_name = os.path.basename(source_dir.rstrip('/'))
+            else:
+                tool_def_path = profile_config.get("tool_definitions_path", "")
+                # Extract from path like "../mcp_outlook_test/mcp_server/tool_definitions.py"
+                parts = tool_def_path.split('/')
+                for part in parts:
+                    if part.startswith('mcp_'):
+                        server_name = part
+                        break
+                else:
+                    server_name = f"mcp_{profile_name}"
+
+            # Get available protocols and their status
+            available_protocols = MCPServerManager.get_available_protocols(profile_name)
+            protocols_status = {}
+            any_running = False
+            running_pids = []
+
+            for protocol in ["rest", "stdio", "stream"]:
+                if protocol in available_protocols:
+                    manager = MCPServerManager(profile_name, protocol)
+                    status = manager.status()
+                    protocols_status[protocol] = {
+                        "available": True,
+                        "running": status.get("running", False),
+                        "pid": status.get("pid")
+                    }
+                    if status.get("running"):
+                        any_running = True
+                        if status.get("pid"):
+                            running_pids.append(status.get("pid"))
+                else:
+                    protocols_status[protocol] = {
+                        "available": False,
+                        "running": False,
+                        "pid": None
+                    }
+
+            profile_data = {
+                "profile": profile_name,
+                "server_name": server_name,
+                "host": profile_config.get("host", "0.0.0.0"),
+                "port": profile_config.get("port", 8080),
+                "running": any_running,  # True if any protocol is running
+                "pids": running_pids,
+                "protocols": protocols_status,
+                "available_protocols": available_protocols,
+                "is_base": profile_config.get("is_base", False),
+                "is_reused": profile_config.get("is_reused", False),
+                "base_profile": profile_config.get("base_profile"),
+                "derived_profiles": profile_config.get("derived_profiles", [])
+            }
+            profiles_data.append(profile_data)
+
+        return jsonify({"profiles": profiles_data})
+
+    except Exception as e:
+        return jsonify({"profiles": [], "error": str(e)}), 500
+
+
+@server_bp.route("/api/server/port", methods=["PUT"])
+def update_server_port():
+    """
+    Update server port for a profile.
+
+    Request:
+    {
+        "profile": "outlook",
+        "port": 8092
+    }
+
+    Response:
+    {
+        "success": true,
+        "profile": "outlook",
+        "old_port": 8091,
+        "new_port": 8092
+    }
+    """
+    try:
+        data = request.json or {}
+        profile_name = data.get("profile", "").strip()
+        new_port = data.get("port")
+
+        if not profile_name:
+            return jsonify({"success": False, "error": "profile is required"}), 400
+
+        if not new_port or not isinstance(new_port, int):
+            return jsonify({"success": False, "error": "port must be a valid integer"}), 400
+
+        if new_port < 1024 or new_port > 65535:
+            return jsonify({"success": False, "error": "port must be between 1024 and 65535"}), 400
+
+        config_path = os.path.join(EDITOR_DIR, "editor_config.json")
+        if not os.path.exists(config_path):
+            return jsonify({"success": False, "error": "editor_config.json not found"}), 404
+
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+
+        if profile_name not in config:
+            return jsonify({"success": False, "error": f"Profile '{profile_name}' not found"}), 404
+
+        old_port = config[profile_name].get("port", 8080)
+        config[profile_name]["port"] = new_port
+
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+
+        return jsonify({
+            "success": True,
+            "profile": profile_name,
+            "old_port": old_port,
+            "new_port": new_port
+        })
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

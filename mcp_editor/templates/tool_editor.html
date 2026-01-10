@@ -77,7 +77,7 @@
                     <!-- MCP Server Controller -->
                     <div class="mcp-controller" data-debug-id="AREA_MCP_CONTROLLER" style="margin-bottom: 20px; padding: 16px; background: white; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05);">
                         <div style="display: flex; align-items: center; margin-bottom: 16px;">
-                            <div style="width: 40px; height: 40px; border-radius: 10px; background: white; display: flex; align-items: center; justify-content: center; margin-right: 12px; padding: 6px;">
+                            <div data-debug-id="BTN_SERVER_DASHBOARD" onclick="openServerDashboard()" title="서버 대시보드 열기" style="width: 40px; height: 40px; border-radius: 10px; background: white; display: flex; align-items: center; justify-content: center; margin-right: 12px; padding: 6px; cursor: pointer; transition: all 0.2s; border: 2px solid transparent;" onmouseover="this.style.borderColor='#667eea'; this.style.transform='scale(1.05)'" onmouseout="this.style.borderColor='transparent'; this.style.transform='scale(1)'">
                                 <img src="/static/brands/mcp.svg" alt="MCP" style="width: 100%; height: 100%; object-fit: contain;">
                             </div>
                             <div style="flex: 1;">
@@ -89,12 +89,22 @@
                             </div>
                         </div>
 
-                        <!-- Profile Selector -->
-                        <div style="margin-bottom: 12px;">
-                            <label style="font-size: 11px; font-weight: 600; color: #86868b; display: block; margin-bottom: 6px;">Server Profile:</label>
-                            <select id="serverProfileSelect" data-debug-id="SELECT_SERVER_PROFILE" class="form-control" onchange="onServerProfileChange()" style="width: 100%; padding: 6px 10px; font-size: 13px; border: 1px solid #d2d2d7; border-radius: 8px; background: white;">
-                                <option value="">Select profile...</option>
-                            </select>
+                        <!-- Profile & Protocol Selectors -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+                            <div>
+                                <label style="font-size: 11px; font-weight: 600; color: #86868b; display: block; margin-bottom: 4px;">Profile:</label>
+                                <select id="serverProfileSelect" data-debug-id="SELECT_SERVER_PROFILE" class="form-control" onchange="onServerProfileChange()" style="width: 100%; padding: 6px 10px; font-size: 12px; border: 1px solid #d2d2d7; border-radius: 8px; background: white;">
+                                    <option value="">Select...</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 11px; font-weight: 600; color: #86868b; display: block; margin-bottom: 4px;">Protocol:</label>
+                                <select id="serverProtocolSelect" data-debug-id="SELECT_SERVER_PROTOCOL" class="form-control" onchange="onServerProtocolChange()" style="width: 100%; padding: 6px 10px; font-size: 12px; border: 1px solid #d2d2d7; border-radius: 8px; background: white;">
+                                    <option value="stream">STREAM</option>
+                                    <option value="rest">REST</option>
+                                    <option value="stdio">STDIO</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px;">
@@ -793,6 +803,98 @@
         </div>
     </div>
 
+    <!-- Server Dashboard Modal -->
+    <div id="server-dashboard-modal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width: 900px; max-height: 85vh;">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center;">
+                        <span class="material-icons" style="color: white; font-size: 24px;">dashboard</span>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; font-size: 18px; font-weight: 600;">MCP 서버 대시보드</h3>
+                        <p style="margin: 4px 0 0 0; font-size: 12px; color: #86868b;">프로필별 서버 상태 및 설정</p>
+                    </div>
+                </div>
+                <button class="btn btn-icon" onclick="closeServerDashboard()" style="position: absolute; top: 16px; right: 16px;">✕</button>
+            </div>
+            <div class="modal-body" style="padding: 20px; overflow-y: auto; max-height: calc(85vh - 160px);">
+                <!-- Dashboard Header -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 14px; font-weight: 600; color: #1d1d1f;">Server Profiles</span>
+                        <button class="btn btn-sm" onclick="refreshDashboard()" style="padding: 6px 12px; background: #f0f0f0; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <span class="material-icons" style="font-size: 16px;">refresh</span>
+                            새로고침
+                        </button>
+                    </div>
+                    <div style="font-size: 12px; color: #86868b;">
+                        <span id="dashboard-last-update">마지막 업데이트: -</span>
+                    </div>
+                </div>
+
+                <!-- Server Profiles Table -->
+                <div style="background: white; border-radius: 12px; border: 1px solid #e5e5e5; overflow: hidden;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr style="background: #f7f7f7; border-bottom: 1px solid #e5e5e5;">
+                                <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #1d1d1f;">프로필</th>
+                                <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #1d1d1f;">서버</th>
+                                <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #1d1d1f;">포트</th>
+                                <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #1d1d1f;">프로토콜 (REST / STDIO / STREAM)</th>
+                                <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #1d1d1f;">관계</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboard-profiles-body">
+                            <tr>
+                                <td colspan="5" style="padding: 40px; text-align: center; color: #86868b;">
+                                    <span class="material-icons" style="font-size: 32px; display: block; margin-bottom: 8px;">hourglass_empty</span>
+                                    로딩 중...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Port Edit Section -->
+                <div id="port-edit-section" style="margin-top: 20px; padding: 16px; background: #f7f7f7; border-radius: 12px; display: none;">
+                    <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #1d1d1f;">
+                        <span class="material-icons" style="font-size: 18px; vertical-align: middle; margin-right: 4px;">edit</span>
+                        포트 변경
+                    </h4>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <div style="flex: 1;">
+                            <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">프로필</label>
+                            <select id="port-edit-profile" class="form-control" style="width: 100%; padding: 8px 12px;">
+                                <option value="">-- 프로필 선택 --</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">서버</label>
+                            <input id="port-edit-server" type="text" class="form-control" style="width: 100%; padding: 8px 12px; background: #eee;" readonly>
+                        </div>
+                        <div style="width: 120px;">
+                            <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">새 포트</label>
+                            <input id="port-edit-value" type="number" class="form-control" min="1024" max="65535" placeholder="8080" style="width: 100%; padding: 8px 12px;">
+                        </div>
+                        <div style="padding-top: 20px;">
+                            <button class="btn btn-primary" onclick="savePortChange()" style="padding: 8px 16px;">
+                                <span class="material-icons" style="font-size: 16px; vertical-align: middle;">save</span>
+                                저장
+                            </button>
+                        </div>
+                    </div>
+                    <p style="margin: 8px 0 0 0; font-size: 11px; color: #86868b;">
+                        * 포트 변경 후 서버를 재시작해야 적용됩니다.
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid #e5e5e5; padding: 16px 20px;">
+                <button class="btn btn-secondary" onclick="closeServerDashboard()">닫기</button>
+            </div>
+        </div>
+    </div>
+
     <!-- External JavaScript files (order matters for dependencies) -->
     <script src="/static/js/tool_editor_state.js"></script>
     <script src="/static/js/tool_editor_utils.js"></script>
@@ -803,5 +905,6 @@
     <script src="/static/js/tool_editor_nested.js"></script>
     <script src="/static/js/tool_editor_debug.js"></script>
     <script src="/static/js/tool_editor_derive.js"></script>
+    <script src="/static/js/tool_editor_dashboard.js"></script>
 </body>
 </html>

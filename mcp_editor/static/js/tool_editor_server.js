@@ -1,9 +1,19 @@
 /* Tool Editor Server - MCP Server Control Functions */
 
+// Current selected protocol for server control
+let serverControlProtocol = 'stream';
+
 // ===== MCP Server Control Functions =====
 function serverProfileParam() {
-    // Use serverControlProfile for server operations
-    return serverControlProfile ? `?profile=${encodeURIComponent(serverControlProfile)}` : '';
+    // Use serverControlProfile and serverControlProtocol for server operations
+    let params = [];
+    if (serverControlProfile) {
+        params.push(`profile=${encodeURIComponent(serverControlProfile)}`);
+    }
+    if (serverControlProtocol) {
+        params.push(`protocol=${encodeURIComponent(serverControlProtocol)}`);
+    }
+    return params.length > 0 ? '?' + params.join('&') : '';
 }
 
 function populateServerProfileSelector() {
@@ -38,8 +48,66 @@ function onServerProfileChange() {
         profileValue.textContent = serverControlProfile || 'default';
     }
 
+    // Update available protocols for this profile
+    updateAvailableProtocols();
+
     // Check status with new profile
     checkServerStatus();
+}
+
+function onServerProtocolChange() {
+    const select = document.getElementById('serverProtocolSelect');
+    if (!select) return;
+
+    serverControlProtocol = select.value;
+    console.log('Server control protocol changed to:', serverControlProtocol);
+
+    // Update the protocol display
+    const protocolValue = document.getElementById('protocolValue');
+    if (protocolValue) {
+        protocolValue.textContent = serverControlProtocol.toUpperCase();
+    }
+
+    // Check status with new protocol
+    checkServerStatus();
+}
+
+async function updateAvailableProtocols() {
+    const select = document.getElementById('serverProtocolSelect');
+    if (!select || !serverControlProfile) return;
+
+    try {
+        const response = await fetch(`/api/server/dashboard`);
+        const data = await response.json();
+
+        if (data.profiles) {
+            const profileData = data.profiles.find(p => p.profile === serverControlProfile);
+            if (profileData && profileData.available_protocols) {
+                // Update protocol options based on available protocols
+                const availableProtocols = profileData.available_protocols;
+
+                // Update option availability
+                Array.from(select.options).forEach(option => {
+                    const protocol = option.value;
+                    if (availableProtocols.includes(protocol)) {
+                        option.disabled = false;
+                        option.textContent = protocol.toUpperCase();
+                    } else {
+                        option.disabled = true;
+                        option.textContent = protocol.toUpperCase() + ' (N/A)';
+                    }
+                });
+
+                // If current selection is not available, switch to first available
+                if (!availableProtocols.includes(serverControlProtocol) && availableProtocols.length > 0) {
+                    serverControlProtocol = availableProtocols[0];
+                    select.value = serverControlProtocol;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error updating available protocols:', error);
+    }
 }
 
 function checkServerStatus() {
@@ -65,10 +133,13 @@ function updateServerStatusUI(status) {
     const pidValue = document.getElementById('pidValue');
     const profileValue = document.getElementById('profileValue');
 
+    // Get current protocol label
+    const protocolLabel = serverControlProtocol ? serverControlProtocol.toUpperCase() : 'STREAM';
+
     if (status.running) {
         // Server is running
         statusIndicator.style.background = '#28a745';
-        statusText.textContent = 'Running';
+        statusText.textContent = `${protocolLabel} Running`;
         statusText.style.color = '#28a745';
         btnStart.disabled = true;
         btnStop.disabled = false;
@@ -84,7 +155,7 @@ function updateServerStatusUI(status) {
     } else {
         // Server is stopped
         statusIndicator.style.background = '#dc3545';
-        statusText.textContent = 'Stopped';
+        statusText.textContent = `${protocolLabel} Stopped`;
         statusText.style.color = '#dc3545';
         btnStart.disabled = false;
         btnStop.disabled = true;
@@ -102,28 +173,29 @@ function startServer() {
     const profileQuery = serverProfileParam();
     const btnStart = document.getElementById('btnStart');
     const statusText = document.getElementById('statusText');
+    const protocolLabel = serverControlProtocol ? serverControlProtocol.toUpperCase() : 'STREAM';
 
     btnStart.disabled = true;
-    statusText.textContent = 'Starting...';
+    statusText.textContent = `${protocolLabel} Starting...`;
     statusText.style.color = '#ffc107';
 
     fetch(`/api/server/start${profileQuery}`, { method: 'POST' })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showToast('Server started successfully', 'success');
+                showToast(`${protocolLabel} server started successfully`, 'success');
                 checkServerStatus();
             } else {
-                showToast('Failed to start server: ' + (data.error || 'Unknown error'), 'error');
+                showToast(`Failed to start ${protocolLabel} server: ` + (data.error || 'Unknown error'), 'error');
                 btnStart.disabled = false;
-                statusText.textContent = 'Stopped';
+                statusText.textContent = `${protocolLabel} Stopped`;
                 statusText.style.color = '#dc3545';
             }
         })
         .catch(error => {
-            showToast('Error starting server: ' + error.message, 'error');
+            showToast(`Error starting ${protocolLabel} server: ` + error.message, 'error');
             btnStart.disabled = false;
-            statusText.textContent = 'Stopped';
+            statusText.textContent = `${protocolLabel} Stopped`;
             statusText.style.color = '#dc3545';
         });
 }
@@ -132,9 +204,10 @@ function stopServer() {
     const profileQuery = serverProfileParam();
     const btnStop = document.getElementById('btnStop');
     const statusText = document.getElementById('statusText');
+    const protocolLabel = serverControlProtocol ? serverControlProtocol.toUpperCase() : 'STREAM';
 
     btnStop.disabled = true;
-    statusText.textContent = 'Stopping...';
+    statusText.textContent = `${protocolLabel} Stopping...`;
     statusText.style.color = '#ffc107';
 
     fetch(`/api/server/stop${profileQuery}`, {
@@ -145,16 +218,16 @@ function stopServer() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showToast('Server stopped successfully', 'success');
+                showToast(`${protocolLabel} server stopped successfully`, 'success');
                 checkServerStatus();
             } else {
-                showToast('Failed to stop server: ' + (data.error || 'Unknown error'), 'error');
+                showToast(`Failed to stop ${protocolLabel} server: ` + (data.error || 'Unknown error'), 'error');
                 btnStop.disabled = false;
                 checkServerStatus();
             }
         })
         .catch(error => {
-            showToast('Error stopping server: ' + error.message, 'error');
+            showToast(`Error stopping ${protocolLabel} server: ` + error.message, 'error');
             btnStop.disabled = false;
             checkServerStatus();
         });
@@ -164,25 +237,26 @@ function restartServer() {
     const profileQuery = serverProfileParam();
     const btnRestart = document.getElementById('btnRestart');
     const statusText = document.getElementById('statusText');
+    const protocolLabel = serverControlProtocol ? serverControlProtocol.toUpperCase() : 'STREAM';
 
     btnRestart.disabled = true;
-    statusText.textContent = 'Restarting...';
+    statusText.textContent = `${protocolLabel} Restarting...`;
     statusText.style.color = '#ffc107';
 
     fetch(`/api/server/restart${profileQuery}`, { method: 'POST' })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showToast('Server restarted successfully', 'success');
+                showToast(`${protocolLabel} server restarted successfully`, 'success');
                 checkServerStatus();
             } else {
-                showToast('Failed to restart server: ' + (data.error || 'Unknown error'), 'error');
+                showToast(`Failed to restart ${protocolLabel} server: ` + (data.error || 'Unknown error'), 'error');
                 btnRestart.disabled = false;
                 checkServerStatus();
             }
         })
         .catch(error => {
-            showToast('Error restarting server: ' + error.message, 'error');
+            showToast(`Error restarting ${protocolLabel} server: ` + error.message, 'error');
             btnRestart.disabled = false;
             checkServerStatus();
         });
