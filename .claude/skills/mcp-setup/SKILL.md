@@ -47,7 +47,7 @@ Goal: turn an existing project into an MCP server the web editor can manage (dec
 - Confirm the registry entry shows `tool_name`, `server_name`, and the correct implementation module/method.
 
 5) Seed tool templates (LLM-facing schemas)
-- Copy `references/tool_definition_templates_sample.py` to `mcp_editor/mcp_{server}/tool_definition_templates.py` and align entries with your decorated functions.
+- **Create YAML loader**: Write `mcp_editor/mcp_{server}/tool_definition_templates.py` as a simple YAML loader (see `references/tool_definition_templates_sample.py`). This .py file loads the YAML and exports `MCP_TOOLS` list for web editor compatibility.
 - **Ask user preference**: Before writing `tool_definition_templates.yaml`, ask the user:
   - **Interactive mode**: Interview the user about each tool's purpose, required vs optional params, descriptions, and internal defaults. Creates more tailored schemas.
   - **Auto mode**: Agent analyzes `{server}_service.py` and generates initial schemas based on function signatures, docstrings, and type hints. Faster but may need refinement in web editor.
