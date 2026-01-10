@@ -239,7 +239,6 @@ function renderToolEditor(tool, index) {
                                onkeypress="if(event.key === 'Enter') { this.blur(); }"
                                onclick="event.stopPropagation();">
                         <span style="margin-left: 12px; font-size: 12px; color: #666; background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${propDef.type}</span>
-                        ${isRequired ? '<span style="margin-left: 8px; font-size: 11px; color: var(--danger-color); font-weight: 600;">REQUIRED</span>' : ''}
                         ${isInternal ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--warning-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">INTERNAL</span>' : ''}
                         ${hasSignatureDefaults ? '<span style="margin-left: 8px; font-size: 10px; color: white; background: var(--success-color); padding: 2px 6px; border-radius: 4px; font-weight: 600;">DEFAULTS</span>' : ''}
                         ${isMcpParam ? `<span style="margin-left: 8px; font-size: 10px; color: white; background: ${isInternal ? 'var(--warning-color)' : 'var(--primary-color)'}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">MCP</span>` : ''}
