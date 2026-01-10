@@ -32,10 +32,32 @@ def create_app():
 
 def run_app():
     """Run the Flask application"""
+    import subprocess
     from .config import get_profile_config, resolve_paths, ensure_dirs
     from .service_registry import scan_all_registries
 
     print("Starting MCP Tool Editor Web Interface...")
+
+    # Auto-generate editor_config.json with types/service files scan
+    print("Generating editor_config.json from @mcp_service decorators...")
+    jinja_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "jinja")
+    generate_config_script = os.path.join(jinja_dir, "generate_editor_config.py")
+    if os.path.exists(generate_config_script):
+        try:
+            result = subprocess.run(
+                [sys.executable, generate_config_script],
+                capture_output=True,
+                text=True,
+                cwd=jinja_dir
+            )
+            if result.returncode == 0:
+                print("✅ editor_config.json updated successfully")
+            else:
+                print(f"⚠️ Config generation warning: {result.stderr[:200] if result.stderr else 'Unknown'}")
+        except Exception as e:
+            print(f"⚠️ Could not auto-generate config: {e}")
+    else:
+        print(f"⚠️ generate_editor_config.py not found at {generate_config_script}")
 
     # Scan all registries on startup
     print("Scanning MCP service registries...")

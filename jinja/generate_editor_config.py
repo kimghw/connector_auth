@@ -13,6 +13,15 @@ from pathlib import Path
 from typing import List, Dict, Any, Set
 from jinja2 import Environment, FileSystemLoader
 
+# Import scan functions from generate_universal_server
+try:
+    from generate_universal_server import scan_types_files, scan_service_files
+except ImportError:
+    # Fallback if running from different directory
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from generate_universal_server import scan_types_files, scan_service_files
+
 
 def extract_server_name_from_file(file_path: str) -> Set[str]:
     """Extract all server_name values from @mcp_service decorators in a Python file"""
@@ -104,31 +113,29 @@ def detect_module_paths(server_name: str, base_dir: str) -> Dict[str, Any]:
     # Construct paths
     mcp_server_dir = f"{module_dir}/mcp_server"
 
-    # Check for types files - try multiple patterns
-    types_files = []
-    possible_type_files = [
-        os.path.join(base_dir, module_dir, f"{server_name}_types.py"),
-        os.path.join(base_dir, module_dir, "types.py"),
-        os.path.join(base_dir, module_dir, "graph_types.py"),
-    ]
+    # Auto-scan for types and service files using recursive glob
+    source_dir = f"../{module_dir}"
+    types_files = scan_types_files(source_dir)
+    service_files = scan_service_files(source_dir)
 
-    for type_file_path in possible_type_files:
-        if os.path.exists(type_file_path):
-            # Get relative path from mcp_editor directory
-            rel_path = os.path.relpath(type_file_path, os.path.join(base_dir, "mcp_editor"))
-            types_files.append(rel_path)
-            print(f"    Found types file: {rel_path}")
-            break
-
-    # If no types file found, leave empty array (optional types)
-    if not types_files:
+    if types_files:
+        print(f"    📁 Types files ({len(types_files)}):")
+        for f in types_files:
+            print(f"        - {f}")
+    else:
         print(f"    No types file found for {server_name}")
+
+    if service_files:
+        print(f"    📁 Service files ({len(service_files)}):")
+        for f in service_files:
+            print(f"        - {f}")
 
     return {
         "template_definitions_path": f"tool_definition_{server_name}_templates.py",
         "tool_definitions_path": f"../{mcp_server_dir}/tool_definitions.py",
         "backup_dir": "backups",
         "types_files": types_files,
+        "service_files": service_files,
         "host": "0.0.0.0",
         "port": 8091
     }

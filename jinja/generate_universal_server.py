@@ -24,18 +24,88 @@ def load_editor_config() -> Dict[str, Any]:
     return {}
 
 
-def resolve_service_paths(profile_name: str, editor_config: dict) -> dict:
+def scan_types_files(source_dir: str) -> List[str]:
+    """
+    source_dir 내에서 *_types.py 패턴의 타입 파일을 자동 스캔
+
+    Args:
+        source_dir: 스캔할 소스 디렉토리 (예: '../mcp_outlook')
+
+    Returns:
+        발견된 타입 파일 경로 목록 (상대 경로)
+    """
+    types_files = []
+    source_path = PROJECT_ROOT / source_dir.lstrip('../')
+
+    if not source_path.exists():
+        return types_files
+
+    # *_types.py 패턴으로 재귀 스캔
+    for types_file in source_path.rglob("*_types.py"):
+        # __pycache__, venv 등 제외
+        if any(part.startswith('.') or part in ('__pycache__', 'venv', 'node_modules', 'test', 'tests')
+               for part in types_file.parts):
+            continue
+
+        # 상대 경로로 변환 (PROJECT_ROOT 기준)
+        try:
+            rel_path = types_file.relative_to(PROJECT_ROOT)
+            types_files.append(f"../{rel_path}")
+        except ValueError:
+            # PROJECT_ROOT 밖에 있는 경우 절대 경로 사용
+            types_files.append(str(types_file))
+
+    return sorted(types_files)
+
+
+def scan_service_files(source_dir: str) -> List[str]:
+    """
+    source_dir 내에서 *_service.py 패턴의 서비스 파일을 자동 스캔
+
+    Args:
+        source_dir: 스캔할 소스 디렉토리 (예: '../mcp_outlook')
+
+    Returns:
+        발견된 서비스 파일 경로 목록 (상대 경로)
+    """
+    service_files = []
+    source_path = PROJECT_ROOT / source_dir.lstrip('../')
+
+    if not source_path.exists():
+        return service_files
+
+    # *_service.py 패턴으로 재귀 스캔
+    for service_file in source_path.rglob("*_service.py"):
+        # __pycache__, venv 등 제외
+        if any(part.startswith('.') or part in ('__pycache__', 'venv', 'node_modules', 'test', 'tests')
+               for part in service_file.parts):
+            continue
+
+        # 상대 경로로 변환 (PROJECT_ROOT 기준)
+        try:
+            rel_path = service_file.relative_to(PROJECT_ROOT)
+            service_files.append(f"../{rel_path}")
+        except ValueError:
+            service_files.append(str(service_file))
+
+    return sorted(service_files)
+
+
+def resolve_service_paths(profile_name: str, editor_config: dict, auto_scan: bool = True) -> dict:
     """
     파생 프로필인 경우 base 프로필의 서비스 경로 사용
+    auto_scan=True이면 *_types.py, *_service.py 파일 자동 스캔
 
     Args:
         profile_name: 현재 프로필명
         editor_config: editor_config.json 내용
+        auto_scan: 타입/서비스 파일 자동 스캔 여부 (기본: True)
 
     Returns:
         {
             "source_dir": str,           # 실제 소스 디렉토리 (base 또는 현재)
-            "types_files": list,         # 타입 파일 목록
+            "types_files": list,         # 타입 파일 목록 (설정 + 자동 스캔)
+            "service_files": list,       # 서비스 파일 목록 (자동 스캔)
             "module_prefix": str,        # import용 모듈 프리픽스 (예: 'mcp_outlook')
             "is_derived": bool,          # 파생 프로필 여부
             "base_profile": str | None   # base 프로필명
@@ -50,29 +120,41 @@ def resolve_service_paths(profile_name: str, editor_config: dict) -> dict:
         # This is a derived profile - use base profile's service paths
         base_config = editor_config.get(base_profile, {})
         source_dir = base_config.get('source_dir', f'../mcp_{base_profile}')
-        types_files = base_config.get('types_files', [])
+        config_types_files = base_config.get('types_files', [])
         module_prefix = f'mcp_{base_profile}'
-
-        return {
-            "source_dir": source_dir,
-            "types_files": types_files,
-            "module_prefix": module_prefix,
-            "is_derived": True,
-            "base_profile": base_profile
-        }
+        is_derived = True
     else:
         # This is a base profile - use its own paths
         source_dir = profile_config.get('source_dir', f'../mcp_{profile_name}')
-        types_files = profile_config.get('types_files', [])
+        config_types_files = profile_config.get('types_files', [])
         module_prefix = f'mcp_{profile_name}'
+        is_derived = False
+        base_profile = None
 
-        return {
-            "source_dir": source_dir,
-            "types_files": types_files,
-            "module_prefix": module_prefix,
-            "is_derived": False,
-            "base_profile": None
-        }
+    # 자동 스캔으로 타입/서비스 파일 찾기
+    if auto_scan:
+        scanned_types = scan_types_files(source_dir)
+        scanned_services = scan_service_files(source_dir)
+
+        # 설정된 타입 파일과 스캔된 파일 병합 (중복 제거)
+        all_types = list(config_types_files)
+        for f in scanned_types:
+            if f not in all_types:
+                all_types.append(f)
+        types_files = all_types
+        service_files = scanned_services
+    else:
+        types_files = list(config_types_files)
+        service_files = []
+
+    return {
+        "source_dir": source_dir,
+        "types_files": types_files,
+        "service_files": service_files,
+        "module_prefix": module_prefix,
+        "is_derived": is_derived,
+        "base_profile": base_profile
+    }
 
 
 def to_python_repr(value: Any) -> str:
@@ -941,6 +1023,18 @@ def generate_server(
     else:
         print(f"  - Base profile: {profile_name}")
 
+    # 자동 스캔 결과 출력
+    types_files = service_paths.get('types_files', [])
+    service_files = service_paths.get('service_files', [])
+    if types_files:
+        print(f"  📁 Types files ({len(types_files)}):")
+        for f in types_files:
+            print(f"      - {f}")
+    if service_files:
+        print(f"  📁 Service files ({len(service_files)}):")
+        for f in service_files:
+            print(f"      - {f}")
+
     # Load registry and tools
     print(f"Loading registry from: {registry_path}")
     registry = load_registry(registry_path)
@@ -1374,24 +1468,39 @@ def update_editor_config_for_merge(merged_name: str, source_profiles: List[str],
     """
     config = load_editor_config()
 
-    # Collect types_files from all source profiles
-    types_files = []
+    # Collect types_files and service_files from all source profiles (with auto-scan)
+    all_types_files = []
+    all_service_files = []
+
     for profile in source_profiles:
         profile_config = config.get(profile, {})
-        profile_types = profile_config.get('types_files', [])
-        if profile_types:
-            types_files.extend(profile_types)
-        else:
-            # Default types file
-            types_files.append(f"../mcp_{profile}/{profile}_types.py")
+        source_dir = profile_config.get('source_dir', f'../mcp_{profile}')
 
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_types_files = []
-    for f in types_files:
-        if f not in seen:
-            seen.add(f)
-            unique_types_files.append(f)
+        # 자동 스캔으로 타입/서비스 파일 찾기
+        scanned_types = scan_types_files(source_dir)
+        scanned_services = scan_service_files(source_dir)
+
+        # 설정된 타입 파일도 추가
+        config_types = profile_config.get('types_files', [])
+        for f in config_types:
+            if f not in all_types_files:
+                all_types_files.append(f)
+
+        # 스캔된 파일 추가
+        for f in scanned_types:
+            if f not in all_types_files:
+                all_types_files.append(f)
+
+        for f in scanned_services:
+            if f not in all_service_files:
+                all_service_files.append(f)
+
+    print(f"  📁 Auto-scanned types files: {len(all_types_files)}")
+    for f in all_types_files:
+        print(f"      - {f}")
+    print(f"  📁 Auto-scanned service files: {len(all_service_files)}")
+    for f in all_service_files:
+        print(f"      - {f}")
 
     # Create merged profile entry with all required fields
     merged_config = {
@@ -1403,7 +1512,8 @@ def update_editor_config_for_merge(merged_name: str, source_profiles: List[str],
         "port": port,
         "is_merged": True,
         "source_profiles": source_profiles,
-        "types_files": unique_types_files
+        "types_files": all_types_files,
+        "service_files": all_service_files
     }
 
     config[merged_name] = merged_config

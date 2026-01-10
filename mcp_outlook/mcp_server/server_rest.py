@@ -65,8 +65,25 @@ def _convert_boolean_schema_to_enabled_disabled(schema: Dict[str, Any]) -> Dict[
 
 
 def _load_mcp_tools() -> List[Dict[str, Any]]:
-    """Load MCP tools from tool_definition_templates.yaml and convert boolean types."""
-    yaml_path = Path(current_dir).parent.parent / "mcp_editor" / "mcp_outlook" / "tool_definition_templates.yaml"
+    """Load MCP tools from tool_definition_templates.yaml and convert boolean types.
+
+    YAML path resolution order:
+    1. Environment variable MCP_YAML_PATH (for explicit override)
+    2. mcp_editor/mcp_{profile_name}/tool_definition_templates.yaml (profile-specific)
+       - Uses outlook which is set correctly at generation time for reused profiles
+    3. Fallback to mcp_editor/mcp_{server_name}/tool_definition_templates.yaml (original service)
+    """
+    # Option 1: Environment variable override
+    yaml_path_str = os.environ.get("MCP_YAML_PATH")
+    if yaml_path_str:
+        yaml_path = Path(yaml_path_str)
+    else:
+        # Option 2: Profile-specific YAML path (supports reused profiles like outlook_read)
+        yaml_path = Path(current_dir).parent.parent / "mcp_editor" / "mcp_outlook" / "tool_definition_templates.yaml"
+        if not yaml_path.exists():
+            # Option 3: Fallback to original server name (for backwards compatibility)
+            yaml_path = Path(current_dir).parent.parent / "mcp_editor" / "mcp_outlook" / "tool_definition_templates.yaml"
+
     if yaml_path.exists():
         with open(yaml_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
@@ -121,6 +138,9 @@ def convert_bool_to_enabled(value: bool) -> str:
     return "enabled" if value else "disabled"
 
 # Import service classes (unique)
+# ============================================================
+# 기본 서버: outlook
+# ============================================================
 from mcp_outlook.outlook_service import MailService
 
 # Create service instances
@@ -1101,4 +1121,6 @@ async def call_tool(request: Request):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Port can be set via environment variable or defaults to template value
+    port = int(os.environ.get("MCP_SERVER_PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)
