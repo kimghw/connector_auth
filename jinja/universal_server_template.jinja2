@@ -181,6 +181,19 @@ def convert_bool_to_enabled(value: bool) -> str:
 {%- endfor %}
 
 # Import service classes (unique)
+{%- if base_profile %}
+# ============================================================
+# 파생 서버: {{ profile_name }} (base: {{ base_profile }})
+# 서비스 클래스는 base 프로필({{ base_profile }})의 모듈에서 import
+# ============================================================
+{%- for key, service_info in unique_services.items() %}
+{%- set module_name = service_info.module_path.split('.')[-1] %}
+from {{ base_service_paths.module_prefix }}.{{ module_name }} import {{ service_info.class_name }}
+{%- endfor %}
+{%- else %}
+# ============================================================
+# 기본 서버: {{ profile_name }}
+# ============================================================
 {%- for key, service_info in unique_services.items() %}
 {%- set module_name = service_info.module_path.split('.')[-1] %}
 {%- if not service_info.module_path.startswith('mcp_') %}
@@ -189,6 +202,7 @@ from mcp_{{ server_name }}.{{ module_name }} import {{ service_info.class_name }
 from {{ service_info.module_path }} import {{ service_info.class_name }}
 {%- endif %}
 {%- endfor %}
+{%- endif %}
 
 # Create service instances
 {%- for key, service_info in unique_services.items() %}

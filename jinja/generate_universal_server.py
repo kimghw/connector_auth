@@ -13,6 +13,66 @@ from jinja2 import Environment, FileSystemLoader
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
+EDITOR_CONFIG_PATH = PROJECT_ROOT / "mcp_editor" / "editor_config.json"
+
+
+def load_editor_config() -> Dict[str, Any]:
+    """Load editor_config.json"""
+    if EDITOR_CONFIG_PATH.exists():
+        with open(EDITOR_CONFIG_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
+def resolve_service_paths(profile_name: str, editor_config: dict) -> dict:
+    """
+    파생 프로필인 경우 base 프로필의 서비스 경로 사용
+
+    Args:
+        profile_name: 현재 프로필명
+        editor_config: editor_config.json 내용
+
+    Returns:
+        {
+            "source_dir": str,           # 실제 소스 디렉토리 (base 또는 현재)
+            "types_files": list,         # 타입 파일 목록
+            "module_prefix": str,        # import용 모듈 프리픽스 (예: 'mcp_outlook')
+            "is_derived": bool,          # 파생 프로필 여부
+            "base_profile": str | None   # base 프로필명
+        }
+    """
+    profile_config = editor_config.get(profile_name, {})
+
+    # Check if this is a derived profile (has base_profile field)
+    base_profile = profile_config.get('base_profile')
+
+    if base_profile:
+        # This is a derived profile - use base profile's service paths
+        base_config = editor_config.get(base_profile, {})
+        source_dir = base_config.get('source_dir', f'../mcp_{base_profile}')
+        types_files = base_config.get('types_files', [])
+        module_prefix = f'mcp_{base_profile}'
+
+        return {
+            "source_dir": source_dir,
+            "types_files": types_files,
+            "module_prefix": module_prefix,
+            "is_derived": True,
+            "base_profile": base_profile
+        }
+    else:
+        # This is a base profile - use its own paths
+        source_dir = profile_config.get('source_dir', f'../mcp_{profile_name}')
+        types_files = profile_config.get('types_files', [])
+        module_prefix = f'mcp_{profile_name}'
+
+        return {
+            "source_dir": source_dir,
+            "types_files": types_files,
+            "module_prefix": module_prefix,
+            "is_derived": False,
+            "base_profile": None
+        }
 
 
 def to_python_repr(value: Any) -> str:
@@ -516,7 +576,7 @@ def extract_type_info(registry: Dict[str, Any], tools: List[Dict[str, Any]], ser
     }
 
 
-def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], server_name: str, internal_args: Dict[str, Any] = None, protocol_type: str = 'rest', service_factors: Dict[str, Dict[str, Any]] = None, profile_name: str = None, port: int = None) -> Dict[str, Any]:
+def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], server_name: str, internal_args: Dict[str, Any] = None, protocol_type: str = 'rest', service_factors: Dict[str, Dict[str, Any]] = None, profile_name: str = None, port: int = None, base_profile: str = None, base_service_paths: dict = None) -> Dict[str, Any]:
     """Prepare Jinja2 context from registry, tools, internal args, and service factors
 
     Args:
@@ -528,6 +588,8 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         service_factors: Service factors including internal and signature_defaults
         profile_name: Profile name (e.g., 'outlook_read' for reused profiles), defaults to server_name
         port: Server port number (used in template for REST/Stream protocols)
+        base_profile: Base profile name if this is a derived profile
+        base_service_paths: Service paths resolved from base profile (from resolve_service_paths)
     """
     if internal_args is None:
         internal_args = {}
@@ -821,6 +883,8 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         'server_title': f"{server_name.replace('_', ' ').title()} MCP Server",
         'protocol_type': protocol_type,  # Add protocol type to context
         'port': port,  # Server port for REST/Stream protocols
+        'base_profile': base_profile,  # Base profile name if derived profile
+        'base_service_paths': base_service_paths,  # Service paths from base profile
         'services': services,
         'unique_services': unique_services,  # Add unique_services for STDIO/STREAM templates
         'tools': processed_tools,  # List of tools with implementation info for template iteration
@@ -844,7 +908,8 @@ def generate_server(
     tools_path: str,
     server_name: str,
     protocol_type: str = 'rest',
-    port: int = 8080
+    port: int = 8080,
+    profile_name: str = None
 ):
     """Generate server.py from registry and template
 
@@ -856,7 +921,25 @@ def generate_server(
         server_name: Name of the server (outlook, file_handler, etc.)
         protocol_type: Protocol type ('rest', 'stdio', 'stream')
         port: Server port number (default: 8080)
+        profile_name: Profile name (defaults to server_name if not provided)
     """
+    # Set profile_name to server_name if not provided
+    if profile_name is None:
+        profile_name = server_name
+
+    # Load editor_config and resolve service paths for derived profiles
+    print(f"Loading editor_config.json...")
+    editor_config = load_editor_config()
+    service_paths = resolve_service_paths(profile_name, editor_config)
+
+    base_profile = service_paths.get('base_profile')
+    base_service_paths = service_paths if service_paths.get('is_derived') else None
+
+    if base_profile:
+        print(f"  - Derived profile detected: {profile_name} (base: {base_profile})")
+        print(f"  - Using service module: {service_paths['module_prefix']}")
+    else:
+        print(f"  - Base profile: {profile_name}")
 
     # Load registry and tools
     print(f"Loading registry from: {registry_path}")
@@ -880,7 +963,11 @@ def generate_server(
         print("  - No service factors found in mcp_service_factors")
 
     # Prepare context
-    context = prepare_context(registry, tools, server_name, internal_args, protocol_type, service_factors, port=port)
+    context = prepare_context(
+        registry, tools, server_name, internal_args, protocol_type, service_factors,
+        profile_name=profile_name, port=port,
+        base_profile=base_profile, base_service_paths=base_service_paths
+    )
 
     # Setup Jinja2
     template_dir = os.path.dirname(template_path)

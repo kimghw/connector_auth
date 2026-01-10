@@ -14,6 +14,7 @@ window.MCPEditor = {
         nestedGraphTarget: null,
         currentProfile: '',
         profiles: [],
+        profileDetails: {},  // Profile details (source_dir, base_mcp, etc.)
         generatorModules: [],
         generatorFallback: {},
         templateSources: [],  // Available template files (current, backups, other profiles)
@@ -88,6 +89,7 @@ window.MCPEditor = {
             const data = await response.json();
 
             this.state.profiles = data.profiles || [];
+            this.state.profileDetails = data.details || {};
 
             // 기본 서버 설정 (하드코딩 제거)
             if (!this.state.currentProfile && this.state.profiles.length > 0) {

@@ -8,7 +8,11 @@
       "../mcp_outlook/outlook_types.py"
     ],
     "host": "0.0.0.0",
-    "port": 8091
+    "port": 8091,
+    "is_base": true,
+    "derived_profiles": [
+      "outlook_test"
+    ]
   },
   "file_handler": {
     "source_dir": "../mcp_file_handler",
@@ -29,17 +33,5 @@
     ],
     "host": "0.0.0.0",
     "port": 8091
-  },
-  "outlook_read": {
-    "source_dir": "../mcp_outlook",
-    "template_definitions_path": "mcp_outlook_read/tool_definition_templates.py",
-    "tool_definitions_path": "../mcp_outlook_read/mcp_server/tool_definitions.py",
-    "backup_dir": "mcp_outlook_read/backups",
-    "types_files": [
-      "../mcp_outlook/outlook_types.py"
-    ],
-    "host": "0.0.0.0",
-    "port": 8080,
-    "is_reused": true
   }
 }

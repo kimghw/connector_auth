@@ -43,6 +43,9 @@
                 <button class="btn btn-primary btn-tooltip btn-expandable" data-debug-id="BTN_NEW_PROJECT" onclick="openCreateProjectModal()" data-tooltip="🚀 Create new MCP server project&#10;📁 Complete folder structure&#10;📝 Ready-to-use templates&#10;&#10;Create a new MCP service from scratch">
                     <span class="material-icons">add_circle</span><span class="btn-text">New Project</span>
                 </button>
+                <button class="btn btn-tooltip btn-expandable" data-debug-id="BTN_DERIVE_SERVER" onclick="showDeriveModal(window.currentProfile || 'outlook')" style="background: linear-gradient(135deg, #a855f7, #7c3aed); color: white;" data-tooltip="🔀 현재 프로필에서 파생 서버 생성&#10;📁 동일 서비스 재사용&#10;🔧 도구만 분리 관리&#10;&#10;Create derived server from current profile">
+                    <span class="material-icons">call_split</span><span class="btn-text">Derive</span>
+                </button>
             </div>
         </div>
         <div id="profileTabs" data-debug-id="AREA_PROFILE_TABS" style="display: flex; justify-content: flex-start; gap: 8px; padding: 10px 20px; background: #f7f7f7; border-bottom: 1px solid #e5e5e5;">
@@ -113,9 +116,14 @@
                         </div>
                     </div>
 
-                    <button class="add-button" data-debug-id="BTN_ADD_TOOL" onclick="addNewTool()">
-                        <span class="material-icons">add</span> Add New Tool
-                    </button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="add-button" data-debug-id="BTN_ADD_TOOL" onclick="addNewTool()" style="flex: 1; padding: 8px 12px; font-size: 12px;">
+                            Add New Tool
+                        </button>
+                        <button class="add-button" data-debug-id="BTN_MOVE_TOOLS" onclick="openMoveToolsDialog()" style="flex: 1; padding: 8px 12px; font-size: 12px; background: #f3e8ff;">
+                            Move Tools
+                        </button>
+                    </div>
                     <div id="toolList" style="margin-top: 15px;">
                         <!-- Tool items will be loaded here -->
                     </div>
@@ -608,6 +616,107 @@
         </div>
     </div>
 
+    <!-- 파생 서버 생성 모달 -->
+    <div id="derive-modal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center;">
+                        <span class="material-icons" style="color: white; font-size: 24px;">call_split</span>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; font-size: 18px; font-weight: 600;">파생 서버 생성</h3>
+                        <p style="margin: 4px 0 0 0; font-size: 12px; color: #86868b;">기존 프로필에서 새 프로필 생성</p>
+                    </div>
+                </div>
+                <button class="btn btn-icon" onclick="closeDeriveModal()" style="position: absolute; top: 16px; right: 16px;">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label style="font-size: 13px; font-weight: 600; color: #1d1d1f; margin-bottom: 6px; display: block;">Base 프로필</label>
+                    <input type="text" id="derive-base" class="form-control" readonly style="background: #f5f5f7; color: #86868b;">
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 13px; font-weight: 600; color: #1d1d1f; margin-bottom: 6px; display: block;">새 프로필명 <span style="color: red;">*</span></label>
+                    <input type="text" id="derive-name" class="form-control" placeholder="outlook_read">
+                    <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        영문, 숫자, 언더스코어만 사용 가능
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 13px; font-weight: 600; color: #1d1d1f; margin-bottom: 6px; display: block;">포트</label>
+                    <input type="number" id="derive-port" class="form-control" value="8092" min="1024" max="65535">
+                    <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                        서버 포트 번호 (1024-65535)
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDeriveModal()">취소</button>
+                <button class="btn btn-primary" onclick="confirmDerive()">
+                    <span class="material-icons" style="font-size: 18px;">add_circle</span> 생성
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 도구 이동 모달 -->
+    <div id="move-modal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); display: flex; align-items: center; justify-content: center;">
+                        <span class="material-icons" style="color: white; font-size: 24px;">drive_file_move</span>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; font-size: 18px; font-weight: 600;">도구 이동/복사</h3>
+                        <p style="margin: 4px 0 0 0; font-size: 12px; color: #86868b;">선택한 도구를 다른 프로필로 이동</p>
+                    </div>
+                </div>
+                <button class="btn btn-icon" onclick="closeMoveModal()" style="position: absolute; top: 16px; right: 16px;">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="selected-tools" style="background: #e3f2fd; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;">
+                    <p style="margin: 0; font-size: 14px; color: #1976d2;">
+                        <span class="material-icons" style="font-size: 18px; vertical-align: middle;">checklist</span>
+                        선택된 도구: <strong><span id="selected-count">0</span></strong>개
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 13px; font-weight: 600; color: #1d1d1f; margin-bottom: 6px; display: block;">대상 프로필 <span style="color: red;">*</span></label>
+                    <select id="move-target" class="form-control">
+                        <option value="">-- 대상 프로필 선택 --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 13px; font-weight: 600; color: #1d1d1f; margin-bottom: 10px; display: block;">모드</label>
+                    <div class="radio-group" style="display: flex; flex-direction: column; gap: 10px;">
+                        <label style="display: flex; align-items: center; cursor: pointer; padding: 12px 16px; border: 2px solid var(--border-color); border-radius: 8px; background: white; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--primary-color)'" onmouseout="if(!this.querySelector('input').checked) this.style.borderColor='var(--border-color)'">
+                            <input type="radio" name="move-mode" value="move" checked style="margin-right: 12px;" onchange="this.closest('label').style.borderColor='var(--primary-color)'; this.closest('.radio-group').querySelectorAll('label').forEach(l => { if(l !== this.closest('label')) l.style.borderColor='var(--border-color)'; })">
+                            <div>
+                                <span style="font-weight: 600; color: #1d1d1f;">이동</span>
+                                <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);">원본 프로필에서 삭제됩니다</p>
+                            </div>
+                        </label>
+                        <label style="display: flex; align-items: center; cursor: pointer; padding: 12px 16px; border: 2px solid var(--border-color); border-radius: 8px; background: white; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--primary-color)'" onmouseout="if(!this.querySelector('input').checked) this.style.borderColor='var(--border-color)'">
+                            <input type="radio" name="move-mode" value="copy" style="margin-right: 12px;" onchange="this.closest('label').style.borderColor='var(--primary-color)'; this.closest('.radio-group').querySelectorAll('label').forEach(l => { if(l !== this.closest('label')) l.style.borderColor='var(--border-color)'; })">
+                            <div>
+                                <span style="font-weight: 600; color: #1d1d1f;">복사</span>
+                                <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary);">원본 프로필에 그대로 유지됩니다</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeMoveModal()">취소</button>
+                <button class="btn btn-primary" onclick="confirmMoveTools()">
+                    <span class="material-icons" style="font-size: 18px;">check</span> 확인
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- External JavaScript files (order matters for dependencies) -->
     <script src="/static/js/tool_editor_state.js"></script>
     <script src="/static/js/tool_editor_utils.js"></script>
@@ -617,5 +726,6 @@
     <script src="/static/js/tool_editor_property.js"></script>
     <script src="/static/js/tool_editor_nested.js"></script>
     <script src="/static/js/tool_editor_debug.js"></script>
+    <script src="/static/js/tool_editor_derive.js"></script>
 </body>
 </html>

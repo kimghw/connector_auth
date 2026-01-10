@@ -161,13 +161,14 @@
     /**
      * Renders the profile tabs UI
      * Shows all available profiles with the current one highlighted
-     * Includes delete button for non-protected profiles
+     * Includes base MCP server info and delete button for non-protected profiles
      */
     function renderProfileTabs() {
         const tabContainer = document.getElementById('profileTabs');
         if (!tabContainer) return;
 
         const profiles = MCPEditor.state.profiles || [];
+        const profileDetails = MCPEditor.state.profileDetails || {};
         const currentProfile = MCPEditor.state.currentProfile;
 
         tabContainer.innerHTML = '';
@@ -177,7 +178,7 @@
             profiles.filter(name => name && name.trim()).forEach((name, index) => {
                 // Create a wrapper div for profile tab with delete button
                 const tabWrapper = document.createElement('div');
-                tabWrapper.style = 'display: inline-flex; align-items: center; gap: 4px; position: relative;';
+                tabWrapper.style = 'display: inline-flex; flex-direction: column; align-items: center; gap: 2px; position: relative;';
 
                 const btn = document.createElement('button');
                 btn.className = 'btn btn-secondary';
@@ -194,6 +195,15 @@
                     }
                 };
                 tabWrapper.appendChild(btn);
+
+                // Show base MCP server info below the button
+                const details = profileDetails[name] || {};
+                if (details.base_mcp) {
+                    const baseMcpLabel = document.createElement('span');
+                    baseMcpLabel.style = 'font-size: 10px; color: var(--text-secondary); margin-top: 2px;';
+                    baseMcpLabel.textContent = details.base_mcp;
+                    tabWrapper.appendChild(baseMcpLabel);
+                }
 
                 // Add delete button for non-protected profiles
                 if (!isProtectedProfile(name)) {

@@ -2,6 +2,83 @@
 
 ## 최근 세션 기록
 
+### 2026-01-10: MCP 파생 서버 생성 및 도구 이동 기능 구현
+
+#### 요청 사항
+- 기존 MCP 서버의 서비스를 공유하면서 별도의 MCP 서버(파생 서버) 생성
+- 서비스 경로(source_dir, types_files)는 base 서버와 동일하게 유지
+- 템플릿 경로(template_definitions_path, tool_definitions_path)만 새 서버명 경로로 분리
+- 동일 base를 공유하는 서버 간 도구 이동/복사 기능
+
+#### 구현 완료 항목
+
+**Phase 1: editor_config.json 스키마 확장**
+- `config.py`에 PROFILE_SCHEMA 추가 (base_profile, is_base, derived_profiles, is_reused)
+- 헬퍼 함수 추가: `get_base_profile()`, `get_derived_profiles()`, `get_sibling_profiles()`, `is_base_profile()`, `get_profile_family()`
+- 마이그레이션 함수: `migrate_config_schema()` - is_reused 프로필에서 base_profile 자동 추론
+
+**Phase 2: 파생 서버 생성 기능 개선**
+- `profile_management.py`에 `create_derived_profile()` 함수 추가
+- `update_base_derived_relationship()`, `remove_from_derived_list()` 함수 추가
+- API 엔드포인트 추가:
+  - `POST /api/profiles/derive` - 파생 프로필 생성
+  - `GET /api/profiles/<profile>/siblings` - 형제 프로필 목록
+  - `GET /api/profiles/<profile>/family` - 프로필 가족 관계
+
+**Phase 3: 도구 이동/복사 기능 구현**
+- `tool_mover.py` 신규 모듈 생성 (ToolMover 클래스)
+- 메서드: `validate_move()`, `move_tools()`, `get_movable_tools()`
+- API 엔드포인트 추가:
+  - `POST /api/tools/move` - 도구 이동/복사
+  - `POST /api/tools/validate-move` - 이동 가능 여부 검증
+  - `GET /api/tools/movable` - 이동 가능한 도구 목록
+
+**Phase 4: 서버 생성 시 base 프로필 참조**
+- `generate_universal_server.py`에 `resolve_service_paths()` 함수 추가
+- `prepare_context()`에 base_profile, base_service_paths 파라미터 추가
+- `universal_server_template.jinja2` 수정 - 파생 서버 시 base 모듈에서 서비스 import
+
+**Phase 5: 프론트엔드 UI 개선**
+- `tool_editor_derive.js` 신규 생성 (파생 서버/도구 이동 UI 로직)
+- `tool_editor.html`에 파생 서버 생성 모달, 도구 이동 모달 추가
+- "파생 생성" 버튼, "도구 이동" 버튼 추가
+
+#### editor_config.json 목표 구조
+```json
+{
+  "outlook": {
+    "source_dir": "../mcp_outlook",
+    "is_base": true,
+    "derived_profiles": ["outlook_read", "outlook_write"]
+  },
+  "outlook_read": {
+    "source_dir": "../mcp_outlook",
+    "base_profile": "outlook",
+    "is_reused": true
+  }
+}
+```
+
+#### 테스트 결과
+- Phase 1-5 모든 기능 테스트 통과 (39/39)
+- 스키마 확장, 함수 정의, API 엔드포인트, 프론트엔드 파일 모두 정상
+
+#### 수정된 파일 (총 9개)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `mcp_editor/tool_editor_core/config.py` | PROFILE_SCHEMA, 헬퍼 함수들, 마이그레이션 함수 |
+| `mcp_editor/tool_editor_core/profile_management.py` | create_derived_profile(), 관계 관리 함수들 |
+| `mcp_editor/tool_editor_core/tool_mover.py` | ToolMover 클래스 (신규) |
+| `mcp_editor/tool_editor_core/routes/profile_routes.py` | /derive, /siblings, /family API |
+| `mcp_editor/tool_editor_core/routes/tool_routes.py` | /move, /validate-move, /movable API |
+| `mcp_editor/templates/tool_editor.html` | 모달 UI, 버튼 추가 |
+| `mcp_editor/static/js/tool_editor_derive.js` | 프론트엔드 로직 (신규) |
+| `jinja/generate_universal_server.py` | resolve_service_paths(), base_profile 지원 |
+| `jinja/universal_server_template.jinja2` | 파생 서버 서비스 import 로직 |
+
+---
+
 ### 2026-01-09: Internal 파라미터 Primitive 타입 기본값 렌더링 수정
 
 #### 요청 사항
