@@ -109,8 +109,59 @@
     // ============================================================================
 
     /**
+     * Check if a profile is protected (cannot be deleted)
+     */
+    function isProtectedProfile(profileName) {
+        const protectedProfiles = ['outlook', 'calendar', 'file_handler'];
+        return protectedProfiles.includes(profileName.toLowerCase());
+    }
+
+    /**
+     * Delete a profile after confirmation
+     */
+    function deleteProfile(profileName) {
+        if (isProtectedProfile(profileName)) {
+            alert(`Cannot delete protected profile: ${profileName}`);
+            return;
+        }
+
+        const confirmMsg = `Are you sure you want to delete profile "${profileName}"?\n\n` +
+            `This will delete:\n` +
+            `- mcp_editor/mcp_${profileName}/\n` +
+            `- mcp_${profileName}/ (if exists)\n` +
+            `- Profile from editor_config.json\n\n` +
+            `This action cannot be undone!`;
+
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+
+        fetch('/api/delete-mcp-profile', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profile_name: profileName })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Profile "${profileName}" deleted successfully.\n\nDeleted:\n${data.deleted_paths.join('\n')}`);
+                location.reload();
+            } else {
+                alert('Delete failed: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Delete failed: ' + error.message);
+        });
+    }
+
+    // Expose deleteProfile to global scope for onclick handlers
+    window.deleteProfile = deleteProfile;
+
+    /**
      * Renders the profile tabs UI
      * Shows all available profiles with the current one highlighted
+     * Includes delete button for non-protected profiles
      */
     function renderProfileTabs() {
         const tabContainer = document.getElementById('profileTabs');
@@ -124,6 +175,10 @@
             tabContainer.textContent = 'No profiles found (using default)';
         } else {
             profiles.filter(name => name && name.trim()).forEach((name, index) => {
+                // Create a wrapper div for profile tab with delete button
+                const tabWrapper = document.createElement('div');
+                tabWrapper.style = 'display: inline-flex; align-items: center; gap: 4px; position: relative;';
+
                 const btn = document.createElement('button');
                 btn.className = 'btn btn-secondary';
                 btn.setAttribute('data-debug-id', `PROFILE_${index + 1}`);
@@ -138,7 +193,28 @@
                         MCPEditor.switchProfile(name);
                     }
                 };
-                tabContainer.appendChild(btn);
+                tabWrapper.appendChild(btn);
+
+                // Add delete button for non-protected profiles
+                if (!isProtectedProfile(name)) {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'btn btn-icon';
+                    deleteBtn.style = 'position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; border-radius: 50%; background: #ff3b30; color: white; font-size: 12px; padding: 0; line-height: 20px; text-align: center; border: 2px solid white; cursor: pointer; display: none;';
+                    deleteBtn.textContent = '×';
+                    deleteBtn.title = `Delete profile: ${name}`;
+                    deleteBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        deleteProfile(name);
+                    };
+
+                    // Show delete button on hover
+                    tabWrapper.onmouseenter = () => { deleteBtn.style.display = 'block'; };
+                    tabWrapper.onmouseleave = () => { deleteBtn.style.display = 'none'; };
+
+                    tabWrapper.appendChild(deleteBtn);
+                }
+
+                tabContainer.appendChild(tabWrapper);
             });
         }
     }

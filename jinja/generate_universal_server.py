@@ -516,12 +516,25 @@ def extract_type_info(registry: Dict[str, Any], tools: List[Dict[str, Any]], ser
     }
 
 
-def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], server_name: str, internal_args: Dict[str, Any] = None, protocol_type: str = 'rest', service_factors: Dict[str, Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Prepare Jinja2 context from registry, tools, internal args, and service factors"""
+def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], server_name: str, internal_args: Dict[str, Any] = None, protocol_type: str = 'rest', service_factors: Dict[str, Dict[str, Any]] = None, profile_name: str = None, port: int = None) -> Dict[str, Any]:
+    """Prepare Jinja2 context from registry, tools, internal args, and service factors
+
+    Args:
+        registry: Service registry JSON
+        tools: Tool definitions list
+        server_name: MCP server name (e.g., 'outlook')
+        internal_args: Internal arguments for tools
+        protocol_type: Server protocol type ('rest', 'stdio', 'stream')
+        service_factors: Service factors including internal and signature_defaults
+        profile_name: Profile name (e.g., 'outlook_read' for reused profiles), defaults to server_name
+        port: Server port number (used in template for REST/Stream protocols)
+    """
     if internal_args is None:
         internal_args = {}
     if service_factors is None:
         service_factors = {}
+    if profile_name is None:
+        profile_name = server_name
 
     # Extract services with proper structure
     services = {}
@@ -804,8 +817,10 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
     # Prepare context
     context = {
         'server_name': server_name,
+        'profile_name': profile_name,  # Profile name for reused profiles (e.g., outlook_read)
         'server_title': f"{server_name.replace('_', ' ').title()} MCP Server",
         'protocol_type': protocol_type,  # Add protocol type to context
+        'port': port,  # Server port for REST/Stream protocols
         'services': services,
         'unique_services': unique_services,  # Add unique_services for STDIO/STREAM templates
         'tools': processed_tools,  # List of tools with implementation info for template iteration
@@ -828,7 +843,8 @@ def generate_server(
     registry_path: str,
     tools_path: str,
     server_name: str,
-    protocol_type: str = 'rest'
+    protocol_type: str = 'rest',
+    port: int = 8080
 ):
     """Generate server.py from registry and template
 
@@ -839,6 +855,7 @@ def generate_server(
         tools_path: Path to tool definitions
         server_name: Name of the server (outlook, file_handler, etc.)
         protocol_type: Protocol type ('rest', 'stdio', 'stream')
+        port: Server port number (default: 8080)
     """
 
     # Load registry and tools
@@ -863,7 +880,7 @@ def generate_server(
         print("  - No service factors found in mcp_service_factors")
 
     # Prepare context
-    context = prepare_context(registry, tools, server_name, internal_args, protocol_type, service_factors)
+    context = prepare_context(registry, tools, server_name, internal_args, protocol_type, service_factors, port=port)
 
     # Setup Jinja2
     template_dir = os.path.dirname(template_path)

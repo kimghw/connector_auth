@@ -249,7 +249,8 @@ def _merge_profile(default_profile: dict, override_profile: dict) -> dict:
     merged.update(default_profile or {})
     if override_profile:
         for k, v in override_profile.items():
-            if k in merged and isinstance(v, (str, list, int)):
+            # Allow all string, list, int, dict values (including new keys like source_dir)
+            if isinstance(v, (str, list, int, dict)):
                 merged[k] = v
     return merged
 
@@ -307,10 +308,17 @@ def _default_generator_paths(profile_conf: dict, profile_name: str | None = None
     return {"tools_path": resolved["template_path"], "template_path": template_path, "output_path": output_path}
 
 
-def discover_mcp_modules(profile_conf: dict | None = None) -> list:
+def discover_mcp_modules(profile_conf: dict | None = None, profile_name: str | None = None) -> list:
     """
     Detect modules that contain an MCP server folder.
     Assumes each module has the same mcp/mcp_server structure.
+
+    For reused profiles (e.g., outlook_read), this function uses the profile name
+    to determine the correct YAML path in mcp_editor/mcp_{profile_name}/.
+
+    Args:
+        profile_conf: Profile configuration dict
+        profile_name: Profile name for path resolution (e.g., 'outlook_read')
     """
     modules = []
     profile_conf = profile_conf or DEFAULT_PROFILE
@@ -332,12 +340,24 @@ def discover_mcp_modules(profile_conf: dict | None = None) -> list:
 
             server_name = get_server_name_from_path(module_dir) or get_server_name_from_profile(entry)
             template_path = _get_template_for_server(server_name) or fallback["template_path"]
-            # Prefer the editor's template definitions (with mcp_service_factors) so internal args are preserved
+
+            # Determine the profile-specific template path
+            # For reused profiles, use profile_name; otherwise use server_name
+            effective_profile = profile_name or server_name
             editor_template_defs = (
-                os.path.join(ROOT_DIR, "mcp_editor", f"mcp_{server_name}", "tool_definition_templates.py")
-                if server_name
+                os.path.join(ROOT_DIR, "mcp_editor", f"mcp_{effective_profile}", "tool_definition_templates.py")
+                if effective_profile
                 else ""
             )
+
+            # Fallback to server_name based path if profile-specific doesn't exist
+            if not os.path.exists(editor_template_defs) and profile_name and server_name != profile_name:
+                editor_template_defs = (
+                    os.path.join(ROOT_DIR, "mcp_editor", f"mcp_{server_name}", "tool_definition_templates.py")
+                    if server_name
+                    else ""
+                )
+
             tools_candidates = [
                 editor_template_defs,
                 os.path.join(mcp_dir, "tool_definition_templates.py"),
@@ -2111,6 +2131,8 @@ def generate_server_from_web():
                 protocol_output_path = str(output_base.parent / filename)
 
             # Generate this protocol's server
+            # Get port from profile config
+            server_port = profile_conf.get("port", 8080)
             generator_module.generate_server(
                 template_path=protocol_template_path,
                 output_path=protocol_output_path,
@@ -2118,6 +2140,7 @@ def generate_server_from_web():
                 tools_path=tools_path,
                 server_name=server_name,
                 protocol_type=protocol,
+                port=server_port,
             )
             generated_files.append(protocol_output_path)
 
@@ -2642,6 +2665,428 @@ def scan_all_registries():
 
     except Exception as e:
         print(f"Error scanning registries: {e}")
+
+
+# ============================================================
+# Profile Reuse and Delete Functions
+# ============================================================
+
+def copy_yaml_templates(existing_service: str, new_profile_name: str) -> dict:
+    """
+    Copy existing service's YAML templates to a new profile directory.
+
+    Args:
+        existing_service: Existing service name (e.g., "outlook")
+        new_profile_name: New profile name (e.g., "outlook_read")
+
+    Returns:
+        {
+            "success": bool,
+            "yaml_path": str,
+            "py_path": str,
+            "error": str (on failure)
+        }
+    """
+    try:
+        base_dir = os.path.dirname(__file__)  # mcp_editor/
+
+        # 1. Source paths
+        existing_yaml_path = os.path.join(
+            base_dir,
+            f"mcp_{existing_service}",
+            "tool_definition_templates.yaml"
+        )
+
+        existing_py_path = os.path.join(
+            base_dir,
+            f"mcp_{existing_service}",
+            "tool_definition_templates.py"
+        )
+
+        if not os.path.exists(existing_yaml_path):
+            return {
+                "success": False,
+                "error": f"Template YAML not found: {existing_yaml_path}"
+            }
+
+        # 2. Create new profile directory
+        new_profile_dir = os.path.join(base_dir, f"mcp_{new_profile_name}")
+        os.makedirs(new_profile_dir, exist_ok=True)
+        os.makedirs(os.path.join(new_profile_dir, "backups"), exist_ok=True)
+
+        # 3. Copy YAML file
+        new_yaml_path = os.path.join(new_profile_dir, "tool_definition_templates.yaml")
+        shutil.copy2(existing_yaml_path, new_yaml_path)
+
+        # 4. Copy or create Python loader file
+        new_py_path = os.path.join(new_profile_dir, "tool_definition_templates.py")
+        if os.path.exists(existing_py_path):
+            shutil.copy2(existing_py_path, new_py_path)
+        else:
+            # Create Python loader
+            py_content = '''"""
+MCP Tool Definition Templates - AUTO-GENERATED
+Signatures extracted from source code using AST parsing
+
+This file loads tool_definition_templates.yaml and provides MCP_TOOLS list.
+"""
+from typing import List, Dict, Any
+from pathlib import Path
+import yaml
+
+
+def _load_tools_from_yaml() -> List[Dict[str, Any]]:
+    """Load tool definitions from YAML file."""
+    yaml_path = Path(__file__).parent / "tool_definition_templates.yaml"
+
+    if not yaml_path.exists():
+        raise FileNotFoundError(f"YAML file not found: {yaml_path}")
+
+    with open(yaml_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+
+    return data.get("tools", [])
+
+
+# Provide MCP_TOOLS list for backwards compatibility
+MCP_TOOLS: List[Dict[str, Any]] = _load_tools_from_yaml()
+'''
+            with open(new_py_path, 'w', encoding='utf-8') as f:
+                f.write(py_content)
+
+        return {
+            "success": True,
+            "yaml_path": new_yaml_path,
+            "py_path": new_py_path
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+def update_editor_config_for_reuse(
+    existing_service: str,
+    new_profile_name: str,
+    port: int
+) -> None:
+    """
+    Add new profile to editor_config.json that reuses existing service.
+
+    Args:
+        existing_service: Existing service name (e.g., "outlook")
+        new_profile_name: New profile name (e.g., "outlook_read")
+        port: New server port number
+
+    Raises:
+        KeyError: If existing service not found in config
+    """
+    base_dir = os.path.dirname(__file__)  # mcp_editor/
+    config_path = os.path.join(base_dir, "editor_config.json")
+
+    with open(config_path, encoding='utf-8') as f:
+        config = json.load(f)
+
+    # Reference existing config
+    if existing_service not in config:
+        raise KeyError(f"Existing service '{existing_service}' not found in editor_config.json")
+
+    existing_conf = config[existing_service]
+
+    # Add new profile with same source_dir
+    config[new_profile_name] = {
+        "source_dir": existing_conf["source_dir"],  # Same source!
+        "template_definitions_path": f"mcp_{new_profile_name}/tool_definition_templates.py",
+        "tool_definitions_path": f"../mcp_{new_profile_name}/mcp_server/tool_definitions.py",
+        "backup_dir": f"mcp_{new_profile_name}/backups",
+        "types_files": existing_conf.get("types_files", []),  # Same types!
+        "host": "0.0.0.0",
+        "port": port,
+        "is_reused": True  # Mark as reused profile
+    }
+
+    with open(config_path, 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+
+
+def create_server_project_folder(new_profile_name: str) -> dict:
+    """
+    Create server project folder for new profile.
+
+    Args:
+        new_profile_name: New profile name (e.g., "outlook_read")
+
+    Returns:
+        {
+            "success": bool,
+            "project_dir": str,
+            "error": str (on failure)
+        }
+    """
+    try:
+        base_dir = os.path.dirname(__file__)  # mcp_editor/
+        root_dir = os.path.dirname(base_dir)   # /home/kimghw/Connector_auth/
+
+        # 1. Create root project folder
+        project_dir = os.path.join(root_dir, f"mcp_{new_profile_name}")
+
+        if os.path.exists(project_dir):
+            return {
+                "success": False,
+                "error": f"Project folder mcp_{new_profile_name} already exists"
+            }
+
+        os.makedirs(project_dir, exist_ok=True)
+
+        # 2. Create mcp_server folder
+        mcp_server_dir = os.path.join(project_dir, "mcp_server")
+        os.makedirs(mcp_server_dir, exist_ok=True)
+
+        return {
+            "success": True,
+            "project_dir": project_dir
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+def create_reused_profile(
+    existing_service: str,
+    new_profile_name: str,
+    port: int
+) -> dict:
+    """
+    Create new MCP profile that reuses existing service.
+
+    Args:
+        existing_service: Existing service name (e.g., "outlook")
+        new_profile_name: New profile name (e.g., "outlook_read")
+        port: New server port number
+
+    Returns:
+        {
+            "success": bool,
+            "profile_name": str,
+            "editor_dir": str,
+            "error": str (on failure)
+        }
+    """
+    try:
+        # 1. Copy YAML templates
+        yaml_result = copy_yaml_templates(existing_service, new_profile_name)
+
+        if not yaml_result.get("success"):
+            return {
+                "success": False,
+                "error": yaml_result.get("error", "Failed to copy YAML templates")
+            }
+
+        # 2. Update editor_config.json
+        update_editor_config_for_reuse(existing_service, new_profile_name, port)
+
+        # 3. Create server project folder (optional)
+        project_result = create_server_project_folder(new_profile_name)
+        # Continue even if project folder creation fails
+
+        return {
+            "success": True,
+            "profile_name": new_profile_name,
+            "editor_dir": f"mcp_editor/mcp_{new_profile_name}",
+            "yaml_path": yaml_result["yaml_path"],
+            "py_path": yaml_result["py_path"],
+            "project_dir": project_result.get("project_dir", "")
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+def delete_mcp_profile(profile_name: str) -> dict:
+    """
+    Delete an MCP profile completely.
+
+    Deletes:
+    - mcp_editor/mcp_{profile}/ folder
+    - mcp_{profile}/ folder (if exists)
+    - Profile from editor_config.json
+
+    Args:
+        profile_name: Profile name (e.g., "outlook_read")
+
+    Returns:
+        {
+            "success": bool,
+            "deleted_paths": list,
+            "error": str (on failure)
+        }
+    """
+    try:
+        deleted_paths = []
+        base_dir = os.path.dirname(__file__)  # mcp_editor/
+        root_dir = os.path.dirname(base_dir)   # /home/kimghw/Connector_auth/
+
+        # 1. Delete editor profile folder
+        editor_dir = os.path.join(base_dir, f"mcp_{profile_name}")
+        if os.path.exists(editor_dir):
+            shutil.rmtree(editor_dir)
+            deleted_paths.append(editor_dir)
+
+        # 2. Delete server project folder (if exists)
+        project_dir = os.path.join(root_dir, f"mcp_{profile_name}")
+        if os.path.exists(project_dir):
+            shutil.rmtree(project_dir)
+            deleted_paths.append(project_dir)
+
+        # 3. Remove from editor_config.json
+        config_path = os.path.join(base_dir, "editor_config.json")
+
+        if os.path.exists(config_path):
+            with open(config_path, encoding='utf-8') as f:
+                config = json.load(f)
+
+            if profile_name in config:
+                del config[profile_name]
+
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    json.dump(config, f, indent=2, ensure_ascii=False)
+
+                deleted_paths.append(f"editor_config.json:{profile_name}")
+
+        return {
+            "success": True,
+            "deleted_paths": deleted_paths
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+# ============================================================
+# API Endpoints for Profile Reuse and Delete
+# ============================================================
+
+@app.route("/api/available-services", methods=["GET"])
+def get_available_services():
+    """Get list of available MCP services for reuse"""
+    try:
+        services = []
+        profile_names = list_profile_names()
+
+        for profile in profile_names:
+            profile_conf = get_profile_config(profile)
+            source_dir = profile_conf.get("source_dir", "")
+
+            # Only include profiles with valid source_dir
+            if source_dir:
+                services.append({
+                    "name": profile,
+                    "display_name": profile.replace("_", " ").title(),
+                    "source_dir": source_dir
+                })
+
+        return jsonify({"services": services})
+    except Exception as e:
+        return jsonify({"error": str(e), "services": []}), 500
+
+
+@app.route("/api/delete-mcp-profile", methods=["DELETE"])
+def delete_mcp_profile_api():
+    """Delete an MCP profile"""
+    global profiles
+
+    try:
+        data = request.json or {}
+        profile_name = data.get("profile_name", "").strip()
+
+        if not profile_name:
+            return jsonify({"error": "profile_name is required"}), 400
+
+        # Prevent deletion of protected profiles
+        protected_profiles = ["outlook", "calendar", "file_handler"]
+        if profile_name in protected_profiles:
+            return jsonify({"error": f"Cannot delete protected profile: {profile_name}"}), 403
+
+        # Check if profile exists
+        if profile_name not in list_profile_names():
+            return jsonify({"error": f"Profile '{profile_name}' not found"}), 404
+
+        result = delete_mcp_profile(profile_name)
+
+        if not result.get("success"):
+            return jsonify({"error": result.get("error", "Unknown error")}), 500
+
+        # Reload profiles
+        profiles = list_profile_names()
+
+        return jsonify({
+            "success": True,
+            "message": f"Successfully deleted profile: {profile_name}",
+            "deleted_paths": result.get("deleted_paths", [])
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# Extend /api/create-mcp-project to support reuse
+# The original endpoint is kept and extended with project_type parameter
+
+@app.route("/api/create-mcp-project-reuse", methods=["POST"])
+def create_mcp_project_reuse():
+    """Create a new MCP profile by reusing existing service"""
+    global profiles
+
+    try:
+        data = request.json or {}
+
+        existing_service = data.get("existing_service", "").lower().strip()
+        new_profile_name = data.get("new_profile_name", "").lower().strip()
+        port = data.get("port", 8080)
+
+        if not existing_service or not new_profile_name:
+            return jsonify({"error": "existing_service and new_profile_name are required"}), 400
+
+        # Validate profile name
+        if not new_profile_name.replace("_", "").isalnum():
+            return jsonify({"error": "Profile name should only contain letters, numbers, and underscores"}), 400
+
+        # Check duplicate profile
+        if new_profile_name in list_profile_names():
+            return jsonify({"error": f"Profile '{new_profile_name}' already exists"}), 400
+
+        # Check existing service
+        if existing_service not in list_profile_names():
+            return jsonify({"error": f"Existing service '{existing_service}' not found"}), 400
+
+        result = create_reused_profile(existing_service, new_profile_name, port)
+
+        if not result.get("success"):
+            return jsonify({"error": result.get("error", "Unknown error")}), 500
+
+        # Reload profiles
+        profiles = list_profile_names()
+
+        return jsonify({
+            "success": True,
+            "profile_name": new_profile_name,
+            "editor_dir": result["editor_dir"],
+            "message": f"Successfully created reused profile: {new_profile_name}"
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

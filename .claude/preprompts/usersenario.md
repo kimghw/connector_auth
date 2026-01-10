@@ -459,4 +459,86 @@ server_rest.py / server_stdio.py / server_stream.py
 
 ---
 
-*마지막 업데이트: 2026-01-09*
+### 2026-01-10: 기존 서비스 재사용 MCP 프로필 생성 및 삭제 기능 구현
+
+#### 요청 사항
+- 기존 MCP 서비스를 재사용하여 도구 세트가 다른 새 프로필 생성
+- YAML 템플릿 복사 방식으로 독립적인 도구 관리
+- MCP 프로필 삭제 기능 추가
+
+#### 구현 완료 항목
+
+**1. 선행 작업 (치명적 이슈 해결)**
+
+| 작업 | 파일 | 내용 |
+|------|------|------|
+| 0-1 | tool_editor_tools.js | `createNewProject()` 중복 함수 제거 (Line 758 → `createNewProfileProject()`로 변경) |
+| 0-2 | mcp_server_controller.py | `_get_server_path()` editor_config.json 기반 경로 해석으로 수정 |
+| 0-3 | universal_server_template.jinja2 | YAML 경로 `profile_name` 기반으로 수정 + 환경변수 MCP_YAML_PATH 지원 |
+| 0-4 | universal_server_template.jinja2 | 포트 변수화 (MCP_SERVER_PORT 환경변수 지원) |
+| 0-5 | generate_editor_config.py | merge 전략 추가 (기존 재사용 프로필 보존) |
+| 0-6 | tool_editor_web.py | `discover_mcp_modules()` 프로필별 경로 해석 지원 |
+
+**2. 본 기능 구현 - 프로필 재사용 생성**
+
+- `copy_yaml_templates()`: 기존 프로필의 YAML을 새 프로필로 복사
+- `update_editor_config_for_reuse()`: 기존 source_dir, types_files 재사용하는 프로필 추가
+- `create_server_project_folder()`: mcp_{new_profile}/mcp_server/ 폴더 생성
+- `create_reused_profile()`: 위 함수들 통합, 새 프로필 생성 완료
+- `/api/create-mcp-project-reuse` API 추가
+
+**3. 본 기능 구현 - 프로필 삭제**
+
+- `delete_mcp_profile()`: mcp_editor/mcp_{profile}/ 폴더, editor_config.json 프로필 완전 삭제
+- `/api/delete-mcp-profile` API 추가
+- `/api/available-services` API 추가 (재사용 가능 서비스 목록)
+- 원본 프로필 (outlook, calendar, file_handler) 삭제 방지
+
+**4. UI 수정**
+
+- tool_editor.html: Create Project 모달에 프로젝트 타입 선택 추가
+  - "Create from scratch" (기존 로직)
+  - "Reuse existing service" (새 로직)
+- tool_editor_tools.js: `toggleReuseOptions()`, `loadAvailableServices()` 함수 추가, `createNewProject()` 확장
+- tool_editor_ui.js: `renderProfileTabs()` 수정 - 삭제 버튼 추가 (hover 시 표시)
+
+#### 사용 예시
+```
+기존: outlook (11개 도구, mcp_outlook 참조)
+    ↓ 재사용 생성
+신규: outlook_read (YAML 복사 → 6개만 선택, mcp_outlook 참조)
+    ↓ 삭제
+삭제: outlook_read 프로필 완전 제거
+```
+
+#### 장점
+- 같은 서비스 로직 재사용 (코드 중복 없음)
+- 권한 분리 (도구별 프로필 분리)
+- 중앙 Registry 관리 (mcp_editor/mcp_service_registry/)
+- 독립적인 YAML 관리 (각 프로필별 도구 편집 가능)
+- 불필요한 프로필 쉽게 삭제
+
+#### 수정된 파일 (총 8개)
+
+| 파일 | 수정 내용 |
+|------|----------|
+| mcp_editor/tool_editor_web.py | 5개 함수 + 3개 API 엔드포인트 추가 |
+| mcp_editor/templates/tool_editor.html | UI 추가 (프로젝트 타입 선택, 재사용 옵션) |
+| mcp_editor/static/js/tool_editor_tools.js | 3개 함수 추가/수정, 중복 함수 이름 변경 |
+| mcp_editor/static/js/tool_editor_ui.js | 삭제 버튼 추가, 3개 함수 추가 |
+| mcp_editor/mcp_server_controller.py | `_get_server_path()` 수정 |
+| jinja/universal_server_template.jinja2 | YAML 경로 및 포트 변수화 |
+| jinja/generate_editor_config.py | merge 전략 추가 |
+| jinja/generate_universal_server.py | `prepare_context()`에 profile_name, port 추가 |
+
+#### 테스트 결과
+- 프로필 재사용 생성: OK
+- YAML 복사: OK
+- editor_config.json 업데이트: OK
+- 프로젝트 폴더 생성: OK
+- 프로필 삭제: OK
+- 원본 프로필 보호: OK
+
+---
+
+*마지막 업데이트: 2026-01-10*

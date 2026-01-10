@@ -32,16 +32,52 @@ class MCPServerManager:
         self.server_path = self._get_server_path()
 
     def _get_server_path(self) -> Optional[str]:
-        """Get the server path based on profile - checks for multiple server types"""
+        """
+        Get the server path based on profile from editor_config.json.
+
+        This method reads the profile configuration from editor_config.json
+        to properly support reused profiles (e.g., outlook_read that uses
+        mcp_outlook_read/mcp_server/ instead of mcp_outlook/mcp_server/).
+        """
         server_files = ["server_rest.py", "server_stdio.py", "server_stream.py", "server.py"]
 
+        # First, try to load from editor_config.json for accurate path resolution
+        config_path = os.path.join(ROOT_DIR, "mcp_editor", "editor_config.json")
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+                if self.profile in config:
+                    profile_conf = config[self.profile]
+                    # tool_definitions_path gives us the server directory path
+                    tool_def_path = profile_conf.get("tool_definitions_path", "")
+                    if tool_def_path:
+                        # tool_definitions_path is like "../mcp_outlook_read/mcp_server/tool_definitions.py"
+                        # Extract the mcp_server directory
+                        base_path = os.path.dirname(
+                            os.path.join(ROOT_DIR, "mcp_editor", tool_def_path)
+                        )
+                        base_path = os.path.normpath(base_path)
+
+                        # Return the first existing server file in the base path
+                        for server_file in server_files:
+                            path = os.path.join(base_path, server_file)
+                            if os.path.exists(path):
+                                return path
+            except (json.JSONDecodeError, IOError, KeyError):
+                pass  # Fall through to legacy behavior
+
+        # Legacy behavior: substring matching (fallback for backwards compatibility)
         if "outlook" in self.profile.lower():
             base_path = os.path.join(ROOT_DIR, "mcp_outlook", "mcp_server")
         elif "file" in self.profile.lower() or "handler" in self.profile.lower():
             base_path = os.path.join(ROOT_DIR, "mcp_file_handler", "mcp_server")
+        elif "calendar" in self.profile.lower():
+            base_path = os.path.join(ROOT_DIR, "mcp_calendar", "mcp_server")
         else:
             # Default or try to find any server
-            for module in ["mcp_outlook", "mcp_file_handler"]:
+            for module in ["mcp_outlook", "mcp_file_handler", "mcp_calendar"]:
                 base_path = os.path.join(ROOT_DIR, module, "mcp_server")
                 # Check if any server file exists in this path
                 for server_file in server_files:

@@ -525,67 +525,163 @@ function openCreateProjectModal() {
     document.getElementById('createProjectModal').classList.add('show');
 }
 
+function toggleReuseOptions() {
+    const projectType = document.querySelector('input[name="projectType"]:checked').value;
+    const newProjectOptions = document.getElementById('newProjectOptions');
+    const reuseOptions = document.getElementById('reuseOptions');
+
+    if (projectType === 'reuse') {
+        newProjectOptions.style.display = 'none';
+        reuseOptions.style.display = 'block';
+        // Load available services
+        loadAvailableServices();
+    } else {
+        newProjectOptions.style.display = 'block';
+        reuseOptions.style.display = 'none';
+    }
+}
+
+async function loadAvailableServices() {
+    try {
+        const response = await fetch('/api/available-services');
+        const data = await response.json();
+
+        const selectEl = document.getElementById('projectReuseService');
+        selectEl.innerHTML = '<option value="">-- Select a service to reuse --</option>';
+
+        if (data.services && data.services.length > 0) {
+            data.services.forEach(service => {
+                const option = document.createElement('option');
+                option.value = service.name;
+                option.textContent = `${service.display_name} (${service.source_dir})`;
+                selectEl.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Failed to load available services:', error);
+    }
+}
+
 function createNewProject() {
-    const serviceName = document.getElementById('projectServiceName').value.trim();
-    const description = document.getElementById('projectDescription').value.trim();
+    const projectType = document.querySelector('input[name="projectType"]:checked').value;
     const port = parseInt(document.getElementById('projectPort').value) || 8080;
-    const author = document.getElementById('projectAuthor').value.trim();
-    const includeTypes = document.getElementById('projectIncludeTypes').checked;
-
-    if (!serviceName) {
-        alert('Service name is required');
-        return;
-    }
-
-    // Validate service name
-    if (!/^[a-zA-Z0-9_]+$/.test(serviceName)) {
-        alert('Service name can only contain letters, numbers, and underscores');
-        return;
-    }
 
     const resultEl = document.getElementById('createProjectResult');
     resultEl.style.display = 'block';
     resultEl.style.backgroundColor = '#e3f2fd';
     resultEl.textContent = 'Creating project...';
 
-    fetch('/api/create-mcp-project', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            service_name: serviceName,
-            description: description,
-            port: port,
-            author: author,
-            include_types: includeTypes
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            resultEl.style.backgroundColor = '#e8f5e9';
-            resultEl.innerHTML = `
-                <strong>✅ Success!</strong><br>
-                Created project: ${data.project_dir}<br>
-                Files created: ${data.created_files}<br><br>
-                <strong>Next steps:</strong><br>
-                1. Reload this page to see the new profile<br>
-                2. Select "${data.service_name}" from the profile tabs<br>
-                3. Start adding tools via the web editor
-            `;
+    if (projectType === 'new') {
+        // Original new project creation logic
+        const serviceName = document.getElementById('projectServiceName').value.trim();
+        const description = document.getElementById('projectDescription').value.trim();
+        const author = document.getElementById('projectAuthor').value.trim();
+        const includeTypes = document.getElementById('projectIncludeTypes').checked;
 
-            // Reload profiles after 3 seconds
-            setTimeout(() => {
-                location.reload();
-            }, 3000);
-        } else {
+        if (!serviceName) {
             resultEl.style.backgroundColor = '#ffebee';
-            resultEl.textContent = '❌ Error: ' + (data.error || 'Unknown error occurred');
+            resultEl.textContent = 'Service name is required';
+            return;
         }
-    })
-    .catch(error => {
-        resultEl.style.backgroundColor = '#ffebee';
-        resultEl.textContent = '❌ Error: ' + error.message;
-    });
+
+        if (!/^[a-zA-Z0-9_]+$/.test(serviceName)) {
+            resultEl.style.backgroundColor = '#ffebee';
+            resultEl.textContent = 'Service name can only contain letters, numbers, and underscores';
+            return;
+        }
+
+        fetch('/api/create-mcp-project', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                service_name: serviceName,
+                description: description,
+                port: port,
+                author: author,
+                include_types: includeTypes
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                resultEl.style.backgroundColor = '#e8f5e9';
+                resultEl.innerHTML = `
+                    <strong>Success!</strong><br>
+                    Created project: ${data.project_dir}<br>
+                    Files created: ${data.created_files}<br><br>
+                    <strong>Next steps:</strong><br>
+                    1. Reload this page to see the new profile<br>
+                    2. Select "${data.service_name}" from the profile tabs<br>
+                    3. Start adding tools via the web editor
+                `;
+                setTimeout(() => { location.reload(); }, 3000);
+            } else {
+                resultEl.style.backgroundColor = '#ffebee';
+                resultEl.textContent = 'Error: ' + (data.error || 'Unknown error occurred');
+            }
+        })
+        .catch(error => {
+            resultEl.style.backgroundColor = '#ffebee';
+            resultEl.textContent = 'Error: ' + error.message;
+        });
+
+    } else if (projectType === 'reuse') {
+        // Reuse existing service logic
+        const existingService = document.getElementById('projectReuseService').value;
+        const newProfileName = document.getElementById('projectNewProfileName').value.trim().toLowerCase();
+
+        if (!existingService) {
+            resultEl.style.backgroundColor = '#ffebee';
+            resultEl.textContent = 'Please select an existing service to reuse';
+            return;
+        }
+
+        if (!newProfileName) {
+            resultEl.style.backgroundColor = '#ffebee';
+            resultEl.textContent = 'New profile name is required';
+            return;
+        }
+
+        if (!/^[a-zA-Z0-9_]+$/.test(newProfileName)) {
+            resultEl.style.backgroundColor = '#ffebee';
+            resultEl.textContent = 'Profile name can only contain letters, numbers, and underscores';
+            return;
+        }
+
+        fetch('/api/create-mcp-project-reuse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                existing_service: existingService,
+                new_profile_name: newProfileName,
+                port: port
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                resultEl.style.backgroundColor = '#e8f5e9';
+                resultEl.innerHTML = `
+                    <strong>Success!</strong><br>
+                    Created reused profile: ${data.profile_name}<br>
+                    Editor directory: ${data.editor_dir}<br><br>
+                    <strong>Next steps:</strong><br>
+                    1. Reload this page to see the new profile<br>
+                    2. Select "${data.profile_name}" from the profile tabs<br>
+                    3. Edit tools (delete unwanted tools)<br>
+                    4. Click "Generate Server" to create server files
+                `;
+                setTimeout(() => { location.reload(); }, 3000);
+            } else {
+                resultEl.style.backgroundColor = '#ffebee';
+                resultEl.textContent = 'Error: ' + (data.error || 'Unknown error occurred');
+            }
+        })
+        .catch(error => {
+            resultEl.style.backgroundColor = '#ffebee';
+            resultEl.textContent = 'Error: ' + error.message;
+        });
+    }
 }
 
 function openHelpModal() {
@@ -741,7 +837,7 @@ function showNewProjectModal() {
             </div>
             <div style="display: flex; gap: 12px; justify-content: flex-end;">
                 <button class="btn btn-secondary" onclick="closeNewProjectModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="createNewProject()">Create Project</button>
+                <button class="btn btn-primary" onclick="createNewProfileProject()">Create Project</button>
             </div>
         </div>
     `;
@@ -755,7 +851,7 @@ function closeNewProjectModal() {
     if (modal) modal.remove();
 }
 
-async function createNewProject() {
+async function createNewProfileProject() {
     const name = document.getElementById('newProjectName').value.trim();
     if (!name) {
         showNotification('Project name is required', 'error');

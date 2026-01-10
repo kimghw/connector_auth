@@ -1,5 +1,5 @@
 {
-    "outlook": {
+  "outlook": {
     "source_dir": "../mcp_outlook",
     "template_definitions_path": "mcp_outlook/tool_definition_templates.py",
     "tool_definitions_path": "../mcp_outlook/mcp_server/tool_definitions.py",
@@ -15,14 +15,13 @@
     "template_definitions_path": "mcp_file_handler/tool_definition_templates.py",
     "tool_definitions_path": "../mcp_file_handler/mcp_server/tool_definitions.py",
     "backup_dir": "mcp_file_handler/backups",
-    "types_files": [
-    ],
+    "types_files": [],
     "host": "0.0.0.0",
     "port": 8091
   },
   "calendar": {
     "source_dir": "../mcp_calendar",
-    "template_definitions_path": "mcp_calendar/tool_definition_templates.py",
+    "template_definitions_path": "mcp_calendar/tool_definition_templates.yaml",
     "tool_definitions_path": "../mcp_calendar/mcp_server/tool_definitions.py",
     "backup_dir": "mcp_calendar/backups",
     "types_files": [
@@ -30,5 +29,17 @@
     ],
     "host": "0.0.0.0",
     "port": 8091
+  },
+  "outlook_read": {
+    "source_dir": "../mcp_outlook",
+    "template_definitions_path": "mcp_outlook_read/tool_definition_templates.py",
+    "tool_definitions_path": "../mcp_outlook_read/mcp_server/tool_definitions.py",
+    "backup_dir": "mcp_outlook_read/backups",
+    "types_files": [
+      "../mcp_outlook/outlook_types.py"
+    ],
+    "host": "0.0.0.0",
+    "port": 8080,
+    "is_reused": true
   }
 }

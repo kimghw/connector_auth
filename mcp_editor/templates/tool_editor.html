@@ -234,17 +234,67 @@
                 <button class="btn btn-icon" data-debug-id="BTN_PROJECT_CLOSE" onclick="closeModal('createProjectModal')">✕</button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label>Service Name <span style="color: red;">*</span></label>
-                    <input id="projectServiceName" class="form-control" data-debug-id="FIELD_PROJECT_NAME" placeholder="e.g., calendar, weather, database" required>
-                    <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
-                        Only letters, numbers, and underscores allowed. Will create mcp_{service_name} folder.
-                    </p>
+                <!-- Project Type Selection -->
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label style="font-weight: 600; margin-bottom: 10px; display: block;">Project Type</label>
+                    <div style="display: flex; gap: 20px;">
+                        <label style="font-weight: normal; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="radio" name="projectType" value="new" checked onchange="toggleReuseOptions()">
+                            Create from scratch
+                        </label>
+                        <label style="font-weight: normal; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="radio" name="projectType" value="reuse" onchange="toggleReuseOptions()">
+                            Reuse existing service
+                        </label>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Description</label>
-                    <input id="projectDescription" class="form-control" data-debug-id="FIELD_PROJECT_DESC" placeholder="Brief description of the service">
+
+                <!-- New Project Options (shown by default) -->
+                <div id="newProjectOptions">
+                    <div class="form-group">
+                        <label>Service Name <span style="color: red;">*</span></label>
+                        <input id="projectServiceName" class="form-control" data-debug-id="FIELD_PROJECT_NAME" placeholder="e.g., calendar, weather, database" required>
+                        <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                            Only letters, numbers, and underscores allowed. Will create mcp_{service_name} folder.
+                        </p>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <input id="projectDescription" class="form-control" data-debug-id="FIELD_PROJECT_DESC" placeholder="Brief description of the service">
+                    </div>
+                    <div class="form-group">
+                        <label>Author</label>
+                        <input id="projectAuthor" class="form-control" data-debug-id="FIELD_PROJECT_AUTHOR" placeholder="Your name (optional)">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input id="projectIncludeTypes" type="checkbox" data-debug-id="FIELD_PROJECT_INCLUDE_TYPES" checked>
+                            Include type definitions file (*_types.py)
+                        </label>
+                    </div>
                 </div>
+
+                <!-- Reuse Options (hidden by default) -->
+                <div id="reuseOptions" style="display: none;">
+                    <div class="form-group">
+                        <label>Existing Service <span style="color: red;">*</span></label>
+                        <select id="projectReuseService" class="form-control">
+                            <option value="">-- Select a service to reuse --</option>
+                        </select>
+                        <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                            The new profile will share the same service code but can have different tools.
+                        </p>
+                    </div>
+                    <div class="form-group">
+                        <label>New Profile Name <span style="color: red;">*</span></label>
+                        <input id="projectNewProfileName" class="form-control" placeholder="e.g., outlook_read, calendar_readonly">
+                        <p style="margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+                            Only letters, numbers, and underscores allowed. Creates mcp_{profile_name} folder.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Common Port Setting -->
                 <div class="form-group">
                     <label>Port</label>
                     <input id="projectPort" type="number" class="form-control" data-debug-id="FIELD_PROJECT_PORT" value="8080" min="1024" max="65535">
@@ -252,16 +302,7 @@
                         Server port number (1024-65535)
                     </p>
                 </div>
-                <div class="form-group">
-                    <label>Author</label>
-                    <input id="projectAuthor" class="form-control" data-debug-id="FIELD_PROJECT_AUTHOR" placeholder="Your name (optional)">
-                </div>
-                <div class="form-group">
-                    <label>
-                        <input id="projectIncludeTypes" type="checkbox" data-debug-id="FIELD_PROJECT_INCLUDE_TYPES" checked>
-                        Include type definitions file (*_types.py)
-                    </label>
-                </div>
+
                 <div id="createProjectResult" style="margin-top: 15px; padding: 12px; border-radius: 6px; display: none;"></div>
             </div>
             <div class="modal-footer">

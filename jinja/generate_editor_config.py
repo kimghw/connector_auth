@@ -134,9 +134,74 @@ def detect_module_paths(server_name: str, base_dir: str) -> Dict[str, Any]:
     }
 
 
+def load_existing_config(config_path: str) -> Dict[str, Any]:
+    """Load existing editor_config.json if it exists"""
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"  Warning: Could not load existing config: {e}")
+            return {}
+    return {}
+
+
+def merge_configs(existing_config: Dict[str, Any], new_config: Dict[str, Any],
+                  discovered_servers: Set[str]) -> Dict[str, Any]:
+    """
+    Merge new auto-generated config with existing one.
+
+    Merge Strategy:
+    1. Include all newly discovered server profiles
+    2. Preserve existing profiles that are NOT in the discovered set (reused profiles)
+    3. Preserve custom values (port, host) for discovered servers if they exist
+
+    Args:
+        existing_config: Current editor_config.json content
+        new_config: Newly generated config dict
+        discovered_servers: Set of server names from @mcp_service decorators
+
+    Returns:
+        Merged configuration dict
+    """
+    merged = {}
+
+    # 1. Add all newly discovered servers (from auto-generation)
+    merged.update(new_config)
+
+    # 2. Preserve existing profiles not in discovered set (these are reused profiles)
+    preserved_count = 0
+    for profile_name, profile_config in existing_config.items():
+        if profile_name not in discovered_servers:
+            # This is a reused or manually added profile - preserve it
+            merged[profile_name] = profile_config
+            preserved_count += 1
+            print(f"    ↻ Preserved reused profile: {profile_name}")
+
+    # 3. For discovered servers, preserve custom values (port, host) if they differ
+    for server_name in discovered_servers:
+        if server_name in existing_config and server_name in merged:
+            existing_profile = existing_config[server_name]
+            # Preserve custom port if it was changed from default
+            if 'port' in existing_profile and existing_profile['port'] != 8091:
+                merged[server_name]['port'] = existing_profile['port']
+                print(f"    ↻ Preserved custom port for {server_name}: {existing_profile['port']}")
+            # Preserve custom host if it was changed
+            if 'host' in existing_profile and existing_profile['host'] != "0.0.0.0":
+                merged[server_name]['host'] = existing_profile['host']
+                print(f"    ↻ Preserved custom host for {server_name}: {existing_profile['host']}")
+
+    if preserved_count > 0:
+        print(f"    Total preserved profiles: {preserved_count}")
+
+    return merged
+
+
 def generate_editor_config(server_names: Set[str], base_dir: str, output_path: str, template_path: str):
     """
-    Generate editor_config.json with profiles for each discovered server using Jinja2 template
+    Generate editor_config.json with profiles for each discovered server using Jinja2 template.
+
+    Uses merge strategy to preserve existing reused profiles and custom values.
 
     Args:
         server_names: Set of server names discovered from @mcp_service decorators
@@ -144,6 +209,9 @@ def generate_editor_config(server_names: Set[str], base_dir: str, output_path: s
         output_path: Path where editor_config.json will be saved
         template_path: Path to the Jinja2 template file
     """
+    # Load existing config for merging
+    existing_config = load_existing_config(output_path)
+
     # Prepare data for template
     default_server_name = sorted(server_names)[0] if server_names else "outlook"
     default_server_config = detect_module_paths(default_server_name, base_dir)
@@ -176,13 +244,31 @@ def generate_editor_config(server_names: Set[str], base_dir: str, output_path: s
         servers=servers
     )
 
-    # Write config file
+    # Parse rendered content as JSON for merging
+    try:
+        new_config = json.loads(rendered_content)
+    except json.JSONDecodeError as e:
+        print(f"  Error: Failed to parse generated config: {e}")
+        # Fallback: write rendered content directly (no merge)
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(rendered_content)
+        print(f"\n✓ Generated {output_path} (without merge)")
+        return
+
+    # Merge with existing config to preserve reused profiles
+    if existing_config:
+        print(f"\n  Merging with existing config ({len(existing_config)} profiles)...")
+        merged_config = merge_configs(existing_config, new_config, server_names)
+    else:
+        merged_config = new_config
+
+    # Write merged config file
     with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(rendered_content)
+        json.dump(merged_config, f, indent=2, ensure_ascii=False)
 
     print(f"\n✓ Generated {output_path}")
-    print(f"  Total profiles: {len(servers)}")
-    print(f"  Profiles: {', '.join(s['name'] for s in servers)}")
+    print(f"  Total profiles: {len(merged_config)}")
+    print(f"  Profiles: {', '.join(sorted(merged_config.keys()))}")
 
 
 def main():
