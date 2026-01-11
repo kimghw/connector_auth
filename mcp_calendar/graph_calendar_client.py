@@ -3,7 +3,10 @@ Graph Calendar Client - 통합 캘린더 처리 클라이언트
 GraphCalendarQuery를 통해 캘린더 이벤트 관리를 통합하는 상위 클래스
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.protocols import TokenProviderProtocol
 
 from .graph_calendar_query import GraphCalendarQuery
 from .calendar_types import (
@@ -22,10 +25,14 @@ class GraphCalendarClient:
     캘린더 이벤트 조회, 생성, 수정, 삭제 및 일정 조회를 통합 관리
     """
 
-    def __init__(self):
+    def __init__(self, token_provider: Optional["TokenProviderProtocol"] = None):
         """
         초기화
+
+        Args:
+            token_provider: 토큰 제공자 (None이면 기본 AuthManager 사용)
         """
+        self.token_provider = token_provider
         self.calendar_query: Optional[GraphCalendarQuery] = None
         self._initialized: bool = False
 
@@ -40,8 +47,8 @@ class GraphCalendarClient:
             return True
 
         try:
-            # GraphCalendarQuery 초기화
-            self.calendar_query = GraphCalendarQuery()
+            # GraphCalendarQuery 초기화 (token_provider 주입)
+            self.calendar_query = GraphCalendarQuery(token_provider=self.token_provider)
 
             if not await self.calendar_query.initialize():
                 print("Failed to initialize GraphCalendarQuery")

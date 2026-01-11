@@ -13,12 +13,13 @@ import asyncio
 import aiohttp
 import sys
 import os
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
 from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from session.auth_manager import AuthManager
+if TYPE_CHECKING:
+    from core.protocols import TokenProviderProtocol
 from .calendar_types import (
     EventFilterParams,
     EventSelectParams,
@@ -187,15 +188,24 @@ class GraphCalendarQuery:
     Graph API Calendar 조회 클래스
 
     역할:
-        - 인증 처리 (AuthManager)
+        - 인증 처리 (TokenProviderProtocol 활용)
         - URL로 Graph API 호출
         - 이벤트 CRUD 작업
         - Free/Busy 조회
     """
 
-    def __init__(self):
-        """Initialize Graph Calendar Query"""
-        self.auth_manager = AuthManager()
+    def __init__(self, token_provider: Optional["TokenProviderProtocol"] = None):
+        """
+        Initialize Graph Calendar Query
+
+        Args:
+            token_provider: 토큰 제공자 (None이면 기본 AuthManager 사용)
+        """
+        if token_provider is None:
+            # 하위 호환성: 기본 AuthManager 사용
+            from session.auth_manager import AuthManager
+            token_provider = AuthManager()
+        self.token_provider = token_provider
         self._url_builder: Optional[GraphCalendarUrlBuilder] = None
 
     async def initialize(self) -> bool:
@@ -211,7 +221,7 @@ class GraphCalendarQuery:
     async def _get_access_token(self, user_email: str) -> Optional[str]:
         """
         Get or refresh access token for a user
-        Delegates to AuthManager which handles caching and refresh
+        Delegates to TokenProvider which handles caching and refresh
 
         Args:
             user_email: User email to get token for
@@ -220,8 +230,8 @@ class GraphCalendarQuery:
             Access token or None if failed
         """
         try:
-            # AuthManager handles all token caching and refresh logic
-            access_token = await self.auth_manager.validate_and_refresh_token(user_email)
+            # TokenProvider handles all token caching and refresh logic
+            access_token = await self.token_provider.validate_and_refresh_token(user_email)
 
             if not access_token:
                 print(f"Failed to get access token for {user_email}")
@@ -989,8 +999,8 @@ class GraphCalendarQuery:
 
     async def close(self):
         """Clean up resources"""
-        if self.auth_manager:
-            await self.auth_manager.close()
+        if self.token_provider and hasattr(self.token_provider, 'close'):
+            await self.token_provider.close()
 
 
 # ============================================================
