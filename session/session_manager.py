@@ -1,14 +1,16 @@
 """
 Session Manager for MCP Server
-Manages user sessions with GraphMailQuery and GraphMailClient instances
+Manages user authentication sessions (인증 상태만 관리)
+
+Note: 메일/캘린더 등 서비스 인스턴스는 각 MCP 서버에서 관리
 """
 import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, TYPE_CHECKING
 import logging
 
-from mcp_outlook.graph_mail_query import GraphMailQuery
-from mcp_outlook.graph_mail_client import GraphMailClient
+if TYPE_CHECKING:
+    from core.protocols import TokenProviderProtocol
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -17,7 +19,8 @@ logger = logging.getLogger(__name__)
 
 class Session:
     """
-    User session containing GraphMail instances and authentication state
+    User authentication session
+    인증 상태만 관리 (토큰, 만료 시간 등)
     """
 
     def __init__(self, user_email: str):
@@ -31,10 +34,6 @@ class Session:
         self.created_at = datetime.now()
         self.last_accessed = datetime.now()
         self.access_token: Optional[str] = None
-
-        # Create user-specific instances
-        self.graph_mail_query = GraphMailQuery()
-        self.graph_mail_client = GraphMailClient()
 
         # Session state
         self.is_active = True
@@ -56,7 +55,6 @@ class Session:
         try:
             # If no access token provided, try to get from AuthManager
             if not access_token:
-                # AuthManager will handle DB lookup and refresh
                 from session.auth_manager import AuthManager
                 auth_manager = AuthManager()
 
@@ -65,22 +63,15 @@ class Session:
 
                 if not access_token:
                     logger.warning(f"No valid token found in DB for user: {self.user_email}")
-                    # Don't fail here - user might provide token later
-                    # return False
 
             # Store the access token if we got one
             if access_token:
                 self.access_token = access_token
-
-            # Initialize GraphMailClient
-            success = await self.graph_mail_client.initialize()
-            if success:
                 self.initialized = True
                 logger.info(f"Session initialized for user: {self.user_email}")
-            else:
-                logger.error(f"Failed to initialize GraphMailClient for user: {self.user_email}")
+                return True
 
-            return success
+            return False
 
         except Exception as e:
             logger.error(f"Session initialization error for {self.user_email}: {str(e)}")
@@ -102,8 +93,6 @@ class Session:
 
             if new_token:
                 self.access_token = new_token
-                if hasattr(self, 'graph_mail_client'):
-                    self.graph_mail_client.access_token = new_token
                 logger.info(f"Token refreshed for session: {self.user_email}")
                 return True
             else:
@@ -113,6 +102,21 @@ class Session:
         except Exception as e:
             logger.error(f"Error refreshing token for {self.user_email}: {str(e)}")
             return False
+
+    async def get_valid_token(self) -> Optional[str]:
+        """
+        Get a valid access token, refreshing if necessary
+
+        Returns:
+            Valid access token or None
+        """
+        if self.access_token:
+            return self.access_token
+
+        if await self.refresh_token():
+            return self.access_token
+
+        return None
 
     def update_access_time(self):
         """Update last accessed timestamp"""
@@ -142,25 +146,14 @@ class Session:
 
     async def cleanup(self):
         """Clean up session resources"""
-        try:
-            # Close GraphMailQuery resources
-            if hasattr(self.graph_mail_query, 'close'):
-                await self.graph_mail_query.close()
-
-            # Close GraphMailClient resources
-            if hasattr(self.graph_mail_client, 'close'):
-                await self.graph_mail_client.close()
-
-            self.is_active = False
-            logger.info(f"Session cleaned up for user: {self.user_email}")
-
-        except Exception as e:
-            logger.error(f"Error cleaning up session for {self.user_email}: {str(e)}")
+        self.is_active = False
+        self.access_token = None
+        logger.info(f"Session cleaned up for user: {self.user_email}")
 
 
 class SessionManager:
     """
-    Manages all user sessions with automatic cleanup
+    Manages all user authentication sessions with automatic cleanup
     """
 
     def __init__(self, session_timeout_minutes: int = 30, cleanup_interval_minutes: int = 5):
@@ -343,45 +336,3 @@ session_manager = SessionManager(
     session_timeout_minutes=30,  # 30 minutes timeout
     cleanup_interval_minutes=5    # Cleanup every 5 minutes
 )
-
-# Flag indicating SessionManager is available
-USE_SESSION_MANAGER = True
-
-# Legacy mode support (global instances for when SessionManager is not used)
-_legacy_instances: Dict[str, Any] = {}
-
-
-async def ensure_services_initialized_legacy(user_email: Optional[str] = None):
-    """
-    Legacy method: Ensure services are initialized before use.
-    Used when SessionManager is not available or for backward compatibility.
-    """
-    global _legacy_instances
-
-    if 'graph_mail_query' not in _legacy_instances:
-        _legacy_instances['graph_mail_query'] = GraphMailQuery()
-        logger.info("Legacy GraphMailQuery instance created")
-
-    if 'graph_mail_client' not in _legacy_instances and user_email:
-        client = GraphMailClient()
-        await client.initialize()
-        _legacy_instances['graph_mail_client'] = client
-        logger.info(f"Legacy GraphMailClient instance created for {user_email}")
-
-
-async def get_user_session_or_legacy(user_email: str, access_token: Optional[str] = None):
-    """
-    Get user session from SessionManager or return legacy instances.
-
-    Args:
-        user_email: User's email address
-        access_token: Optional access token for authentication
-
-    Returns:
-        Session object if USE_SESSION_MANAGER, else dict with legacy instances
-    """
-    if USE_SESSION_MANAGER:
-        return await session_manager.get_or_create_session(user_email, access_token)
-    else:
-        await ensure_services_initialized_legacy(user_email)
-        return _legacy_instances

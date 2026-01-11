@@ -28,10 +28,12 @@ from datetime import datetime
 from pathlib import Path
 
 import sys
+from typing import TYPE_CHECKING
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from session.auth_manager import AuthManager
+if TYPE_CHECKING:
+    from core.protocols import TokenProviderProtocol
 from .graph_mail_url import ExpandBuilder, GraphMailUrlBuilder
 from .mail_attachment_storage import StorageBackend, LocalStorageBackend, OneDriveStorageBackend, get_storage_backend, MailFolderManager
 from .mail_attachment_converter import ConversionPipeline, get_conversion_pipeline
@@ -155,6 +157,7 @@ class BatchAttachmentHandler:
         self,
         base_directory: str = "downloads",
         metadata_file: str = "mail_metadata.json",
+        token_provider: Optional["TokenProviderProtocol"] = None,
     ):
         """
         초기화
@@ -162,8 +165,12 @@ class BatchAttachmentHandler:
         Args:
             base_directory: 첨부파일 저장 기본 디렉토리
             metadata_file: 메타데이터 파일명 (base_directory 안에 저장됨)
+            token_provider: 토큰 제공자 (None이면 기본 AuthManager 사용)
         """
-        self.auth_manager = AuthManager()
+        if token_provider is None:
+            from session.auth_manager import AuthManager
+            token_provider = AuthManager()
+        self.token_provider = token_provider
         self.folder_manager = MailFolderManager(base_directory)
         # metadata_file을 base_directory 안에 저장
         metadata_path = str(Path(base_directory) / metadata_file)
@@ -184,7 +191,7 @@ class BatchAttachmentHandler:
             액세스 토큰 또는 None
         """
         try:
-            return await self.auth_manager.validate_and_refresh_token(user_email)
+            return await self.token_provider.validate_and_refresh_token(user_email)
         except Exception as e:
             print(f"토큰 획득 실패: {e}")
             return None

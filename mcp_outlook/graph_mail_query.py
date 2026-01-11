@@ -15,12 +15,13 @@ import asyncio
 import aiohttp
 import sys
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from session.auth_manager import AuthManager
+if TYPE_CHECKING:
+    from core.protocols import TokenProviderProtocol
 from .outlook_types import (
     FilterParams,
     ExcludeParams,
@@ -37,15 +38,24 @@ class GraphMailQuery:
     Graph API 메일 조회 클래스
 
     역할:
-        - 인증 처리 (AuthManager)
+        - 인증 처리 (TokenProviderProtocol 활용)
         - URL로 Graph API 호출
         - 페이지네이션 처리
         - 클라이언트 사이드 필터링
     """
 
-    def __init__(self):
-        """Initialize Graph Mail Query"""
-        self.auth_manager = AuthManager()
+    def __init__(self, token_provider: Optional["TokenProviderProtocol"] = None):
+        """
+        Initialize Graph Mail Query
+
+        Args:
+            token_provider: 토큰 제공자 (None이면 기본 AuthManager 사용)
+        """
+        if token_provider is None:
+            # 하위 호환성: 기본 AuthManager 사용
+            from session.auth_manager import AuthManager
+            token_provider = AuthManager()
+        self.token_provider = token_provider
         self._url_builder: Optional[GraphMailUrlBuilder] = None
 
     async def initialize(self) -> bool:
@@ -58,7 +68,7 @@ class GraphMailQuery:
     async def _get_access_token(self, user_email: str) -> Optional[str]:
         """
         Get or refresh access token for a user
-        Delegates to AuthManager which handles caching and refresh
+        Delegates to TokenProvider which handles caching and refresh
 
         Args:
             user_email: User email to get token for
@@ -67,8 +77,8 @@ class GraphMailQuery:
             Access token or None if failed
         """
         try:
-            # AuthManager handles all token caching and refresh logic
-            access_token = await self.auth_manager.validate_and_refresh_token(user_email)
+            # TokenProvider handles all token caching and refresh logic
+            access_token = await self.token_provider.validate_and_refresh_token(user_email)
 
             if not access_token:
                 print(f"Failed to get access token for {user_email}")
@@ -696,8 +706,8 @@ class GraphMailQuery:
 
     async def close(self):
         """Clean up resources"""
-        if self.auth_manager:
-            await self.auth_manager.close()
+        if self.token_provider and hasattr(self.token_provider, 'close'):
+            await self.token_provider.close()
 
 
 # Convenience function for quick queries

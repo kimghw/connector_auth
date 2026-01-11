@@ -3,9 +3,12 @@ Graph Mail Client - 통합 메일 처리 클라이언트
 쿼리, 메일 처리, 첨부파일 관리를 통합하는 상위 클래스
 """
 
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
 from datetime import datetime, timedelta
 from enum import Enum
+
+if TYPE_CHECKING:
+    from core.protocols import TokenProviderProtocol
 
 from .graph_mail_query import GraphMailQuery
 from .graph_mail_id_batch import GraphMailIdBatch
@@ -39,10 +42,23 @@ class GraphMailClient:
     메일 쿼리부터 결과 처리, 첨부파일 관리까지 통합 관리
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        token_provider: Optional["TokenProviderProtocol"] = None,
+        mail_query: Optional[GraphMailQuery] = None,
+        mail_batch: Optional[GraphMailIdBatch] = None,
+    ):
         """
         초기화
+
+        Args:
+            token_provider: 토큰 제공자 (None이면 기본 AuthManager 사용)
+            mail_query: 메일 조회 구현체 (None이면 기본값 생성)
+            mail_batch: 배치 조회 구현체 (None이면 기본값 생성)
         """
+        self._token_provider = token_provider
+        self._provided_mail_query = mail_query
+        self._provided_mail_batch = mail_batch
         self.mail_query: Optional[GraphMailQuery] = None
         self.mail_batch: Optional[GraphMailIdBatch] = None
         self._initialized = False
@@ -58,25 +74,31 @@ class GraphMailClient:
             return True
 
         try:
-            # GraphMailQuery 초기화
-            self.mail_query = GraphMailQuery()
+            # GraphMailQuery 초기화 (제공된 것 사용 또는 새로 생성)
+            if self._provided_mail_query is not None:
+                self.mail_query = self._provided_mail_query
+            else:
+                self.mail_query = GraphMailQuery(token_provider=self._token_provider)
 
             if not await self.mail_query.initialize():
-                print("❌ Failed to initialize GraphMailQuery")
+                print("Failed to initialize GraphMailQuery")
                 return False
 
-            # GraphMailIdBatch 초기화
-            self.mail_batch = GraphMailIdBatch()
+            # GraphMailIdBatch 초기화 (제공된 것 사용 또는 새로 생성)
+            if self._provided_mail_batch is not None:
+                self.mail_batch = self._provided_mail_batch
+            else:
+                self.mail_batch = GraphMailIdBatch(token_provider=self._token_provider)
 
             if not await self.mail_batch.initialize():
-                print("❌ Failed to initialize GraphMailIdBatch")
+                print("Failed to initialize GraphMailIdBatch")
                 return False
 
             self._initialized = True
             return True
 
         except Exception as e:
-            print(f"❌ Initialization error: {str(e)}")
+            print(f"Initialization error: {str(e)}")
             return False
 
     def _ensure_initialized(self):

@@ -9,10 +9,13 @@ from typing import Dict, Any, List, Optional
 
 import sys
 import os
+from typing import TYPE_CHECKING
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from session.auth_manager import AuthManager
+if TYPE_CHECKING:
+    from core.protocols import TokenProviderProtocol
+
 from .outlook_types import SelectParams, build_select_query
 
 
@@ -24,9 +27,17 @@ class GraphMailIdBatch:
     여러 메일 ID를 효율적으로 조회
     """
 
-    def __init__(self):
-        """초기화"""
-        self.auth_manager = AuthManager()
+    def __init__(self, token_provider: Optional["TokenProviderProtocol"] = None):
+        """
+        초기화
+
+        Args:
+            token_provider: 토큰 제공자 (None이면 기본 AuthManager 사용)
+        """
+        if token_provider is None:
+            from session.auth_manager import AuthManager
+            token_provider = AuthManager()
+        self.token_provider = token_provider
         self.batch_url = "https://graph.microsoft.com/v1.0/$batch"
         self.max_batch_size = 20  # Microsoft Graph API 제한
 
@@ -50,7 +61,7 @@ class GraphMailIdBatch:
             액세스 토큰 또는 None
         """
         try:
-            access_token = await self.auth_manager.validate_and_refresh_token(user_email)
+            access_token = await self.token_provider.validate_and_refresh_token(user_email)
 
             if not access_token:
                 print(f"Failed to get access token for {user_email}")
