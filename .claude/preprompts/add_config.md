@@ -42,5 +42,18 @@ async def some_function():
 - `jinja/generate_universal_server.py` - 스캔 함수 정의 (`scan_types_files`, `scan_service_files`)
 - `mcp_editor/tool_editor_core/app.py` - 웹에디터 시작 시 자동 호출
 
+## 대시보드에서 확인
+
+웹에디터 대시보드에서 각 프로필의 설정 상태를 확인할 수 있습니다:
+- MCP 로고 클릭 → 대시보드 모달
+- 프로필별 타입 파일, 서비스 파일 경로 표시
+
+## 관련 문서
+
+| 문서 | 설명 |
+|------|------|
+| [web.md](../commands/web.md) | 웹에디터 설계 원칙 |
+| [web_dataflow.md](web_dataflow.md) | 데이터 흐름 상세 |
+
 ---
 *Last Updated: 2026-01-11*

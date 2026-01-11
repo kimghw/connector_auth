@@ -537,3 +537,43 @@ BatchAttachmentHandler.fetch_and_save()
         │       └── storage.save_file()
         └── metadata_manager.add_processed_mail()
 ```
+
+---
+
+## 9. MCP 도구 연동
+
+### 9.1 등록된 MCP 도구
+
+| 도구명 | 서비스 매핑 | 설명 |
+|--------|------------|------|
+| `mail_attachment_meta` | `fetch_attachments_metadata` | 첨부파일 메타정보 조회 |
+| `mail_attachment_download` | `download_attachments` | 첨부파일 다운로드 |
+| `mail_process_with_download` | `process_with_download` | 메일 조회 및 첨부파일 다운로드 |
+
+### 9.2 테스트 방법
+
+```bash
+# 메타정보 조회
+curl -X POST http://localhost:8001/mcp/v1/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "mail_attachment_meta",
+    "arguments": {
+      "message_ids": ["MESSAGE_ID_HERE"]
+    }
+  }'
+
+# 첨부파일 다운로드
+curl -X POST http://localhost:8001/mcp/v1/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "mail_attachment_download",
+    "arguments": {
+      "message_ids": ["MESSAGE_ID_HERE"],
+      "save_directory": "downloads"
+    }
+  }'
+```
+
+---
+*Last Updated: 2026-01-11*

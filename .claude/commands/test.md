@@ -36,6 +36,41 @@ curl http://localhost:8001/mcp/v1/tools/list
 | `mail_process_with_download` | `process_with_download` | 메일 조회 및 첨부파일 다운로드 |
 | `mail_query_url` | `fetch_url` | Graph API URL 직접 호출 |
 | `mail_attachment_meta` | `fetch_attachments_metadata` | 첨부파일 메타정보 조회 |
+| `mail_attachment_download` | `download_attachments` | 첨부파일 다운로드 |
+
+---
+
+## 2. MCP Calendar 서버 테스트
+
+### 테스트 순서
+```bash
+# 1. 서버 시작
+cd /home/kimghw/Connector_auth
+uvicorn mcp_calendar.mcp_server.server_rest:app --host 0.0.0.0 --port 8002 --reload
+
+# 2. 도구 목록 확인
+curl http://localhost:8002/mcp/v1/tools/list
+```
+
+---
+
+## 3. 병합 서버 테스트 (ms365 등)
+
+### 병합 서버 생성 및 테스트
+```bash
+# 1. 병합 서버 생성
+python jinja/generate_universal_server.py merge \
+    --name ms365 \
+    --sources outlook,calendar \
+    --port 8090 \
+    --protocol all
+
+# 2. 서버 시작
+uvicorn mcp_ms365.mcp_server.server_rest:app --host 0.0.0.0 --port 8090 --reload
+
+# 3. 도구 목록 확인 (병합된 도구 확인)
+curl http://localhost:8090/mcp/v1/tools/list
+```
 
 ### 테스트 예시
 ```bash
@@ -65,7 +100,7 @@ curl -X POST http://localhost:8001/mcp/v1/tools/call \
 
 ---
 
-## 2. 파라미터 처리 테스트
+## 4. 파라미터 처리 테스트
 
 ### 테스트 대상
 - **Signature**: LLM이 직접 제공하는 파라미터
@@ -104,7 +139,31 @@ python mcp_outlook/mcp_server/server_stream.py
 
 ---
 
-## 3. 사용자 지정 테스트
+## 5. 서버 대시보드 테스트
+
+### 대시보드 API 테스트
+```bash
+# 대시보드 전체 상태 조회
+curl http://localhost:5000/api/server/dashboard
+
+# 프로토콜별 서버 시작
+curl -X POST "http://localhost:5000/api/server/start?profile=outlook&protocol=rest"
+
+# 프로토콜별 서버 중지
+curl -X POST "http://localhost:5000/api/server/stop?profile=outlook&protocol=rest"
+
+# 로그 조회
+curl "http://localhost:5000/api/server/logs?profile=outlook&protocol=rest&lines=50"
+```
+
+### 프로토콜별 독립 제어 확인
+- [ ] REST만 실행 후 다른 프로토콜 상태 확인 (STDIO, Stream은 Stopped)
+- [ ] 여러 프로토콜 동시 실행 확인
+- [ ] 개별 프로토콜 재시작 시 다른 프로토콜 영향 없음 확인
+
+---
+
+## 6. 사용자 지정 테스트
 
 사용자가 특정 기능 테스트를 요청한 경우 위 항목을 참조하여 진행합니다.
 
@@ -137,4 +196,17 @@ curl http://localhost:8002/mcp/v1/tools/list
 
 ---
 
-*Last Updated: 2026-01-07*
+## 웹에디터에서 테스트
+
+### 대시보드 활용
+1. 웹에디터 좌측 상단 **MCP 로고** 클릭 → 대시보드 모달 열기
+2. 테스트할 프로필 선택
+3. 원하는 프로토콜 선택 (REST/STDIO/Stream)
+4. **Start** 버튼으로 서버 시작
+5. 상태 확인 및 로그 모니터링
+
+---
+
+*Last Updated: 2026-01-11*
+*Version: 1.1*
+*변경사항: 서버 대시보드 테스트, 프로토콜별 독립 제어 테스트 추가*

@@ -65,19 +65,13 @@ MCP 서버의 Tool 인자 및 값을 제어
 
 ## 6. Generate 흐름
 
-### YAML Single Source of Truth 흐름 (v3.0)
+> **상세 데이터 흐름**: [web_dataflow.md](../preprompts/web_dataflow.md) Section 2, 4 참조
+
+### 요약
 ```
-tool_definition_templates.yaml  ─┐
-(mcp_service_factors 포함)      │
-                                 ├─→ generate_universal_server.py ─┬─→ server_rest.py
-registry_{server}.json          ─┘                                ├─→ server_stdio.py
-                                                                   └─→ server_stream.py
-
-웹에디터 Save 시:
-웹에디터 ─→ tool_definition_templates.yaml (YAML 단일 파일만 저장)
-
-런타임 시:
-server_*.py ─→ YAML에서 MCP_TOOLS 직접 로드 ─→ SERVICE_FACTORS 추출
+tool_definition_templates.yaml + registry_{server}.json
+    → generate_universal_server.py
+    → server_rest.py / server_stdio.py / server_stream.py
 ```
 
 ### 프로토콜별 특징
@@ -97,29 +91,15 @@ server_*.py ─→ YAML에서 MCP_TOOLS 직접 로드 ─→ SERVICE_FACTORS 추
 
 ## 관련 파일 경로
 
-### 웹에디터 핵심
-- `mcp_editor/tool_editor_web.py` - 웹에디터 서버
-- `mcp_editor/templates/tool_editor.html` - 웹에디터 UI
-- `mcp_editor/editor_config.json` - 에디터 설정
+> **전체 파일 목록**: [web_dataflow.md](../preprompts/web_dataflow.md) Section 12 참조
 
-### 서버 생성
-- `jinja/generate_universal_server.py` - 다중 프로토콜 서버 생성 스크립트
-- `jinja/universal_server_template.jinja2` - 범용 서버 베이스 템플릿
-- `jinja/generate_editor_config.py` - editor_config.json 생성
-- `jinja/editor_config_template.jinja2` - editor_config 템플릿
-
-### 레지스트리 관리
-- `mcp_editor/mcp_service_registry/mcp_service_scanner.py` - 데코레이터 스캔
-- `mcp_editor/mcp_service_registry/mcp_service_decorator.py` - @mcp_service
-- `mcp_editor/mcp_service_registry/meta_registry.py` - 메타 레지스트리
-
-### 타입 처리
-- `mcp_editor/pydantic_to_schema.py` - Pydantic → JSON Schema 변환
-- `mcp_editor/extract_graph_types.py` - GraphQL 타입 추출
-
-### 서버 제어
-- `mcp_editor/mcp_server_controller.py` - 서버 시작/중지 관리
-- `mcp_editor/tool_editor_web_server_mappings.py` - 서버 매핑 정보
+### 핵심 파일
+| 구분 | 파일 |
+|------|------|
+| 웹에디터 | `mcp_editor/tool_editor_web.py` |
+| 서버 생성 | `jinja/generate_universal_server.py` |
+| 레지스트리 | `mcp_editor/mcp_service_registry/mcp_service_scanner.py` |
+| 서버 제어 | `mcp_editor/mcp_server_controller.py` |
 
 ---
 
@@ -154,9 +134,33 @@ mcp_editor/mcp_{service_name}/
 
 ---
 
+## MCP 서버 대시보드
+
+> **상세 아키텍처**: [web_dataflow.md](../preprompts/web_dataflow.md) Section 11 참조
+
+### 대시보드 접근
+웹에디터 좌측 상단 **MCP 로고**를 클릭하면 서버 대시보드 모달이 열립니다.
+
+### 주요 기능
+- **프로필별 상태 조회**: 모든 프로필의 서버 상태 한눈에 확인
+- **프로토콜별 독립 제어**: REST, STDIO, Stream 각각 시작/중지/재시작
+- **프로필 계층 표시**: Base, Reused, Merged 프로필 구분
+
+### 빠른 참조: API 엔드포인트
+| API | 설명 |
+|-----|------|
+| `GET /api/server/dashboard` | 전체 상태 조회 |
+| `POST /api/server/start?profile=X&protocol=Y` | 서버 시작 |
+| `POST /api/server/stop?profile=X&protocol=Y` | 서버 중지 |
+
+---
+
 ## MCP 프로토콜 서버 실행
 
-### 프로토콜별 서버 실행 방법
+### 웹에디터에서 실행 (권장)
+대시보드에서 프로토콜 선택 후 **Start** 버튼 클릭
+
+### CLI에서 직접 실행
 ```bash
 # REST API 서버 실행 (FastAPI)
 python mcp_outlook/mcp_server/server_rest.py
@@ -188,7 +192,54 @@ python jinja/generate_universal_server.py outlook --protocol all
 python jinja/generate_universal_server.py outlook --protocol rest
 python jinja/generate_universal_server.py outlook --protocol stdio
 python jinja/generate_universal_server.py outlook --protocol stream
+
+# 서버 병합 (outlook + calendar → ms365)
+python jinja/generate_universal_server.py merge \
+    --name ms365 \
+    --sources outlook,calendar \
+    --port 8090 \
+    --protocol all
 ```
+
+---
+
+## 서버 병합 기능
+
+> **상세 데이터 흐름**: [web_dataflow.md](../preprompts/web_dataflow.md) Section 10 참조
+
+### 웹 UI에서 병합 (권장)
+1. 웹에디터에서 **"Merge"** 버튼 클릭
+2. 병합할 서버들 선택 (outlook, calendar 등)
+3. 병합 서버 이름 입력 (예: ms365)
+4. 포트 및 프로토콜 설정
+5. **"Create Merged Server"** 클릭
+
+### CLI에서 병합
+```bash
+python jinja/generate_universal_server.py merge \
+    --name ms365 \
+    --sources outlook,calendar \
+    --port 8090 \
+    --protocol all
+```
+
+### 주요 옵션
+| 옵션 | 설명 |
+|------|------|
+| `--name` | 병합 서버 이름 (필수) |
+| `--sources` | 병합할 프로필 목록, 콤마 구분 (필수) |
+| `--protocol` | 프로토콜 타입 (rest/stdio/stream/all) |
+
+---
+
+## 파생 서버 생성
+
+### 기존 서비스 재사용
+기존 MCP 서비스를 재사용하여 도구 세트가 다른 새 프로필 생성:
+1. 웹에디터에서 **"New Project"** → **"Reuse existing service"** 선택
+2. 기존 서비스 선택 (예: outlook)
+3. 새 프로필 이름 입력 (예: outlook_read)
+4. 생성 후 YAML에서 필요한 도구만 선택
 
 ---
 
@@ -206,6 +257,15 @@ python jinja/generate_universal_server.py outlook --protocol stream
 - [ ] 서버가 YAML에서 MCP_TOOLS를 정상 로드하는지 확인
 
 ---
-*Last Updated: 2026-01-08*
-*Version: 3.0*
-*변경사항: YAML Single Source of Truth 적용, tool_definitions.py 제거, 런타임 YAML 로드*
+
+## 문서 역할
+
+| 문서 | 역할 |
+|------|------|
+| **web.md** (본 문서) | 웹에디터 **사용 방법** 및 **실행 지침** |
+| [web_dataflow.md](../preprompts/web_dataflow.md) | 웹에디터 **데이터 흐름** 및 **내부 구현** 상세 |
+
+---
+*Last Updated: 2026-01-11*
+*Version: 3.3*
+*변경사항: 역할 분리 - 상세 데이터 흐름은 web_dataflow.md로 참조*

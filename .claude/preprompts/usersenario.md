@@ -2,6 +2,81 @@
 
 ## 최근 세션 기록
 
+### 2026-01-11: commands/preprompts 문서 전체 업데이트
+
+#### 요청 사항
+- `.claude/commands/`와 `.claude/preprompts/` 디렉토리의 모든 문서를 최신 코드베이스에 맞게 업데이트
+- 서버 대시보드, 프로토콜별 독립 제어, 서버 병합 웹 UI 등 신규 기능 문서화
+
+#### 구현 완료 항목
+
+**1. commands 디렉토리 업데이트**
+
+| 파일 | 변경 내용 | 버전 |
+|------|----------|------|
+| `web.md` | 서버 대시보드 섹션 추가, 프로토콜별 제어 API, 병합 웹 UI | 3.2 |
+| `test.md` | 대시보드 테스트, 프로토콜별 제어 테스트 추가 | 1.1 |
+| `terminology.md` | 프로필 타입 (Base, Reused, Merged) 용어 추가 | 3.1 |
+| `common.md` | preprompts 관련 문서 링크 추가 | - |
+| `mcp_service.md` | 관련 문서 및 버전 업데이트 | 1.3.0 |
+
+**2. 추가된 주요 내용**
+
+- **서버 대시보드**: MCP 로고 클릭으로 접근, 프로필별 상태 조회
+- **프로토콜별 독립 제어**: REST, STDIO, Stream 각각 시작/중지/재시작
+- **대시보드 API**: `/api/server/dashboard`, `/api/server/start?protocol=...`
+- **프로필 계층**: Base → Reused → Merged 관계 표시
+- **병합 웹 UI**: "Merge" 버튼으로 GUI에서 서버 병합
+
+#### 수정된 파일 (총 6개)
+- `.claude/commands/web.md`
+- `.claude/commands/test.md`
+- `.claude/commands/terminology.md`
+- `.claude/commands/common.md`
+- `.claude/commands/mcp_service.md`
+- `.claude/preprompts/web_dataflow.md` - 서버 병합/대시보드 섹션 추가 (v3.2)
+
+---
+
+### 2026-01-10: MCP 서버 대시보드 및 프로토콜별 제어 기능
+
+#### 요청 사항
+- 모든 MCP 서버 상태를 한눈에 확인하는 대시보드 추가
+- REST, STDIO, Stream 프로토콜 각각 독립적으로 제어
+
+#### 구현 완료 항목
+
+**1. 대시보드 UI**
+- 웹에디터 좌측 상단 MCP 로고 클릭 → 대시보드 모달
+- 프로필별 서버 상태, 실행 중인 PID, 프로토콜별 상태 표시
+- Base/Reused/Merged 프로필 계층 구분
+
+**2. 프로토콜별 독립 제어**
+- 각 프로토콜마다 별도의 PID/로그 파일 관리
+- REST만 실행하거나 Stream만 실행 가능
+- 포트 충돌 방지 (프로필별 고유 포트 할당)
+
+**3. API 엔드포인트**
+
+| API | 설명 |
+|-----|------|
+| `GET /api/server/dashboard` | 전체 프로필 상태 조회 |
+| `POST /api/server/start?protocol=rest` | 특정 프로토콜 서버 시작 |
+| `POST /api/server/stop?protocol=rest` | 특정 프로토콜 서버 중지 |
+| `GET /api/server/logs?protocol=rest` | 특정 프로토콜 로그 조회 |
+
+#### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `mcp_editor/mcp_server_controller.py` | 프로토콜별 프로세스 관리 로직 |
+| `mcp_editor/static/js/tool_editor_dashboard.js` | 대시보드 UI 로직 (신규) |
+| `mcp_editor/static/js/tool_editor_server.js` | 프로토콜 선택 드롭다운 추가 |
+| `mcp_editor/templates/tool_editor.html` | 대시보드 모달 UI |
+| `mcp_editor/tool_editor_core/routes/server_routes.py` | 대시보드 API |
+
+---
+
 ### 2026-01-10: MCP 서버 병합(Merge) 기능 구현
 
 #### 요청 사항
@@ -694,4 +769,37 @@ server_rest.py / server_stdio.py / server_stream.py
 
 ---
 
-*마지막 업데이트: 2026-01-10*
+### 2026-01-11: 타입/서비스 파일 자동 스캔 기능 추가
+
+#### 요청 사항
+- 웹에디터 시작 시 `*_types.py`, `*_service.py` 파일 자동 스캔
+- editor_config.json에 스캔된 파일 경로 자동 반영
+
+#### 구현 완료 항목
+
+**1. 자동 스캔 함수 추가 (generate_universal_server.py)**
+
+| 함수명 | 기능 |
+|-------|------|
+| `scan_types_files()` | `*_types.py` 파일 재귀 스캔 |
+| `scan_service_files()` | `*_service.py` 파일 재귀 스캔 |
+
+**2. 스캔 제외 디렉토리**
+- `__pycache__`, `venv`, `node_modules`
+- `test`, `tests`
+- `.`으로 시작하는 숨김 폴더
+
+**3. 스캔 시점**
+- 웹에디터 시작 시 자동 실행
+- `generate_editor_config.py` 실행 시
+- 서버 병합 시
+
+#### 수정된 파일
+| 파일 | 수정 내용 |
+|------|----------|
+| `jinja/generate_universal_server.py` | scan_types_files(), scan_service_files() 함수 추가 |
+| `jinja/generate_editor_config.py` | 스캔 함수 호출 로직 추가 |
+
+---
+
+*마지막 업데이트: 2026-01-11*

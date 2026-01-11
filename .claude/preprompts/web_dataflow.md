@@ -2,9 +2,21 @@
 description: MCP 웹에디터 데이터 흐름 및 핸들러 처리 가이드 (project)
 ---
 
-> **공통 지침**: 작업 전 [common.md](common.md) 참조
+> **공통 지침**: 작업 전 [common.md](../commands/common.md) 참조
 
 # MCP 웹에디터 데이터 흐름 및 핸들러 처리 가이드
+
+> **본 문서는 MCP 웹에디터의 전체 데이터 흐름을 상세히 설명하는 종합 참조 문서입니다.**
+
+## 관련 문서 (역할 분리)
+
+| 문서 | 역할 | 참조 시점 |
+|------|------|----------|
+| [web.md](../commands/web.md) | 웹에디터 **사용 방법** 및 **실행 지침** | 웹에디터 사용 시 |
+| [handler.md](../commands/handler.md) | 파라미터 체계 **핵심 개념** 요약 | 빠른 참조 시 |
+| **web_dataflow.md** (본 문서) | 데이터 흐름 및 내부 구현 **상세** | 구현/디버깅 시 |
+
+---
 
 ## 목차
 1. [전체 시스템 아키텍처](#1-전체-시스템-아키텍처)
@@ -16,7 +28,9 @@ description: MCP 웹에디터 데이터 흐름 및 핸들러 처리 가이드 (p
 7. [전체 데이터 변환 흐름](#7-전체-데이터-변환-흐름)
 8. [호출 함수/메서드 명세](#8-호출-함수메서드-명세)
 9. [registry_{server}.json의 역할 - 중간 저장소](#9-registry_serverjson의-역할---중간-저장소-bridge)
-10. [파일 경로 참조](#10-파일-경로-참조)
+10. [서버 병합 데이터 흐름](#10-서버-병합-데이터-흐름)
+11. [대시보드 및 프로토콜별 제어](#11-대시보드-및-프로토콜별-제어)
+12. [파일 경로 참조](#12-파일-경로-참조)
 
 ---
 
@@ -923,7 +937,189 @@ mcp_{service}/mcp_server/server_{protocol}.py
 
 ---
 
-## 10. 파일 경로 참조
+## 10. 서버 병합 데이터 흐름
+
+### 병합 개념
+
+여러 MCP 서버(예: outlook + calendar)를 하나의 통합 서버(ms365)로 병합합니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         서버 병합 데이터 흐름                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  소스 서버들                          병합 프로세스                   결과
+  ────────────                        ──────────────                 ──────
+
+  ┌───────────────┐
+  │ mcp_outlook   │───┐
+  │ • 7개 도구    │   │
+  │ • registry    │   │      ┌─────────────────────┐
+  │ • YAML        │   ├────▶│ generate_universal_ │
+  └───────────────┘   │      │ server.py merge     │
+                      │      │                     │
+  ┌───────────────┐   │      │ • merge_tool_       │      ┌───────────────┐
+  │ mcp_calendar  │───┘      │   definitions()     │────▶│ mcp_ms365     │
+  │ • 6개 도구    │          │ • merge_registries()│      │ • 13개 도구   │
+  │ • registry    │          │ • 타입 스캔 통합     │      │ • 3 프로토콜  │
+  │ • YAML        │          └─────────────────────┘      └───────────────┘
+  └───────────────┘
+```
+
+### 병합 시 데이터 처리
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         병합 시 데이터 변환                                 │
+└──────────────────────────────────────────────────────────────────────────┘
+
+1. YAML 병합 (merge_tool_definitions)
+   ───────────────────────────────────
+   outlook/tool_definition_templates.yaml  ─┐
+                                            ├──▶ ms365/tool_definition_templates.yaml
+   calendar/tool_definition_templates.yaml ─┘
+
+2. Registry 병합 (merge_registries)
+   ───────────────────────────────────
+   registry_outlook.json  ─┐
+                           ├──▶ registry_ms365.json
+   registry_calendar.json ─┘
+
+   * module_path 정규화: outlook → mcp_outlook
+
+3. 타입 스캔 통합 (find_type_locations_multi)
+   ───────────────────────────────────
+   mcp_outlook/*_types.py   ─┐
+                              ├──▶ 통합 type_info
+   mcp_calendar/*_types.py  ─┘
+
+4. 도구 이름 충돌 해결
+   ───────────────────────────────────
+   prefix 모드: auto / always / none
+   충돌 시: outlook_mail_list, calendar_list_events
+```
+
+### 병합 관련 API
+
+| API | 메서드 | 설명 |
+|-----|--------|------|
+| `/api/merge-servers` | POST | 서버 병합 실행 |
+
+### 병합 설정 (editor_config.json)
+
+```json
+{
+  "ms365": {
+    "is_merged": true,
+    "source_profiles": ["outlook", "calendar"],
+    "tool_definitions_path": "../mcp_ms365/mcp_server/tool_definitions.py",
+    "port": 8090
+  }
+}
+```
+
+---
+
+## 11. 대시보드 및 프로토콜별 제어
+
+### 대시보드 아키텍처
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         대시보드 데이터 흐름                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌───────────────────┐         ┌─────────────────────┐         ┌─────────────┐
+  │  웹에디터 UI      │  GET    │  /api/server/       │  조회    │ 프로세스    │
+  │  (MCP 로고 클릭)  │────────▶│  dashboard          │────────▶│ 상태 확인   │
+  └───────────────────┘         └─────────────────────┘         └─────────────┘
+                                         │
+                                         ▼
+                                ┌─────────────────────┐
+                                │  응답 구조           │
+                                │  {                  │
+                                │    profiles: [      │
+                                │      {              │
+                                │        profile,     │
+                                │        protocols: { │
+                                │          rest: {},  │
+                                │          stdio: {}, │
+                                │          stream: {} │
+                                │        }            │
+                                │      }              │
+                                │    ]                │
+                                │  }                  │
+                                └─────────────────────┘
+```
+
+### 프로토콜별 독립 제어
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                      프로토콜별 프로세스 관리                               │
+└──────────────────────────────────────────────────────────────────────────┘
+
+  outlook 프로필
+  ─────────────────────────────────────────────────────────────
+
+  ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
+  │  REST Server    │   │  STDIO Server   │   │  Stream Server  │
+  │  (독립 프로세스) │   │  (독립 프로세스) │   │  (독립 프로세스) │
+  └────────┬────────┘   └────────┬────────┘   └────────┬────────┘
+           │                     │                     │
+           ▼                     ▼                     ▼
+  ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
+  │ PID: 12345      │   │ PID: 12346      │   │ PID: 12347      │
+  │ Port: 8091      │   │ (stdio)         │   │ Port: 8092      │
+  │ Log: rest.log   │   │ Log: stdio.log  │   │ Log: stream.log │
+  └─────────────────┘   └─────────────────┘   └─────────────────┘
+```
+
+### 대시보드 API
+
+| API | 메서드 | 설명 |
+|-----|--------|------|
+| `/api/server/dashboard` | GET | 전체 프로필 상태 조회 |
+| `/api/server/start?profile=X&protocol=Y` | POST | 특정 프로토콜 시작 |
+| `/api/server/stop?profile=X&protocol=Y` | POST | 특정 프로토콜 중지 |
+| `/api/server/restart?profile=X&protocol=Y` | POST | 특정 프로토콜 재시작 |
+| `/api/server/logs?profile=X&protocol=Y&lines=N` | GET | 프로토콜별 로그 조회 |
+| `/api/server/port` | PUT | 포트 변경 |
+
+### 프로필 계층 구조
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         프로필 타입 구분                                    │
+└──────────────────────────────────────────────────────────────────────────┘
+
+  Base Profile                  Reused Profile               Merged Profile
+  ────────────                  ──────────────               ──────────────
+
+  ┌─────────────┐              ┌─────────────┐              ┌─────────────┐
+  │  outlook    │───────────▶ │outlook_read │              │   ms365     │
+  │             │  재사용      │             │              │             │
+  │ is_base:true│              │is_reused:   │              │is_merged:   │
+  │             │              │ true        │              │ true        │
+  │ source_dir: │              │base_profile:│              │source_      │
+  │ mcp_outlook │              │ outlook     │              │ profiles:   │
+  └─────────────┘              └─────────────┘              │[outlook,    │
+                                                            │ calendar]   │
+                                                            └─────────────┘
+```
+
+### 관련 파일
+
+| 파일 | 역할 |
+|------|------|
+| `mcp_editor/mcp_server_controller.py` | 프로토콜별 프로세스 관리 |
+| `mcp_editor/static/js/tool_editor_dashboard.js` | 대시보드 UI 로직 |
+| `mcp_editor/static/js/tool_editor_server.js` | 서버 제어 UI |
+| `mcp_editor/tool_editor_core/routes/server_routes.py` | 서버/대시보드 API |
+
+---
+
+## 12. 파일 경로 참조
 
 | 구분 | 경로 |
 |------|------|
@@ -934,12 +1130,14 @@ mcp_{service}/mcp_server/server_{protocol}.py
 | 서버 생성 | `jinja/generate_universal_server.py` |
 | Jinja2 템플릿 | `jinja/universal_server_template.jinja2` |
 | 생성된 서버 | `mcp_{service}/mcp_server/server_{protocol}.py` |
+| 서버 컨트롤러 | `mcp_editor/mcp_server_controller.py` |
+| 대시보드 JS | `mcp_editor/static/js/tool_editor_dashboard.js` |
 
 > **Note**: `tool_definitions.py`는 더 이상 생성되지 않음. 서버 코드가 런타임에 YAML에서 직접 로드.
 
 ---
 
-*관련: terminology.md, web.md, handler.md*
-*Version: 3.0*
-*Last Updated: 2026-01-08*
-*변경사항: YAML Single Source of Truth 적용, tool_definitions.py 제거, 런타임 YAML 로드*
+*관련: [terminology.md](../commands/terminology.md), [web.md](../commands/web.md), [handler.md](../commands/handler.md)*
+*Version: 3.3*
+*Last Updated: 2026-01-11*
+*변경사항: 역할 분리 명시 - 본 문서가 전체 플로우 상세 담당*

@@ -108,4 +108,14 @@ Debug ID 추가/수정 시:
 - [ ] refreshDebugIndexes() 호출하여 인덱스 갱신
 
 ---
-*Last Updated: 2026-01-06*
+
+## 관련 파일
+
+| 파일 | 설명 |
+|------|------|
+| `mcp_editor/static/js/tool_editor_dashboard.js` | 대시보드 UI (Debug ID 사용) |
+| `mcp_editor/static/js/tool_editor_derive.js` | 파생 서버 UI |
+| `mcp_editor/static/js/tool_editor_server.js` | 서버 제어 UI |
+
+---
+*Last Updated: 2026-01-11*

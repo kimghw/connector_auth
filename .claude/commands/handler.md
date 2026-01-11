@@ -1,6 +1,9 @@
 > **공통 지침**: 작업 전 [common.md](common.md) 참조
+> **상세 데이터 흐름**: [web_dataflow.md](../preprompts/web_dataflow.md) Section 3-5 참조
 
 # MCP 핸들러 파라미터 체계
+
+> 본 문서는 핸들러 파라미터의 **핵심 개념**을 설명합니다. 런타임 처리 흐름 및 병합 체계 상세는 [web_dataflow.md](../preprompts/web_dataflow.md)를 참조하세요.
 
 ## inputSchema 인자 타입
 
@@ -36,22 +39,18 @@ inputSchema 프로퍼티
 
 ## 병합 로직
 
-### 1단계: Signature + Signature Default 병합
-- Signature 값이 우선
-- Signature에 없는 속성만 default 값 사용
-- null/None 값은 병합에서 제외
+> **상세 병합 체계**: [web_dataflow.md](../preprompts/web_dataflow.md) Section 5 참조
 
-### 2단계: Internal 병합
-- Signature 파라미터가 우선
-- 같은 targetParam을 가리킬 때만 병합 발생
-- Internal만 있는 경우 그대로 사용
-
-## 우선순위 (높음 → 낮음)
-
-1. 사용자 입력 (Signature)
-2. Signature Defaults
-3. Internal 파라미터
+### 우선순위 (높음 → 낮음)
+1. **사용자 입력** (Signature)
+2. **Signature Defaults**
+3. **Internal 파라미터**
 4. 서비스 메서드 기본값
+
+### 핵심 규칙
+- Signature 값이 항상 우선
+- 같은 targetParam을 가리킬 때만 병합 발생
+- null/None 값은 병합에서 제외
 
 ## targetParam vs targetServiceFactor
 
@@ -70,4 +69,14 @@ inputSchema 프로퍼티
 > **Note**: `tool_definitions.py`는 더 이상 사용되지 않음. 서버 코드가 런타임에 YAML에서 직접 로드.
 
 ---
-*Last Updated: 2026-01-08*
+
+## 문서 역할
+
+| 문서 | 역할 |
+|------|------|
+| **handler.md** (본 문서) | 파라미터 체계 **핵심 개념** 요약 |
+| [web_dataflow.md](../preprompts/web_dataflow.md) | **런타임 처리 흐름** 및 **병합 체계** 상세 |
+
+---
+*Last Updated: 2026-01-11*
+*Version: 1.1*

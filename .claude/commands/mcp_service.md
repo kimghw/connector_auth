@@ -297,13 +297,17 @@ mcp_{service_name}/
 ├── {service_name}_types.py         # 타입 정의 (선택사항)
 ├── {service_name}_utils.py         # 유틸리티 함수 (선택사항)
 ├── mcp_server/
-│   ├── server_rest.py              # REST API 서버
+│   ├── server_rest.py              # REST API 서버 (런타임 YAML 로드)
 │   ├── server_stdio.py             # STDIO 서버
-│   ├── server_stream.py            # Stream 서버
-│   └── tool_definitions.py         # MCP 도구 정의
+│   └── server_stream.py            # Stream 서버
 └── tests/
     └── test_{service_name}.py      # 테스트 코드
+
+mcp_editor/mcp_{service_name}/
+└── tool_definition_templates.yaml  # 도구 정의 (Single Source of Truth)
 ```
+
+> **Note**: `tool_definitions.py`는 더 이상 생성되지 않음. 서버가 런타임에 YAML에서 직접 로드.
 
 ---
 
@@ -526,14 +530,16 @@ async def safe_method(self, param: str):
 ---
 
 **작성일**: 2025-01-05
-**최종 수정일**: 2026-01-06
-**버전**: 1.2.0
+**최종 수정일**: 2026-01-11
+**버전**: 1.3.0
 **용도**: 범용 MCP 서비스 구현 가이드
 **업데이트**:
 - v1.0.0: 초기 버전 - Facade 패턴 기반 서비스 구현 가이드
 - v1.1.0: decorator.md 내용 통합 - 데코레이터 상세 가이드 추가
 - v1.2.0: tool_internal_args.json 삭제 반영 (mcp_service_factors로 통합)
+- v1.3.0: 서버 병합, 대시보드, 프로토콜별 제어 기능 연계 반영
 
 **관련 문서**:
-- `.claude/commands/terminology.md` - MCP 용어 정의
-- `.claude/commands/web.md` - 웹에디터 사용 가이드
+- `.claude/commands/terminology.md` - MCP 용어 정의 (프로필 타입 포함)
+- `.claude/commands/web.md` - 웹에디터 사용 가이드 (대시보드, 병합 포함)
+- `.claude/commands/test.md` - 테스트 가이드
