@@ -9,7 +9,100 @@ description: >-
 
 # MCP Setup with the Web Editor
 
+> **핵심 목적**: 기존 프로젝트에 **웹 에디터를 연결**하여 MCP 핸들러(도구 스키마, 파라미터, 설명 등)를 **GUI로 편집/관리**할 수 있게 설정합니다. 단순히 MCP 서버를 만드는 것이 아니라, 런타임에 도구 정의를 시각적으로 수정하고 재생성할 수 있는 관리 인프라를 구축합니다.
+
 Goal: turn an existing project into an MCP server the web editor can manage (decorators → registry → tool templates → generated server).
+
+---
+
+## Step 0: 인프라 가져오기 (필수)
+
+스킬 실행 전, 아래 인프라 파일들을 GitHub에서 가져와야 합니다.
+
+### 가져올 파일/폴더 (코어)
+
+```
+mcp_editor/
+├── tool_editor_web.py              # 웹 에디터 메인
+├── tool_editor_core/               # 라우트 및 유틸리티 (전체)
+├── mcp_service_registry/
+│   ├── mcp_service_decorator.py    # @mcp_service 데코레이터
+│   ├── mcp_service_scanner.py      # 서비스 스캐너
+│   ├── extract_types.py
+│   ├── meta_registry.py
+│   └── pydantic_to_schema.py
+├── static/                         # CSS, JS (전체)
+├── templates/                      # HTML 템플릿 (전체)
+├── pydantic_to_schema.py
+├── extract_graph_types.py
+├── generate_editor_config.py
+└── mcp_server_controller.py
+
+jinja/
+├── generate_universal_server.py    # 서버 생성기
+├── generate_editor_config.py
+├── *.jinja2                        # 템플릿 파일들
+└── (backup/, legacy_backup/ 제외)
+
+.claude/skills/mcp-setup/           # 이 스킬 (전체)
+```
+
+### 제외할 파일 (프로젝트별 데이터)
+
+```
+mcp_editor/mcp_*/                   # mcp_outlook, mcp_calendar 등
+mcp_editor/editor_config.json       # 프로젝트별 설정
+mcp_editor/mcp_service_registry/registry_*.json
+mcp_editor/mcp_service_registry/types_property_*.json
+jinja/backup/
+jinja/legacy_backup/
+*/__pycache__/
+```
+
+### 가져오기 명령어
+
+```bash
+# GitHub에서 sparse-checkout으로 가져오기
+REPO_URL="https://github.com/USER/Connector_auth.git"
+TARGET_DIR="/path/to/your/project"
+
+# 임시 클론
+git clone --filter=blob:none --sparse $REPO_URL _infra_temp
+cd _infra_temp
+git sparse-checkout set mcp_editor jinja .claude/skills/mcp-setup
+
+# 코어 파일만 복사
+cp -r mcp_editor $TARGET_DIR/
+cp -r jinja $TARGET_DIR/
+mkdir -p $TARGET_DIR/.claude/skills
+cp -r .claude/skills/mcp-setup $TARGET_DIR/.claude/skills/
+
+# 프로젝트별 데이터 정리
+cd $TARGET_DIR
+rm -rf mcp_editor/mcp_*/
+rm -f mcp_editor/editor_config.json
+rm -f mcp_editor/mcp_service_registry/registry_*.json
+rm -f mcp_editor/mcp_service_registry/types_property_*.json
+rm -rf jinja/backup jinja/legacy_backup
+find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null
+
+# 임시 폴더 정리
+cd .. && rm -rf _infra_temp
+
+echo "인프라 설치 완료"
+```
+
+### 확인 체크리스트
+
+- [ ] `mcp_editor/tool_editor_web.py` 존재
+- [ ] `mcp_editor/tool_editor_core/` 존재
+- [ ] `mcp_editor/mcp_service_registry/mcp_service_decorator.py` 존재
+- [ ] `jinja/generate_universal_server.py` 존재
+- [ ] `.claude/skills/mcp-setup/SKILL.md` 존재
+
+위 파일들이 모두 존재하면 다음 단계로 진행합니다.
+
+---
 
 ## Quick start
 - Pick a server name (e.g., `demo`) and mirror/rename the project to `mcp_demo/`.
@@ -18,6 +111,92 @@ Goal: turn an existing project into an MCP server the web editor can manage (dec
 - Add a `mcp_demo` profile block to `mcp_editor/editor_config.json` (see `references/editor_config_snippet.json`).
 - Run `python mcp_editor/tool_editor_web.py`, verify auto-scan picked up the decorators, adjust schemas, then Save to emit `tool_definitions.py`.
 - Generate the server when ready: `python jinja/generate_universal_server.py demo` (do not hand-edit generated files).
+
+## Pre-setup Interview (Required)
+
+Before starting mcp_setup, you MUST complete the following interview process with the user.
+
+### Step A: Project Analysis
+
+1. **Assess Project Scale**
+   - Count the number of Python files in the project (`*.py` file scan)
+   - Identify main modules and package structure
+   - Locate existing service functions and business logic
+
+2. **Check for Existing MCP/Handler Implementation**
+   - Check for existing MCP server folders (`mcp_*/` pattern)
+   - Check for handler files (`*_handler.py`, `handler.py` patterns)
+   - Check for existing `tool_definitions.py`, `server.py` files
+   - Check `mcp_editor/mcp_service_registry/registry_*.json` files
+
+### Step B: Determine Handling Policy for Existing Implementation
+
+If existing MCP servers or handlers are found:
+
+1. **Present Options to User** (use AskUserQuestion)
+   - **Option 1: Remove and Rebuild**
+     - Delete all existing handlers and MCP-related scripts
+     - Set up fresh with new structure
+   - **Option 2: Keep Existing Implementation and Document**
+     - Record existing handler info in `mcp_editor/mcp_{server}/existing_handlers_log.md`
+     - Document: handler names, service functions used, mapping info
+     - Manage alongside new setup
+   - **Option 3: Convert Existing Implementation to Service Functions**
+     - Migrate existing MCP tools/handlers to `@mcp_service` decorator-based service functions
+     - Wrap existing logic using the facade pattern
+
+### Step C: Determine MCP Server Structure
+
+1. **Decide Number of Servers** (use AskUserQuestion)
+
+   | Project Scale | Recommended Structure | Description |
+   |--------------|----------------------|-------------|
+   | Small (< 20 files) | Single MCP Server | Create 1 pair of `*_service.py`, `*_types.py`. Can use derived feature later to categorize handlers |
+   | Medium (20-100 files) | Single or Multiple MCP Servers | User choice whether to split by domain |
+   | Large (> 100 files) | Multiple MCP Servers | Create multiple `*_service.py`, `*_types.py` pairs by domain to separate MCP servers |
+
+2. **Server Structure Options Explained**
+   - **Single Server (1)**: Easier to manage; can logically categorize handlers later using the derived feature
+   - **Multiple Servers (2+)**: Create `{domain}_service.py`, `{domain}_types.py` pairs per domain for independent MCP server operation
+
+3. **Multi-Project Merge** (Informational Only)
+   > **Under Development**: The feature to consolidate 2+ projects into a single MCP server is currently being developed. Manual configuration is possible if needed.
+
+### Step D: Interview Checklist
+
+Items to confirm before proceeding:
+
+- [ ] Project file count analysis complete
+- [ ] Existing MCP server/handler check complete
+- [ ] Existing implementation handling policy decided (remove/keep/convert)
+- [ ] MCP server count decided (single/multiple)
+- [ ] Server name(s) confirmed
+- [ ] Candidate list of service functions to expose prepared
+
+### Step E: Existing Implementation Log Template (if keeping)
+
+Create `mcp_editor/mcp_{server}/existing_handlers_log.md`:
+
+```markdown
+# Existing MCP Handler Log
+
+## Analysis Date
+- Date: YYYY-MM-DD
+
+## Existing Handler List
+
+### Handler: {handler_name}
+- File Location: {file_path}
+- Service Functions Used:
+  - `{function_name}` from `{module_path}`
+- Mapped MCP Tool: {tool_name}
+- Notes: {notes}
+
+## Migration Plan
+- [ ] {handler_name} → {new_service_function}
+```
+
+---
 
 ## Workflow
 0) Verify prerequisites
