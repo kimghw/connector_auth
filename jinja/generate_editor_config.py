@@ -131,9 +131,9 @@ def detect_module_paths(server_name: str, base_dir: str) -> Dict[str, Any]:
             print(f"        - {f}")
 
     return {
-        "template_definitions_path": f"tool_definition_{server_name}_templates.py",
+        "template_definitions_path": f"mcp_{server_name}/tool_definition_templates.yaml",
         "tool_definitions_path": f"../{mcp_server_dir}/tool_definitions.py",
-        "backup_dir": "backups",
+        "backup_dir": f"mcp_{server_name}/backups",
         "types_files": types_files,
         "service_files": service_files,
         "host": "0.0.0.0",

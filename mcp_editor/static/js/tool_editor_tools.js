@@ -793,6 +793,7 @@ function renderProfileTabs() {
             btn.textContent = name;
             btn.onclick = () => {
                 currentProfile = name;
+                window.currentProfile = name;  // Sync with window for delete button
                 originalProfile = name;  // Update original profile when switching
                 renderProfileTabs();
                 loadTools();

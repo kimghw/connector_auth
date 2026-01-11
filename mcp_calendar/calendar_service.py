@@ -324,14 +324,14 @@ class CalendarService:
             return dt
         elif isinstance(dt, dict):
             return DateTimeTimeZone(
-                date_time=dt.get("dateTime", dt.get("date_time", "")),
-                time_zone=dt.get("timeZone", dt.get("time_zone", "Korea Standard Time")),
+                dateTime=dt.get("dateTime", dt.get("date_time", "")),
+                timeZone=dt.get("timeZone", dt.get("time_zone", "Korea Standard Time")),
             )
         else:
             # ISO 8601 문자열인 경우
             return DateTimeTimeZone(
-                date_time=dt,
-                time_zone="Korea Standard Time",
+                dateTime=dt,
+                timeZone="Korea Standard Time",
             )
 
     def _convert_attendees(
@@ -536,9 +536,9 @@ class CalendarService:
         # ScheduleRequest 생성
         schedule_request = ScheduleRequest(
             schedules=schedules,
-            start_time=start_dt,
-            end_time=end_dt,
-            availability_view_interval=availability_view_interval,
+            startTime=start_dt,
+            endTime=end_dt,
+            availabilityViewInterval=availability_view_interval,
         )
 
         result = await self._client.get_schedule(
@@ -552,8 +552,8 @@ class CalendarService:
                 "user": user_email,
                 "schedules": result["value"],
                 "range": {
-                    "start": start_dt.date_time,
-                    "end": end_dt.date_time,
+                    "start": start_dt.dateTime,
+                    "end": end_dt.dateTime,
                 },
             }
 

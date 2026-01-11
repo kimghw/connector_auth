@@ -17,9 +17,9 @@
 {
 {% for server in servers %}
   "{{ server.name }}": {
-    "template_definitions_path": "{{ server.name }}/tool_definition_templates.py",
+    "template_definitions_path": "mcp_{{ server.name }}/tool_definition_templates.yaml",
     "tool_definitions_path": "{{ server.tool_definitions_path }}",
-    "backup_dir": "{{ server.name }}/backups",
+    "backup_dir": "mcp_{{ server.name }}/backups",
     "types_files": [
 {% for types_file in server.types_files %}
       "{{ types_file }}"{{ "," if not loop.last else "" }}

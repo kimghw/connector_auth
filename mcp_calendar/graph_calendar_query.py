@@ -979,17 +979,17 @@ class GraphCalendarQuery:
         body: Dict[str, Any] = {
             "schedules": params.schedules,
             "startTime": {
-                "dateTime": params.start_time.date_time,
-                "timeZone": params.start_time.time_zone,
+                "dateTime": params.startTime.dateTime,
+                "timeZone": params.startTime.timeZone,
             },
             "endTime": {
-                "dateTime": params.end_time.date_time,
-                "timeZone": params.end_time.time_zone,
+                "dateTime": params.endTime.dateTime,
+                "timeZone": params.endTime.timeZone,
             },
         }
 
-        if params.availability_view_interval is not None:
-            body["availabilityViewInterval"] = params.availability_view_interval
+        if params.availabilityViewInterval is not None:
+            body["availabilityViewInterval"] = params.availabilityViewInterval
 
         return body
 
