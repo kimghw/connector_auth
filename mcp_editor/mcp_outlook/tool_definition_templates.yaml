@@ -354,6 +354,7 @@ tools:
         type: string
         description: ''
         targetParam: user_email
+        default: kimghw@krs.co.kr
     required:
     - search_keywords
   mcp_service:

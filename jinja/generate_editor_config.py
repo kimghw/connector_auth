@@ -71,7 +71,7 @@ def scan_codebase_for_servers(base_dir: str) -> Set[str]:
 
     for py_file in Path(base_dir).rglob("*.py"):
         # Skip venv, __pycache__, and other non-source directories
-        if any(part in str(py_file) for part in ['venv', '__pycache__', '.git', 'node_modules', 'backups']):
+        if any(part in str(py_file) for part in ['venv', '__pycache__', '.git', '.claude', 'node_modules', 'backups']):
             continue
 
         server_names = extract_server_name_from_file(str(py_file))
