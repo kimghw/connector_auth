@@ -2,6 +2,50 @@
 
 ## 최근 세션 기록
 
+### 2026-01-12: Java MCP 스킬 워크플로우 순서 변경 (Code-First)
+
+#### 요청 사항
+- Java mcp-setup-java 스킬의 워크플로우를 Python mcp-setup과 동일하게 **코드 우선(Code-First)**으로 변경
+- YAML 먼저 → 코드 생성 → 비즈니스 로직 순서를 **비즈니스 로직 → 코드 분석 → YAML 생성** 순서로 변경
+- `mcp_{server}` 폴더 명명 규칙 추가
+
+#### 변경 전 워크플로우
+1. `tool_definition_templates.yaml` 작성
+2. `service_manifest.yaml` 작성
+3. Java 서버 생성 (스텁 포함)
+4. 비즈니스 로직 구현 (스텁에 채우기)
+
+#### 변경 후 워크플로우 (Code-First)
+1. **비즈니스 로직 구현** - `mcp_{server}/` 폴더에 `@McpTool`, `@McpParam` 어노테이션으로 Java 서비스 작성
+2. **Java 코드 분석** - 어노테이션 스캔하여 툴 스키마 추출
+3. **YAML 자동 생성** - `mcp_editor_java/mcp_{server}/`에 YAML 파일 생성
+4. **MCP 서버 래퍼 생성** - 기존 Bean을 주입받는 MCP 래퍼 생성
+5. **실행** - 서버 실행
+
+#### 핵심 변경점
+| 항목 | 변경 전 | 변경 후 |
+|------|--------|--------|
+| 워크플로우 | YAML 우선 | 코드 우선 (Code-First) |
+| 스텁 생성 | 필요 (구현 필요) | 불필요 (기존 Bean 재사용) |
+| 메타데이터 정의 | YAML 수동 작성 | `@McpTool`, `@McpParam` 어노테이션 |
+| 대상 폴더 명명 | 규칙 없음 | `mcp_{server}` 접두사 필수 |
+
+#### 수정된 파일
+| 파일 | 수정 내용 |
+|------|----------|
+| `Asset/.claude/skills/mcp-setup-java/SKILL.md` | Quick Start, Step 1-5 순서 변경, 핵심 원칙에 mcp_ 접두사 추가 |
+| `Asset/.claude/skills/mcp-setup-java/references/required_folders.md` | mcp_{server} 폴더 구조, analyzer 폴더 추가 |
+| `Asset/.claude/skills/mcp-setup-java/references/java_templates_overview.md` | 생성 흐름 다이어그램 Code-First로 수정 |
+
+#### Python vs Java 스킬 비교 (동기화됨)
+| 항목 | mcp-setup (Python) | mcp-setup-java |
+|------|-------------------|----------------|
+| 워크플로우 | 코드 우선 (Code-First) | 코드 우선 (Code-First) |
+| 대상 폴더 명명 | `mcp_{server}` | `mcp_{server}` |
+| 서비스 연결 | @mcp_service AST 스캔 | @McpTool 어노테이션 스캔 |
+
+---
+
 ### 2026-01-11: commands/preprompts 문서 전체 업데이트
 
 #### 요청 사항
@@ -802,4 +846,4 @@ server_rest.py / server_stdio.py / server_stream.py
 
 ---
 
-*마지막 업데이트: 2026-01-11*
+*마지막 업데이트: 2026-01-12*
