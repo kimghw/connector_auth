@@ -64,8 +64,25 @@ def _convert_boolean_schema_to_enabled_disabled(schema: Dict[str, Any]) -> Dict[
 
 
 def _load_mcp_tools() -> List[Dict[str, Any]]:
-    """Load MCP tools from tool_definition_templates.yaml and convert boolean types."""
-    yaml_path = Path(current_dir).parent.parent / "mcp_editor" / "mcp_outlook" / "tool_definition_templates.yaml"
+    """Load MCP tools from tool_definition_templates.yaml and convert boolean types.
+
+    YAML path resolution order:
+    1. Environment variable MCP_YAML_PATH (for explicit override)
+    2. mcp_editor/mcp_{profile_name}/tool_definition_templates.yaml (profile-specific)
+       - Uses outlook which is set correctly at generation time for reused profiles
+    3. Fallback to mcp_editor/mcp_{server_name}/tool_definition_templates.yaml (original service)
+    """
+    # Option 1: Environment variable override
+    yaml_path_str = os.environ.get("MCP_YAML_PATH")
+    if yaml_path_str:
+        yaml_path = Path(yaml_path_str)
+    else:
+        # Option 2: Profile-specific YAML path (supports reused profiles like outlook_read)
+        yaml_path = Path(current_dir).parent.parent / "mcp_editor" / "mcp_outlook" / "tool_definition_templates.yaml"
+        if not yaml_path.exists():
+            # Option 3: Fallback to original server name (for backwards compatibility)
+            yaml_path = Path(current_dir).parent.parent / "mcp_editor" / "mcp_outlook" / "tool_definition_templates.yaml"
+
     if yaml_path.exists():
         with open(yaml_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
@@ -120,6 +137,9 @@ def convert_bool_to_enabled(value: bool) -> str:
     return "enabled" if value else "disabled"
 
 # Import service classes (unique)
+# ============================================================
+# 기본 서버: outlook
+# ============================================================
 from mcp_outlook.outlook_service import MailService
 
 # Create service instances
@@ -168,6 +188,10 @@ TOOL_IMPLEMENTATIONS = {
     "mail_query_url": {
         "service_class": "MailService",
         "method": "fetch_url"
+    },
+    "test_handler ": {
+        "service_class": "MailService",
+        "method": "fetch_filter"
     },
 }
 
@@ -885,6 +909,75 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 5: 서비스 메서드 호출
     # ========================================
     return await mail_service.fetch_url(**call_args)
+
+async def handle_test_handler (args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle test_handler  tool call"""
+
+    # ========================================
+    # Step 1: Signature 파라미터 수신
+    # - LLM으로부터 전달받은 인자 추출
+    # ========================================
+    filter_params_sig = args.get("filter_params")
+    filter_params = filter_params_sig if filter_params_sig is not None else None
+    exclude_params_sig = args.get("exclude_params")
+    exclude_params = exclude_params_sig if exclude_params_sig is not None else None
+    select_params_sig = args.get("select_params")
+    select_params = select_params_sig if select_params_sig is not None else None
+    client_filter_sig = args.get("client_filter")
+    client_filter = client_filter_sig if client_filter_sig is not None else None
+    top_sig = args.get("top")
+    top = top_sig if top_sig is not None else 50
+
+    # ========================================
+    # Step 2: Signature Defaults 적용
+    # - 사용자 입력이 없으면 기본값 병합
+    # ========================================
+    filter_params_sig_defaults = {}
+    filter_params_data = merge_param_data({}, filter_params, filter_params_sig_defaults)
+    if filter_params_data is not None:
+        filter_params = FilterParams(**filter_params_data)
+    else:
+        filter_params = None
+    exclude_params_sig_defaults = {}
+    exclude_params_data = merge_param_data({}, exclude_params, exclude_params_sig_defaults)
+    if exclude_params_data is not None:
+        exclude_params = ExcludeParams(**exclude_params_data)
+    else:
+        exclude_params = None
+    select_params_sig_defaults = {}
+    select_params_data = merge_param_data({}, select_params, select_params_sig_defaults)
+    if select_params_data is not None:
+        select_params = SelectParams(**select_params_data)
+    else:
+        select_params = None
+    client_filter_sig_defaults = {}
+    client_filter_data = merge_param_data({}, client_filter, client_filter_sig_defaults)
+    if client_filter_data is not None:
+        client_filter = ExcludeParams(**client_filter_data)
+    else:
+        client_filter = None
+
+    # ========================================
+    # Step 3: 서비스 호출 인자 구성
+    # - Signature 파라미터 추가
+    # ========================================
+    call_args = {}
+    call_args["filter_params"] = filter_params
+    call_args["exclude_params"] = exclude_params
+    call_args["select_params"] = select_params
+    call_args["client_filter"] = client_filter
+    call_args["top"] = top
+
+    # ========================================
+    # Step 4: Internal 파라미터 추가
+    # - LLM에 노출되지 않는 내부 고정값
+    # ========================================
+    call_args["user_email"] = string()
+
+    # ========================================
+    # Step 5: 서비스 메서드 호출
+    # ========================================
+    return await mail_service.fetch_filter(**call_args)
 
 # ============================================================
 # STDIO Protocol Implementation for MCP Server

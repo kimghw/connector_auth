@@ -1,14 +1,20 @@
 # =============================================================================
 # MCP Tool Definition Templates - AUTO-GENERATED
 # =============================================================================
-# Signatures extracted from source code using AST parsing
+#
+# 데이터 출처:
+#   1. 초기 생성: registry_{server}.json (AST 스캐너가 @mcp_service 데코레이터 파싱)
+#   2. 이후 편집: 웹에디터 UI (http://localhost:8094)에서 수정 후 Save
+#
+# 소스 파일: mcp_editor/mcp_service_registry/registry_outlook.json
+# 웹에디터: mcp_editor/tool_editor_web.py
 #
 # 구조 설명:
 #   - name: MCP 도구 이름 (고유 식별자)
 #   - description: 도구 설명 (에이전트가 도구 선택 시 참고)
 #   - inputSchema: 입력 파라미터 스키마 (JSON Schema 형식)
-#   - mcp_service: 백엔드 서비스 연결 정보
-#   - mcp_service_factors: 내부 파라미터 기본값 설정
+#   - mcp_service: 백엔드 서비스 연결 정보 (registry_{server}.json에서 로드)
+#   - mcp_service_factors: 내부 파라미터 기본값 설정 (웹에디터에서 편집)
 # =============================================================================
 
 tools:
@@ -353,8 +359,8 @@ tools:
       user_email:
         type: string
         description: ''
-        targetParam: user_email
         default: kimghw@krs.co.kr
+        targetParam: user_email
     required:
     - search_keywords
   mcp_service:
@@ -997,3 +1003,82 @@ tools:
         default: true
         has_default: true
         description: 메시지 수신 날짜/시간 (ISO 8601 형식, UTC)
+- name: 'test_handler '
+  description: New tool description
+  inputSchema:
+    type: object
+    properties:
+      client_filter:
+        type: object
+        description: ExcludeParams parameters
+        targetParam: client_filter
+      exclude_params:
+        type: object
+        description: ExcludeParams parameters
+        targetParam: exclude_params
+      filter_params:
+        type: object
+        description: FilterParams parameters
+        targetParam: filter_params
+      select_params:
+        type: object
+        description: SelectParams parameters
+        targetParam: select_params
+      top:
+        type: integer
+        description: ''
+        targetParam: top
+    required:
+    - filter_params
+    - exclude_params
+    - select_params
+    - client_filter
+  mcp_service:
+    name: fetch_filter
+    parameters:
+    - name: user_email
+      type: str
+      is_optional: false
+      is_required: true
+      default: null
+      has_default: false
+    - name: filter_params
+      type: FilterParams
+      is_optional: true
+      is_required: false
+      default: null
+      has_default: true
+    - name: exclude_params
+      type: ExcludeParams
+      is_optional: true
+      is_required: false
+      default: null
+      has_default: true
+    - name: select_params
+      type: SelectParams
+      is_optional: true
+      is_required: false
+      default: null
+      has_default: true
+    - name: client_filter
+      type: ExcludeParams
+      is_optional: true
+      is_required: false
+      default: null
+      has_default: true
+    - name: top
+      type: int
+      is_optional: true
+      is_required: false
+      default: 50
+      has_default: true
+    signature: 'user_email: str, filter_params: Optional[FilterParams] = None, exclude_params:
+      Optional[ExcludeParams] = None, select_params: Optional[SelectParams] = None,
+      client_filter: Optional[ExcludeParams] = None, top: Optional[int] = 50'
+  mcp_service_factors:
+    user_email:
+      source: internal
+      type: string
+      targetParam: user_email
+      description: ''
+      parameters: []

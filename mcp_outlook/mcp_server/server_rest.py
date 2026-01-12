@@ -190,6 +190,10 @@ TOOL_IMPLEMENTATIONS = {
         "service_class": "MailService",
         "method": "fetch_url"
     },
+    "test_handler ": {
+        "service_class": "MailService",
+        "method": "fetch_filter"
+    },
 }
 
 # Pre-computed service class -> instance mapping
@@ -906,6 +910,75 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 5: 서비스 메서드 호출
     # ========================================
     return await mail_service.fetch_url(**call_args)
+
+async def handle_test_handler (args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle test_handler  tool call"""
+
+    # ========================================
+    # Step 1: Signature 파라미터 수신
+    # - LLM으로부터 전달받은 인자 추출
+    # ========================================
+    filter_params_sig = args.get("filter_params")
+    filter_params = filter_params_sig if filter_params_sig is not None else None
+    exclude_params_sig = args.get("exclude_params")
+    exclude_params = exclude_params_sig if exclude_params_sig is not None else None
+    select_params_sig = args.get("select_params")
+    select_params = select_params_sig if select_params_sig is not None else None
+    client_filter_sig = args.get("client_filter")
+    client_filter = client_filter_sig if client_filter_sig is not None else None
+    top_sig = args.get("top")
+    top = top_sig if top_sig is not None else 50
+
+    # ========================================
+    # Step 2: Signature Defaults 적용
+    # - 사용자 입력이 없으면 기본값 병합
+    # ========================================
+    filter_params_sig_defaults = {}
+    filter_params_data = merge_param_data({}, filter_params, filter_params_sig_defaults)
+    if filter_params_data is not None:
+        filter_params = FilterParams(**filter_params_data)
+    else:
+        filter_params = None
+    exclude_params_sig_defaults = {}
+    exclude_params_data = merge_param_data({}, exclude_params, exclude_params_sig_defaults)
+    if exclude_params_data is not None:
+        exclude_params = ExcludeParams(**exclude_params_data)
+    else:
+        exclude_params = None
+    select_params_sig_defaults = {}
+    select_params_data = merge_param_data({}, select_params, select_params_sig_defaults)
+    if select_params_data is not None:
+        select_params = SelectParams(**select_params_data)
+    else:
+        select_params = None
+    client_filter_sig_defaults = {}
+    client_filter_data = merge_param_data({}, client_filter, client_filter_sig_defaults)
+    if client_filter_data is not None:
+        client_filter = ExcludeParams(**client_filter_data)
+    else:
+        client_filter = None
+
+    # ========================================
+    # Step 3: 서비스 호출 인자 구성
+    # - Signature 파라미터 추가
+    # ========================================
+    call_args = {}
+    call_args["filter_params"] = filter_params
+    call_args["exclude_params"] = exclude_params
+    call_args["select_params"] = select_params
+    call_args["client_filter"] = client_filter
+    call_args["top"] = top
+
+    # ========================================
+    # Step 4: Internal 파라미터 추가
+    # - LLM에 노출되지 않는 내부 고정값
+    # ========================================
+    call_args["user_email"] = string()
+
+    # ========================================
+    # Step 5: 서비스 메서드 호출
+    # ========================================
+    return await mail_service.fetch_filter(**call_args)
 # ============================================================
 # REST API Protocol Handlers for MCP
 # ============================================================
@@ -1122,5 +1195,5 @@ async def call_tool(request: Request):
 if __name__ == "__main__":
     import uvicorn
     # Port can be set via environment variable or defaults to template value
-    port = int(os.environ.get("MCP_SERVER_PORT", 8080))
+    port = int(os.environ.get("MCP_SERVER_PORT", 8091))
     uvicorn.run(app, host="0.0.0.0", port=port)

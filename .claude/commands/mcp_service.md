@@ -42,10 +42,10 @@ MCP(Model Communication Protocol) 서버의 서비스 레이어 구현을 위한
                           │ 위임 (Delegation)
                           ▼
 ┌─────────────────────────────────────────────────────────┐
-│                    Client Layer                          │
-│                  {service_name}_client.py                │
+│                 Implementation Layer                     │
 │              (실제 API 호출 및 비즈니스 로직)              │
-│   (예: GraphMailClient, FileHandler, DatabaseClient)     │
+│         여러 구현체 가능: client, handler, util 등        │
+│   (예: GraphMailClient, FileHandler, DatabaseHelper)     │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -55,7 +55,7 @@ MCP(Model Communication Protocol) 서버의 서비스 레이어 구현을 위한
 |------|------|------|
 | **Handler** | `server_*.py` | 프로토콜 처리 (REST/STDIO/Stream), Tool 라우팅 |
 | **Service** | `*_service.py` | Facade 역할, 기본값/변환 처리, MCP 메타데이터 |
-| **Client** | `*_client.py` | 실제 비즈니스 로직, 외부 API 호출, 데이터 처리 |
+| **Implementation** | (public 함수) | 실제 비즈니스 로직, 외부 API 호출, 데이터 처리 |
 
 > **실제 구현 예시**: `mcp_outlook/outlook_service.py` 참조
 
@@ -82,22 +82,22 @@ class {ServiceName}Service:
     """
 
     def __init__(self):
-        self._client: Optional[{ServiceName}Client] = None
+        self._impl = None  # Implementation Layer 구현체
         self._initialized = False
 
     async def initialize(self):
         """서비스 초기화 - 서버 시작 시 자동 호출"""
         if not self._initialized:
-            # 클라이언트 초기화
-            self._client = {ServiceName}Client()
-            if hasattr(self._client, 'initialize'):
-                await self._client.initialize()
+            # Implementation 초기화
+            self._impl = SomeImplementation()
+            if hasattr(self._impl, 'initialize'):
+                await self._impl.initialize()
             self._initialized = True
 
     async def close(self):
         """리소스 정리 - 서버 종료 시 호출"""
-        if self._client and hasattr(self._client, 'close'):
-            await self._client.close()
+        if self._impl and hasattr(self._impl, 'close'):
+            await self._impl.close()
         self._initialized = False
 
     # ===== MCP 도구 메서드들 (Facade 메서드) =====
@@ -122,8 +122,8 @@ class {ServiceName}Service:
         if not self._initialized:
             await self.initialize()
 
-        # 실제 클라이언트에 위임
-        return await self._client.complex_method(
+        # Implementation에 위임
+        return await self._impl.complex_method(
             main_param=param1,
             additional_config={'limit': param2} if param2 else {}
         )
@@ -293,9 +293,7 @@ class FileService:
 mcp_{service_name}/
 ├── __init__.py
 ├── {service_name}_service.py       # Facade 서비스 (MCP 인터페이스)
-├── {service_name}_client.py        # 실제 비즈니스 로직
-├── {service_name}_types.py         # 타입 정의 (선택사항)
-├── {service_name}_utils.py         # 유틸리티 함수 (선택사항)
+├── (Implementation 파일들)          # 경로/파일명 자유 - 비즈니스 로직
 ├── mcp_server/
 │   ├── server_rest.py              # REST API 서버 (런타임 YAML 로드)
 │   ├── server_stdio.py             # STDIO 서버
