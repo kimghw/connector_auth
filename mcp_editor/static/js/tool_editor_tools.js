@@ -218,6 +218,7 @@ function loadProfiles() {
         .then(data => {
             profiles = data.profiles || [];
             currentProfile = data.active || (profiles[0] || '');
+            window.currentProfile = currentProfile;  // Also update window scope
             originalProfile = currentProfile;  // Store original profile for saving
             serverControlProfile = currentProfile;  // Initialize server control profile
             renderProfileTabs();
@@ -232,6 +233,7 @@ function loadProfiles() {
             console.error('Error loading profiles:', error);
             profiles = [];
             currentProfile = '';
+            window.currentProfile = '';  // Also update window scope
             originalProfile = '';
             serverControlProfile = '';
             renderProfileTabs();
@@ -896,6 +898,7 @@ async function createNewProfileProject() {
         // Reload profiles and switch to new one
         profiles.push(result.profile);
         currentProfile = result.profile;
+        window.currentProfile = result.profile;  // Also update window scope
         renderProfileTabs();
         loadTools();
         loadGeneratorDefaults();
