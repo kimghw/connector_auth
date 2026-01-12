@@ -215,11 +215,43 @@ Create `mcp_editor/mcp_{server}/existing_handlers_log.md`:
 - Scan for public, side-effect-safe entry points that return serializable data or clear status (controllers, service layer, use-cases). Prefer functions with simple parameters over deeply coupled internals.
 - Extract docstrings/comments for descriptions and note default values/Optional hints. Avoid exposing constructors or low-level helpers unless necessary.
 
-3) Build the facade with decorators
-- Start from `references/service_facade_template.py`; copy to `mcp_{server}/{server}_service.py` (or `service.py`).
-- For each exposed function, wrap the underlying call and annotate with `@mcp_service(tool_name=..., server_name=..., service_name=..., description=..., tags=..., category=...)`.
-- Keep return values JSON-serializable. If you need richer types for parameters or return values, define Pydantic models in `{server}_types.py` and import them. The web editor uses `types_files` config to extract property information from these models for internal parameter configuration.
-- Prefer pure wrappers so scanning stays stable; avoid doing I/O at module import time.
+3) Build the service class with decorators
+
+> **중요**: 서비스 파일은 반드시 **클래스 기반**으로 작성합니다. 함수 기반이 아닌 클래스로 구성해야 의존성 주입, 상태 관리, 테스트가 용이합니다.
+
+#### 3.1 프로젝트 분석 (필수)
+서비스 클래스 작성 전, 기존 프로젝트의 구조를 분석합니다:
+- **핵심 모듈 식별**: 비즈니스 로직이 있는 모듈/클래스 파악
+- **의존성 분석**: 외부 서비스, DB 연결, API 클라이언트 등 확인
+- **데이터 흐름 파악**: 입력 → 처리 → 출력 흐름 이해
+- **기존 패턴 확인**: 프로젝트에서 사용 중인 디자인 패턴 파악
+
+#### 3.2 서비스 클래스 작성
+- `references/service_facade_template.py`를 참고하여 `mcp_{server}/{server}_service.py` 생성
+- **클래스 구조 필수**: `class {Server}Service:` 형태로 작성
+- 각 메서드에 `@mcp_service(tool_name=..., server_name=..., service_name=..., description=..., tags=..., category=...)` 데코레이터 적용
+- 생성자(`__init__`)에서 의존성 초기화 (DB 연결, API 클라이언트 등)
+
+#### 3.3 클래스 설계 원칙
+```python
+class DemoService:
+    """서비스 클래스 - 모든 MCP 도구의 진입점"""
+
+    def __init__(self):
+        # 의존성 초기화 (한 번만 실행)
+        self._client = SomeClient()
+        self._cache = {}
+
+    @mcp_service(tool_name="list_items", ...)
+    def list_items(self, filter: str = None) -> List[dict]:
+        # 실제 비즈니스 로직 호출
+        return self._client.get_items(filter)
+```
+
+- **JSON 직렬화 가능한 반환값** 유지
+- 복잡한 타입이 필요하면 `{server}_types.py`에 Pydantic 모델 정의
+- 모듈 임포트 시 I/O 작업 금지 (생성자에서 처리)
+- 웹 에디터는 `types_files` 설정을 통해 타입 모델의 속성 정보를 추출
 
 4) Register services
 - Launch the web editor (`python mcp_editor/tool_editor_web.py`) to auto-scan `@mcp_service` and refresh `registry_{server}.json`, or run `python mcp_editor/mcp_service_registry/mcp_service_scanner.py` directly.
@@ -254,11 +286,25 @@ Before completing, verify all artifacts were created:
 - If any item is missing or empty, complete it before finishing.
 
 ## Agent notes for auto-extraction
+
+### 분석 우선 원칙
+- **프로젝트 분석 먼저**: 서비스 클래스 작성 전 반드시 기존 프로젝트 구조를 분석
+- **핵심 모듈 파악**: 비즈니스 로직이 집중된 모듈, 클래스, 함수 식별
+- **의존성 맵핑**: 외부 서비스, DB, API 클라이언트 등 의존성 목록화
+- **패턴 이해**: 기존 프로젝트의 아키텍처 패턴 파악 (MVC, Clean Architecture 등)
+
+### 서비스 클래스 생성 규칙
+- **반드시 클래스 기반**: `class {Server}Service:` 형태로 작성 (함수 기반 금지)
+- **생성자에서 의존성 초기화**: `__init__`에서 클라이언트, 연결 등 설정
+- **메서드별 데코레이터**: 각 공개 메서드에 `@mcp_service` 적용
+- **self 파라미터 유지**: 클래스 메서드이므로 첫 번째 인자는 항상 `self`
+
+### 비즈니스 가치 우선
 - **Prioritize business value**: Identify the most important business logic first. Focus on functions that users will call frequently or that provide unique value.
 - **Generate artifacts**: After user confirmation, the agent MUST create:
-  1. `{server}_service.py` with `@mcp_service` decorators for approved functions
+  1. `{server}_service.py` with **class-based structure** and `@mcp_service` decorators
   2. Initial `tool_definition_templates.yaml` with LLM-facing schemas for key tools
-- Use heuristics to rank candidate functions: high-level orchestration, minimal side effects, good docstrings, and parameters that map cleanly to JSON. Skip functions requiring global state unless you can inject dependencies in the facade.
+- Use heuristics to rank candidate functions: high-level orchestration, minimal side effects, good docstrings, and parameters that map cleanly to JSON. Skip functions requiring global state unless you can inject dependencies in the service class.
 - When unsure about parameter schemas, default to strings and mark optional; let the web editor refine types. Populate `description` from docstrings/comments.
 - Always add a couple of safe defaults (health/ping, list/sample) in `tool_definition_templates.yaml` so users see working examples immediately.
 - **Iterative refinement**: After initial setup, ask the user if they want to add more services or adjust priorities.

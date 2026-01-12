@@ -1,6 +1,10 @@
 {
-  "mcp_demo": {
-    "template_definitions_path": "mcp_demo/tool_definition_templates.py",
+  "_comment": "editor_config.json 프로필 구조 예시 - 최신 버전 (v3.0)",
+
+  "demo": {
+    "_comment": "기본 프로필 (Base Profile) - 새 MCP 서버 생성 시",
+    "source_dir": "../mcp_demo",
+    "template_definitions_path": "mcp_demo/tool_definition_templates.yaml",
     "tool_definitions_path": "../mcp_demo/mcp_server/tool_definitions.py",
     "backup_dir": "mcp_demo/backups",
     "types_files": [
@@ -8,5 +12,57 @@
     ],
     "host": "0.0.0.0",
     "port": 8091
-  }
+  },
+
+  "demo_readonly": {
+    "_comment": "파생 프로필 (Derived/Reused Profile) - 기존 서비스 재사용",
+    "source_dir": "../mcp_demo",
+    "template_definitions_path": "mcp_demo_readonly/tool_definition_templates.yaml",
+    "tool_definitions_path": "../mcp_demo_readonly/mcp_server/tool_definitions.py",
+    "backup_dir": "mcp_demo_readonly/backups",
+    "types_files": [
+      "../mcp_demo/demo_types.py"
+    ],
+    "host": "0.0.0.0",
+    "port": 8092,
+    "is_reused": true,
+    "base_profile": "demo"
+  },
+
+  "combined": {
+    "_comment": "병합 프로필 (Merged Profile) - 여러 서버 통합",
+    "source_dir": "../mcp_combined",
+    "template_definitions_path": "mcp_combined/tool_definition_templates.yaml",
+    "tool_definitions_path": "../mcp_combined/mcp_server/tool_definitions.py",
+    "backup_dir": "mcp_combined/backups",
+    "types_files": [
+      "../mcp_demo/demo_types.py",
+      "../mcp_other/other_types.py"
+    ],
+    "host": "0.0.0.0",
+    "port": 8090,
+    "is_merged": true,
+    "merged_from": ["demo", "other"]
+  },
+
+  "_field_descriptions": {
+    "source_dir": "서비스 소스 코드 위치 (mcp_editor/ 기준 상대경로)",
+    "template_definitions_path": "YAML 도구 정의 템플릿 경로 (mcp_editor/ 기준)",
+    "tool_definitions_path": "생성될 tool_definitions.py 경로 (mcp_editor/ 기준)",
+    "backup_dir": "백업 디렉토리 (mcp_editor/ 기준)",
+    "types_files": "Pydantic 타입 정의 파일 목록 (mcp_editor/ 기준)",
+    "host": "서버 호스트 (기본: 0.0.0.0)",
+    "port": "서버 포트 번호",
+    "is_reused": "기존 서비스 재사용 여부 (파생 프로필)",
+    "base_profile": "파생 프로필의 원본 프로필명",
+    "is_merged": "병합 프로필 여부",
+    "merged_from": "병합된 원본 프로필 목록"
+  },
+
+  "_notes": [
+    "v3.0: template_definitions_path는 .yaml 파일을 직접 참조 (런타임 로드)",
+    "v3.0: tool_definitions.py는 더 이상 생성되지 않음 (서버가 YAML 직접 로드)",
+    "프로필 키는 server_name과 동일하게 사용 (예: demo, outlook, calendar)",
+    "types_files는 웹에디터에서 Internal 파라미터 설정 시 사용"
+  ]
 }

@@ -292,7 +292,15 @@ def delete_mcp_profile(profile_name: str) -> dict:
             shutil.rmtree(project_dir)
             deleted_paths.append(project_dir)
 
-        # 3. Remove from editor_config.json
+        # 3. Delete types_property_{profile}.json file
+        registry_dir = os.path.join(base_dir, "mcp_service_registry")
+        types_property_file = os.path.join(registry_dir, f"types_property_{profile_name}.json")
+
+        if os.path.exists(types_property_file):
+            os.remove(types_property_file)
+            deleted_paths.append(f"types_property_{profile_name}.json")
+
+        # 4. Remove from editor_config.json
         config_path = os.path.join(base_dir, "editor_config.json")
 
         if os.path.exists(config_path):
@@ -592,7 +600,14 @@ def delete_mcp_server_only(profile_name: str) -> dict:
             os.remove(registry_file)
             deleted_paths.append(f"registry_{profile_name}.json")
 
-        # 4. Remove from editor_config.json
+        # 4. Delete types_property_{profile}.json file
+        types_property_file = os.path.join(registry_dir, f"types_property_{profile_name}.json")
+
+        if os.path.exists(types_property_file):
+            os.remove(types_property_file)
+            deleted_paths.append(f"types_property_{profile_name}.json")
+
+        # 5. Remove from editor_config.json
         config_path = os.path.join(base_dir, "editor_config.json")
 
         if os.path.exists(config_path):
