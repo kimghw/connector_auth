@@ -156,7 +156,11 @@ def extract_field_info(node: ast.AnnAssign, class_name: str) -> Optional[Dict[st
             for i, arg in enumerate(node.value.args):
                 if i == 0:  # First positional arg is default value
                     if isinstance(arg, ast.Constant):
-                        field_info["default"] = arg.value
+                        # Handle Ellipsis (...) - convert to None
+                        if arg.value is ...:
+                            field_info["default"] = None
+                        else:
+                            field_info["default"] = arg.value
 
             # Process keyword arguments
             for keyword in node.value.keywords:

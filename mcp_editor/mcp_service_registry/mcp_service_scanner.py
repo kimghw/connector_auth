@@ -1,27 +1,60 @@
 """
-MCP Service Scanner - AST-based code analyzer for @mcp_service decorators.
+MCP Service Scanner - Multi-language code analyzer for @mcp_service decorators.
 
-This module scans Python source code to find functions decorated with @mcp_service,
-extracts their signatures and metadata, and exports them to JSON format.
+This module scans Python and JavaScript source code to find functions decorated
+with @mcp_service (Python) or @McpService (JavaScript), extracts their signatures
+and metadata, and exports them to JSON format.
+
+Supported languages:
+- Python (.py): Uses built-in ast module
+- JavaScript (.js, .mjs): Uses esprima parser
+- TypeScript (.ts): Uses esprima parser (basic support)
 
 Core functionality:
-- AST parsing to find @mcp_service decorated functions
+- Language detection based on file extension
+- AST parsing for each language
 - Function signature extraction (parameters, types, defaults)
 - Decorator metadata extraction (server_name, tool_name, etc.)
 - JSON export for web editor consumption
-
-This consolidates logic previously duplicated in:
-- legacy mcp_service_extractor.py (signature extraction, now removed)
-- extract_real_mcp_services.py (JSON export)
 """
 
 from __future__ import annotations
 
 import ast
+import re
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# JavaScript parser (optional - graceful fallback if not installed)
+try:
+    import esprima
+    ESPRIMA_AVAILABLE = True
+except ImportError:
+    ESPRIMA_AVAILABLE = False
+    esprima = None
+
 DEFAULT_SKIP_PARTS = ("venv", "__pycache__", ".git", "node_modules", "backups")
+
+
+class Language(Enum):
+    """Supported programming languages."""
+    PYTHON = "python"
+    JAVASCRIPT = "javascript"
+    TYPESCRIPT = "typescript"
+    UNKNOWN = "unknown"
+
+
+def detect_language(file_path: Path) -> Language:
+    """Detect programming language from file extension."""
+    ext = file_path.suffix.lower()
+    if ext == ".py":
+        return Language.PYTHON
+    elif ext in (".js", ".mjs"):
+        return Language.JAVASCRIPT
+    elif ext in (".ts", ".tsx"):
+        return Language.TYPESCRIPT
+    return Language.UNKNOWN
 
 
 def _should_skip(path: Path, skip_parts: tuple[str, ...] = DEFAULT_SKIP_PARTS) -> bool:
@@ -257,6 +290,7 @@ class MCPServiceExtractor(ast.NodeVisitor):
                 "is_async": isinstance(node, ast.AsyncFunctionDef),
                 "file": str(self.file_path),
                 "line": node.lineno,
+                "language": "python",
             }
 
             # Add class info if function is a method
@@ -272,13 +306,281 @@ class MCPServiceExtractor(ast.NodeVisitor):
 
     def _to_snake_case(self, name: str) -> str:
         """Convert CamelCase to snake_case."""
-        import re
-
         s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
         return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
+# =============================================================================
+# JavaScript/TypeScript Parser
+# =============================================================================
+
+def _extract_js_decorator_metadata(decorator_node: dict) -> Dict[str, Any]:
+    """Extract metadata from JavaScript decorator call.
+
+    Handles patterns like:
+    - @McpService({ serverName: "outlook", description: "..." })
+    - @mcp_service({ server_name: "outlook" })
+    """
+    metadata: Dict[str, Any] = {}
+
+    if not decorator_node:
+        return metadata
+
+    # Get the arguments of the decorator call
+    arguments = decorator_node.get("arguments", [])
+    if not arguments:
+        return metadata
+
+    # First argument should be an object expression
+    first_arg = arguments[0]
+    if first_arg.get("type") != "ObjectExpression":
+        return metadata
+
+    # Extract properties from the object
+    for prop in first_arg.get("properties", []):
+        if prop.get("type") != "Property":
+            continue
+
+        key = prop.get("key", {})
+        value = prop.get("value", {})
+
+        # Get property name
+        key_name = key.get("name") or key.get("value")
+        if not key_name:
+            continue
+
+        # Convert camelCase to snake_case for consistency
+        snake_key = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', key_name).lower()
+
+        # Get property value
+        if value.get("type") == "Literal":
+            metadata[snake_key] = value.get("value")
+        elif value.get("type") == "ArrayExpression":
+            elements = value.get("elements", [])
+            metadata[snake_key] = [
+                el.get("value") for el in elements
+                if el.get("type") == "Literal"
+            ]
+
+    return metadata
+
+
+def _extract_js_parameters(func_node: dict) -> List[Dict[str, Any]]:
+    """Extract parameters from JavaScript function node."""
+    params: List[Dict[str, Any]] = []
+
+    js_params = func_node.get("params", [])
+
+    for param in js_params:
+        param_info = {
+            "name": None,
+            "type": None,
+            "is_optional": False,
+            "is_required": True,
+            "default": None,
+            "has_default": False,
+        }
+
+        # Handle different parameter types
+        if param.get("type") == "Identifier":
+            param_info["name"] = param.get("name")
+        elif param.get("type") == "AssignmentPattern":
+            # Parameter with default value
+            left = param.get("left", {})
+            right = param.get("right", {})
+            param_info["name"] = left.get("name")
+            param_info["has_default"] = True
+            param_info["is_optional"] = True
+            param_info["is_required"] = False
+            if right.get("type") == "Literal":
+                param_info["default"] = right.get("value")
+        elif param.get("type") == "RestElement":
+            # ...args
+            argument = param.get("argument", {})
+            param_info["name"] = f"...{argument.get('name', 'args')}"
+            param_info["is_optional"] = True
+            param_info["is_required"] = False
+
+        if param_info["name"]:
+            params.append(param_info)
+
+    return params
+
+
+def _js_signature_from_parameters(params: List[Dict[str, Any]]) -> str:
+    """Build signature string from JavaScript parameters."""
+    parts: List[str] = []
+    for param in params:
+        name = param.get("name", "")
+        if not name:
+            continue
+
+        param_str = name
+        if param.get("has_default"):
+            default = param.get("default")
+            if isinstance(default, str):
+                param_str += f' = "{default}"'
+            elif default is not None:
+                param_str += f" = {default}"
+            else:
+                param_str += " = null"
+
+        parts.append(param_str)
+
+    return ", ".join(parts)
+
+
+def find_mcp_services_in_js_file(file_path: str) -> Dict[str, Dict[str, Any]]:
+    """Find all @McpService or @mcp_service decorated functions in JavaScript/TypeScript file."""
+    if not ESPRIMA_AVAILABLE:
+        print(f"Warning: esprima not installed, skipping JS file: {file_path}")
+        return {}
+
+    services: Dict[str, Dict[str, Any]] = {}
+
+    try:
+        content = Path(file_path).read_text(encoding="utf-8")
+
+        # Parse with esprima
+        tree = esprima.parseScript(content, {"tolerant": True, "loc": True})
+
+        # Find decorated functions
+        for node in tree.body:
+            _process_js_node(node, file_path, services)
+
+    except Exception as exc:
+        print(f"Error parsing JS file {file_path}: {exc}")
+
+    return services
+
+
+def _process_js_node(node: dict, file_path: str, services: Dict[str, Dict[str, Any]], class_name: str = None):
+    """Process a JavaScript AST node to find MCP services."""
+    node_type = node.get("type") if isinstance(node, dict) else getattr(node, "type", None)
+
+    # Convert esprima node to dict if needed
+    if hasattr(node, "toDict"):
+        node = node.toDict()
+    elif not isinstance(node, dict):
+        node = vars(node) if hasattr(node, "__dict__") else {}
+
+    # Handle class declarations
+    if node_type == "ClassDeclaration":
+        class_name = node.get("id", {}).get("name")
+        body = node.get("body", {}).get("body", [])
+        for item in body:
+            _process_js_node(item, file_path, services, class_name)
+        return
+
+    # Handle method definitions in classes
+    if node_type == "MethodDefinition":
+        decorators = node.get("decorators", [])
+        func_node = node.get("value", {})
+        func_name = node.get("key", {}).get("name")
+        _check_js_mcp_service(decorators, func_node, func_name, file_path, services, class_name)
+        return
+
+    # Handle function declarations
+    if node_type == "FunctionDeclaration":
+        # Check for decorators (experimental syntax)
+        decorators = node.get("decorators", [])
+        func_name = node.get("id", {}).get("name")
+        _check_js_mcp_service(decorators, node, func_name, file_path, services, class_name)
+        return
+
+    # Handle exported functions
+    if node_type == "ExportNamedDeclaration":
+        declaration = node.get("declaration", {})
+        if declaration:
+            _process_js_node(declaration, file_path, services, class_name)
+        return
+
+    # Handle variable declarations (arrow functions)
+    if node_type == "VariableDeclaration":
+        for decl in node.get("declarations", []):
+            init = decl.get("init", {})
+            if init and init.get("type") in ("ArrowFunctionExpression", "FunctionExpression"):
+                func_name = decl.get("id", {}).get("name")
+                decorators = node.get("decorators", [])
+                _check_js_mcp_service(decorators, init, func_name, file_path, services, class_name)
+
+
+def _check_js_mcp_service(decorators: list, func_node: dict, func_name: str,
+                           file_path: str, services: Dict[str, Dict[str, Any]],
+                           class_name: str = None):
+    """Check if function has MCP service decorator and extract info."""
+    if not func_name:
+        return
+
+    # Look for @McpService or @mcp_service decorator
+    mcp_decorator = None
+    for dec in decorators or []:
+        dec_name = None
+        if dec.get("type") == "Identifier":
+            dec_name = dec.get("name")
+        elif dec.get("type") == "CallExpression":
+            callee = dec.get("callee", {})
+            dec_name = callee.get("name")
+
+        if dec_name in ("McpService", "mcp_service", "McpTool"):
+            mcp_decorator = dec
+            break
+
+    if not mcp_decorator:
+        return
+
+    # Extract metadata
+    if mcp_decorator.get("type") == "CallExpression":
+        metadata = _extract_js_decorator_metadata(mcp_decorator)
+    else:
+        metadata = {}
+
+    # Extract parameters
+    params = _extract_js_parameters(func_node)
+    signature = _js_signature_from_parameters(params)
+
+    # Get line number
+    loc = func_node.get("loc", {})
+    line = loc.get("start", {}).get("line", 0) if loc else 0
+
+    service_info = {
+        "function_name": func_name,
+        "metadata": metadata,
+        "signature": signature,
+        "parameters": params,
+        "is_async": func_node.get("async", False),
+        "file": str(file_path),
+        "line": line,
+        "language": "javascript",
+    }
+
+    if class_name:
+        service_info["class"] = class_name
+        service_info["instance"] = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', class_name).lower()
+        service_info["module"] = Path(file_path).stem
+        service_info["method"] = func_name
+
+    services[func_name] = service_info
+
+
+# =============================================================================
+# Unified File Scanner
+# =============================================================================
+
 def find_mcp_services_in_file(file_path: str) -> Dict[str, Dict[str, Any]]:
+    """Find all @mcp_service decorated functions in a file (Python or JavaScript)."""
+    path = Path(file_path)
+    language = detect_language(path)
+
+    if language == Language.PYTHON:
+        return find_mcp_services_in_python_file(file_path)
+    elif language in (Language.JAVASCRIPT, Language.TYPESCRIPT):
+        return find_mcp_services_in_js_file(file_path)
+    else:
+        return {}
+
+
+def find_mcp_services_in_python_file(file_path: str) -> Dict[str, Dict[str, Any]]:
     """Find all @mcp_service decorated functions in a Python file."""
     try:
         content = Path(file_path).read_text(encoding="utf-8")
@@ -298,24 +600,54 @@ def scan_codebase_for_mcp_services(
     server_name: Optional[str] = None,
     exclude_examples: bool = True,
     skip_parts: tuple[str, ...] = DEFAULT_SKIP_PARTS,
+    languages: Optional[List[str]] = None,
 ) -> Dict[str, Dict[str, Any]]:
-    """Scan a codebase recursively for @mcp_service decorated functions."""
+    """Scan a codebase recursively for @mcp_service decorated functions.
+
+    Args:
+        base_dir: Base directory to scan
+        server_name: Optional filter by server name
+        exclude_examples: Skip example files
+        skip_parts: Directory parts to skip
+        languages: List of languages to scan ("python", "javascript", "typescript")
+                   If None, scans all supported languages
+
+    Returns:
+        Dictionary of service name to service info
+    """
     all_services: Dict[str, Dict[str, Any]] = {}
 
-    for py_file in Path(base_dir).rglob("*.py"):
-        if _should_skip(py_file, skip_parts):
-            continue
-        if exclude_examples and "example" in str(py_file).lower():
-            continue
+    # Determine which file extensions to scan
+    extensions = []
+    if languages is None:
+        # Scan all supported languages
+        extensions = [".py", ".js", ".mjs", ".ts", ".tsx"]
+    else:
+        if "python" in languages:
+            extensions.append(".py")
+        if "javascript" in languages:
+            extensions.extend([".js", ".mjs"])
+        if "typescript" in languages:
+            extensions.extend([".ts", ".tsx"])
 
-        services = find_mcp_services_in_file(str(py_file))
+    # Scan files for each extension
+    for ext in extensions:
+        pattern = f"*{ext}"
+        for source_file in Path(base_dir).rglob(pattern):
+            if _should_skip(source_file, skip_parts):
+                continue
+            if exclude_examples and "example" in str(source_file).lower():
+                continue
 
-        if server_name:
-            services = {
-                name: info for name, info in services.items() if info["metadata"].get("server_name") == server_name
-            }
+            services = find_mcp_services_in_file(str(source_file))
 
-        all_services.update(services)
+            if server_name:
+                services = {
+                    name: info for name, info in services.items()
+                    if info["metadata"].get("server_name") == server_name
+                }
+
+            all_services.update(services)
 
     return all_services
 
