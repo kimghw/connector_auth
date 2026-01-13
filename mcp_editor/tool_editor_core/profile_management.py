@@ -141,9 +141,9 @@ def update_editor_config_for_reuse(
 
     existing_conf = config[existing_service]
 
-    # Add new profile with same source_dir
+    # Add new profile with base_profile reference (source_dir은 컨벤션으로 유추)
     config[new_profile_name] = {
-        "source_dir": existing_conf["source_dir"],  # Same source!
+        "base_profile": existing_service,  # 기존 서비스 참조
         "template_definitions_path": f"mcp_{new_profile_name}/tool_definition_templates.py",
         "tool_definitions_path": f"../mcp_{new_profile_name}/mcp_server/tool_definitions.py",
         "backup_dir": f"mcp_{new_profile_name}/backups",
@@ -377,15 +377,16 @@ def create_derived_profile(
                 "error": f"Base profile '{base_profile}' not found in editor_config.json"
             }
 
-        # source_dir 존재 여부 확인
-        if not base_config.get("source_dir"):
+        # 소스 디렉토리 존재 여부 확인 (컨벤션 기반)
+        source_path = config.get_source_path_for_profile(base_profile, base_config)
+        if not os.path.exists(source_path):
             return {
                 "success": False,
                 "profile_name": new_profile_name,
                 "base_profile": base_profile,
                 "editor_dir": "",
                 "project_dir": "",
-                "error": f"Base profile '{base_profile}' does not have source_dir defined"
+                "error": f"Source directory not found: {source_path}"
             }
 
         # 2. 기존 create_reused_profile() 호출

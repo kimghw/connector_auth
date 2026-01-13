@@ -154,7 +154,7 @@ def detect_module_paths(server_name: str, base_dir: str) -> Dict[str, Any]:
         "backup_dir": f"{editor_profile_dir}/backups",
         "types_files": types_files,
         "host": "0.0.0.0",
-        "port": 8091,
+        # port는 generate_editor_config_json에서 순차 할당
     }
 
 
@@ -171,13 +171,15 @@ def generate_editor_config_json(server_names: Set[str], base_dir: str, output_pa
 
     # Prepare server configurations
     config = {}
-    for server_name in sorted(server_names):
-        print(f"  - {server_name}")
+    base_port = 8001  # MCP 서버 포트 시작 번호
+    for idx, server_name in enumerate(sorted(server_names)):
+        port = base_port + idx
+        print(f"  - {server_name} (port: {port})")
         server_config = detect_module_paths(server_name, base_dir)
+        server_config["port"] = port  # 순차 포트 할당
 
-        # Use mcp_{server_name} as the profile key to match directory structure
-        profile_key = f"mcp_{server_name}"
-        config[profile_key] = server_config
+        # Use server_name as the profile key (mcp_ prefix not needed)
+        config[server_name] = server_config
 
     # Write config file
     with open(output_path, "w", encoding="utf-8") as f:

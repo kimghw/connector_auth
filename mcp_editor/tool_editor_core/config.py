@@ -68,6 +68,31 @@ def _resolve_path(path: str) -> str:
     return os.path.normpath(os.path.join(BASE_DIR, path))
 
 
+def get_source_path_for_profile(profile_name: str, profile_config: dict | None = None) -> str:
+    """
+    profile_name에서 소스 경로 유추 (컨벤션 기반, 하위 호환성 지원)
+
+    Args:
+        profile_name: 프로필 이름 (e.g., "outlook", "calendar")
+        profile_config: 프로필 설정 (선택, 하위 호환성용)
+
+    Returns:
+        소스 디렉토리 절대 경로
+
+    컨벤션:
+        profile_name → "../mcp_{profile_name}" (BASE_DIR 기준)
+
+    하위 호환:
+        profile_config에 source_dir가 있으면 우선 사용
+    """
+    # 하위 호환: 기존 source_dir 필드 존재 시 우선 사용
+    if profile_config and profile_config.get("source_dir"):
+        return os.path.normpath(os.path.join(BASE_DIR, profile_config["source_dir"]))
+
+    # 컨벤션 기반 유추
+    return os.path.normpath(os.path.join(BASE_DIR, f"../mcp_{profile_name}"))
+
+
 def _get_config_path() -> str:
     """Allow overriding config path via MCP_EDITOR_CONFIG env"""
     env_path = os.environ.get("MCP_EDITOR_CONFIG")

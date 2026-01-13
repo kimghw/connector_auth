@@ -9,7 +9,7 @@ Service Registry Module
 import os
 import json
 
-from .config import BASE_DIR
+from .config import BASE_DIR, get_source_path_for_profile
 from mcp_service_registry.mcp_service_scanner import get_services_map
 from mcp_service_registry.meta_registry import MetaRegisterManager
 
@@ -79,15 +79,10 @@ def scan_all_registries():
                 print(f"  Skipping {profile_name}: merged profile (registry preserved)")
                 continue
 
-            source_dir = profile_config.get("source_dir")
-            if not source_dir:
-                print(f"  Skipping {profile_name}: no source_dir configured")
-                continue
-
-            # Resolve source_dir relative to BASE_DIR
-            source_path = os.path.normpath(os.path.join(BASE_DIR, source_dir))
+            # 컨벤션 기반으로 소스 경로 유추 (하위 호환성 지원)
+            source_path = get_source_path_for_profile(profile_name, profile_config)
             if not os.path.exists(source_path):
-                print(f"  Skipping {profile_name}: source_dir not found: {source_path}")
+                print(f"  Skipping {profile_name}: source path not found: {source_path}")
                 continue
 
             # Extract server name (mcp_outlook -> outlook)

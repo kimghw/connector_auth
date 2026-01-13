@@ -154,20 +154,8 @@ def get_server_dashboard():
 
         profiles_data = []
         for profile_name, profile_config in config.items():
-            # Determine server name from source_dir or tool_definitions_path
-            source_dir = profile_config.get("source_dir", "")
-            if source_dir:
-                server_name = os.path.basename(source_dir.rstrip('/'))
-            else:
-                tool_def_path = profile_config.get("tool_definitions_path", "")
-                # Extract from path like "../mcp_outlook_test/mcp_server/tool_definitions.py"
-                parts = tool_def_path.split('/')
-                for part in parts:
-                    if part.startswith('mcp_'):
-                        server_name = part
-                        break
-                else:
-                    server_name = f"mcp_{profile_name}"
+            # 컨벤션 기반으로 server_name 결정
+            server_name = f"mcp_{profile_name}"
 
             # Get available protocols and their status
             available_protocols = MCPServerManager.get_available_protocols(profile_name)

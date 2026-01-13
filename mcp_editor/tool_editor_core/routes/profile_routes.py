@@ -31,6 +31,7 @@ from ..config import (
     get_profile_family,
     is_base_profile,
     get_base_profile,
+    get_source_path_for_profile,
 )
 from ..profile_management import (
     create_reused_profile,
@@ -55,16 +56,14 @@ def get_profiles():
             or (profiles[0] if profiles else "default")
         )
 
-        # Load full config to get source_dir for each profile
+        # Load full config to get profile details
         config = _load_config_file()
         profile_details = {}
         for profile_name in profiles:
             profile_conf = config.get(profile_name, {})
-            source_dir = profile_conf.get("source_dir", "")
-            # Extract base MCP server name from source_dir (e.g., "../mcp_outlook" -> "mcp_outlook")
-            base_mcp = os.path.basename(source_dir) if source_dir else ""
+            # 컨벤션 기반으로 base_mcp 결정
+            base_mcp = f"mcp_{profile_name}"
             profile_details[profile_name] = {
-                "source_dir": source_dir,
                 "base_mcp": base_mcp,
                 "is_reused": profile_conf.get("is_reused", False),
                 "base_profile": profile_conf.get("base_profile", ""),
@@ -200,14 +199,15 @@ def get_available_services():
 
         for profile in profile_names:
             profile_conf = get_profile_config(profile)
-            source_dir = profile_conf.get("source_dir", "")
+            # 컨벤션 기반으로 소스 경로 확인
+            source_path = get_source_path_for_profile(profile, profile_conf)
 
-            # Only include profiles with valid source_dir
-            if source_dir:
+            # 실제 디렉토리가 존재하는 프로필만 포함
+            if os.path.exists(source_path):
                 services.append({
                     "name": profile,
                     "display_name": profile.replace("_", " ").title(),
-                    "source_dir": source_dir
+                    "source_path": source_path
                 })
 
         return jsonify({"services": services})
