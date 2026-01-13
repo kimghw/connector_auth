@@ -962,7 +962,11 @@ function getServiceOnlyParams(tool) {
     const serviceOnlyParams = [];
 
     service.parameters.forEach(param => {
-        if (!param.is_required) return;
+        const isOptional = typeof param.is_optional === 'boolean'
+            ? param.is_optional
+            : (typeof param.is_required === 'boolean' ? !param.is_required : false);
+        const isRequired = typeof param.is_required === 'boolean' ? param.is_required : !isOptional;
+        if (!isRequired) return;
 
         let isDefined = false;
 

@@ -902,19 +902,21 @@ function confirmAddNestedGraphProperties() {
     }
 
     let addedCount = 0;
-    checkboxes.forEach(cb => {
-        const prop = cb.dataset;
-        const idx = cb.id.split('_').pop();
-        const isRequired = document.getElementById(`nested_req_${className}_${idx}`).checked;
+        checkboxes.forEach(cb => {
+            const prop = cb.dataset;
+            const idx = cb.id.split('_').pop();
+            const isRequired = document.getElementById(`nested_req_${className}_${idx}`).checked;
 
-        parentProp.properties[prop.propName] = {
-            type: mapToJsonSchemaType(prop.propType),
-            description: prop.propDesc || ''
-        };
+            const schema = mapSignatureTypeToSchema(prop.propType);
+            parentProp.properties[prop.propName] = {
+                type: schema.type || 'string',
+                ...(schema.items ? { items: schema.items } : {}),
+                description: prop.propDesc || ''
+            };
 
-        if (isRequired && !parentProp.required.includes(prop.propName)) {
-            parentProp.required.push(prop.propName);
-        }
+            if (isRequired && !parentProp.required.includes(prop.propName)) {
+                parentProp.required.push(prop.propName);
+            }
 
         addedCount++;
     });
@@ -956,6 +958,10 @@ function confirmAddProperty(index) {
                 type: jsonType,
                 description: propDescription
             };
+            // If it's an array, default to string items
+            if (jsonType === 'array' && !propDef.items) {
+                propDef.items = { type: 'string' };
+            }
 
             // Add targetParam if specified and different from propName
             if (targetParam && targetParam.trim() && targetParam !== propName) {
@@ -1061,41 +1067,45 @@ function confirmAddProperty(index) {
                 }
             }
 
-            checkboxes.forEach(checkbox => {
-                const propName = checkbox.dataset.propName;
-                const propType = checkbox.dataset.propType;
-                const propDesc = checkbox.dataset.propDesc;
-                const idx = checkbox.id.split('_').pop();
-                const isRequired = document.getElementById(`req_${className}_${idx}`).checked;
+                checkboxes.forEach(checkbox => {
+                    const propName = checkbox.dataset.propName;
+                    const propType = checkbox.dataset.propType;
+                    const propDesc = checkbox.dataset.propDesc;
+                    const idx = checkbox.id.split('_').pop();
+                    const isRequired = document.getElementById(`req_${className}_${idx}`).checked;
 
-                targetProp.properties[propName] = {
-                    type: mapToJsonSchemaType(propType),
-                    description: propDesc || ''
-                };
+                    const schema = mapSignatureTypeToSchema(propType);
+                    targetProp.properties[propName] = {
+                        type: schema.type || 'string',
+                        ...(schema.items ? { items: schema.items } : {}),
+                        description: propDesc || ''
+                    };
 
-                if (isRequired && !targetProp.required.includes(propName)) {
-                    targetProp.required.push(propName);
-                }
+                    if (isRequired && !targetProp.required.includes(propName)) {
+                        targetProp.required.push(propName);
+                    }
 
                 addedCount++;
             });
         } else {
             // Fallback: add to top-level properties (legacy behavior)
-            checkboxes.forEach(checkbox => {
-                const propName = checkbox.dataset.propName;
-                const propType = checkbox.dataset.propType;
-                const propDesc = checkbox.dataset.propDesc;
-                const idx = checkbox.id.split('_').pop();
-                const isRequired = document.getElementById(`req_${className}_${idx}`).checked;
+                checkboxes.forEach(checkbox => {
+                    const propName = checkbox.dataset.propName;
+                    const propType = checkbox.dataset.propType;
+                    const propDesc = checkbox.dataset.propDesc;
+                    const idx = checkbox.id.split('_').pop();
+                    const isRequired = document.getElementById(`req_${className}_${idx}`).checked;
 
-                tools[index].inputSchema.properties[propName] = {
-                    type: mapToJsonSchemaType(propType),
-                    description: propDesc || ''
-                };
+                    const schema = mapSignatureTypeToSchema(propType);
+                    tools[index].inputSchema.properties[propName] = {
+                        type: schema.type || 'string',
+                        ...(schema.items ? { items: schema.items } : {}),
+                        description: propDesc || ''
+                    };
 
-                if (isRequired && !tools[index].inputSchema.required.includes(propName)) {
-                    tools[index].inputSchema.required.push(propName);
-                }
+                    if (isRequired && !tools[index].inputSchema.required.includes(propName)) {
+                        tools[index].inputSchema.required.push(propName);
+                    }
 
                 addedCount++;
             });
@@ -1131,15 +1141,15 @@ function mapSignatureTypeToSchema(typeStr) {
     }
 
     let optional = false;
-    let innerType = typeStr;
+    let innerType = String(typeStr).trim();
 
-    if (typeStr.startsWith('Optional[')) {
+    if (innerType.startsWith('Optional[') && innerType.endsWith(']')) {
         optional = true;
-        innerType = typeStr.slice(9, -1);
+        innerType = innerType.slice(9, -1).trim();
     }
 
-    if (innerType.startsWith('List[') || innerType.startsWith('list[')) {
-        const itemType = innerType.slice(5, -1);
+    if ((innerType.startsWith('List[') || innerType.startsWith('list[')) && innerType.endsWith(']')) {
+        const itemType = innerType.slice(5, -1).trim();
         const mapped = mapSignatureTypeToSchema(itemType);
         return {
             type: 'array',
@@ -1148,26 +1158,51 @@ function mapSignatureTypeToSchema(typeStr) {
         };
     }
 
+    // Dict[...] is treated as object
+    if ((innerType.startsWith('Dict[') || innerType.startsWith('dict[')) && innerType.endsWith(']')) {
+        return { type: 'object', optional };
+    }
+
     const typeMap = {
+        // Python primitives
         'str': 'string',
         'int': 'integer',
         'float': 'number',
         'bool': 'boolean',
-        'Dict': 'object',
-        'dict': 'object',
+        // JSON Schema primitives (types_property_* uses these)
+        'string': 'string',
+        'integer': 'integer',
+        'number': 'number',
+        'boolean': 'boolean',
+        'object': 'object',
+        'array': 'array',
+        // Typing/aliases
         'Any': 'string',
-        'FilterParams': 'object',
-        'ExcludeParams': 'object',
-        'SelectParams': 'object'
+        'any': 'string',
+        'None': 'null'
     };
 
-    return {
-        type: typeMap[innerType] || 'object',
-        description: ['FilterParams', 'ExcludeParams', 'SelectParams'].includes(innerType)
-            ? `${innerType} parameters`
-            : '',
-        optional
-    };
+    if (typeMap[innerType]) {
+        return { type: typeMap[innerType], optional };
+    }
+
+    // Likely a custom class/enum
+    if (/^[A-Z][a-zA-Z0-9]*$/.test(innerType)) {
+        // Heuristic: *Params classes are treated as object models
+        const isModel = innerType.endsWith('Params') || ['FilterParams', 'ExcludeParams', 'SelectParams'].includes(innerType);
+        if (isModel) {
+            return {
+                type: 'object',
+                baseModel: innerType,
+                description: `${innerType} parameters`,
+                optional
+            };
+        }
+        // Otherwise treat as a string (likely an Enum)
+        return { type: 'string', optional };
+    }
+
+    return { type: 'string', optional };
 }
 
 function applySignatureDefaults(index, serviceName) {
@@ -1199,15 +1234,27 @@ function applySignatureDefaults(index, serviceName) {
             return;
         }
 
-        const schema = mapSignatureTypeToSchema(param.type);
-        tool.inputSchema.properties[param.name] = {
+        const displayType = param.class_name || param.type;
+        const schema = mapSignatureTypeToSchema(displayType);
+        const propDef = {
             type: schema.type || 'string',
             description: schema.description || ''
         };
+        if (schema.items) {
+            propDef.items = schema.items;
+        }
+        if (schema.baseModel) {
+            propDef.baseModel = schema.baseModel;
+        }
+        tool.inputSchema.properties[param.name] = propDef;
 
-        const hasDefault = param.default !== null && param.default !== undefined;
-        const isOptional = param.type && param.type.startsWith('Optional[');
-        if (!hasDefault && !isOptional) {
+        const isOptional = typeof param.is_optional === 'boolean'
+            ? param.is_optional
+            : (typeof param.is_required === 'boolean'
+                ? !param.is_required
+                : (param.has_default ? true : !!schema.optional));
+        const isRequired = typeof param.is_required === 'boolean' ? param.is_required : !isOptional;
+        if (isRequired) {
             if (!tool.inputSchema.required.includes(param.name)) {
                 tool.inputSchema.required.push(param.name);
             }

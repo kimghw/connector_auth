@@ -796,9 +796,10 @@ function loadTargetParamsForExistingProperties(index) {
 
                                 // Add service method parameters as options
                                 service.parameters.forEach(param => {
+                                    const displayType = param.class_name || param.type || '';
                                     const option = document.createElement('option');
                                     option.value = param.name;
-                                    option.textContent = isInline ? param.name : `${param.name} (${param.type})`;
+                                    option.textContent = isInline ? param.name : `${param.name} (${displayType})`;
                                     if (propDef.targetParam === param.name) {
                                         option.selected = true;
                                     }
@@ -884,10 +885,14 @@ function loadAndDisplayServiceMethodParams(index) {
                             }
                         }
 
-                        const isRequired = param.is_required;
+                        const isOptional = typeof param.is_optional === 'boolean'
+                            ? param.is_optional
+                            : (typeof param.is_required === 'boolean' ? !param.is_required : false);
+                        const isRequired = typeof param.is_required === 'boolean' ? param.is_required : !isOptional;
                         const defaultVal = param.has_default && param.default !== null
                             ? ` = ${JSON.stringify(param.default)}`
                             : '';
+                        const displayType = param.class_name || param.type || '';
 
                         const statusColor = isDefined ? '#28a745' : (isRequired ? '#dc3545' : '#ffc107');
                         const statusIcon = isDefined ? '✓' : (isRequired ? '✗' : '○');
@@ -899,7 +904,7 @@ function loadAndDisplayServiceMethodParams(index) {
 
                         paramsHtml += `
                             <li>
-                                <code>${param.name}: ${param.type}${defaultVal}</code>
+                                <code>${param.name}: ${displayType}${defaultVal}</code>
                                 ${isRequired ? '<span style="color: #dc3545;"> *</span>' : ''}
                                 <span style="margin-left: 10px; color: ${statusColor}; font-weight: 600;">
                                     ${statusIcon} ${statusText}
@@ -986,7 +991,9 @@ function addAsInternal(index, paramsInfo) {
         // Match patterns like Optional[SelectParams], List[str], etc.
         const match = typeStr.match(/(?:Optional|List|Dict|Set)\[([^\]]+)\]/);
         if (match) {
-            return match[1];
+            const inner = match[1];
+            // Only treat as baseModel if it's a class-like identifier (PascalCase)
+            return /^[A-Z][a-zA-Z0-9]*$/.test(inner) ? inner : null;
         }
         // If no wrapper, check if it's a class name (capitalized)
         if (/^[A-Z][a-zA-Z0-9]*$/.test(typeStr)) {
@@ -998,19 +1005,24 @@ function addAsInternal(index, paramsInfo) {
     // Add each parameter directly to internalArgs
     paramsInfo.forEach(paramInfo => {
         const paramName = paramInfo.name;
-        const baseModel = extractBaseModel(paramInfo.type);
+        const displayType = paramInfo.class_name || paramInfo.type || 'string';
+        const baseModel = paramInfo.class_name || extractBaseModel(paramInfo.type);
+        const isOptional = typeof paramInfo.is_optional === 'boolean'
+            ? paramInfo.is_optional
+            : (typeof paramInfo.is_required === 'boolean' ? !paramInfo.is_required : false);
+        const wasRequired = typeof paramInfo.is_required === 'boolean' ? paramInfo.is_required : !isOptional;
 
         // Create internal arg entry with service metadata
         internalArgs[toolName][paramName] = {
-            type: paramInfo.type || 'string',
+            type: baseModel || displayType,
             description: paramInfo.description || `Service parameter: ${paramName}`,
             original_schema: {
-                type: paramInfo.type === 'object' ? 'object' : (paramInfo.type || 'string'),
+                type: baseModel ? 'object' : mapToJsonSchemaType(displayType),
                 description: paramInfo.description || `Service parameter: ${paramName}`,
                 targetParam: paramName,
                 ...(baseModel ? { baseModel: baseModel } : {})
             },
-            was_required: paramInfo.is_required || false,
+            was_required: wasRequired,
             // Store default value if available
             ...(paramInfo.has_default && paramInfo.default !== undefined
                 ? { default: paramInfo.default }

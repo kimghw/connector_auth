@@ -610,17 +610,38 @@ def extract_type_info(registry: Dict[str, Any], tools: List[Dict[str, Any]], ser
     enum_types = set()
     type_imports = {}
 
+    builtin_types = {
+        # Python primitives
+        'str', 'int', 'float', 'bool', 'dict', 'list',
+        # JSON Schema primitives (some sources may already use these)
+        'string', 'integer', 'number', 'boolean', 'object', 'array',
+        # Other common sentinels
+        'any', 'null', 'None', 'Any',
+    }
+
+    def _normalize_param_type(param: Dict[str, Any]) -> str:
+        """Normalize registry/tool param to a concrete type name.
+
+        Supports both formats:
+        - legacy: {'type': 'FilterParams'}
+        - new:    {'type': 'object', 'class_name': 'FilterParams'}
+        """
+        return (param.get('class_name') or param.get('type') or '').strip()
+
     # Extract from registry parameters
     for service_name, service_data in registry.get('services', {}).items():
         for param in service_data.get('parameters', []):
-            param_type = param.get('type', '')
+            param_type = _normalize_param_type(param)
 
             # Extract custom types (not built-ins)
-            if param_type and param_type not in ['str', 'int', 'float', 'bool', 'dict', 'list']:
-                # Handle Optional[XXXParams] -> XXXParams
+            if param_type and param_type not in builtin_types:
+                # Handle Optional[XXX] -> XXX (legacy format)
                 clean_type = param_type
                 if 'Optional[' in clean_type:
                     clean_type = clean_type.replace('Optional[', '').replace(']', '')
+                # Ignore generics like List[str], Union[..., ...] which are not importable identifiers
+                if not clean_type or not clean_type.isidentifier():
+                    continue
 
                 # Categorize types
                 if 'Params' in clean_type:
@@ -634,11 +655,14 @@ def extract_type_info(registry: Dict[str, Any], tools: List[Dict[str, Any]], ser
         mcp_service = tool.get('mcp_service', {})
         if isinstance(mcp_service, dict):
             for param in mcp_service.get('parameters', []):
-                param_type = param.get('type', '')
-                if param_type and param_type not in ['str', 'int', 'float', 'bool', 'dict', 'list']:
+                param_type = _normalize_param_type(param)
+                if param_type and param_type not in builtin_types:
                     clean_type = param_type
                     if 'Optional[' in clean_type:
                         clean_type = clean_type.replace('Optional[', '').replace(']', '')
+                    # Ignore generics like List[str], Union[..., ...] which are not importable identifiers
+                    if not clean_type or not clean_type.isidentifier():
+                        continue
 
                     if 'Params' in clean_type:
                         param_types.add(clean_type)
@@ -797,7 +821,10 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         if isinstance(mcp_service, dict):
             for param in mcp_service.get('parameters', []):
                 param_name = param.get('name', '')
-                param_type = param.get('type', 'str')
+                raw_param_type = param.get('type', 'str')
+                # New registry format: type may be 'object' with separate class_name
+                param_class_name = param.get('class_name')
+                param_type = param_class_name or raw_param_type
 
                 # Skip Internal parameters ONLY if they don't have a Signature counterpart in inputSchema
                 # If both Internal and Signature exist with same targetParam, process it (merge will happen)
@@ -805,8 +832,8 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                     continue
 
                 # Compute is_required: it's required if not optional and no default
-                is_optional = param.get('is_optional', False)
                 has_default = param.get('has_default', False)
+                is_optional = param.get('is_optional', False) or has_default
                 is_required = param.get('is_required', not is_optional)  # Use is_required if provided, else derive from is_optional
                 default = param.get('default')
 
@@ -847,9 +874,13 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
                 }
 
                 # Check if it's an object type (Params class)
-                if 'Params' in param_type or param_type == 'object':
-                    # Extract class name from type (e.g., Optional[FilterParams] -> FilterParams)
-                    class_name = param_type.replace('Optional[', '').replace(']', '')
+                schema_is_object = original_prop.get('type') == 'object'
+                schema_base_model = original_prop.get('baseModel')
+                if schema_is_object or 'Params' in param_type:
+                    # Prefer schema baseModel (authoritative), then registry class_name, then type string
+                    class_name = schema_base_model or param_class_name or param_type
+                    # Strip Optional[...] legacy wrappers if present
+                    class_name = class_name.replace('Optional[', '').replace(']', '')
 
                     # Get the targetParam for this input param
                     target_param = param_mappings.get(input_param_name, param_name)
@@ -870,7 +901,7 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
 
                     object_params[input_param_name] = {
                         'class_name': class_name,
-                        'is_optional': 'Optional' in param_type or has_default,
+                        'is_optional': is_optional,
                         'has_default': has_default,
                         'default_json': to_python_repr(default) if default is not None else None,
                         'target_param': target_param,
@@ -1850,4 +1881,3 @@ if __name__ == "__main__":
     else:
         print(f"🎉 All servers generated successfully!")
         sys.exit(0)
-
