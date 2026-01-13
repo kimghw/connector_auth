@@ -21,10 +21,16 @@ Core functionality:
 from __future__ import annotations
 
 import ast
+import json
+import os
 import re
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
+
+# Type extractor module
+from . import extract_types
 
 # JavaScript parser (optional - graceful fallback if not installed)
 try:
@@ -34,7 +40,7 @@ except ImportError:
     ESPRIMA_AVAILABLE = False
     esprima = None
 
-DEFAULT_SKIP_PARTS = ("venv", "__pycache__", ".git", "node_modules", "backups")
+DEFAULT_SKIP_PARTS = ("venv", "__pycache__", ".git", "node_modules", "backups", ".claude")
 
 
 class Language(Enum):
@@ -697,14 +703,274 @@ def get_services_map(base_dir: str, server_name: Optional[str] = None) -> Dict[s
     return scan_codebase_for_mcp_services(base_dir, server_name)
 
 
-def export_services_to_json(base_dir: str, server_name: str, output_dir: str) -> Dict[str, str]:
-    """
-    Export services to registry_{server_name}.json format used by the web editor.
-    The registry format is compatible with tool_editor_web.py's load_services_from_registry().
-    """
-    import json
-    from datetime import datetime
+# =============================================================================
+# Import Tracking for Type Resolution
+# =============================================================================
 
+def _parse_imports(file_path: str) -> Dict[str, str]:
+    """Parse import statements from a Python file.
+
+    Returns:
+        Dictionary mapping class/module names to their import source.
+        e.g., {"FilterParams": "outlook_types", "Optional": "typing"}
+    """
+    imports: Dict[str, str] = {}
+
+    try:
+        content = Path(file_path).read_text(encoding="utf-8")
+        tree = ast.parse(content)
+
+        for node in ast.walk(tree):
+            # from module import name1, name2
+            if isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                for alias in node.names:
+                    name = alias.asname or alias.name
+                    imports[name] = module
+
+            # import module
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    name = alias.asname or alias.name
+                    imports[name] = alias.name
+
+    except Exception as exc:
+        print(f"Warning: Could not parse imports from {file_path}: {exc}")
+
+    return imports
+
+
+def _resolve_module_to_file(module_name: str, source_file: str) -> Optional[str]:
+    """Resolve a module name to an actual file path.
+
+    Args:
+        module_name: Module name (e.g., "outlook_types", ".types", "..common")
+        source_file: The file that contains the import statement
+
+    Returns:
+        Absolute path to the module file, or None if not found
+    """
+    source_dir = Path(source_file).parent
+
+    # Handle relative imports
+    if module_name.startswith("."):
+        # Count leading dots
+        dots = 0
+        for char in module_name:
+            if char == ".":
+                dots += 1
+            else:
+                break
+
+        # Go up directories based on dot count
+        relative_module = module_name[dots:]
+        target_dir = source_dir
+        for _ in range(dots - 1):
+            target_dir = target_dir.parent
+
+        # Convert module path to file path
+        if relative_module:
+            module_path = relative_module.replace(".", os.sep)
+            candidate = target_dir / f"{module_path}.py"
+        else:
+            # Just dots, no module name after
+            candidate = target_dir / "__init__.py"
+
+        if candidate.exists():
+            return str(candidate.resolve())
+        return None
+
+    # Handle absolute imports - search in same directory and parent directories
+    module_path = module_name.replace(".", os.sep)
+
+    # Check same directory
+    candidate = source_dir / f"{module_path}.py"
+    if candidate.exists():
+        return str(candidate.resolve())
+
+    # Check parent directory (common pattern: mcp_outlook/outlook_types.py)
+    candidate = source_dir.parent / f"{module_path}.py"
+    if candidate.exists():
+        return str(candidate.resolve())
+
+    # Check as package
+    candidate = source_dir / module_path / "__init__.py"
+    if candidate.exists():
+        return str(candidate.resolve())
+
+    return None
+
+
+def resolve_class_file(class_name: str, source_file: str) -> Optional[str]:
+    """Find the file where a class is defined.
+
+    Args:
+        class_name: Name of the class to find
+        source_file: The file that imports/uses this class
+
+    Returns:
+        Absolute path to the file containing the class definition, or None
+    """
+    # First, check if class is defined in the same file
+    try:
+        content = Path(source_file).read_text(encoding="utf-8")
+        tree = ast.parse(content)
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.name == class_name:
+                return str(Path(source_file).resolve())
+    except Exception:
+        pass
+
+    # Parse imports and find where the class comes from
+    imports = _parse_imports(source_file)
+
+    if class_name in imports:
+        module_name = imports[class_name]
+        resolved_file = _resolve_module_to_file(module_name, source_file)
+        if resolved_file:
+            return resolved_file
+
+    return None
+
+
+def collect_referenced_types(
+    services: Dict[str, Dict[str, Any]]
+) -> Dict[str, Dict[str, Any]]:
+    """Collect all referenced types from service parameters.
+
+    Scans all services for parameters with class_name, resolves their
+    source files, and extracts their properties.
+
+    Args:
+        services: Dictionary of service definitions from scan_codebase_for_mcp_services
+
+    Returns:
+        Dictionary of class name to type info:
+        {
+            "FilterParams": {
+                "file": "/path/to/outlook_types.py",
+                "line": 15,
+                "properties": [...]
+            }
+        }
+    """
+    referenced_types: Dict[str, Dict[str, Any]] = {}
+    processed_classes: Set[str] = set()
+
+    for service_name, service_info in services.items():
+        source_file = service_info.get("file", "")
+        parameters = service_info.get("parameters", [])
+
+        for param in parameters:
+            class_name = param.get("class_name")
+            if not class_name or class_name in processed_classes:
+                continue
+
+            processed_classes.add(class_name)
+
+            # Find the file where this class is defined
+            class_file = resolve_class_file(class_name, source_file)
+            if not class_file:
+                print(f"  Warning: Could not find definition for class '{class_name}'")
+                continue
+
+            # Extract class properties using extract_types module
+            try:
+                class_info = extract_types.extract_single_class(class_file, class_name)
+                if class_info:
+                    referenced_types[class_name] = class_info
+                    print(f"  Extracted {len(class_info.get('properties', []))} properties from {class_name}")
+            except Exception as exc:
+                print(f"  Warning: Could not extract properties from '{class_name}': {exc}")
+
+    return referenced_types
+
+
+def export_types_property(
+    referenced_types: Dict[str, Dict[str, Any]],
+    server_name: str,
+    output_dir: str
+) -> str:
+    """Export referenced types to types_property_{server_name}.json.
+
+    Args:
+        referenced_types: Dictionary from collect_referenced_types
+        server_name: Server name for the output file
+        output_dir: Output directory path
+
+    Returns:
+        Path to the generated file
+    """
+    # Build output structure compatible with existing API
+    output = {
+        "version": "1.0",
+        "generated_at": datetime.now().isoformat(),
+        "server_name": server_name,
+        "classes": [],
+        "properties_by_class": {},
+        "all_properties": []
+    }
+
+    for class_name, class_info in referenced_types.items():
+        properties = class_info.get("properties", [])
+
+        # Add to classes list
+        output["classes"].append({
+            "name": class_name,
+            "file": class_info.get("file", ""),
+            "line": class_info.get("line", 0),
+            "property_count": len(properties)
+        })
+
+        # Add to properties_by_class
+        output["properties_by_class"][class_name] = properties
+
+        # Add to all_properties (flattened)
+        for prop in properties:
+            output["all_properties"].append({
+                "name": prop.get("name", ""),
+                "type": prop.get("type", "any"),
+                "description": prop.get("description", ""),
+                "class": class_name,
+                "full_path": f"{class_name}.{prop.get('name', '')}",
+                "examples": prop.get("examples", []),
+                "default": prop.get("default")
+            })
+
+    # Save to file
+    output_path = Path(output_dir) / f"types_property_{server_name}.json"
+    output_path.write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    return str(output_path)
+
+
+# =============================================================================
+# Main Export Function
+# =============================================================================
+
+def export_services_to_json(base_dir: str, server_name: str, output_dir: str) -> Dict[str, Any]:
+    """
+    Export services to registry_{server_name}.json and types_property_{server_name}.json.
+
+    This function generates both:
+    1. registry_{server_name}.json - Service definitions
+    2. types_property_{server_name}.json - Referenced type definitions
+
+    Args:
+        base_dir: Base directory to scan for services
+        server_name: Server name for output files
+        output_dir: Directory to write output files
+
+    Returns:
+        Dictionary with paths and counts:
+        {
+            "registry": "/path/to/registry_xxx.json",
+            "types_property": "/path/to/types_property_xxx.json",
+            "service_count": 10,
+            "type_count": 3
+        }
+    """
     services = scan_codebase_for_mcp_services(base_dir, server_name)
     services_items = sorted(services.items(), key=lambda item: (item[1]["file"], item[1]["line"]))
 
@@ -733,12 +999,25 @@ def export_services_to_json(base_dir: str, server_name: str, output_dir: str) ->
             "metadata": service.get("metadata", {})
         }
 
-    # Save registry file directly in output_dir (no subfolder)
+    # Save registry file
     output_dir_path = Path(output_dir)
     registry_path = output_dir_path / f"registry_{server_name}.json"
     registry_path.write_text(json.dumps(registry_output, indent=2, ensure_ascii=False), encoding="utf-8")
 
+    # Collect and export referenced types
+    print(f"  Collecting referenced types...")
+    referenced_types = collect_referenced_types(services)
+    types_property_path = ""
+
+    if referenced_types:
+        types_property_path = export_types_property(referenced_types, server_name, output_dir)
+        print(f"  Exported {len(referenced_types)} types to {types_property_path}")
+    else:
+        print(f"  No referenced types found")
+
     return {
         "registry": str(registry_path),
-        "count": len(registry_output["services"])
+        "types_property": types_property_path,
+        "service_count": len(registry_output["services"]),
+        "type_count": len(referenced_types)
     }

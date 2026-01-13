@@ -4,14 +4,14 @@ Service Registry Module
 서비스 레지스트리 관리:
 - 서비스 메타데이터 로딩
 - 레지스트리 파일 스캔
+- types_property 자동 생성
 """
 
 import os
 import json
 
 from .config import BASE_DIR, get_source_path_for_profile
-from mcp_service_registry.mcp_service_scanner import get_services_map
-from mcp_service_registry.meta_registry import MetaRegisterManager
+from mcp_service_registry.mcp_service_scanner import get_services_map, export_services_to_json
 
 # Module-level cache for service scans
 SERVICE_SCAN_CACHE: dict[tuple[str, str], dict] = {}
@@ -66,12 +66,18 @@ def load_services_for_server(server_name: str | None, scan_dir: str | None, forc
 
 
 def scan_all_registries():
-    """Scan all profiles and update their registry files on startup."""
+    """Scan all profiles and update their registry and types_property files on startup.
+
+    For each profile:
+    1. Scans source directory for @mcp_service decorated functions
+    2. Generates registry_{server}.json with service definitions
+    3. Generates types_property_{server}.json with referenced type definitions
+    """
     try:
         from .config import _load_config_file
 
         config = _load_config_file()
-        registry_manager = MetaRegisterManager()
+        output_dir = os.path.join(BASE_DIR, "mcp_service_registry")
 
         for profile_name, profile_config in config.items():
             # Skip merged profiles - they don't have their own service files
@@ -88,18 +94,14 @@ def scan_all_registries():
             # Extract server name (mcp_outlook -> outlook)
             server_name = profile_name.replace("mcp_", "") if profile_name.startswith("mcp_") else profile_name
 
-            # Output path for registry
-            registry_path = os.path.join(BASE_DIR, "mcp_service_registry", f"registry_{server_name}.json")
-
             print(f"  Scanning {profile_name} from {source_path}...")
-            success = registry_manager.export_service_manifest(
-                file_path=registry_path, base_dir=source_path, server_name=server_name
-            )
 
-            if success:
-                print(f"    -> Updated {registry_path}")
-            else:
-                print(f"    -> Failed to update registry for {profile_name}")
+            try:
+                # Use scanner's export function which generates both registry and types_property
+                result = export_services_to_json(source_path, server_name, output_dir)
+                print(f"    -> Exported {result['service_count']} services, {result['type_count']} types")
+            except Exception as e:
+                print(f"    -> Failed to update registry for {profile_name}: {e}")
 
     except Exception as e:
         print(f"Error scanning registries: {e}")
