@@ -1,1 +1,0 @@
-/home/kimghw/.python-config/Makefile
