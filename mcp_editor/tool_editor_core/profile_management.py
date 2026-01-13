@@ -292,13 +292,13 @@ def delete_mcp_profile(profile_name: str) -> dict:
             shutil.rmtree(project_dir)
             deleted_paths.append(project_dir)
 
-        # 3. Delete types_property_{profile}.json file
-        registry_dir = os.path.join(base_dir, "mcp_service_registry")
-        types_property_file = os.path.join(registry_dir, f"types_property_{profile_name}.json")
+        # 3. Delete types_property_{profile}.json file (in mcp_{profile}/ directory)
+        profile_dir = os.path.join(base_dir, f"mcp_{profile_name}")
+        types_property_file = os.path.join(profile_dir, f"types_property_{profile_name}.json")
 
         if os.path.exists(types_property_file):
             os.remove(types_property_file)
-            deleted_paths.append(f"types_property_{profile_name}.json")
+            deleted_paths.append(f"mcp_{profile_name}/types_property_{profile_name}.json")
 
         # 4. Remove from editor_config.json
         config_path = os.path.join(base_dir, "editor_config.json")
@@ -593,20 +593,20 @@ def delete_mcp_server_only(profile_name: str) -> dict:
                 if os.path.isfile(item_path) and item not in [f"{profile_name}_service.py", f"{profile_name}_types.py"]:
                     kept_paths.append(f"mcp_{profile_name}/{item}")
 
-        # 3. Delete registry file (mcp_editor/mcp_service_registry/registry_{profile}.json)
-        registry_dir = os.path.join(base_dir, "mcp_service_registry")
-        registry_file = os.path.join(registry_dir, f"registry_{profile_name}.json")
+        # 3. Delete registry file (mcp_editor/mcp_{profile}/registry_{profile}.json)
+        profile_registry_dir = os.path.join(base_dir, f"mcp_{profile_name}")
+        registry_file = os.path.join(profile_registry_dir, f"registry_{profile_name}.json")
 
         if os.path.exists(registry_file):
             os.remove(registry_file)
-            deleted_paths.append(f"registry_{profile_name}.json")
+            deleted_paths.append(f"mcp_{profile_name}/registry_{profile_name}.json")
 
         # 4. Delete types_property_{profile}.json file
-        types_property_file = os.path.join(registry_dir, f"types_property_{profile_name}.json")
+        types_property_file = os.path.join(profile_registry_dir, f"types_property_{profile_name}.json")
 
         if os.path.exists(types_property_file):
             os.remove(types_property_file)
-            deleted_paths.append(f"types_property_{profile_name}.json")
+            deleted_paths.append(f"mcp_{profile_name}/types_property_{profile_name}.json")
 
         # 5. Remove from editor_config.json
         config_path = os.path.join(base_dir, "editor_config.json")

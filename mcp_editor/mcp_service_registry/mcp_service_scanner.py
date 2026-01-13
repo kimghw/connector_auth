@@ -495,111 +495,283 @@ def find_mcp_services_in_js_file(file_path: str) -> Dict[str, Dict[str, Any]]:
     return services
 
 
-def find_server_tool_calls_in_js_file(file_path: str) -> Dict[str, Dict[str, Any]]:
-    """Find all server.tool() calls in a JavaScript file (MCP SDK pattern).
+# =============================================================================
+# JSDoc Parser for JavaScript
+# =============================================================================
 
-    This handles the common MCP SDK pattern:
-        server.tool('tool_name', 'description', zodSchema, handler)
+# JSDoc type to JSON Schema type mapping
+JSDOC_TYPE_MAP = {
+    "string": "string",
+    "String": "string",
+    "number": "number",
+    "Number": "number",
+    "integer": "integer",
+    "int": "integer",
+    "boolean": "boolean",
+    "Boolean": "boolean",
+    "bool": "boolean",
+    "object": "object",
+    "Object": "object",
+    "array": "array",
+    "Array": "array",
+    "any": "any",
+    "*": "any",
+    "null": "null",
+    "undefined": "null",
+    "void": "null",
+    "function": "object",
+    "Function": "object",
+}
+
+
+def _map_jsdoc_type(jsdoc_type: str) -> str:
+    """Map JSDoc type to JSON Schema type."""
+    # Handle Array<T> or T[]
+    if jsdoc_type.startswith("Array<") or jsdoc_type.endswith("[]"):
+        return "array"
+    # Handle generic types like Object<K,V>
+    if "<" in jsdoc_type:
+        base_type = jsdoc_type.split("<")[0]
+        return JSDOC_TYPE_MAP.get(base_type, "object")
+    return JSDOC_TYPE_MAP.get(jsdoc_type, "any")
+
+
+def _parse_jsdoc_block(jsdoc_block: str) -> Dict[str, Any]:
+    """Parse a JSDoc comment block and extract MCP service metadata.
+
+    Parses tags like:
+        @mcp_service
+        @server_name asset_management
+        @tool_name get_crew_list
+        @service_name getCrew
+        @description 전체 선원 정보 조회
+        @category crew_query
+        @tags query,search,filter
+        @param {Array<number>} [shipIds] - 선박 ID 목록
+        @param {string} where - 검색 조건
+        @returns {Array<Object>} 선원 목록
 
     Returns:
-        Dictionary of tool name to tool info
+        Dictionary with metadata and parameters
+    """
+    result = {
+        "is_mcp_service": False,
+        "metadata": {},
+        "parameters": [],
+        "returns": None,
+    }
+
+    # Check if this is an MCP service
+    if "@mcp_service" not in jsdoc_block:
+        return result
+
+    result["is_mcp_service"] = True
+
+    # Extract simple tags (single value)
+    simple_tags = ["server_name", "tool_name", "service_name", "description", "category"]
+    for tag in simple_tags:
+        pattern = rf"@{tag}\s+(.+?)(?=\n\s*\*\s*@|\n\s*\*/|\Z)"
+        match = re.search(pattern, jsdoc_block, re.DOTALL)
+        if match:
+            value = match.group(1).strip()
+            # Clean up multi-line values
+            value = re.sub(r"\n\s*\*\s*", " ", value).strip()
+            result["metadata"][tag] = value
+
+    # Extract tags (comma-separated)
+    tags_match = re.search(r"@tags\s+(.+?)(?=\n\s*\*\s*@|\n\s*\*/|\Z)", jsdoc_block)
+    if tags_match:
+        tags_str = tags_match.group(1).strip()
+        result["metadata"]["tags"] = [t.strip() for t in tags_str.split(",")]
+
+    # Extract parameters: @param {type} [name] - description (optional with [])
+    # Pattern handles: {type}, name or [name], and optional description
+    param_pattern = r"@param\s+\{([^}]+)\}\s+(\[?\w+\]?)\s*(?:-\s*(.+?))?(?=\n\s*\*\s*@|\n\s*\*/|\Z)"
+    for match in re.finditer(param_pattern, jsdoc_block, re.DOTALL):
+        param_type = match.group(1).strip()
+        param_name = match.group(2).strip()
+        param_desc = match.group(3).strip() if match.group(3) else ""
+
+        # Clean up description
+        param_desc = re.sub(r"\n\s*\*\s*", " ", param_desc).strip()
+
+        # Check if optional (wrapped in [])
+        is_optional = param_name.startswith("[") and param_name.endswith("]")
+        if is_optional:
+            param_name = param_name[1:-1]  # Remove brackets
+
+        result["parameters"].append({
+            "name": param_name,
+            "type": _map_jsdoc_type(param_type),
+            "jsdoc_type": param_type,  # Keep original for reference
+            "is_optional": is_optional,
+            "description": param_desc,
+            "default": None,
+            "has_default": False,
+        })
+
+    # Extract return type
+    returns_match = re.search(r"@returns?\s+\{([^}]+)\}\s*(.+)?(?=\n\s*\*\s*@|\n\s*\*/|\Z)", jsdoc_block)
+    if returns_match:
+        result["returns"] = {
+            "type": _map_jsdoc_type(returns_match.group(1).strip()),
+            "jsdoc_type": returns_match.group(1).strip(),
+            "description": returns_match.group(2).strip() if returns_match.group(2) else "",
+        }
+
+    return result
+
+
+def _find_function_after_jsdoc(content: str, jsdoc_end_pos: int) -> Optional[Dict[str, Any]]:
+    """Find the function definition that follows a JSDoc block.
+
+    Handles patterns like:
+        - crewService.getCrew = async (params = {}) => {
+        - async function updateUserLicense(id, updateData) {
+        - const getCrew = async function(params) {
+        - exports.getCrew = async (params) => {
+
+    Returns:
+        Dictionary with function info or None
+    """
+    # Get the text after JSDoc (limit search to next 500 chars)
+    after_jsdoc = content[jsdoc_end_pos:jsdoc_end_pos + 500]
+
+    # Skip whitespace
+    after_jsdoc_stripped = after_jsdoc.lstrip()
+    skip_len = len(after_jsdoc) - len(after_jsdoc_stripped)
+    func_start_pos = jsdoc_end_pos + skip_len
+
+    # Pattern 1: obj.method = async (params) => { or obj.method = async function(params) {
+    pattern1 = r"^(\w+)\.(\w+)\s*=\s*(async\s+)?(?:function\s*)?\(([^)]*)\)\s*(?:=>)?\s*\{"
+    match = re.match(pattern1, after_jsdoc_stripped)
+    if match:
+        return {
+            "object": match.group(1),
+            "function_name": match.group(2),
+            "is_async": bool(match.group(3)),
+            "params_str": match.group(4),
+            "line": content[:func_start_pos].count('\n') + 1,
+        }
+
+    # Pattern 2: async function name(params) { or function name(params) {
+    pattern2 = r"^(async\s+)?function\s+(\w+)\s*\(([^)]*)\)\s*\{"
+    match = re.match(pattern2, after_jsdoc_stripped)
+    if match:
+        return {
+            "object": None,
+            "function_name": match.group(2),
+            "is_async": bool(match.group(1)),
+            "params_str": match.group(3),
+            "line": content[:func_start_pos].count('\n') + 1,
+        }
+
+    # Pattern 3: const/let/var name = async (params) => { or = async function(params) {
+    pattern3 = r"^(?:const|let|var)\s+(\w+)\s*=\s*(async\s+)?(?:function\s*)?\(([^)]*)\)\s*(?:=>)?\s*\{"
+    match = re.match(pattern3, after_jsdoc_stripped)
+    if match:
+        return {
+            "object": None,
+            "function_name": match.group(1),
+            "is_async": bool(match.group(2)),
+            "params_str": match.group(3),
+            "line": content[:func_start_pos].count('\n') + 1,
+        }
+
+    # Pattern 4: exports.name = async (params) => {
+    pattern4 = r"^exports\.(\w+)\s*=\s*(async\s+)?(?:function\s*)?\(([^)]*)\)\s*(?:=>)?\s*\{"
+    match = re.match(pattern4, after_jsdoc_stripped)
+    if match:
+        return {
+            "object": "exports",
+            "function_name": match.group(1),
+            "is_async": bool(match.group(2)),
+            "params_str": match.group(3),
+            "line": content[:func_start_pos].count('\n') + 1,
+        }
+
+    return None
+
+
+def find_jsdoc_mcp_services_in_js_file(file_path: str) -> Dict[str, Dict[str, Any]]:
+    """Find all @mcp_service JSDoc-decorated functions in a JavaScript file.
+
+    Parses JSDoc blocks like:
+        /**
+         * @mcp_service
+         * @server_name asset_management
+         * @tool_name get_crew_list
+         * @description 전체 선원 정보 조회
+         * @param {Array<number>} [shipIds] - 선박 ID 목록
+         */
+        crewService.getCrew = async (params = {}) => { ... }
+
+    Returns:
+        Dictionary of service name to service info
     """
     services: Dict[str, Dict[str, Any]] = {}
 
     try:
         content = Path(file_path).read_text(encoding="utf-8")
 
-        # Use regex to find server.tool() calls (works without esprima)
-        # Pattern: server.tool('name', 'description', { zod schema }, handler)
-        tool_pattern = r"server\.tool\s*\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*,\s*(\{[^}]+\})"
+        # Find all JSDoc blocks
+        jsdoc_pattern = r"/\*\*[\s\S]*?\*/"
 
-        for match in re.finditer(tool_pattern, content, re.DOTALL):
-            tool_name = match.group(1)
-            description = match.group(2)
-            schema_str = match.group(3)
+        for match in re.finditer(jsdoc_pattern, content):
+            jsdoc_block = match.group()
+            jsdoc_end_pos = match.end()
 
-            # Parse Zod schema to extract parameters
-            parameters = _parse_zod_schema_to_params(schema_str)
+            # Parse JSDoc block
+            parsed = _parse_jsdoc_block(jsdoc_block)
+
+            if not parsed["is_mcp_service"]:
+                continue
+
+            # Find the function that follows this JSDoc
+            func_info = _find_function_after_jsdoc(content, jsdoc_end_pos)
+
+            if not func_info:
+                # JSDoc block found but no function after it
+                continue
+
+            # Use service_name from metadata, or function_name as fallback
+            service_name = parsed["metadata"].get("service_name", func_info["function_name"])
+            tool_name = parsed["metadata"].get("tool_name", func_info["function_name"])
 
             # Build signature from parameters
             signature = ", ".join([
-                f"{p['name']}: {p.get('type', 'any')}" + (" = " + str(p['default']) if p.get('default') is not None else "")
-                for p in parameters
+                f"{p['name']}: {p.get('jsdoc_type', 'any')}"
+                for p in parsed["parameters"]
             ])
 
-            # Find line number
-            line = content[:match.start()].count('\n') + 1
-
-            services[tool_name] = {
-                "function_name": tool_name,
-                "service_name": tool_name,
+            services[service_name] = {
+                "function_name": func_info["function_name"],
+                "service_name": service_name,
                 "metadata": {
                     "tool_name": tool_name,
-                    "description": description,
+                    "server_name": parsed["metadata"].get("server_name"),
+                    "description": parsed["metadata"].get("description", ""),
+                    "category": parsed["metadata"].get("category"),
+                    "tags": parsed["metadata"].get("tags", []),
                 },
                 "signature": signature,
-                "parameters": parameters,
-                "is_async": True,  # MCP tools are typically async
+                "parameters": parsed["parameters"],
+                "returns": parsed.get("returns"),
+                "is_async": func_info["is_async"],
                 "file": str(file_path),
-                "line": line,
+                "line": func_info["line"],
                 "language": "javascript",
-                "pattern": "server.tool",
+                "pattern": "jsdoc",
             }
 
+            # Add object info if method of an object
+            if func_info.get("object"):
+                services[service_name]["object"] = func_info["object"]
+
     except Exception as exc:
-        print(f"Error scanning JS file for server.tool(): {file_path}: {exc}")
+        print(f"Error scanning JS file for JSDoc @mcp_service: {file_path}: {exc}")
 
     return services
-
-
-def _parse_zod_schema_to_params(schema_str: str) -> List[Dict[str, Any]]:
-    """Parse a Zod schema object string into parameter definitions.
-
-    Input: "{ param1: z.string().optional(), param2: z.number().default(10) }"
-    Output: [{"name": "param1", "type": "string", "is_optional": True}, ...]
-    """
-    params = []
-
-    # Pattern for each property: name: z.type().modifiers().describe('...')
-    prop_pattern = r"(\w+)\s*:\s*z\.(\w+)\(([^)]*)\)((?:\.\w+\([^)]*\))*)"
-
-    for match in re.finditer(prop_pattern, schema_str):
-        prop_name = match.group(1)
-        zod_type = match.group(2)
-        type_args = match.group(3)
-        modifiers = match.group(4) or ""
-
-        param_info = {
-            "name": prop_name,
-            "type": extract_types_js.map_zod_to_json_type(zod_type),
-            "is_optional": ".optional()" in modifiers,
-            "default": None,
-            "has_default": False,
-        }
-
-        # Extract default value
-        default_match = re.search(r"\.default\(([^)]+)\)", modifiers)
-        if default_match:
-            default_val = default_match.group(1).strip()
-            param_info["default"] = _parse_js_literal(default_val)
-            param_info["has_default"] = True
-            param_info["is_optional"] = True
-
-        # Extract description
-        describe_match = re.search(r"\.describe\(['\"]([^'\"]+)['\"]\)", modifiers)
-        if describe_match:
-            param_info["description"] = describe_match.group(1)
-
-        # Extract enum values for z.enum()
-        if zod_type == "enum":
-            enum_match = re.search(r"\[([^\]]+)\]", type_args)
-            if enum_match:
-                enum_values = re.findall(r"['\"]([^'\"]+)['\"]", enum_match.group(1))
-                param_info["enum"] = enum_values
-
-        params.append(param_info)
-
-    return params
 
 
 def _parse_js_literal(value_str: str) -> Any:
@@ -767,7 +939,7 @@ def scan_codebase_for_mcp_services(
     exclude_examples: bool = True,
     skip_parts: tuple[str, ...] = DEFAULT_SKIP_PARTS,
     languages: Optional[List[str]] = None,
-    include_server_tool_pattern: bool = True,
+    include_jsdoc_pattern: bool = True,
 ) -> Dict[str, Dict[str, Any]]:
     """Scan a codebase recursively for @mcp_service decorated functions.
 
@@ -778,7 +950,7 @@ def scan_codebase_for_mcp_services(
         skip_parts: Directory parts to skip
         languages: List of languages to scan ("python", "javascript", "typescript")
                    If None, scans all supported languages
-        include_server_tool_pattern: Also scan for server.tool() calls (MCP SDK pattern)
+        include_jsdoc_pattern: Also scan for JSDoc @mcp_service comments in JS files
 
     Returns:
         Dictionary of service name to service info
@@ -809,21 +981,29 @@ def scan_codebase_for_mcp_services(
 
             file_str = str(source_file)
 
-            # Standard decorator-based scanning
-            services = find_mcp_services_in_file(file_str)
-
-            # Also scan for server.tool() pattern in JS files
-            if include_server_tool_pattern and ext in (".js", ".mjs", ".ts", ".tsx"):
-                server_tool_services = find_server_tool_calls_in_js_file(file_str)
-                # Merge, preferring decorator-based if both exist
-                for name, info in server_tool_services.items():
+            # For Python: Use AST-based decorator scanning
+            if ext == ".py":
+                services = find_mcp_services_in_python_file(file_str)
+            # For JavaScript/TypeScript: Use JSDoc scanning
+            elif ext in (".js", ".mjs", ".ts", ".tsx"):
+                services = {}
+                # JSDoc pattern scanning (primary method for JS)
+                if include_jsdoc_pattern:
+                    jsdoc_services = find_jsdoc_mcp_services_in_js_file(file_str)
+                    services.update(jsdoc_services)
+                # Also try esprima decorator-based scanning (if available)
+                esprima_services = find_mcp_services_in_js_file(file_str)
+                # Merge, preferring JSDoc if both exist
+                for name, info in esprima_services.items():
                     if name not in services:
                         services[name] = info
+            else:
+                services = {}
 
             if server_name:
                 services = {
                     name: info for name, info in services.items()
-                    if info["metadata"].get("server_name") == server_name
+                    if info.get("metadata", {}).get("server_name") == server_name
                 }
 
             all_services.update(services)

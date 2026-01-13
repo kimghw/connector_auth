@@ -26,7 +26,8 @@ def load_services_for_server(server_name: str | None, scan_dir: str | None, forc
     registry_name = server_name.replace("mcp_", "") if server_name and server_name.startswith("mcp_") else server_name
 
     # Try to load from registry JSON first (faster and more reliable)
-    registry_path = os.path.join(BASE_DIR, "mcp_service_registry", f"registry_{registry_name}.json")
+    # Path: mcp_{server_name}/registry_{server_name}.json
+    registry_path = os.path.join(BASE_DIR, f"mcp_{registry_name}", f"registry_{registry_name}.json")
 
     # Check if registry file exists, if not log error and raise exception
     if not os.path.exists(registry_path):
@@ -72,12 +73,13 @@ def scan_all_registries():
     1. Scans source directory for @mcp_service decorated functions
     2. Generates registry_{server}.json with service definitions
     3. Generates types_property_{server}.json with referenced type definitions
+
+    Output path: mcp_{server_name}/registry_{server_name}.json
     """
     try:
         from .config import _load_config_file
 
         config = _load_config_file()
-        output_dir = os.path.join(BASE_DIR, "mcp_service_registry")
 
         for profile_name, profile_config in config.items():
             # Skip merged profiles - they don't have their own service files
@@ -93,6 +95,10 @@ def scan_all_registries():
 
             # Extract server name (mcp_outlook -> outlook)
             server_name = profile_name.replace("mcp_", "") if profile_name.startswith("mcp_") else profile_name
+
+            # Output directory: mcp_{server_name}/
+            output_dir = os.path.join(BASE_DIR, f"mcp_{server_name}")
+            os.makedirs(output_dir, exist_ok=True)
 
             print(f"  Scanning {profile_name} from {source_path}...")
 

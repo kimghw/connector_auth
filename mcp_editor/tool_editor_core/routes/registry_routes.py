@@ -40,9 +40,9 @@ def get_registry():
     # Get registry path
     registry_path = profile_conf.get("registry_path")
     if not registry_path:
-        # Default to mcp_service_registry/registry_{server}.json
+        # Default to mcp_{server}/registry_{server}.json
         server_name = get_server_name_from_profile(profile) or profile.replace("mcp_", "")
-        registry_path = os.path.join(BASE_DIR, "mcp_service_registry", f"registry_{server_name}.json")
+        registry_path = os.path.join(BASE_DIR, f"mcp_{server_name}", f"registry_{server_name}.json")
 
     # Load registry file
     try:
@@ -77,8 +77,8 @@ def get_mcp_services():
         paths_to_try = []
 
         if registry_name:
-            # Priority 1: New registry format in mcp_service_registry
-            registry_path = os.path.join(BASE_DIR, "mcp_service_registry", f"registry_{registry_name}.json")
+            # Priority 1: New registry format in mcp_{server}/registry_{server}.json
+            registry_path = os.path.join(BASE_DIR, f"mcp_{registry_name}", f"registry_{registry_name}.json")
             paths_to_try.append(("registry", registry_path))
 
             # Priority 2: Old format in server folder (mcp_editor/mcp_outlook/outlook_mcp_services.json)
@@ -99,7 +99,7 @@ def get_mcp_services():
         # If no registry found, log error
         if not mcp_services_path:
             # Check if expected registry file exists
-            expected_registry = os.path.join(BASE_DIR, "mcp_service_registry", f"registry_{registry_name}.json")
+            expected_registry = os.path.join(BASE_DIR, f"mcp_{registry_name}", f"registry_{registry_name}.json")
             error_msg = f"Registry file not found for server '{registry_name}': {expected_registry}"
             print(f"ERROR: {error_msg}")
 

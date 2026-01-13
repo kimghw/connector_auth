@@ -49,9 +49,9 @@ def get_graph_types_properties():
             server_name.replace("mcp_", "") if server_name and server_name.startswith("mcp_") else server_name
         )
 
-        # Primary path: types_property_{server}.json in mcp_service_registry
+        # Primary path: mcp_{server}/types_property_{server}.json
         types_property_path = os.path.join(
-            BASE_DIR, "mcp_service_registry", f"types_property_{types_file_name}.json"
+            BASE_DIR, f"mcp_{types_file_name}", f"types_property_{types_file_name}.json"
         )
 
         if os.path.exists(types_property_path):
