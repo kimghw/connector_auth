@@ -1,5 +1,58 @@
 # 레지스트리 서버 데이터 흐름
 
+## 웹 에디터에서의 사용
+
+### 사용 목적 (2가지)
+
+1. **서비스 목록 드롭다운 표시** - 도구 편집 시 연결할 서비스 선택
+2. **저장 시 signature/parameters 보강** - tool_definition_templates.yaml에 서비스 메타데이터 추가
+
+### 사용 흐름 1: 서비스 목록 표시
+
+```
+registry_outlook.json
+         │
+         ▼
+GET /api/mcp-services (registry_routes.py)
+         │
+         ▼
+웹 에디터 UI: mcp_service 드롭다운
+         │
+         ▼
+사용자가 서비스 선택 (예: query_mail_list)
+```
+
+### 사용 흐름 2: 저장 시 보강
+
+```
+웹 에디터에서 도구 저장
+         │
+         ▼
+tool_saver.py:save_tool_definitions()
+         │
+         ▼
+service_registry.py:load_services_for_server()
+         │
+         ▼
+registry_outlook.json에서 signature/parameters 읽기
+         │
+         ▼
+tool_definition_templates.yaml에 mcp_service 정보 추가
+    - signature: "user_email: str, filter_params: Optional[FilterParams]..."
+    - parameters: [{name, type, is_optional, default, class_name}, ...]
+```
+
+### 관련 코드
+
+| 파일 | 함수 | 역할 |
+|------|------|------|
+| `registry_routes.py` | `get_mcp_services()` | 서비스 목록 API |
+| `service_registry.py` | `load_services_for_server()` | 저장 시 메타데이터 로드 |
+| `tool_saver.py` | `save_tool_definitions()` | registry 정보로 YAML 보강 |
+| `tool_editor_tools.js` | `loadMcpServices()` | API 호출하여 UI에 표시 |
+
+---
+
 ## 요약
 
 | 항목 | 내용 |
@@ -20,20 +73,31 @@
 | `registry_routes.py` | `get_registry()` | 레지스트리 파일 직접 반환 |
 | `tool_loader.py` | `load_mcp_service_factors()` | 서비스 팩터 추출 |
 
-### 지원 언어
+### 지원 언어 및 패턴
 
-| 언어 | 확장자 | 파서 | 데코레이터 |
-|------|--------|------|-----------|
-| Python | `.py` | `ast` (내장) | `@mcp_service` |
-| JavaScript | `.js`, `.mjs` | `esprima` | `@McpService` |
-| TypeScript | `.ts`, `.tsx` | `esprima` | `@McpService` |
+| 언어 | 확장자 | 서비스 정의 패턴 | 파서 |
+|------|--------|-----------------|------|
+| Python | `.py` | `@mcp_service` 데코레이터 | `ast` (내장) |
+| JavaScript | `.js`, `.mjs` | `server.tool()` 패턴 | regex (내장) |
+| TypeScript | `.ts`, `.tsx` | `@McpService` 데코레이터 | `esprima` (선택) |
 
-**조건**: JavaScript/TypeScript 스캔 시 `pip install esprima` 필요
+**JavaScript server.tool() 패턴** (MCP SDK):
+```javascript
+server.tool(
+    'search_ships',                           // tool_name
+    '선박을 검색합니다.',                       // description
+    {                                          // Zod 스키마
+        name: z.string().optional().describe('선박 이름'),
+        imo: z.string().optional()
+    },
+    async (args) => { ... }                   // handler
+);
+```
 
 **주의사항**:
-- `esprima` 미설치 시 → JS 파일 스킵 (경고만 출력)
-- 순수 JavaScript는 데코레이터 문법 없음 → TypeScript 권장
-- camelCase → snake_case 자동 변환 (`serverName` → `server_name`)
+- JavaScript `server.tool()` 패턴: **esprima 불필요** (regex 기반 파싱)
+- TypeScript 데코레이터 패턴: `pip install esprima` 필요
+- `esprima` 미설치 시 → 데코레이터 스킵, server.tool()은 정상 작동
 
 ---
 
@@ -189,3 +253,100 @@ def _is_class_type(type_str: str) -> bool:
 | 역할 | 실행 라우팅 정보 | 분류/설명 정보 |
 | 예시 | class_name, method, file | category, tags, description |
 | 사용 | 런타임 호출 | UI 표시, 검색 필터링 |
+
+---
+
+## JavaScript 서비스 스캔
+
+### server.tool() 패턴 스캔
+
+**함수**: `mcp_service_scanner.py:find_server_tool_calls_in_js_file()`
+
+regex 기반으로 `server.tool()` 호출을 파싱하여 서비스 정보 추출.
+
+### 추출되는 정보
+
+```javascript
+server.tool(
+    'search_ships',                // → service_name, tool_name
+    '선박 검색',                    // → description
+    {
+        name: z.string().optional().describe('이름'),
+        shipType: z.enum(['tanker', 'cargo'])
+    },                             // → parameters (Zod 스키마에서 추출)
+    async (args) => { ... }        // → is_async: true
+);
+```
+
+### Zod 타입 매핑
+
+| Zod 메서드 | 추출 정보 |
+|-----------|----------|
+| `z.string()` | type: "string" |
+| `z.number()` | type: "number" |
+| `z.boolean()` | type: "boolean" |
+| `z.enum(['a', 'b'])` | type: "string", enum: ["a", "b"] |
+| `.optional()` | is_optional: true |
+| `.default(value)` | default: value, has_default: true |
+| `.describe('text')` | description: "text" |
+| `.min(n)` | minimum: n |
+| `.max(n)` | maximum: n |
+
+### JavaScript registry 출력 구조
+
+```json
+{
+  "version": "1.0",
+  "generated_at": "2026-01-13T...",
+  "server_name": "asset",
+  "language": "javascript",
+  "services": {
+    "search_ships": {
+      "service_name": "search_ships",
+      "handler": {
+        "class_name": null,
+        "method": "search_ships",
+        "is_async": true,
+        "file": "/path/to/ship-tools.js",
+        "line": 15
+      },
+      "signature": "name: string, imo: string, shipType: string",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "string",
+          "is_optional": true,
+          "description": "선박 이름"
+        },
+        {
+          "name": "shipType",
+          "type": "string",
+          "is_optional": true,
+          "enum": ["tanker", "cargo"]
+        }
+      ],
+      "metadata": {
+        "tool_name": "search_ships",
+        "description": "선박 검색"
+      },
+      "pattern": "server.tool"
+    }
+  }
+}
+```
+
+### 언어 자동 감지
+
+`export_services_to_json()`에서 프로젝트 언어를 자동 감지:
+
+```python
+# 스캔된 서비스에서 language 필드 확인
+has_js_services = any(s.get("language") == "javascript" for s in services.values())
+has_py_services = any(s.get("language") == "python" for s in services.values())
+
+# JavaScript만 있으면 JS 프로젝트로 판단
+if has_js_services and not has_py_services:
+    # → extract_types_js.py 사용
+else:
+    # → extract_types.py 사용 (Python)
+```

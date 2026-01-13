@@ -29,8 +29,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-# Type extractor module
+# Type extractor modules
 from . import extract_types
+from . import extract_types_js
 
 # JavaScript parser (optional - graceful fallback if not installed)
 try:
@@ -494,6 +495,131 @@ def find_mcp_services_in_js_file(file_path: str) -> Dict[str, Dict[str, Any]]:
     return services
 
 
+def find_server_tool_calls_in_js_file(file_path: str) -> Dict[str, Dict[str, Any]]:
+    """Find all server.tool() calls in a JavaScript file (MCP SDK pattern).
+
+    This handles the common MCP SDK pattern:
+        server.tool('tool_name', 'description', zodSchema, handler)
+
+    Returns:
+        Dictionary of tool name to tool info
+    """
+    services: Dict[str, Dict[str, Any]] = {}
+
+    try:
+        content = Path(file_path).read_text(encoding="utf-8")
+
+        # Use regex to find server.tool() calls (works without esprima)
+        # Pattern: server.tool('name', 'description', { zod schema }, handler)
+        tool_pattern = r"server\.tool\s*\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*,\s*(\{[^}]+\})"
+
+        for match in re.finditer(tool_pattern, content, re.DOTALL):
+            tool_name = match.group(1)
+            description = match.group(2)
+            schema_str = match.group(3)
+
+            # Parse Zod schema to extract parameters
+            parameters = _parse_zod_schema_to_params(schema_str)
+
+            # Build signature from parameters
+            signature = ", ".join([
+                f"{p['name']}: {p.get('type', 'any')}" + (" = " + str(p['default']) if p.get('default') is not None else "")
+                for p in parameters
+            ])
+
+            # Find line number
+            line = content[:match.start()].count('\n') + 1
+
+            services[tool_name] = {
+                "function_name": tool_name,
+                "service_name": tool_name,
+                "metadata": {
+                    "tool_name": tool_name,
+                    "description": description,
+                },
+                "signature": signature,
+                "parameters": parameters,
+                "is_async": True,  # MCP tools are typically async
+                "file": str(file_path),
+                "line": line,
+                "language": "javascript",
+                "pattern": "server.tool",
+            }
+
+    except Exception as exc:
+        print(f"Error scanning JS file for server.tool(): {file_path}: {exc}")
+
+    return services
+
+
+def _parse_zod_schema_to_params(schema_str: str) -> List[Dict[str, Any]]:
+    """Parse a Zod schema object string into parameter definitions.
+
+    Input: "{ param1: z.string().optional(), param2: z.number().default(10) }"
+    Output: [{"name": "param1", "type": "string", "is_optional": True}, ...]
+    """
+    params = []
+
+    # Pattern for each property: name: z.type().modifiers().describe('...')
+    prop_pattern = r"(\w+)\s*:\s*z\.(\w+)\(([^)]*)\)((?:\.\w+\([^)]*\))*)"
+
+    for match in re.finditer(prop_pattern, schema_str):
+        prop_name = match.group(1)
+        zod_type = match.group(2)
+        type_args = match.group(3)
+        modifiers = match.group(4) or ""
+
+        param_info = {
+            "name": prop_name,
+            "type": extract_types_js.map_zod_to_json_type(zod_type),
+            "is_optional": ".optional()" in modifiers,
+            "default": None,
+            "has_default": False,
+        }
+
+        # Extract default value
+        default_match = re.search(r"\.default\(([^)]+)\)", modifiers)
+        if default_match:
+            default_val = default_match.group(1).strip()
+            param_info["default"] = _parse_js_literal(default_val)
+            param_info["has_default"] = True
+            param_info["is_optional"] = True
+
+        # Extract description
+        describe_match = re.search(r"\.describe\(['\"]([^'\"]+)['\"]\)", modifiers)
+        if describe_match:
+            param_info["description"] = describe_match.group(1)
+
+        # Extract enum values for z.enum()
+        if zod_type == "enum":
+            enum_match = re.search(r"\[([^\]]+)\]", type_args)
+            if enum_match:
+                enum_values = re.findall(r"['\"]([^'\"]+)['\"]", enum_match.group(1))
+                param_info["enum"] = enum_values
+
+        params.append(param_info)
+
+    return params
+
+
+def _parse_js_literal(value_str: str) -> Any:
+    """Parse a JavaScript literal value to Python."""
+    value_str = value_str.strip()
+    if value_str == "true":
+        return True
+    elif value_str == "false":
+        return False
+    elif value_str == "null":
+        return None
+    elif value_str.startswith(("'", '"')):
+        return value_str[1:-1]
+    elif value_str.isdigit():
+        return int(value_str)
+    elif re.match(r"^\d+\.\d+$", value_str):
+        return float(value_str)
+    return value_str
+
+
 def _process_js_node(node: dict, file_path: str, services: Dict[str, Dict[str, Any]], class_name: str = None):
     """Process a JavaScript AST node to find MCP services."""
     node_type = node.get("type") if isinstance(node, dict) else getattr(node, "type", None)
@@ -641,6 +767,7 @@ def scan_codebase_for_mcp_services(
     exclude_examples: bool = True,
     skip_parts: tuple[str, ...] = DEFAULT_SKIP_PARTS,
     languages: Optional[List[str]] = None,
+    include_server_tool_pattern: bool = True,
 ) -> Dict[str, Dict[str, Any]]:
     """Scan a codebase recursively for @mcp_service decorated functions.
 
@@ -651,6 +778,7 @@ def scan_codebase_for_mcp_services(
         skip_parts: Directory parts to skip
         languages: List of languages to scan ("python", "javascript", "typescript")
                    If None, scans all supported languages
+        include_server_tool_pattern: Also scan for server.tool() calls (MCP SDK pattern)
 
     Returns:
         Dictionary of service name to service info
@@ -679,7 +807,18 @@ def scan_codebase_for_mcp_services(
             if exclude_examples and "example" in str(source_file).lower():
                 continue
 
-            services = find_mcp_services_in_file(str(source_file))
+            file_str = str(source_file)
+
+            # Standard decorator-based scanning
+            services = find_mcp_services_in_file(file_str)
+
+            # Also scan for server.tool() pattern in JS files
+            if include_server_tool_pattern and ext in (".js", ".mjs", ".ts", ".tsx"):
+                server_tool_services = find_server_tool_calls_in_js_file(file_str)
+                # Merge, preferring decorator-based if both exist
+                for name, info in server_tool_services.items():
+                    if name not in services:
+                        services[name] = info
 
             if server_name:
                 services = {
@@ -957,9 +1096,13 @@ def export_services_to_json(base_dir: str, server_name: str, output_dir: str) ->
     1. registry_{server_name}.json - Service definitions
     2. types_property_{server_name}.json - Referenced type definitions
 
+    Supports:
+    - Python: @mcp_service decorators + BaseModel types
+    - JavaScript: @McpService decorators, server.tool() pattern + Zod/Sequelize types
+
     Args:
         base_dir: Base directory to scan for services
-        server_name: Server name for output files
+        server_name: Server name for output files (used for file naming, not filtering for JS)
         output_dir: Directory to write output files
 
     Returns:
@@ -971,14 +1114,31 @@ def export_services_to_json(base_dir: str, server_name: str, output_dir: str) ->
             "type_count": 3
         }
     """
-    services = scan_codebase_for_mcp_services(base_dir, server_name)
+    # First scan without server_name filter to detect language
+    all_services = scan_codebase_for_mcp_services(base_dir, server_name=None)
+
+    # Detect if this is a JS project (server.tool pattern doesn't have server_name metadata)
+    has_js_services = any(s.get("language") == "javascript" for s in all_services.values())
+    has_py_services = any(s.get("language") == "python" for s in all_services.values())
+
+    # For JS-only projects, don't filter by server_name (they don't have this metadata)
+    if has_js_services and not has_py_services:
+        services = all_services
+    else:
+        # For Python projects, filter by server_name as before
+        services = scan_codebase_for_mcp_services(base_dir, server_name)
     services_items = sorted(services.items(), key=lambda item: (item[1]["file"], item[1]["line"]))
+
+    # Detect primary language of the project
+    languages_found = set(s.get("language", "python") for s in services.values())
+    is_js_project = "javascript" in languages_found and "python" not in languages_found
 
     # Build registry format (used by web editor)
     registry_output = {
         "version": "1.0",
         "generated_at": datetime.now().isoformat(),
         "server_name": server_name,
+        "language": "javascript" if is_js_project else "python",
         "services": {}
     }
 
@@ -996,7 +1156,8 @@ def export_services_to_json(base_dir: str, server_name: str, output_dir: str) ->
             },
             "signature": service.get("signature", ""),
             "parameters": service.get("parameters", []),
-            "metadata": service.get("metadata", {})
+            "metadata": service.get("metadata", {}),
+            "pattern": service.get("pattern"),  # "server.tool" for MCP SDK pattern
         }
 
     # Save registry file
@@ -1006,18 +1167,39 @@ def export_services_to_json(base_dir: str, server_name: str, output_dir: str) ->
 
     # Collect and export referenced types
     print(f"  Collecting referenced types...")
-    referenced_types = collect_referenced_types(services)
     types_property_path = ""
+    type_count = 0
 
-    if referenced_types:
-        types_property_path = export_types_property(referenced_types, server_name, output_dir)
-        print(f"  Exported {len(referenced_types)} types to {types_property_path}")
+    if is_js_project:
+        # JavaScript project: extract Sequelize models (타입 정의)
+        # Note: tool 파라미터는 이미 registry에 포함됨
+        print(f"  Detected JavaScript project, scanning for Sequelize models...")
+        try:
+            types_property_path = extract_types_js.export_js_types_property(
+                base_dir, server_name, output_dir
+            )
+            # Count types from the exported file
+            if types_property_path and Path(types_property_path).exists():
+                with open(types_property_path) as f:
+                    js_types = json.load(f)
+                    type_count = len(js_types.get("classes", []))
+        except Exception as e:
+            print(f"  Warning: JS type extraction failed: {e}")
     else:
-        print(f"  No referenced types found")
+        # Python project: extract BaseModel types
+        referenced_types = collect_referenced_types(services)
+
+        if referenced_types:
+            types_property_path = export_types_property(referenced_types, server_name, output_dir)
+            type_count = len(referenced_types)
+            print(f"  Exported {type_count} types to {types_property_path}")
+        else:
+            print(f"  No referenced types found")
 
     return {
         "registry": str(registry_path),
         "types_property": types_property_path,
         "service_count": len(registry_output["services"]),
-        "type_count": len(referenced_types)
+        "type_count": type_count,
+        "language": "javascript" if is_js_project else "python",
     }
