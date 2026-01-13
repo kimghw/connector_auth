@@ -5,8 +5,40 @@
 
 ## 생성 시점
 - **최초 생성**: `python generate_editor_config.py` 실행 시
-- **자동 생성**: 웹 에디터 시작 시 파일이 없으면 `_generate_config_from_template()` 호출
+- **자동 생성**: 웹 에디터 시작 시 `app.py`가 자동으로 생성 스크립트 실행
 - **업데이트**: 프로필 생성/삭제 시 자동 갱신
+
+## 자동 설정 (데코레이터 기반)
+
+**개발자는 `@mcp_service` 데코레이터만 설정하면 됩니다.** 나머지는 자동 처리됩니다.
+
+### 흐름
+```
+@mcp_service(server_name="outlook")  ← 개발자가 설정
+        ↓
+웹 에디터 시작 (app.py)
+        ↓
+generate_editor_config.py 자동 실행
+        ↓
+editor_config.json 자동 생성/갱신
+```
+
+### 컨벤션 기반 자동 유추
+
+| 데코레이터 설정 | 자동 생성 결과 |
+|:---------------|:--------------|
+| `server_name="outlook"` | 경로: `../mcp_outlook`, 포트: 순차 할당 |
+| `server_name="calendar"` | 경로: `../mcp_calendar`, 포트: 순차 할당 |
+
+### 수동 설정이 필요 없는 항목
+- `template_definitions_path` → `mcp_{server_name}/tool_definition_templates.py`
+- `tool_definitions_path` → `../mcp_{server_name}/mcp_server/tool_definitions.py`
+- `backup_dir` → `mcp_{server_name}/backups`
+- `types_files` → 자동 탐지 (`{server_name}_types.py` 등)
+- `host` → `0.0.0.0`
+- `port` → 8001부터 순차 할당
+
+> **결론**: 수동으로 `editor_config.json`을 편집할 필요 없음
 
 ## 참조 파일 및 함수
 
