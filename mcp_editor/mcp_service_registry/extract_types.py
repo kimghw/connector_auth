@@ -68,14 +68,24 @@ def extract_type_from_annotation(annotation: Optional[ast.AST]) -> str:
 
         # Handle Union types
         elif hasattr(annotation.value, "id") and annotation.value.id == "Union":
-            # For Union, use the first non-None type
+            # Check if Union contains List - if so, treat as array
+            # e.g., Union[str, List[str]] -> array (single value can be wrapped in list)
             if isinstance(annotation.slice, ast.Tuple):
+                has_list = False
+                first_type = None
                 for elt in annotation.slice.elts:
-                    if isinstance(elt, ast.Name) and elt.id != "None":
-                        return map_python_to_json_type(elt.id)
-                    elif isinstance(elt, ast.Subscript):
-                        # Handle nested generics like List[str]
-                        return extract_type_from_annotation(elt)
+                    if isinstance(elt, ast.Subscript):
+                        if hasattr(elt.value, "id") and elt.value.id == "List":
+                            has_list = True
+                            break
+                    elif isinstance(elt, ast.Name) and elt.id != "None":
+                        if first_type is None:
+                            first_type = elt.id
+
+                if has_list:
+                    return "array"
+                elif first_type:
+                    return map_python_to_json_type(first_type)
             return "any"
 
         # Handle Literal types

@@ -1,6 +1,6 @@
 {
   "calendar": {
-    "template_definitions_path": "mcp_calendar/tool_definition_templates.py",
+    "template_definitions_path": "mcp_calendar/tool_definition_templates.yaml",
     "tool_definitions_path": "../mcp_calendar/mcp_server/tool_definitions.py",
     "backup_dir": "mcp_calendar/backups",
     "types_files": [
@@ -10,7 +10,7 @@
     "port": 8001
   },
   "file_handler": {
-    "template_definitions_path": "mcp_file_handler/tool_definition_templates.py",
+    "template_definitions_path": "mcp_file_handler/tool_definition_templates.yaml",
     "tool_definitions_path": "../mcp_file_handler/mcp_server/tool_definitions.py",
     "backup_dir": "mcp_file_handler/backups",
     "types_files": [],
@@ -18,7 +18,7 @@
     "port": 8002
   },
   "outlook": {
-    "template_definitions_path": "mcp_outlook/tool_definition_templates.py",
+    "template_definitions_path": "mcp_outlook/tool_definition_templates.yaml",
     "tool_definitions_path": "../mcp_outlook/mcp_server/tool_definitions.py",
     "backup_dir": "mcp_outlook/backups",
     "types_files": [
