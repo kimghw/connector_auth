@@ -146,76 +146,6 @@ derived_profiles: [...]          is_reused: true
 
 ---
 
-## 소스 경로 (source_dir 불필요)
-
-### 왜 source_dir이 필요 없는가?
-
-`@mcp_service` 데코레이터 스캔 시 **파일 경로를 이미 알고 있습니다**.
-
-```python
-# 스캔 결과 - registry_{server}.json
-{
-  "services": {
-    "query_mail_list": {
-      "handler": {
-        "file": "/home/user/mcp_outlook/outlook_service.py",  # ← 경로 있음
-        "module_path": "mcp_outlook.outlook_service"
-      }
-    }
-  }
-}
-```
-
-### 스캔 방식
-
-| 언어 | 스캔 대상 | 파싱 방식 |
-|------|----------|----------|
-| **Python** | `*.py` | AST 파싱 → `@mcp_service(server_name="xxx")` 추출 |
-| **JavaScript** | `*.js`, `*.mjs` | 정규식 → JSDoc `@mcp_service` + `@server_name xxx` 추출 |
-
-| 방식 | 설명 |
-|------|------|
-| **전체 스캔** | 프로젝트 루트에서 `.py`, `.js`, `.mjs` 파일 스캔 |
-| **자동 감지** | `@mcp_service` 발견 시 `server_name` 추출 |
-| **경로 저장** | `registry_{server}.json`에 파일 경로 저장 |
-
-### 지원 가능한 구조
-
-어떤 구조든 **전체 스캔**으로 자동 감지:
-
-```
-# 구조 1: 형제 디렉토리
-project/
-├── mcp_editor/
-├── mcp_outlook/        ← 자동 감지
-└── mcp_calendar/       ← 자동 감지
-
-# 구조 2: 웹에디터가 프로젝트 내부
-mcp_outlook/
-├── mcp_editor/
-└── outlook_service.py  ← 자동 감지
-
-# 구조 3: 다른 경로
-project/
-├── mcp_editor/
-└── services/
-    └── outlook/        ← 자동 감지
-```
-
-### 진실의 원천 (Single Source of Truth)
-
-```
-[Python] @mcp_service 데코레이터 (소스 코드)
-[JavaScript] @mcp_service JSDoc 주석 (소스 코드)
-         ↓ 스캔
-registry_{server}.json (메타데이터)
-         ↓ 참조
-웹 에디터, 서버 실행
-```
-
-`registry_{server}.json`이 모든 경로 정보를 가지고 있으므로 `source_dir` 설정이 불필요합니다.
-
----
 
 ## 읽기 (Load)
 
@@ -256,6 +186,13 @@ registry_{server}.json (메타데이터)
 | `generate_editor_config_json()` | `generate_editor_config.py` | 설정 파일 생성 |
 | `detect_module_paths()` | `generate_editor_config.py` | 모듈 경로 탐지 |
 
+### 스캔 방식
+
+| 언어 | 스캔 대상 | 파싱 방식 |
+|------|----------|----------|
+| **Python** | `*.py` | AST 파싱 → `@mcp_service(server_name="xxx")` 추출 |
+| **JavaScript** | `*.js`, `*.mjs` | 정규식 → JSDoc `@mcp_service` + `@server_name xxx` 추출 |
+
 ### 자동 생성 흐름
 ```
 프로젝트 루트 전체 스캔
@@ -266,7 +203,7 @@ registry_{server}.json (메타데이터)
     server_name 병합
            ↓
     editor_config.json 생성
-    registry_{server}.json 생성
+    mcp_{server}/registry_{server}.json 생성
 ```
 
 ---
@@ -332,8 +269,8 @@ editor_config.json이 사용되는 곳:
 ## 데이터 관계
 
 ```
-editor_config.json          registry_{server}.json
-─────────────────          ─────────────────────
+editor_config.json          mcp_{server}/registry_{server}.json
+─────────────────          ─────────────────────────────────────
 프로필 설정                  서비스 메타데이터
 ├── 경로 설정                ├── handler.file (소스 경로)
 ├── 서버 설정 (host/port)    ├── handler.module_path
@@ -342,3 +279,12 @@ editor_config.json          registry_{server}.json
          ↓                           ↓
     웹 에디터 UI              서비스 스캔/호출
 ```
+
+## Registry 파일 경로
+
+| 파일 | 경로 |
+|------|------|
+| **registry** | `mcp_editor/mcp_{server}/registry_{server}.json` |
+| **types_property** | `mcp_editor/mcp_{server}/types_property_{server}.json` |
+
+> **변경됨**: 기존 `mcp_service_registry/` 경로에서 `mcp_{server}/` 경로로 통일

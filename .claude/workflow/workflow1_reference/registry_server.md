@@ -59,7 +59,7 @@ tool_definition_templates.yaml에 mcp_service 정보 추가
 |------|------|
 | **생성 스크립트** | `mcp_service_scanner.py` |
 | **생성 함수** | `export_services_to_json(base_dir, server_name, output_dir)` |
-| **출력 파일** | `registry_{server}.json` |
+| **출력 경로** | `mcp_{server}/registry_{server}.json` |
 | **호출 시점** | 웹 에디터 시작 시 `scan_all_registries()` 자동 호출 |
 | **API 엔드포인트** | `GET /api/mcp-services`, `GET /api/registry` |
 
@@ -78,26 +78,29 @@ tool_definition_templates.yaml에 mcp_service 정보 추가
 | 언어 | 확장자 | 서비스 정의 패턴 | 파서 |
 |------|--------|-----------------|------|
 | Python | `.py` | `@mcp_service` 데코레이터 | `ast` (내장) |
-| JavaScript | `.js`, `.mjs` | `server.tool()` 패턴 | regex (내장) |
+| JavaScript | `.js`, `.mjs` | `@mcp_service` JSDoc 주석 | regex (내장) |
 | TypeScript | `.ts`, `.tsx` | `@McpService` 데코레이터 | `esprima` (선택) |
 
-**JavaScript server.tool() 패턴** (MCP SDK):
+**JavaScript JSDoc 패턴** (권장):
 ```javascript
-server.tool(
-    'search_ships',                           // tool_name
-    '선박을 검색합니다.',                       // description
-    {                                          // Zod 스키마
-        name: z.string().optional().describe('선박 이름'),
-        imo: z.string().optional()
-    },
-    async (args) => { ... }                   // handler
-);
+/**
+ * @mcp_service
+ * @server_name asset_management
+ * @tool_name search_ships
+ * @description 선박을 검색합니다
+ * @category ship_query
+ * @tags query,search
+ * @param {string} [name] - 선박 이름
+ * @param {string} [imo] - IMO 번호
+ * @returns {Array<Object>} 선박 목록
+ */
+async function searchShips(name, imo) { ... }
 ```
 
 **주의사항**:
-- JavaScript `server.tool()` 패턴: **esprima 불필요** (regex 기반 파싱)
+- JavaScript JSDoc 패턴: **esprima 불필요** (regex 기반 파싱)
 - TypeScript 데코레이터 패턴: `pip install esprima` 필요
-- `esprima` 미설치 시 → 데코레이터 스킵, server.tool()은 정상 작동
+- JSDoc 태그: `@mcp_service`, `@server_name`, `@tool_name`, `@description`, `@category`, `@tags`, `@param`, `@returns`
 
 ---
 
@@ -258,39 +261,41 @@ def _is_class_type(type_str: str) -> bool:
 
 ## JavaScript 서비스 스캔
 
-### server.tool() 패턴 스캔
+### JSDoc 패턴 스캔
 
-**함수**: `mcp_service_scanner.py:find_server_tool_calls_in_js_file()`
+**함수**: `mcp_service_scanner.py:find_jsdoc_mcp_services_in_js_file()`
 
-regex 기반으로 `server.tool()` 호출을 파싱하여 서비스 정보 추출.
+regex 기반으로 JSDoc 주석의 `@mcp_service` 블록을 파싱하여 서비스 정보 추출.
 
 ### 추출되는 정보
 
 ```javascript
-server.tool(
-    'search_ships',                // → service_name, tool_name
-    '선박 검색',                    // → description
-    {
-        name: z.string().optional().describe('이름'),
-        shipType: z.enum(['tanker', 'cargo'])
-    },                             // → parameters (Zod 스키마에서 추출)
-    async (args) => { ... }        // → is_async: true
-);
+/**
+ * @mcp_service
+ * @server_name asset_management    // → metadata.server_name
+ * @tool_name search_ships          // → metadata.tool_name
+ * @service_name searchShips        // → service_name (없으면 함수명 사용)
+ * @description 선박 검색           // → metadata.description
+ * @category ship_query             // → metadata.category
+ * @tags query,search               // → metadata.tags
+ * @param {string} [name] - 이름    // → parameters (optional)
+ * @param {number} imo - IMO 번호   // → parameters (required)
+ * @returns {Array<Object>} 결과    // → returns
+ */
+async function searchShips(name, imo) { ... }  // → is_async: true
 ```
 
-### Zod 타입 매핑
+### JSDoc 타입 매핑
 
-| Zod 메서드 | 추출 정보 |
-|-----------|----------|
-| `z.string()` | type: "string" |
-| `z.number()` | type: "number" |
-| `z.boolean()` | type: "boolean" |
-| `z.enum(['a', 'b'])` | type: "string", enum: ["a", "b"] |
-| `.optional()` | is_optional: true |
-| `.default(value)` | default: value, has_default: true |
-| `.describe('text')` | description: "text" |
-| `.min(n)` | minimum: n |
-| `.max(n)` | maximum: n |
+| JSDoc 타입 | JSON Schema 타입 |
+|-----------|-----------------|
+| `{string}` | "string" |
+| `{number}` | "number" |
+| `{boolean}` | "boolean" |
+| `{Object}` | "object" |
+| `{Array}`, `{Array<T>}` | "array" |
+| `{*}`, `{any}` | "any" |
+| `[param]` (대괄호) | is_optional: true |
 
 ### JavaScript registry 출력 구조
 
@@ -298,38 +303,43 @@ server.tool(
 {
   "version": "1.0",
   "generated_at": "2026-01-13T...",
-  "server_name": "asset",
+  "server_name": "asset_management",
   "language": "javascript",
   "services": {
-    "search_ships": {
-      "service_name": "search_ships",
+    "searchShips": {
+      "service_name": "searchShips",
       "handler": {
         "class_name": null,
-        "method": "search_ships",
+        "method": "searchShips",
         "is_async": true,
-        "file": "/path/to/ship-tools.js",
-        "line": 15
+        "file": "/path/to/crew.service.js",
+        "line": 27
       },
-      "signature": "name: string, imo: string, shipType: string",
+      "signature": "name: string, imo: number",
       "parameters": [
         {
           "name": "name",
           "type": "string",
+          "jsdoc_type": "string",
           "is_optional": true,
           "description": "선박 이름"
         },
         {
-          "name": "shipType",
-          "type": "string",
-          "is_optional": true,
-          "enum": ["tanker", "cargo"]
+          "name": "imo",
+          "type": "number",
+          "jsdoc_type": "number",
+          "is_optional": false,
+          "description": "IMO 번호"
         }
       ],
       "metadata": {
         "tool_name": "search_ships",
-        "description": "선박 검색"
+        "server_name": "asset_management",
+        "description": "선박 검색",
+        "category": "ship_query",
+        "tags": ["query", "search"]
       },
-      "pattern": "server.tool"
+      "pattern": "jsdoc"
     }
   }
 }
