@@ -62,28 +62,35 @@ def extract_type_from_annotation(annotation: Optional[ast.AST]) -> str:
                 # Recursive call already returns JSON type, don't re-map
                 return extract_type_from_annotation(annotation.slice)
 
-        # Handle List[T]
+        # Handle List[T] - preserve inner type info
         elif hasattr(annotation.value, "id") and annotation.value.id == "List":
-            return "array"
+            if isinstance(annotation.slice, ast.Name):
+                inner_type = map_python_to_json_type(annotation.slice.id)
+                return f"List[{inner_type}]"
+            return "List"
 
         # Handle Union types
         elif hasattr(annotation.value, "id") and annotation.value.id == "Union":
-            # Check if Union contains List - if so, treat as array
-            # e.g., Union[str, List[str]] -> array (single value can be wrapped in list)
+            # Check if Union contains List - if so, treat as List[T]
+            # e.g., Union[str, List[str]] -> List[string]
             if isinstance(annotation.slice, ast.Tuple):
-                has_list = False
+                list_inner_type = None
                 first_type = None
                 for elt in annotation.slice.elts:
                     if isinstance(elt, ast.Subscript):
                         if hasattr(elt.value, "id") and elt.value.id == "List":
-                            has_list = True
+                            # Extract inner type of List[T]
+                            if isinstance(elt.slice, ast.Name):
+                                list_inner_type = map_python_to_json_type(elt.slice.id)
+                            else:
+                                list_inner_type = "any"
                             break
                     elif isinstance(elt, ast.Name) and elt.id != "None":
                         if first_type is None:
                             first_type = elt.id
 
-                if has_list:
-                    return "array"
+                if list_inner_type:
+                    return f"List[{list_inner_type}]"
                 elif first_type:
                     return map_python_to_json_type(first_type)
             return "any"
