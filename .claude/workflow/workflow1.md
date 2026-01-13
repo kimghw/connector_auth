@@ -8,6 +8,65 @@
 
 ---
 
+## 새 프로젝트 설정 순서
+
+### Step 1. 서비스에 데코레이터 추가 (핵심!)
+
+**Python:**
+```python
+@mcp_service(
+    tool_name="handler_xxx",
+    server_name="새서버명",      # ← 이것만 지정하면 나머지 자동
+    service_name="xxx_service",
+    description="설명"
+)
+def my_service(...):
+    ...
+```
+
+**JavaScript (TypeScript 권장):**
+```typescript
+@McpService({
+    serverName: "새서버명",
+    toolName: "handler_xxx",
+    description: "설명"
+})
+async myService(...) { }
+```
+
+### Step 2. 웹 에디터 시작 (자동 처리)
+
+```bash
+cd mcp_editor
+python app.py
+```
+
+자동으로 생성:
+- `registry_{server}.json` - 서비스 메타데이터
+- `types_property_{server}.json` - 타입 정의
+- `editor_config.json` - 프로필 설정
+
+### Step 3. 웹 에디터에서 도구 편집
+
+```
+브라우저 → http://localhost:5001
+→ 프로필 선택 (새서버명)
+→ 서비스 목록 확인
+→ 도구 정의 편집/저장
+```
+
+### 요약 테이블
+
+| 순서 | 작업 | 수동/자동 |
+|------|------|----------|
+| 1 | **`@mcp_service(server_name="xxx")` 추가** | 수동 |
+| 2 | 웹 에디터 시작 | 자동 스캔 |
+| 3 | UI에서 도구 편집 | 수동 |
+
+> **핵심**: `server_name`만 지정하면 나머지는 자동!
+
+---
+
 ## 지원 언어
 
 | 언어 | 서비스 정의 방식 | 타입 정의 |
