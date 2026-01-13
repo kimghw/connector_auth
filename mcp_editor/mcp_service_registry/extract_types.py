@@ -57,10 +57,10 @@ def extract_type_from_annotation(annotation: Optional[ast.AST]) -> str:
     if isinstance(annotation, ast.Subscript):
         if hasattr(annotation.value, "id") and annotation.value.id == "Optional":
             if isinstance(annotation.slice, ast.Name):
-                inner_type = annotation.slice.id
+                return map_python_to_json_type(annotation.slice.id)
             else:
-                inner_type = extract_type_from_annotation(annotation.slice)
-            return map_python_to_json_type(inner_type)
+                # Recursive call already returns JSON type, don't re-map
+                return extract_type_from_annotation(annotation.slice)
 
         # Handle List[T]
         elif hasattr(annotation.value, "id") and annotation.value.id == "List":
@@ -68,11 +68,14 @@ def extract_type_from_annotation(annotation: Optional[ast.AST]) -> str:
 
         # Handle Union types
         elif hasattr(annotation.value, "id") and annotation.value.id == "Union":
-            # For Union, we'll just use the first non-None type
+            # For Union, use the first non-None type
             if isinstance(annotation.slice, ast.Tuple):
                 for elt in annotation.slice.elts:
                     if isinstance(elt, ast.Name) and elt.id != "None":
                         return map_python_to_json_type(elt.id)
+                    elif isinstance(elt, ast.Subscript):
+                        # Handle nested generics like List[str]
+                        return extract_type_from_annotation(elt)
             return "any"
 
         # Handle Literal types
