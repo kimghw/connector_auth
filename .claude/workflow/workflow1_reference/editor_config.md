@@ -8,27 +8,58 @@
 - **자동 생성**: 웹 에디터 시작 시 `app.py`가 자동으로 생성 스크립트 실행
 - **업데이트**: 프로필 생성/삭제 시 자동 갱신
 
-## 자동 설정 (데코레이터 기반)
+## 자동 설정 (데코레이터/JSDoc 기반)
 
-**개발자는 `@mcp_service` 데코레이터만 설정하면 됩니다.** 나머지는 자동 처리됩니다.
+**개발자는 `@mcp_service`만 설정하면 됩니다.** 나머지는 자동 처리됩니다.
+
+### Python 프로젝트
+
+데코레이터 방식으로 `server_name`을 지정합니다:
+
+```python
+@mcp_service(server_name="outlook")
+async def query_mail_list(...):
+    ...
+```
+
+### JavaScript 프로젝트
+
+JSDoc 주석 방식으로 `@server_name`을 지정합니다:
+
+```javascript
+/**
+ * @mcp_service
+ * @server_name asset_management
+ * @tool_name update_user_license
+ * @description 선원 라이센스 수정
+ * @param {number} id - 라이센스 레코드 ID
+ * @param {Object} updateData - 수정할 라이센스 정보
+ */
+async function updateUserLicense(id, updateData) {
+    ...
+}
+```
 
 ### 흐름
 ```
-@mcp_service(server_name="outlook")  ← 개발자가 설정
+Python: @mcp_service(server_name="outlook")     ← 개발자가 설정
+JavaScript: @mcp_service + @server_name xxx    ← 개발자가 설정
         ↓
 웹 에디터 시작 (app.py)
         ↓
 generate_editor_config.py 자동 실행
+  - Python: AST 파싱으로 데코레이터에서 server_name 추출
+  - JavaScript: 정규식으로 JSDoc에서 @server_name 추출
         ↓
 editor_config.json 자동 생성/갱신
 ```
 
 ### 컨벤션 기반 자동 유추
 
-| 데코레이터 설정 | 자동 생성 결과 |
-|:---------------|:--------------|
-| `server_name="outlook"` | 경로: `../mcp_outlook`, 포트: 순차 할당 |
-| `server_name="calendar"` | 경로: `../mcp_calendar`, 포트: 순차 할당 |
+| 설정 | 자동 생성 결과 |
+|:-----|:--------------|
+| `server_name="outlook"` (Python) | 경로: `../mcp_outlook`, 포트: 순차 할당 |
+| `@server_name asset_management` (JS) | 경로: `../mcp_asset_management`, 포트: 순차 할당 |
 
 ### 수동 설정이 필요 없는 항목
 - `template_definitions_path` → `mcp_{server_name}/tool_definition_templates.py`
@@ -137,10 +168,15 @@ derived_profiles: [...]          is_reused: true
 
 ### 스캔 방식
 
+| 언어 | 스캔 대상 | 파싱 방식 |
+|------|----------|----------|
+| **Python** | `*.py` | AST 파싱 → `@mcp_service(server_name="xxx")` 추출 |
+| **JavaScript** | `*.js`, `*.mjs` | 정규식 → JSDoc `@mcp_service` + `@server_name xxx` 추출 |
+
 | 방식 | 설명 |
 |------|------|
-| **전체 스캔** | 프로젝트 루트에서 모든 `.py` 파일 스캔 |
-| **자동 감지** | `@mcp_service` 데코레이터 발견 시 `server_name` 추출 |
+| **전체 스캔** | 프로젝트 루트에서 `.py`, `.js`, `.mjs` 파일 스캔 |
+| **자동 감지** | `@mcp_service` 발견 시 `server_name` 추출 |
 | **경로 저장** | `registry_{server}.json`에 파일 경로 저장 |
 
 ### 지원 가능한 구조
@@ -169,7 +205,8 @@ project/
 ### 진실의 원천 (Single Source of Truth)
 
 ```
-@mcp_service 데코레이터 (소스 코드)
+[Python] @mcp_service 데코레이터 (소스 코드)
+[JavaScript] @mcp_service JSDoc 주석 (소스 코드)
          ↓ 스캔
 registry_{server}.json (메타데이터)
          ↓ 참조
@@ -212,16 +249,18 @@ registry_{server}.json (메타데이터)
 
 | 함수 | 파일 | 설명 |
 |------|------|------|
-| `scan_codebase_for_servers()` | `generate_editor_config.py` | `@mcp_service` 데코레이터 스캔 |
+| `scan_codebase_for_servers()` | `generate_editor_config.py` | Python/JS 통합 스캔 |
+| `extract_server_name_from_py_file()` | `generate_editor_config.py` | Python AST 파싱 |
+| `extract_server_name_from_js_file()` | `generate_editor_config.py` | JavaScript JSDoc 파싱 |
 | `scan_mcp_directories()` | `generate_editor_config.py` | `mcp_*` 디렉토리 스캔 |
 | `generate_editor_config_json()` | `generate_editor_config.py` | 설정 파일 생성 |
-| `extract_server_name_from_file()` | `generate_editor_config.py` | 파일에서 서버명 추출 |
 | `detect_module_paths()` | `generate_editor_config.py` | 모듈 경로 탐지 |
 
 ### 자동 생성 흐름
 ```
 프로젝트 루트 전체 스캔
-    ├── @mcp_service(server_name="xxx") 추출
+    ├── [Python] @mcp_service(server_name="xxx") 추출 (AST 파싱)
+    ├── [JavaScript] @mcp_service + @server_name xxx 추출 (JSDoc 정규식)
     └── 파일 경로 기록
            ↓
     server_name 병합

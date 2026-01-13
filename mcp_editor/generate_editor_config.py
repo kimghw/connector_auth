@@ -4,19 +4,74 @@ Generate editor_config.json automatically from @mcp_service decorators and MCP s
 
 This script:
 1. Scans the codebase for @mcp_service decorators to extract server_name values
+   - Python: AST parsing of @mcp_service(server_name="xxx") decorators
+   - JavaScript: JSDoc parsing of @mcp_service + @server_name tags
 2. Detects MCP server directories (mcp_* pattern)
 3. Generates editor_config.json with appropriate profiles
 """
 
 import ast
 import os
+import re
 import json
 from pathlib import Path
 from typing import Dict, Any, Set
 
 
-def extract_server_name_from_file(file_path: str) -> Set[str]:
-    """Extract all server_name values from @mcp_service decorators in a Python file"""
+# =============================================================================
+# JavaScript JSDoc Parser
+# =============================================================================
+
+def extract_server_name_from_js_file(file_path: str) -> Set[str]:
+    """Extract server_name values from JSDoc @mcp_service comments in JavaScript file.
+
+    Parses JSDoc blocks like:
+        /**
+         * @mcp_service
+         * @server_name asset_management
+         * @tool_name update_user_license
+         * ...
+         */
+
+    Returns:
+        Set of server_name values found in the file
+    """
+    server_names = set()
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Find all JSDoc comment blocks: /** ... */
+        jsdoc_pattern = r"/\*\*[\s\S]*?\*/"
+
+        for match in re.finditer(jsdoc_pattern, content):
+            jsdoc_block = match.group()
+
+            # Check if this JSDoc block contains @mcp_service tag
+            if "@mcp_service" not in jsdoc_block:
+                continue
+
+            # Extract @server_name value
+            # Pattern: @server_name followed by whitespace and the value
+            server_name_match = re.search(r"@server_name\s+(\w+)", jsdoc_block)
+            if server_name_match:
+                server_name = server_name_match.group(1)
+                server_names.add(server_name)
+                print(f"  Found @server_name='{server_name}' in {file_path}")
+
+    except Exception as e:
+        print(f"Error processing JS file {file_path}: {e}")
+
+    return server_names
+
+
+# =============================================================================
+# Python AST Parser
+# =============================================================================
+
+def extract_server_name_from_py_file(file_path: str) -> Set[str]:
+    """Extract all server_name values from @mcp_service decorators in a Python file."""
     server_names = set()
 
     try:
@@ -50,24 +105,45 @@ def extract_server_name_from_file(file_path: str) -> Set[str]:
                                         print(f"  Found server_name='{server_name}' in {file_path}")
 
     except Exception as e:
-        print(f"Error processing {file_path}: {e}")
+        print(f"Error processing Python file {file_path}: {e}")
 
     return server_names
 
 
+# =============================================================================
+# Unified Scanner
+# =============================================================================
+
+SKIP_DIRS = ("venv", "__pycache__", ".git", "node_modules", "backups", "dist", "build")
+
+
 def scan_codebase_for_servers(base_dir: str) -> Set[str]:
-    """Scan entire codebase for @mcp_service decorators and extract server names"""
+    """Scan entire codebase for @mcp_service and extract server names.
+
+    Supports:
+    - Python (.py): AST parsing of @mcp_service(server_name="xxx") decorators
+    - JavaScript (.js, .mjs): JSDoc parsing of @mcp_service + @server_name tags
+    """
     all_server_names = set()
 
     print(f"Scanning codebase in: {base_dir}")
 
+    # Scan Python files
+    print("\n[Python files]")
     for py_file in Path(base_dir).rglob("*.py"):
-        # Skip venv, __pycache__, and other non-source directories
-        if any(part in str(py_file) for part in ["venv", "__pycache__", ".git", "node_modules", "backups"]):
+        if any(skip in py_file.parts for skip in SKIP_DIRS):
             continue
-
-        server_names = extract_server_name_from_file(str(py_file))
+        server_names = extract_server_name_from_py_file(str(py_file))
         all_server_names.update(server_names)
+
+    # Scan JavaScript files
+    print("\n[JavaScript files]")
+    for js_ext in ("*.js", "*.mjs"):
+        for js_file in Path(base_dir).rglob(js_ext):
+            if any(skip in js_file.parts for skip in SKIP_DIRS):
+                continue
+            server_names = extract_server_name_from_js_file(str(js_file))
+            all_server_names.update(server_names)
 
     return all_server_names
 
