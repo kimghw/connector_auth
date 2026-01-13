@@ -126,7 +126,7 @@ def get_mcp_services():
                         # Get handler info for grouping
                         handler = service_info.get("handler", {})
                         class_name = handler.get("class_name", "Unknown")
-                        module_path = handler.get("module_path", "")
+                        file_path = handler.get("file", "")
 
                         # Build detailed info with service_name (not tool_name)
                         service_detail = {
@@ -134,7 +134,7 @@ def get_mcp_services():
                             "parameters": service_info.get("parameters", []),
                             "signature": service_info.get("signature", ""),
                             "class_name": class_name,
-                            "module_path": module_path,
+                            "file": file_path,  # Use file path instead of module_path
                         }
                         detailed.append(service_detail)
 
@@ -167,8 +167,10 @@ def get_mcp_services():
                             if param.get("name") == "self":
                                 continue
                             part = param.get("name", "")
-                            if param.get("type"):
-                                part += f": {param['type']}"
+                            # Use class_name for display if available (shows original Python class name)
+                            display_type = param.get("class_name") or param.get("type")
+                            if display_type:
+                                part += f": {display_type}"
                             if param.get("default") is not None:
                                 part += f" = {param['default']}"
                             param_strings.append(part)

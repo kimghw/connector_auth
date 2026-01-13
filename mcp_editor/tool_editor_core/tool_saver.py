@@ -127,8 +127,12 @@ def save_tool_definitions(
                 for param_name, param_info in internal_args[tool_name].items():
                     # Each key is the actual service method parameter name
                     # Store essential information for internal parameters
-                    # baseModel is the type for this factor
-                    base_model = param_info.get("original_schema", {}).get("baseModel") or param_info.get("type")
+                    # baseModel is the type for this factor (supports class_name from new registry format)
+                    base_model = (
+                        param_info.get("original_schema", {}).get("baseModel")
+                        or param_info.get("class_name")
+                        or param_info.get("type")
+                    )
 
                     # targetParam is REQUIRED - specifies which mcp_service parameter this maps to
                     target_param = param_info.get("targetParam", param_name)
@@ -164,8 +168,8 @@ def save_tool_definitions(
             if tool_name and tool_name in signature_defaults:
                 for param_name, param_info in signature_defaults[tool_name].items():
                     # Each key is the actual service method parameter name
-                    # Store essential information for signature defaults
-                    base_model = param_info.get("baseModel") or param_info.get("type")
+                    # Store essential information for signature defaults (supports class_name from new registry format)
+                    base_model = param_info.get("baseModel") or param_info.get("class_name") or param_info.get("type")
 
                     # targetParam is REQUIRED - specifies which mcp_service parameter this maps to
                     target_param = param_info.get("targetParam", param_name)

@@ -90,24 +90,63 @@ def _annotation_to_str(annotation: Optional[ast.AST]) -> Optional[str]:
         return None
 
 
+def _is_class_type(type_str: str) -> bool:
+    """Check if type is a custom class (not a primitive or generic type).
+
+    Custom class types:
+    - Start with uppercase letter
+    - Don't start with generic prefixes (List, Dict, Union, Optional, etc.)
+    - Are not Python primitives (str, int, float, bool, None, Any)
+    """
+    if not type_str or not type_str[0].isupper():
+        return False
+
+    # Generic type prefixes (keep as-is, not class types)
+    generic_prefixes = ("List[", "Dict[", "Union[", "Optional[", "Set[", "Tuple[", "Callable[")
+    if any(type_str.startswith(prefix) for prefix in generic_prefixes):
+        return False
+
+    # Python/typing primitives that start with uppercase
+    primitives = ("None", "Any", "NoReturn", "Type", "Literal")
+    if type_str in primitives:
+        return False
+
+    # If it's a simple identifier starting with uppercase, it's likely a class
+    # e.g., FilterParams, EventSelectParams, QueryMethod
+    return True
+
+
 def _parse_type_info(type_str: Optional[str]) -> Dict[str, Any]:
-    """Parse type string to extract base type and optional flag.
+    """Parse type string to extract base type, class name, and optional flag.
+
+    Returns:
+        - base_type: JSON Schema compatible type (object, string, etc.) or generic type
+        - class_name: Original class name if type is a custom class, else None
+        - is_optional: True if type was Optional[...]
 
     Examples:
-        'Optional[str]' -> {'base_type': 'str', 'is_optional': True}
-        'str' -> {'base_type': 'str', 'is_optional': False}
-        'Optional[FilterParams]' -> {'base_type': 'FilterParams', 'is_optional': True}
-        'List[str]' -> {'base_type': 'List[str]', 'is_optional': False}
+        'Optional[str]' -> {'base_type': 'str', 'class_name': None, 'is_optional': True}
+        'str' -> {'base_type': 'str', 'class_name': None, 'is_optional': False}
+        'Optional[FilterParams]' -> {'base_type': 'object', 'class_name': 'FilterParams', 'is_optional': True}
+        'FilterParams' -> {'base_type': 'object', 'class_name': 'FilterParams', 'is_optional': False}
+        'List[str]' -> {'base_type': 'List[str]', 'class_name': None, 'is_optional': False}
     """
     if type_str is None:
-        return {"base_type": None, "is_optional": False}
+        return {"base_type": None, "class_name": None, "is_optional": False}
+
+    is_optional = False
+    inner_type = type_str
 
     # Check for Optional[...]
     if type_str.startswith("Optional[") and type_str.endswith("]"):
         inner_type = type_str[9:-1]  # Remove 'Optional[' and ']'
-        return {"base_type": inner_type, "is_optional": True}
+        is_optional = True
 
-    return {"base_type": type_str, "is_optional": False}
+    # Check if inner type is a custom class
+    if _is_class_type(inner_type):
+        return {"base_type": "object", "class_name": inner_type, "is_optional": is_optional}
+
+    return {"base_type": inner_type, "class_name": None, "is_optional": is_optional}
 
 
 def _default_to_value(node: ast.AST) -> Any:
@@ -125,7 +164,8 @@ def _extract_parameters(func_node: ast.FunctionDef | ast.AsyncFunctionDef) -> Li
 
     Returns parameters with unified structure:
     - name: parameter name
-    - type: base type only (without Optional wrapper)
+    - type: JSON Schema compatible type (object for classes, or base type)
+    - class_name: original class name if type is a custom class (optional field)
     - is_optional: True if type was Optional[...] or has default value
     - default: default value if any
     - has_default: True if parameter has a default value
@@ -144,51 +184,46 @@ def _extract_parameters(func_node: ast.FunctionDef | ast.AsyncFunctionDef) -> Li
         if has_default and default_idx < len(args.defaults):
             default_val = _default_to_value(args.defaults[default_idx])
 
-        # Parse type to extract base_type and is_optional
+        # Parse type to extract base_type, class_name, and is_optional
         raw_type = _annotation_to_str(arg.annotation)
         type_info = _parse_type_info(raw_type)
 
         # Parameter is optional if type is Optional[...] or has a default value
         is_optional = type_info["is_optional"] or has_default
 
-        params.append(
-            {
-                "name": arg.arg,
-                "type": type_info["base_type"],
-                "is_optional": is_optional,
-                "is_required": not is_optional,  # Add is_required for compatibility
-                "default": default_val,
-                "has_default": has_default,
-            }
-        )
+        # Build param dict with class_name right after type (if exists)
+        param_dict = {"name": arg.arg, "type": type_info["base_type"]}
+        if type_info["class_name"]:
+            param_dict["class_name"] = type_info["class_name"]
+        param_dict["is_optional"] = is_optional
+        param_dict["default"] = default_val
+        param_dict["has_default"] = has_default
+
+        params.append(param_dict)
 
     # *args
     if args.vararg:
         vararg_type = _annotation_to_str(args.vararg.annotation)
         vararg_type_info = _parse_type_info(vararg_type)
-        params.append(
-            {
-                "name": f"*{args.vararg.arg}",
-                "type": vararg_type_info["base_type"],
-                "is_optional": True,  # *args is always optional
-                "default": None,
-                "has_default": False,
-            }
-        )
+        vararg_dict = {"name": f"*{args.vararg.arg}", "type": vararg_type_info["base_type"]}
+        if vararg_type_info["class_name"]:
+            vararg_dict["class_name"] = vararg_type_info["class_name"]
+        vararg_dict["is_optional"] = True  # *args is always optional
+        vararg_dict["default"] = None
+        vararg_dict["has_default"] = False
+        params.append(vararg_dict)
 
     # **kwargs
     if args.kwarg:
         kwarg_type = _annotation_to_str(args.kwarg.annotation)
         kwarg_type_info = _parse_type_info(kwarg_type)
-        params.append(
-            {
-                "name": f"**{args.kwarg.arg}",
-                "type": kwarg_type_info["base_type"],
-                "is_optional": True,  # **kwargs is always optional
-                "default": None,
-                "has_default": False,
-            }
-        )
+        kwarg_dict = {"name": f"**{args.kwarg.arg}", "type": kwarg_type_info["base_type"]}
+        if kwarg_type_info["class_name"]:
+            kwarg_dict["class_name"] = kwarg_type_info["class_name"]
+        kwarg_dict["is_optional"] = True  # **kwargs is always optional
+        kwarg_dict["default"] = None
+        kwarg_dict["has_default"] = False
+        params.append(kwarg_dict)
 
     return params
 
@@ -197,6 +232,7 @@ def signature_from_parameters(params: List[Dict[str, Any]]) -> str:
     """Build a signature string like 'param: str, other: int = 1' from param metadata.
 
     Uses is_optional to determine if type should be wrapped in Optional[...].
+    Uses class_name for display if available (to show original Python class name).
     """
     parts: List[str] = []
     for param in params:
@@ -205,7 +241,8 @@ def signature_from_parameters(params: List[Dict[str, Any]]) -> str:
             continue
 
         param_str = name
-        type_str = param.get("type")
+        # Use class_name for display if available, otherwise use type
+        type_str = param.get("class_name") or param.get("type")
         is_optional = param.get("is_optional", False)
         default = param.get("default")
         has_default = param.get("has_default", False)
@@ -376,7 +413,6 @@ def _extract_js_parameters(func_node: dict) -> List[Dict[str, Any]]:
             "name": None,
             "type": None,
             "is_optional": False,
-            "is_required": True,
             "default": None,
             "has_default": False,
         }
@@ -391,7 +427,6 @@ def _extract_js_parameters(func_node: dict) -> List[Dict[str, Any]]:
             param_info["name"] = left.get("name")
             param_info["has_default"] = True
             param_info["is_optional"] = True
-            param_info["is_required"] = False
             if right.get("type") == "Literal":
                 param_info["default"] = right.get("value")
         elif param.get("type") == "RestElement":
@@ -399,7 +434,6 @@ def _extract_js_parameters(func_node: dict) -> List[Dict[str, Any]]:
             argument = param.get("argument", {})
             param_info["name"] = f"...{argument.get('name', 'args')}"
             param_info["is_optional"] = True
-            param_info["is_required"] = False
 
         if param_info["name"]:
             params.append(param_info)
@@ -688,7 +722,6 @@ def export_services_to_json(base_dir: str, server_name: str, output_dir: str) ->
             "service_name": service_name,
             "handler": {
                 "class_name": service.get("class"),
-                "module_path": f"mcp_{server_name}.{service.get('module', f'{server_name}_service')}",
                 "instance": service.get("instance"),
                 "method": service.get("method", name),
                 "is_async": service.get("is_async", True),

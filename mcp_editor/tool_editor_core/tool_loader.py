@@ -77,8 +77,9 @@ def extract_service_factors(tools: list) -> tuple[dict, dict]:
         for param_name, param_info in service_factors.items():
             source = param_info.get("source", "internal")  # 기본값은 internal
 
-            # Support both 'type' (new) and 'baseModel' (legacy) field names
-            factor_type = param_info.get("type") or param_info.get("baseModel", "object")
+            # Support 'class_name' (new), 'type', and 'baseModel' (legacy) field names
+            # Prefer class_name for display/model name, fallback to type/baseModel
+            factor_type = param_info.get("class_name") or param_info.get("type") or param_info.get("baseModel", "object")
 
             # Convert parameters from list to dict if needed (for internal structures)
             params = param_info.get("parameters", [])

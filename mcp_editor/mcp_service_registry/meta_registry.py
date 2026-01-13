@@ -175,7 +175,6 @@ class MetaRegisterManager:
                 # handler 정보 구성
                 handler = {
                     "class_name": service_data.get("class"),
-                    "module_path": f"{server_name}.{service_data.get('module', '')}",
                     "instance": service_data.get("instance"),
                     "method": service_data.get("method"),
                     "is_async": service_data.get("is_async", False),

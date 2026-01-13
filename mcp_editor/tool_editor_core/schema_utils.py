@@ -154,14 +154,18 @@ def convert_params_dict_to_list(params_dict: dict) -> list:
         # is_optional: True if has default value or type is explicitly optional
         is_optional = has_default or param_type.lower() in ("optional", "null")
 
-        params_list.append({
+        param_entry = {
             "name": param_name,
             "type": param_type,
             "is_optional": is_optional,
             "default": default_val,
             "has_default": has_default,
             "description": param_info.get("description", ""),
-        })
+        }
+        # Preserve class_name if available (for custom class types)
+        if param_info.get("class_name"):
+            param_entry["class_name"] = param_info["class_name"]
+        params_list.append(param_entry)
 
     return params_list
 
@@ -185,6 +189,9 @@ def convert_params_list_to_dict(params_list: list) -> dict:
             continue
 
         param_dict = {"type": param.get("type", "string")}
+        # Preserve class_name if available (for custom class types)
+        if param.get("class_name"):
+            param_dict["class_name"] = param["class_name"]
         # Only add default if has_default is True
         if param.get("has_default", False):
             param_dict["default"] = param.get("default")
