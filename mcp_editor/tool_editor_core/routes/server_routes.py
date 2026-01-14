@@ -16,14 +16,7 @@ import json
 from flask import request, jsonify
 
 from . import server_bp
-
-# Get root directory
-# __file__ = mcp_editor/tool_editor_core/routes/server_routes.py
-# ROOT_DIR = Connector_auth/
-# EDITOR_DIR = mcp_editor/
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-EDITOR_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-JINJA_DIR = os.path.join(EDITOR_DIR, "jinja")
+from ..config import ROOT_DIR, BASE_DIR, JINJA_DIR
 
 
 @server_bp.route("/api/server/status", methods=["GET"])
@@ -146,7 +139,7 @@ def get_server_dashboard():
     try:
         from mcp_server_controller import MCPServerManager
 
-        config_path = os.path.join(EDITOR_DIR, "editor_config.json")
+        config_path = os.path.join(BASE_DIR, "editor_config.json")
         if not os.path.exists(config_path):
             return jsonify({"profiles": [], "error": "editor_config.json not found"})
 
@@ -239,7 +232,7 @@ def update_server_port():
         if new_port < 1024 or new_port > 65535:
             return jsonify({"success": False, "error": "port must be between 1024 and 65535"}), 400
 
-        config_path = os.path.join(EDITOR_DIR, "editor_config.json")
+        config_path = os.path.join(BASE_DIR, "editor_config.json")
         if not os.path.exists(config_path):
             return jsonify({"success": False, "error": "editor_config.json not found"}), 404
 

@@ -17,7 +17,7 @@ from tool_editor_web_server_mappings import get_server_name_from_profile, get_se
 # === Constants ===
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ROOT_DIR = os.path.dirname(BASE_DIR)
+ROOT_DIR = os.environ.get("MCP_EDITOR_ROOT", os.path.dirname(BASE_DIR))
 CONFIG_PATH = os.path.join(BASE_DIR, "editor_config.json")
 
 DEFAULT_PROFILE = {
