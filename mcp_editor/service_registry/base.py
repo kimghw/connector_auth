@@ -40,8 +40,10 @@ class Language(Enum):
     UNKNOWN = "unknown"
 
 
-def detect_language(file_path: Path) -> Language:
+def detect_language(file_path: Path | str) -> Language:
     """Detect programming language from file extension."""
+    if isinstance(file_path, str):
+        file_path = Path(file_path)
     ext = file_path.suffix.lower()
     if ext == ".py":
         return Language.PYTHON
