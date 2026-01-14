@@ -548,10 +548,17 @@ function addProperty(index) {
 
                     <div id="graphTypesPropertyDiv" style="display: none;">
                         <div class="form-group">
-                            <label>Select Type (from ${typesName}.py)</label>
-                            <select id="graphTypeClass" onchange="handleClassChange()" class="form-control" data-debug-id="FIELD_GRAPH_TYPE_CLASS">
+                            <label>Select Type (from ${typesName})</label>
+                            <input type="text" id="graphTypeFilter" class="form-control"
+                                   placeholder="Filter types..."
+                                   oninput="filterGraphTypes(this.value)"
+                                   style="margin-bottom: 8px;">
+                            <select id="graphTypeClass" onchange="handleClassChange()" class="form-control" data-debug-id="FIELD_GRAPH_TYPE_CLASS" size="8" style="height: auto;">
                                 <option value="">-- Select Type --</option>
                             </select>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                                <span id="graphTypeCount"></span>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label>Input Schema Name (optional)</label>
@@ -563,7 +570,7 @@ function addProperty(index) {
                         </div>
                         <div class="form-group">
                             <label>Service Method Parameter (optional)</label>
-                            <select id="graphTypeTargetParam" class="form-control">
+                            <select id="graphTypeTargetParam" class="form-control" onchange="handleTargetParamChange()">
                                 <option value="">-- Same as Input Schema Name --</option>
                             </select>
                             <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
@@ -609,6 +616,8 @@ function addProperty(index) {
             classSelect.appendChild(option);
         });
         console.log('[DEBUG] Populated graph type classes:', window.graphTypesProperties.classes.length, 'classes');
+        // Update type count display
+        updateGraphTypeCount();
     } else {
         console.log('[DEBUG] No graph types available. hasTypes:', hasTypes, 'graphTypesProperties:', window.graphTypesProperties);
     }
@@ -654,7 +663,15 @@ function loadServiceMethodParameters(index) {
                             selects.forEach(select => {
                                 const option = document.createElement('option');
                                 option.value = param.name;
-                                option.textContent = `${param.name} (${param.type})`;
+                                // Show type and jsdoc_type/class_name if available
+                                const typeName = param.class_name || param.jsdoc_type || param.type;
+                                option.textContent = `${param.name} (${typeName})`;
+                                // Store class_name or jsdoc_type for auto-selection of type
+                                // JavaScript uses jsdoc_type, Python uses class_name
+                                const typeClass = param.class_name || param.jsdoc_type;
+                                if (typeClass && typeClass !== param.type) {
+                                    option.dataset.className = typeClass;
+                                }
                                 select.appendChild(option);
                             });
                         });
@@ -665,6 +682,94 @@ function loadServiceMethodParameters(index) {
                 console.error('Failed to load service parameters:', error);
             });
     }
+}
+
+/**
+ * Handle parameter selection change - auto-select matching type class and filter list
+ */
+function handleTargetParamChange() {
+    const paramSelect = document.getElementById('graphTypeTargetParam');
+    const classSelect = document.getElementById('graphTypeClass');
+    const filterInput = document.getElementById('graphTypeFilter');
+
+    if (!paramSelect || !classSelect) return;
+
+    const selectedOption = paramSelect.options[paramSelect.selectedIndex];
+    const className = selectedOption?.dataset?.className;
+
+    console.log('[DEBUG] handleTargetParamChange - selectedOption:', selectedOption?.value, 'className:', className);
+
+    if (className) {
+        // Filter the type list to show only matching type
+        Array.from(classSelect.options).forEach(option => {
+            if (option.value === '' || option.value === className) {
+                option.style.display = '';
+            } else {
+                option.style.display = 'none';
+            }
+        });
+
+        // Auto-select the matching type class
+        classSelect.value = className;
+        // Trigger the class change handler to show properties
+        handleClassChange();
+        // Update filter input to show what's filtered
+        if (filterInput) {
+            filterInput.value = className;
+        }
+        updateGraphTypeCount();
+        console.log('[DEBUG] Auto-selected and filtered to type:', className);
+    } else {
+        // No specific type - show all types
+        Array.from(classSelect.options).forEach(option => {
+            option.style.display = '';
+        });
+        if (filterInput) {
+            filterInput.value = '';
+        }
+        updateGraphTypeCount();
+    }
+}
+
+/**
+ * Filter type options based on search input
+ */
+function filterGraphTypes(searchText) {
+    const classSelect = document.getElementById('graphTypeClass');
+    if (!classSelect) return;
+
+    const filterLower = searchText.toLowerCase();
+
+    Array.from(classSelect.options).forEach(option => {
+        if (option.value === '') {
+            // Always show the default option
+            option.style.display = '';
+        } else {
+            const text = option.textContent.toLowerCase();
+            const matches = text.includes(filterLower);
+            option.style.display = matches ? '' : 'none';
+        }
+    });
+
+    updateGraphTypeCount();
+}
+
+/**
+ * Update the type count display
+ */
+function updateGraphTypeCount() {
+    const classSelect = document.getElementById('graphTypeClass');
+    const countSpan = document.getElementById('graphTypeCount');
+    if (!classSelect || !countSpan) return;
+
+    const visibleCount = Array.from(classSelect.options).filter(
+        opt => opt.value !== '' && opt.style.display !== 'none'
+    ).length;
+    const totalCount = classSelect.options.length - 1; // Exclude default option
+
+    countSpan.textContent = visibleCount === totalCount
+        ? `${totalCount} types available`
+        : `Showing ${visibleCount} of ${totalCount} types`;
 }
 
 function handleCustomTypeChange() {
@@ -1186,9 +1291,25 @@ function mapSignatureTypeToSchema(typeStr) {
         return { type: typeMap[innerType], optional };
     }
 
-    // Likely a custom class/enum
-    if (/^[A-Z][a-zA-Z0-9]*$/.test(innerType)) {
-        // Heuristic: *Params classes are treated as object models
+    // Likely a custom class/model type (e.g., mstEmployee, FilterParams, etc.)
+    // Check if it exists in graphTypesProperties
+    if (/^[a-zA-Z][a-zA-Z0-9]*$/.test(innerType)) {
+        // Check if this type exists in the loaded types
+        const typeExists = window.graphTypesProperties?.classes?.some(
+            cls => (cls.name || cls) === innerType
+        );
+
+        if (typeExists) {
+            // This is a known model type - set baseModel for nested property lookup
+            return {
+                type: 'object',
+                baseModel: innerType,
+                description: `${innerType} parameters`,
+                optional
+            };
+        }
+
+        // Fallback: *Params classes are treated as object models even if not in types
         const isModel = innerType.endsWith('Params') || ['FilterParams', 'ExcludeParams', 'SelectParams'].includes(innerType);
         if (isModel) {
             return {
@@ -1231,7 +1352,8 @@ function applySignatureDefaults(index, serviceName) {
             return;
         }
 
-        const displayType = param.class_name || param.type;
+        // Use class_name (Python) or jsdoc_type (JavaScript) for type mapping
+        const displayType = param.class_name || param.jsdoc_type || param.type;
         const schema = mapSignatureTypeToSchema(displayType);
         const propDef = {
             type: schema.type || 'string',

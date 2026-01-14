@@ -612,7 +612,7 @@ function renderToolEditor(tool, index) {
                         ${window.hasTypesFile ? `
                         <button class="btn btn-secondary btn-sm" style="margin-top: 8px; font-size: 11px; padding: 4px 10px;"
                                 onclick="openNestedGraphTypesModal(${index}, '${propName}')">
-                            <span class="material-icons" style="font-size: 14px;">add</span> Add from ${window.typesName || 'types'}
+                            <span class="material-icons" style="font-size: 14px;">add</span> Add nested properties
                         </button>` : ''}
                     </div>
                     </div><!-- Close GUI Tab container -->
@@ -625,7 +625,7 @@ function renderToolEditor(tool, index) {
                         ${window.hasTypesFile ? `
                         <button class="btn btn-secondary btn-sm"
                                 onclick="openNestedGraphTypesModal(${index}, '${propName}')">
-                            <span class="material-icons">add</span> Add from ${window.typesName || 'types'}
+                            <span class="material-icons">add</span> Add nested properties
                         </button>` : ''}
                     </div>
                 </div>
