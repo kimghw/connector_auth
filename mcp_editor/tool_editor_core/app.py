@@ -40,7 +40,8 @@ def run_app():
 
     # Auto-generate editor_config.json with types/service files scan
     print("Generating editor_config.json from @mcp_service decorators...")
-    jinja_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "jinja")
+    # jinja is now inside mcp_editor (not ROOT_DIR)
+    jinja_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "jinja")
     generate_config_script = os.path.join(jinja_dir, "generate_editor_config.py")
     if os.path.exists(generate_config_script):
         try:

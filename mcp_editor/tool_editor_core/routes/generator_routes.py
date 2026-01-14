@@ -88,7 +88,7 @@ def create_new_mcp_project():
             return jsonify({"error": f"Project mcp_{service_name} already exists"}), 400
 
         # Import and use create_mcp_project module
-        sys.path.insert(0, os.path.join(ROOT_DIR, "jinja"))
+        sys.path.insert(0, JINJA_DIR)
         from create_mcp_project import MCPProjectCreator
 
         creator = MCPProjectCreator(base_dir=ROOT_DIR)

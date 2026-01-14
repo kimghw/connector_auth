@@ -564,3 +564,48 @@ editor_config.json          mcp_{server}/registry_{server}.json
 ### delete_mcp_server_only() 사용 시나리오
 - 서비스 로직은 유지하면서 MCP 서버만 재생성할 때
 - tool_definitions.py만 다시 생성하고 싶을 때
+
+---
+
+## MCP 서버 생성 연동
+
+editor_config.json은 Jinja 템플릿 기반 서버 생성에서도 사용됩니다.
+
+### 서버 생성 시 참조되는 필드
+
+| 필드 | 서버 생성에서 사용 |
+|:-----|:-----------------|
+| `language` | Python/JavaScript 템플릿 선택 |
+| `types_files` | 타입 import 생성 |
+| `port` | 기본 서버 포트 |
+| `tool_definitions_path` | TOOLS 정의 로드 (tool_definitions.py) |
+
+### 서버 생성 방법
+
+```bash
+cd /home/kimghw/Connector_auth/mcp_editor/jinja
+
+# editor_config.json의 프로필 사용
+python generate_universal_server.py outlook --protocol stream
+
+# 포트 오버라이드
+python generate_universal_server.py outlook --port 9000
+```
+
+### 전체 흐름
+
+```
+[웹 에디터에서 도구 편집]
+        ↓
+editor_config.json (프로필 설정)
+        ↓
+registry_{server}.json (서비스 메타데이터)
+        ↓
+tool_definitions.py (도구 정의)
+        ↓
+generate_universal_server.py (Jinja 렌더링)
+        ↓
+server_stream.py (실행 가능한 MCP 서버)
+```
+
+> **참고**: 자세한 서버 생성 방법은 `workflow1.md`의 "MCP 서버 생성 (Jinja 템플릿)" 섹션을 참조하세요.

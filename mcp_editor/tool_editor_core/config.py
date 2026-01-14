@@ -46,16 +46,21 @@ PROFILE_SCHEMA = {
     "is_reused": bool,              # 기존 필드 유지 (호환성)
 }
 
-JINJA_DIR = os.path.join(ROOT_DIR, "jinja")
+# Jinja templates directory (moved to mcp_editor/jinja/)
+JINJA_DIR = os.path.join(BASE_DIR, "jinja")
+JINJA_PYTHON_DIR = os.path.join(JINJA_DIR, "python")
+JINJA_JS_DIR = os.path.join(JINJA_DIR, "javascript")
+JINJA_COMMON_DIR = os.path.join(JINJA_DIR, "common")
+
 SERVER_TEMPLATES = {
-    "outlook": os.path.join(JINJA_DIR, "universal_server_template.jinja2"),
-    "file_handler": os.path.join(JINJA_DIR, "universal_server_template.jinja2"),
-    "scaffold": os.path.join(JINJA_DIR, "mcp_server_scaffold_template.jinja2"),
-    "universal": os.path.join(JINJA_DIR, "universal_server_template.jinja2"),
+    "outlook": os.path.join(JINJA_PYTHON_DIR, "universal_server_template.jinja2"),
+    "file_handler": os.path.join(JINJA_PYTHON_DIR, "universal_server_template.jinja2"),
+    "scaffold": os.path.join(JINJA_PYTHON_DIR, "mcp_server_scaffold_template.jinja2"),
+    "universal": os.path.join(JINJA_PYTHON_DIR, "universal_server_template.jinja2"),
 }
 DEFAULT_SERVER_TEMPLATE = SERVER_TEMPLATES["outlook"]
 GENERATOR_SCRIPT_PATH = os.path.join(JINJA_DIR, "generate_universal_server.py")
-EDITOR_CONFIG_TEMPLATE = os.path.join(JINJA_DIR, "editor_config_template.jinja2")
+EDITOR_CONFIG_TEMPLATE = os.path.join(JINJA_COMMON_DIR, "editor_config_template.jinja2")
 EDITOR_CONFIG_GENERATOR = os.path.join(JINJA_DIR, "generate_editor_config.py")
 
 

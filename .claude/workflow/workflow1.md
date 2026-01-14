@@ -717,3 +717,164 @@ service_registry/
 |------|------|
 | `scan_all_registries()` | 웹 에디터 시작 시 전체 프로필 스캔 |
 | `load_services_for_server()` | 저장 시 서비스 메타데이터 로드 |
+
+---
+
+## MCP 서버 생성 (Jinja 템플릿)
+
+### 개요
+
+웹 에디터에서 도구 정의를 편집한 후, Jinja2 템플릿을 사용해 실행 가능한 MCP 서버 파일을 자동 생성합니다.
+
+### jinja 폴더 구조
+
+```
+mcp_editor/jinja/
+├── generate_universal_server.py   # 서버 생성 메인 스크립트
+├── generate_editor_config.py      # editor_config 생성기
+├── generate_server_mappings.py    # 서버 매핑 생성
+├── create_mcp_project.py          # 새 MCP 프로젝트 생성
+├── scaffold_generator.py          # 스캐폴드 생성기
+├── check_templates.py             # 템플릿 유효성 검사
+├── python/                        # Python 서버 템플릿
+│   ├── universal_server_template.jinja2  # 통합 서버 템플릿 (권장)
+│   ├── server_stream.jinja2              # Streamable HTTP 템플릿
+│   ├── server_stdio.jinja2               # stdio 템플릿
+│   ├── server_rest.jinja2                # REST API 템플릿
+│   └── mcp_server_scaffold_template.jinja2
+├── javascript/                    # JavaScript 서버 템플릿
+│   └── server_streamablehttp.jinja2      # Streamable HTTP (SSE) 템플릿
+├── common/                        # 공통 템플릿
+│   └── editor_config_template.jinja2
+└── backup/                        # 레거시 백업
+```
+
+### 지원 프로토콜
+
+| 프로토콜 | 템플릿 | 언어 | 설명 |
+|----------|--------|------|------|
+| **Streamable HTTP** | `universal_server_template.jinja2` | Python | SSE 기반 스트리밍 (권장) |
+| **Streamable HTTP** | `server_streamablehttp.jinja2` | JavaScript | Node.js SSE 서버 |
+| **stdio** | `server_stdio.jinja2` | Python | 표준 입출력 통신 |
+| **REST** | `server_rest.jinja2` | Python | HTTP REST API |
+
+### 서버 생성 방법
+
+#### 방법 1: generate_universal_server.py 사용 (권장)
+
+```bash
+cd /home/kimghw/Connector_auth/mcp_editor/jinja
+
+# 프로필 지정하여 서버 생성
+python generate_universal_server.py outlook --protocol stream --port 8080
+
+# 다른 프로토콜 사용
+python generate_universal_server.py calendar --protocol stdio
+
+# 출력 경로 지정
+python generate_universal_server.py outlook --output /tmp/test_server.py
+```
+
+#### 주요 옵션
+
+| 옵션 | 설명 | 기본값 |
+|------|------|--------|
+| `--protocol` | 서버 프로토콜 (stream, stdio, rest) | stream |
+| `--port` | HTTP 서버 포트 | 8080 |
+| `--output` | 출력 파일 경로 | `mcp_{server}/mcp_server/server_{protocol}.py` |
+| `--types-files` | 타입 파일 경로 목록 | 자동 스캔 |
+| `--registry` | 레지스트리 JSON 경로 | `mcp_{server}/registry_{server}.json` |
+
+### 생성 흐름
+
+```
+[웹 에디터에서 도구 정의 저장]
+tool_definitions.py, registry_{server}.json 업데이트
+        │
+        ▼
+[서버 생성 스크립트 실행]
+python generate_universal_server.py {server_name}
+        │
+        ├─→ registry_{server}.json 로드
+        ├─→ tool_definitions.py 로드 (TOOLS 리스트)
+        ├─→ *_types.py 자동 스캔 (타입 정보)
+        ├─→ *_service.py 자동 스캔 (서비스 클래스)
+        │
+        ▼
+[Jinja2 템플릿 렌더링]
+universal_server_template.jinja2 + context
+        │
+        ▼
+[서버 파일 생성]
+mcp_{server}/mcp_server/server_stream.py
+```
+
+### 템플릿 컨텍스트 변수
+
+| 변수 | 설명 | 예시 |
+|------|------|------|
+| `server_name` | 서버 이름 | `outlook` |
+| `server_title` | 서버 제목 | `Outlook Mail Server` |
+| `port` | HTTP 포트 | `8080` |
+| `tools` | 도구 정의 리스트 | `[{name, description, inputSchema, ...}]` |
+| `services` | 서비스 메타데이터 | `{service_name: {class_name, module_path, ...}}` |
+| `type_imports` | 타입 import 목록 | `[{module_path, types: [...]}]` |
+| `type_locations` | 타입-모듈 매핑 | `{TypeName: module_path}` |
+
+### JavaScript 서버 생성
+
+JavaScript 프로젝트의 경우 `server_streamablehttp.jinja2` 템플릿을 사용합니다:
+
+```bash
+# JavaScript 템플릿은 registry JSON에서 직접 렌더링
+# generate_universal_server.py가 language=javascript를 감지하면 자동 선택
+python generate_universal_server.py asset_management
+```
+
+### 생성된 서버 실행
+
+```bash
+# Python 서버 실행
+cd mcp_{server}/mcp_server
+python server_stream.py
+
+# JavaScript 서버 실행
+cd mcp_{server}/mcp_server
+node server_stream.js
+```
+
+### MCP 프로토콜 엔드포인트
+
+생성된 서버는 다음 엔드포인트를 제공합니다:
+
+| 엔드포인트 | 메서드 | 설명 |
+|------------|--------|------|
+| `/health` | GET | 헬스 체크 |
+| `/mcp/v1` | POST | MCP JSON-RPC 메인 엔드포인트 |
+| `/sse` | GET | SSE 스트리밍 연결 |
+
+### MCP 요청/응답 예시
+
+```bash
+# tools/list - 사용 가능한 도구 목록 조회
+curl -X POST http://localhost:8080/mcp/v1 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}'
+
+# tools/call - 도구 실행
+curl -X POST http://localhost:8080/mcp/v1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "calendar_view",
+      "arguments": {
+        "user_email": "kimghw@krs.co.kr",
+        "start_datetime": "2025-10-01T00:00:00",
+        "end_datetime": "2026-01-14T23:59:59"
+      }
+    }
+  }'
+```

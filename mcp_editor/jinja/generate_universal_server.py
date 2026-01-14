@@ -244,9 +244,39 @@ def convert_enabled_disabled_default(value: Any, param_type: str) -> str:
 
 
 def load_registry(registry_path: str) -> Dict[str, Any]:
-    """Load service registry JSON file"""
+    """Load service registry JSON file and normalize service info"""
     with open(registry_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
+        registry = json.load(f)
+
+    # Normalize service info - promote handler fields to top level if missing
+    services = registry.get('services', {})
+    for service_name, service_info in services.items():
+        handler = service_info.get('handler', {})
+        if handler:
+            # Promote handler fields to top level if not present
+            if not service_info.get('class_name') and handler.get('class_name'):
+                service_info['class_name'] = handler['class_name']
+            if not service_info.get('file') and handler.get('file'):
+                service_info['file'] = handler['file']
+            if not service_info.get('instance') and handler.get('instance'):
+                service_info['instance'] = handler['instance']
+            if not service_info.get('method') and handler.get('method'):
+                service_info['method'] = handler['method']
+            if not service_info.get('is_async') and handler.get('is_async'):
+                service_info['is_async'] = handler['is_async']
+            # Generate module_path from file if not present
+            if not service_info.get('module_path') and service_info.get('file'):
+                file_path = service_info['file']
+                # Convert file path to module path (e.g., /path/to/mcp_outlook/outlook_service.py -> mcp_outlook.outlook_service)
+                if file_path.endswith('.py'):
+                    parts = file_path.replace('.py', '').split('/')
+                    # Find mcp_* folder and use from there
+                    for i, part in enumerate(parts):
+                        if part.startswith('mcp_'):
+                            service_info['module_path'] = '.'.join(parts[i:])
+                            break
+
+    return registry
 
 
 def _convert_params_list_to_dict(params_list: list) -> dict:
@@ -705,14 +735,16 @@ def prepare_context(registry: Dict[str, Any], tools: List[Dict[str, Any]], serve
         profile_name = server_name
 
     # Extract services with proper structure
+    # Note: load_registry normalizes service_data by promoting handler fields to root level
     services = {}
     for service_name, service_data in registry.get('services', {}).items():
         impl = service_data.get('implementation', service_data.get('handler', {}))
+        # First check root level (normalized), then fall back to impl (handler)
         services[service_name] = {
-            'class_name': impl.get('class_name', impl.get('class', '')),
-            'module_path': impl.get('module_path', impl.get('module', '')),
-            'instance': impl.get('instance', impl.get('instance_name', '')),
-            'method': impl.get('method', service_name)
+            'class_name': service_data.get('class_name') or impl.get('class_name', impl.get('class', '')),
+            'module_path': service_data.get('module_path') or impl.get('module_path', impl.get('module', '')),
+            'instance': service_data.get('instance') or impl.get('instance', impl.get('instance_name', '')),
+            'method': service_data.get('method') or impl.get('method', service_name)
         }
 
     # Map tools to their implementations
@@ -1625,7 +1657,7 @@ def generate_merged_server(
     print("\n📋 Step 5: Generating server files...")
 
     protocols_to_generate = ['rest', 'stdio', 'stream'] if protocol == 'all' else [protocol]
-    template_path = str(SCRIPT_DIR / "universal_server_template.jinja2")
+    template_path = str(SCRIPT_DIR / "python" / "universal_server_template.jinja2")
 
     success_count = 0
     for proto in protocols_to_generate:
@@ -1725,7 +1757,7 @@ if __name__ == "__main__":
     generate_parser.add_argument("--registry", help="Path to registry JSON file (auto-detected if not specified)")
     generate_parser.add_argument("--tools", help="Path to tool definitions file (auto-detected if not specified)")
     generate_parser.add_argument("--template", help="Path to Jinja2 template",
-                                  default=str(SCRIPT_DIR / "universal_server_template.jinja2"))
+                                  default=str(SCRIPT_DIR / "python" / "universal_server_template.jinja2"))
     generate_parser.add_argument("--output", help="Output path for generated server.py")
 
     # =========================================================================
@@ -1754,7 +1786,7 @@ if __name__ == "__main__":
             legacy_parser.add_argument("--protocol", choices=['rest', 'stdio', 'stream', 'all'], default='rest')
             legacy_parser.add_argument("--registry", help="Path to registry JSON file")
             legacy_parser.add_argument("--tools", help="Path to tool definitions file")
-            legacy_parser.add_argument("--template", default=str(SCRIPT_DIR / "universal_server_template.jinja2"))
+            legacy_parser.add_argument("--template", default=str(SCRIPT_DIR / "python" / "universal_server_template.jinja2"))
             legacy_parser.add_argument("--output", help="Output path for generated server.py")
             args = legacy_parser.parse_args()
             args.command = 'generate'
@@ -1814,7 +1846,7 @@ if __name__ == "__main__":
 
     for protocol in protocols_to_generate:
         # Always use universal template for all protocols
-        template_path = args.template or str(SCRIPT_DIR / "universal_server_template.jinja2")
+        template_path = args.template or str(SCRIPT_DIR / "python" / "universal_server_template.jinja2")
 
         # Determine output path
         if args.output:

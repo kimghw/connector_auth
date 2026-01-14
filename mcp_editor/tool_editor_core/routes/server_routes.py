@@ -23,6 +23,7 @@ from . import server_bp
 # EDITOR_DIR = mcp_editor/
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 EDITOR_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+JINJA_DIR = os.path.join(EDITOR_DIR, "jinja")
 
 
 @server_bp.route("/api/server/status", methods=["GET"])
@@ -310,7 +311,7 @@ def merge_servers():
         sources_str = ",".join(sources)
         cmd = [
             sys.executable,
-            os.path.join(ROOT_DIR, "jinja", "generate_universal_server.py"),
+            os.path.join(JINJA_DIR, "generate_universal_server.py"),
             "merge",
             "--name", name,
             "--sources", sources_str,

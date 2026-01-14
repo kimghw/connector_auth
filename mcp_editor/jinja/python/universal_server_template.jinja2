@@ -62,7 +62,7 @@ from {{ module }} import {{ types | join(', ') }}
 {%- endfor %}
 {%- elif param_types %}
 # Fallback to simple import if type_locations not available
-from {{ server_name }}_types import {{ param_types | join(', ') }}
+from mcp_{{ server_name }}.{{ server_name }}_types import {{ param_types | join(', ') }}
 {%- endif %}
 
 # Load tool definitions from YAML (Single Source of Truth)

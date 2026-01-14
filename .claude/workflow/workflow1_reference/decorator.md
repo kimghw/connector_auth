@@ -820,3 +820,40 @@ def camel_to_snake(name: str) -> str:
 ```
 
 > **구현 위치**: `service_registry/config_generator.py`
+
+---
+
+## MCP 서버 생성과 연동
+
+데코레이터/JSDoc에서 추출된 레지스트리 정보는 Jinja 템플릿을 통해 MCP 서버로 변환됩니다.
+
+### 연동 흐름
+
+```
+@mcp_service 데코레이터/JSDoc
+        ↓
+registry_{server}.json (서비스 메타데이터)
+        ↓
+generate_universal_server.py (Jinja 템플릿 렌더링)
+        ↓
+server_stream.py (실행 가능한 MCP 서버)
+```
+
+### 레지스트리 데이터 활용
+
+| 레지스트리 필드 | 서버 템플릿에서 사용 |
+|:--------------|:-----------------|
+| `services.handler.class_name` | 서비스 클래스 import |
+| `services.handler.method` | 도구 실행 시 호출 메서드 |
+| `services.handler.file` | 모듈 경로 생성 |
+| `services.parameters` | 도구 파라미터 정의 |
+| `services.metadata.tool_name` | MCP Tool 이름 |
+
+### 서버 생성 명령
+
+```bash
+cd /home/kimghw/Connector_auth/mcp_editor/jinja
+python generate_universal_server.py outlook --protocol stream --port 8080
+```
+
+> **참고**: 자세한 서버 생성 방법은 `workflow1.md`의 "MCP 서버 생성 (Jinja 템플릿)" 섹션을 참조하세요.

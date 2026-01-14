@@ -108,7 +108,8 @@ def create_profile():
             # Use create_mcp_project.py to create full scaffolding
             try:
                 # Path to create_mcp_project.py
-                create_script_path = os.path.join(os.path.dirname(BASE_DIR), "jinja", "create_mcp_project.py")
+                # jinja is now inside mcp_editor (BASE_DIR/jinja)
+                create_script_path = os.path.join(BASE_DIR, "jinja", "create_mcp_project.py")
 
                 if os.path.exists(create_script_path):
                     # Run create_mcp_project.py
