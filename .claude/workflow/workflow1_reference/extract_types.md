@@ -54,6 +54,74 @@ from service_registry import extract_types_js
 
 ---
 
+## 인터페이스 기반 타입 추출 시스템
+
+### 개요
+
+인터페이스 기반 타입 추출 시스템은 `AbstractTypeExtractor`를 구현하는 어댑터 패턴을 사용하여 언어별 타입 추출을 통합합니다.
+
+### 어댑터 파일
+
+| 언어 | 어댑터 파일 | 클래스 |
+|------|-------------|--------|
+| **Python** | `service_registry/python/types_adapter.py` | `PythonTypeExtractor` |
+| **JavaScript** | `service_registry/javascript/types_adapter.py` | `JavaScriptTypeExtractor` |
+
+모든 어댑터는 `AbstractTypeExtractor` 인터페이스를 구현합니다.
+
+### 사용 방법
+
+```python
+from service_registry import TypeExtractorRegistry
+
+# 언어별 extractor 가져오기
+extractor = TypeExtractorRegistry.get('python')
+types = extractor.extract_types_from_file('types.py')
+
+# 파일 확장자 기반 자동 감지
+extractor = TypeExtractorRegistry.get_for_file('models.js')
+
+# 직접 추출 (언어 자동 감지)
+types = TypeExtractorRegistry.extract_from_file('any_types.py')
+```
+
+### 데이터 클래스
+
+#### TypeInfo
+
+타입 정보를 담는 데이터 클래스:
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `name` | str | 타입(클래스) 이름 |
+| `file` | str | 정의된 파일 경로 |
+| `line` | int | 정의된 라인 번호 |
+| `properties` | List[PropertyInfo] | 프로퍼티 목록 |
+| `type_kind` | str | 타입 종류 (예: "pydantic_model", "sequelize_model") |
+| `language` | str | 언어 ("python", "javascript") |
+
+#### PropertyInfo
+
+프로퍼티 정보를 담는 데이터 클래스:
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `name` | str | 프로퍼티 이름 |
+| `type` | str | 타입 (JSON Schema 타입) |
+| `description` | str | 설명 |
+| `is_optional` | bool | 선택적 여부 |
+| `default` | Any | 기본값 |
+| `examples` | List[Any] | 예시 값 목록 |
+
+### 장점
+
+- **통합 인터페이스**: 언어에 관계없이 동일한 API 사용
+- **확장성**: 새 언어 지원 시 어댑터만 추가
+- **자동 감지**: 파일 확장자 기반 언어 자동 감지
+- **일관된 출력**: 모든 언어에서 동일한 TypeInfo/PropertyInfo 구조 반환
+
+---
+
 ## Python vs JavaScript 파라미터 추출 비교
 
 ### 정보 출처 비교

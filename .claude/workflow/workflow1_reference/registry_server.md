@@ -112,6 +112,55 @@ JavaScript/TypeScript 코드의 MCP 서비스를 파싱합니다.
 
 **DEFAULT_SKIP_PARTS**: `("venv", "__pycache__", ".git", "node_modules", "backups", ".claude")`
 
+### 5. 인터페이스 기반 스캐너 시스템
+
+언어별 스캐너는 공통 인터페이스(`AbstractServiceScanner`)를 구현하며, `ScannerRegistry`를 통해 통합적으로 관리됩니다.
+
+#### 어댑터 파일 구조
+
+```
+service_registry/
+├── python/
+│   └── scanner_adapter.py    # PythonServiceScanner (implements AbstractServiceScanner)
+└── javascript/
+    └── scanner_adapter.py    # JavaScriptServiceScanner (implements AbstractServiceScanner)
+```
+
+#### 인터페이스 기반 사용법
+
+```python
+from service_registry import ScannerRegistry
+
+# 언어별 스캐너 가져오기
+scanner = ScannerRegistry.get('python')
+services = scanner.scan_file('service.py')
+
+# 파일 확장자로 스캐너 자동 감지
+scanner = ScannerRegistry.get_for_file('service.js')
+
+# 직접 스캔 (스캐너 자동 선택)
+services = ScannerRegistry.scan_file('any_file.py')
+```
+
+#### ServiceInfo 데이터클래스
+
+`scan_file()` 메서드가 반환하는 서비스 정보 구조입니다.
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `function_name` | `str` | 함수/메서드 이름 |
+| `signature` | `str` | 함수 시그니처 문자열 |
+| `parameters` | `List[Dict]` | 파라미터 정보 배열 |
+| `metadata` | `Dict` | 데코레이터/JSDoc 메타데이터 |
+| `is_async` | `bool` | 비동기 함수 여부 |
+| `file` | `str` | 소스 파일 절대 경로 |
+| `line` | `int` | 함수 정의 라인 번호 |
+| `language` | `str` | 언어 ("python" \| "javascript") |
+| `class_name` | `Optional[str]` | 클래스명 (Python) |
+| `instance` | `Optional[str]` | 인스턴스 변수명 (Python) |
+| `method` | `str` | 호출할 메서드명 |
+| `pattern` | `Optional[str]` | 스캔 패턴 ("jsdoc" 등) |
+
 ---
 
 ## 요약

@@ -7,7 +7,7 @@
 
 | 항목 | 내용 |
 |:-----|:-----|
-| **사용 스크립트** | `mcp_service_scanner.py`, `generate_editor_config.py` |
+| **사용 스크립트** | `service_registry/scanner.py`, `service_registry/config_generator.py` |
 | **사용 함수** | `scan_codebase_for_mcp_services()`, `find_mcp_services_in_python_file()`, `find_jsdoc_mcp_services_in_js_file()` |
 | **입력** | Python: `@mcp_service` 데코레이터, JavaScript: `@mcp_service` JSDoc 주석 |
 | **출력** | `mcp_{server}/registry_{server}.json`, `mcp_{server}/types_property_{server}.json`, `editor_config.json` |
@@ -19,8 +19,10 @@
 
 ## 파일 위치
 
-- **Python 데코레이터**: `service_registry/python/decorator.py`
-- **JavaScript 스캐너**: `mcp_editor/mcp_service_registry/mcp_service_scanner.py` (`find_jsdoc_mcp_services_in_js_file()`)
+- **Python 데코레이터**: `service_registry/python/decorator.py` (mcp_editor 기준 상대 경로)
+- **JavaScript 스캐너**: `service_registry/scanner.py` (`find_jsdoc_mcp_services_in_js_file()`)
+
+> **참고**: `service_registry` 패키지는 `mcp_editor/service_registry/`에 위치하며, interface 기반 시스템의 일부로 동작합니다. 하위 호환성을 유지하면서 확장 가능한 구조를 제공합니다.
 
 ## Import 방법
 
@@ -30,9 +32,11 @@
 # 방법 1: 직접 import (권장)
 from service_registry.python.decorator import mcp_service
 
-# 방법 2: 루트에서 import
+# 방법 2: 루트에서 import (하위 호환성 지원)
 from service_registry import mcp_service
 ```
+
+> **Interface 기반 시스템**: 데코레이터는 이제 interface 기반 시스템(`service_registry/interfaces.py`)의 일부이지만, 기존 import 경로를 통한 하위 호환성을 완전히 유지합니다. `service_registry/__init__.py`에서 re-export되어 두 가지 import 방식 모두 동작합니다.
 
 ### JavaScript (JSDoc 주석 방식)
 
@@ -62,10 +66,11 @@ JavaScript는 import 없이 JSDoc 주석으로 서비스를 정의합니다:
 ### 정의 파일
 | 언어 | 파일 | 상태 |
 |:-----|:-----|:-----|
-| Python | `service_registry/python/decorator.py` | 구현됨 |
+| Python | `service_registry/python/decorator.py` | 구현됨 (interface 기반 시스템 통합) |
 | JavaScript | JSDoc 주석 방식 (파일 불필요) | 구현됨 |
 
 > **참고**: JavaScript는 JSDoc 주석을 사용하므로 별도 데코레이터 정의 파일 불필요
+> **참고**: Python 데코레이터는 `service_registry/__init__.py`를 통해 re-export되어 하위 호환성 유지
 
 ### 서비스 정의 예시 파일
 | 파일 | 언어 | 용도 |
@@ -78,17 +83,17 @@ JavaScript는 import 없이 JSDoc 주석으로 서비스를 정의합니다:
 ### 스캔 함수
 | 파일 | 함수 | 용도 |
 |:-----|:-----|:-----|
-| `mcp_service_scanner.py` | `scan_codebase_for_mcp_services()` | 통합 스캔 (Python + JS + TS) |
-| `mcp_service_scanner.py` | `find_mcp_services_in_python_file()` | Python AST 파싱 |
-| `mcp_service_scanner.py` | `find_mcp_services_in_js_file()` | JavaScript/TypeScript esprima 파싱 |
-| `mcp_service_scanner.py` | `find_jsdoc_mcp_services_in_js_file()` | JavaScript JSDoc 정규식 파싱 |
-| `mcp_service_scanner.py` | `export_services_to_json()` | registry + types_property JSON 생성 |
-| `generate_editor_config.py` | `extract_server_info_from_py_file()` | Python server_name + 타입 정보 추출 |
-| `generate_editor_config.py` | `extract_server_info_from_js_file()` | JavaScript server_name + 타입 정보 추출 |
-| `generate_editor_config.py` | `extract_server_name_from_py_file()` | Python server_name 추출 (레거시) |
-| `generate_editor_config.py` | `extract_server_name_from_js_file()` | JavaScript server_name 추출 (레거시) |
-| `generate_editor_config.py` | `scan_codebase_for_server_info()` | 전체 서버 정보 스캔 (타입 정보 포함) |
-| `generate_editor_config.py` | `scan_codebase_for_servers()` | 전체 서버명 스캔 (레거시) |
+| `service_registry/scanner.py` | `scan_codebase_for_mcp_services()` | 통합 스캔 (Python + JS + TS) |
+| `service_registry/scanner.py` | `find_mcp_services_in_python_file()` | Python AST 파싱 |
+| `service_registry/scanner.py` | `find_mcp_services_in_js_file()` | JavaScript/TypeScript esprima 파싱 |
+| `service_registry/scanner.py` | `find_jsdoc_mcp_services_in_js_file()` | JavaScript JSDoc 정규식 파싱 |
+| `service_registry/scanner.py` | `export_services_to_json()` | registry + types_property JSON 생성 |
+| `service_registry/config_generator.py` | `extract_server_info_from_py_file()` | Python server_name + 타입 정보 추출 |
+| `service_registry/config_generator.py` | `extract_server_info_from_js_file()` | JavaScript server_name + 타입 정보 추출 |
+| `service_registry/config_generator.py` | `extract_server_name_from_py_file()` | Python server_name 추출 (레거시) |
+| `service_registry/config_generator.py` | `extract_server_name_from_js_file()` | JavaScript server_name 추출 (레거시) |
+| `service_registry/config_generator.py` | `scan_codebase_for_server_info()` | 전체 서버 정보 스캔 (타입 정보 포함) |
+| `service_registry/config_generator.py` | `scan_codebase_for_servers()` | 전체 서버명 스캔 (레거시) |
 
 ### 메타데이터 활용
 | 파일 | 용도 |
@@ -264,6 +269,8 @@ MCP_SERVICE_REGISTRY: Dict[str, Dict[str, Any]] = {}
 
 데코레이터가 적용된 함수는 런타임에 자동으로 글로벌 레지스트리에 등록됩니다.
 (`include_in_registry=False`로 설정하면 등록하지 않음)
+
+> **Import**: `MCP_SERVICE_REGISTRY`도 루트에서 import 가능: `from service_registry import MCP_SERVICE_REGISTRY`
 
 ### 레지스트리 조회 함수 (`service_registry/python/decorator.py`)
 
@@ -456,7 +463,7 @@ Sequelize 모델명 등 **알 수 없는 타입은 `object`로 매핑**되며, �
 }
 ```
 
-> **변경 이력**: 이전에는 알 수 없는 타입을 `any`로 매핑했으나, 커스텀 클래스는 객체이므로 `object`로 변경 (`mcp_service_scanner.py:537`)
+> **변경 이력**: 이전에는 알 수 없는 타입을 `any`로 매핑했으나, 커스텀 클래스는 객체이므로 `object`로 변경 (`service_registry/scanner.py`)
 
 ---
 
@@ -567,7 +574,7 @@ crewService.createCrew = async (crewData) => { ... }
 3. 부모 객체의 `properties` 필드에 저장 (없으면 생성)
 4. `[param]` 대괄호는 `is_optional: true`로 처리
 
-> **구현 위치**: `mcp_service_scanner.py` → `_parse_jsdoc_block()` 함수 (라인 540-673)
+> **구현 위치**: `service_registry/scanner.py` → `_parse_jsdoc_block()` 함수
 
 ---
 
@@ -647,7 +654,7 @@ const getCrew = async function(params) { ... }
 exports.getCrew = async (params) => { ... }
 ```
 
-> **구현 위치**: `mcp_service_scanner.py` → `_find_function_after_jsdoc()` 함수 (라인 676-745)
+> **구현 위치**: `service_registry/scanner.py` → `_find_function_after_jsdoc()` 함수
 
 ---
 
@@ -668,7 +675,7 @@ class ServerInfo:
         self.type_names: Set[str] = set()  # Type names used in functions
 ```
 
-> **구현 위치**: `generate_editor_config.py` (라인 28-35)
+> **구현 위치**: `service_registry/config_generator.py`
 
 ### 서버 정보 스캔 함수
 
@@ -695,7 +702,7 @@ def scan_codebase_for_server_info(base_dir: str) -> Dict[str, ServerInfo]:
     """
 ```
 
-> **구현 위치**: `generate_editor_config.py` (라인 527-582)
+> **구현 위치**: `service_registry/config_generator.py`
 
 ### `extract_server_info_from_py_file()`
 
@@ -714,7 +721,7 @@ def extract_server_info_from_py_file(file_path: str) -> Dict[str, ServerInfo]:
     """
 ```
 
-> **구현 위치**: `generate_editor_config.py` (라인 389-477)
+> **구현 위치**: `service_registry/config_generator.py`
 
 ### `extract_server_info_from_js_file()`
 
@@ -738,7 +745,7 @@ def extract_server_info_from_js_file(
     """
 ```
 
-> **구현 위치**: `generate_editor_config.py` (라인 183-288)
+> **구현 위치**: `service_registry/config_generator.py`
 
 ### 타입 추출 흐름 (Python)
 
@@ -793,7 +800,7 @@ def find_sequelize_model_dirs(base_dir: str) -> List[str]:
     """
 ```
 
-> **구현 위치**: `generate_editor_config.py` (라인 110-144)
+> **구현 위치**: `service_registry/config_generator.py`
 
 ### camelCase -> snake_case 변환
 
@@ -812,4 +819,4 @@ def camel_to_snake(name: str) -> str:
     return result.lower()
 ```
 
-> **구현 위치**: `generate_editor_config.py` (라인 97-107)
+> **구현 위치**: `service_registry/config_generator.py`

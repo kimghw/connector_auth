@@ -448,6 +448,191 @@ from service_registry import mcp_service, MCP_SERVICE_REGISTRY
 
 ---
 
+## 인터페이스 추상화 시스템
+
+### 개요
+
+언어별 스캐너와 타입 추출기를 확장 가능한 구조로 관리하기 위해 인터페이스 추상화 시스템이 추가되었습니다. 이 시스템은 추상 기본 클래스(ABC)와 레지스트리 패턴을 사용하여 새로운 언어 지원을 쉽게 추가할 수 있도록 설계되었습니다.
+
+### 추가된 파일
+
+| 파일 | 역할 |
+|------|------|
+| `service_registry/interfaces.py` | 추상 기본 클래스 및 데이터클래스 정의 |
+| `service_registry/registry.py` | ScannerRegistry, TypeExtractorRegistry 구현 |
+
+### 핵심 인터페이스
+
+#### 추상 기본 클래스
+
+| 클래스 | 역할 |
+|--------|------|
+| `AbstractServiceScanner` | 언어별 서비스 스캐너의 기본 클래스 |
+| `AbstractTypeExtractor` | 언어별 타입 추출기의 기본 클래스 |
+
+#### 데이터클래스
+
+| 클래스 | 역할 |
+|--------|------|
+| `ParameterInfo` | 서비스 파라미터 정보 (이름, 타입, 선택 여부 등) |
+| `ServiceInfo` | 서비스 메타데이터 (핸들러, 파라미터, 시그니처 등) |
+| `PropertyInfo` | 타입 프로퍼티 정보 (이름, 타입, 설명 등) |
+| `TypeInfo` | 타입 정의 정보 (클래스명, 프로퍼티 목록 등) |
+
+### 레지스트리 패턴
+
+#### ScannerRegistry
+
+스캐너 등록 및 조회를 위한 중앙 레지스트리:
+
+```python
+# 스캐너 등록
+ScannerRegistry.register(PythonScanner)
+ScannerRegistry.register(JavaScriptScanner)
+
+# 언어명으로 스캐너 조회
+scanner = ScannerRegistry.get('python')
+
+# 파일 확장자로 적합한 스캐너 조회
+scanner = ScannerRegistry.get_for_file('test.py')  # PythonScanner 반환
+scanner = ScannerRegistry.get_for_file('app.js')   # JavaScriptScanner 반환
+
+# 파일 스캔 (적합한 스캐너 자동 선택)
+services = ScannerRegistry.scan_file('service.py')
+```
+
+#### TypeExtractorRegistry
+
+타입 추출기 등록 및 조회를 위한 중앙 레지스트리:
+
+```python
+# 타입 추출기 등록
+TypeExtractorRegistry.register(PythonTypeExtractor)
+TypeExtractorRegistry.register(JavaScriptTypeExtractor)
+
+# 언어명으로 추출기 조회
+extractor = TypeExtractorRegistry.get('python')
+
+# 파일 확장자로 적합한 추출기 조회
+extractor = TypeExtractorRegistry.get_for_file('models.py')
+```
+
+### 새 언어 추가 방법
+
+새로운 프로그래밍 언어 지원을 추가하려면 다음 단계를 따릅니다:
+
+#### Step 1. 스캐너 구현
+
+```python
+from service_registry.interfaces import AbstractServiceScanner, ServiceInfo
+from service_registry.registry import ScannerRegistry
+from typing import Dict, List
+
+class GoScanner(AbstractServiceScanner):
+    @property
+    def language(self) -> str:
+        return "go"
+
+    @property
+    def supported_extensions(self) -> List[str]:
+        return [".go"]
+
+    def scan_file(self, file_path: str) -> Dict[str, ServiceInfo]:
+        """Go 소스 파일에서 MCP 서비스 스캔"""
+        services = {}
+        # Go AST 파싱 또는 정규식으로 서비스 추출
+        # ...
+        return services
+
+# 레지스트리에 등록
+ScannerRegistry.register(GoScanner)
+```
+
+#### Step 2. 타입 추출기 구현 (선택)
+
+```python
+from service_registry.interfaces import AbstractTypeExtractor, TypeInfo
+from service_registry.registry import TypeExtractorRegistry
+from typing import Dict, List
+
+class GoTypeExtractor(AbstractTypeExtractor):
+    @property
+    def language(self) -> str:
+        return "go"
+
+    @property
+    def supported_extensions(self) -> List[str]:
+        return [".go"]
+
+    def extract_types(self, file_path: str) -> Dict[str, TypeInfo]:
+        """Go 소스 파일에서 타입 정의 추출"""
+        types = {}
+        # Go struct 정의 파싱
+        # ...
+        return types
+
+# 레지스트리에 등록
+TypeExtractorRegistry.register(GoTypeExtractor)
+```
+
+#### Step 3. 패키지 구조
+
+```
+service_registry/
+├── go/
+│   ├── __init__.py
+│   ├── scanner.py    # GoScanner 구현
+│   └── types.py      # GoTypeExtractor 구현 (선택)
+```
+
+#### Step 4. 자동 로딩
+
+`service_registry/__init__.py`에서 새 스캐너/추출기를 import하면 자동으로 레지스트리에 등록됩니다.
+
+### 아키텍처 다이어그램
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      interfaces.py                               │
+│  ┌─────────────────────────┐  ┌─────────────────────────────┐   │
+│  │ AbstractServiceScanner  │  │ AbstractTypeExtractor       │   │
+│  │ - language              │  │ - language                  │   │
+│  │ - supported_extensions  │  │ - supported_extensions      │   │
+│  │ - scan_file()           │  │ - extract_types()           │   │
+│  └──────────┬──────────────┘  └──────────┬──────────────────┘   │
+│             │                             │                      │
+│  ┌──────────┴──────────────┐  ┌──────────┴──────────────────┐   │
+│  │ Dataclasses             │  │                              │   │
+│  │ - ParameterInfo         │  │                              │   │
+│  │ - ServiceInfo           │  │                              │   │
+│  │ - PropertyInfo          │  │                              │   │
+│  │ - TypeInfo              │  │                              │   │
+│  └─────────────────────────┘  └──────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       registry.py                                │
+│  ┌─────────────────────────┐  ┌─────────────────────────────┐   │
+│  │ ScannerRegistry         │  │ TypeExtractorRegistry       │   │
+│  │ - register(cls)         │  │ - register(cls)             │   │
+│  │ - get(language)         │  │ - get(language)             │   │
+│  │ - get_for_file(path)    │  │ - get_for_file(path)        │   │
+│  │ - scan_file(path)       │  │                              │   │
+│  └─────────────────────────┘  └─────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+          ┌───────────────────┼───────────────────┐
+          ▼                   ▼                   ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│ python/         │  │ javascript/     │  │ go/ (예시)      │
+│ - PythonScanner │  │ - JSScanner     │  │ - GoScanner     │
+│ - PythonTypes   │  │ - JSTypes       │  │ - GoTypes       │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+```
+
+---
+
 ## 관련 스크립트
 
 | 스크립트 | 경로 | 역할 |

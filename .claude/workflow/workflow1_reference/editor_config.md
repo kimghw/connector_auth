@@ -31,6 +31,8 @@ cd mcp_editor/test
 ./generate_config.sh --help
 ```
 
+> **참고**: 스크립트는 내부적으로 `python3 $MCP_EDITOR_DIR/service_registry/config_generator.py`를 실행합니다.
+
 ### 스크립트 동작 방식
 1. 프로젝트 루트에서 `@mcp_service` 데코레이터/JSDoc 스캔
 2. `mcp_*` 디렉토리 패턴 스캔
@@ -336,19 +338,42 @@ derived_profiles: [...]          is_reused: true
 
 | 파일 | 경로 | 설명 |
 |------|------|------|
-| **config_generator.py** | `service_registry/config_generator.py` | 메인 설정 생성기 |
+| **config_generator.py** | `mcp_editor/service_registry/config_generator.py` | 메인 설정 생성기 |
 | **generate_config.sh** | `mcp_editor/test/generate_config.sh` | 쉘 스크립트 래퍼 |
+
+> **참고**: `config_generator.py`는 `mcp_editor/service_registry/` 디렉토리에 위치하며, 인터페이스 기반 스캐너 시스템(`interfaces.py`, `registry.py`)과 동일한 디렉토리에 있습니다.
 
 ### Import 방법
 
 ```python
+# config_generator 모듈 사용
 from service_registry.config_generator import (
     scan_codebase_for_servers,
     scan_codebase_for_server_info,
     generate_editor_config_json,
     ServerInfo
 )
+
+# 인터페이스 기반 스캐너 시스템 사용 (대안)
+from service_registry.registry import ScannerRegistry, TypeExtractorRegistry
+from service_registry.interfaces import ServiceInfo, TypeInfo
 ```
+
+### 인터페이스 기반 스캐너 시스템
+
+`config_generator.py`는 자체 AST/JSDoc 파싱 로직을 사용하지만, `service_registry/` 패키지는 확장 가능한 인터페이스 기반 아키텍처도 제공합니다:
+
+| 파일 | 설명 |
+|------|------|
+| `interfaces.py` | 추상 인터페이스 정의 (`AbstractServiceScanner`, `AbstractTypeExtractor`) |
+| `registry.py` | 스캐너/타입 추출기 레지스트리 (`ScannerRegistry`, `TypeExtractorRegistry`) |
+| `python/scanner_adapter.py` | Python 스캐너 구현체 |
+| `javascript/scanner_adapter.py` | JavaScript 스캐너 구현체 |
+
+**새 언어 지원 추가 방법:**
+1. `service_registry/{language}/` 패키지 생성
+2. `AbstractServiceScanner` 및 `AbstractTypeExtractor` 구현
+3. `registry.py`의 `register_all_default_scanners()`에 등록
 
 ### 주요 함수
 
