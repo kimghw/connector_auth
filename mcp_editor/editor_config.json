@@ -1,4 +1,32 @@
 {
+  "calendar": {
+    "template_definitions_path": "mcp_calendar/tool_definition_templates.yaml",
+    "tool_definitions_path": "../mcp_calendar/mcp_server/tool_definitions.py",
+    "backup_dir": "mcp_calendar/backups",
+    "types_files": [
+      "../mcp_calendar/calendar_types.py"
+    ],
+    "host": "0.0.0.0",
+    "port": 8002
+  },
+  "file_handler": {
+    "template_definitions_path": "mcp_file_handler/tool_definition_templates.yaml",
+    "tool_definitions_path": "../mcp_file_handler/mcp_server/tool_definitions.py",
+    "backup_dir": "mcp_file_handler/backups",
+    "types_files": [],
+    "host": "0.0.0.0",
+    "port": 8003
+  },
+  "outlook": {
+    "template_definitions_path": "mcp_outlook/tool_definition_templates.yaml",
+    "tool_definitions_path": "../mcp_outlook/mcp_server/tool_definitions.py",
+    "backup_dir": "mcp_outlook/backups",
+    "types_files": [
+      "../mcp_outlook/outlook_types.py"
+    ],
+    "host": "0.0.0.0",
+    "port": 8004
+  },
   "asset_management": {
     "template_definitions_path": "mcp_asset_management/tool_definition_templates.py",
     "tool_definitions_path": "../mcp_asset_management/mcp_server/tool_definitions.py",
@@ -19,37 +47,5 @@
     "language": "javascript",
     "host": "0.0.0.0",
     "port": 8001
-  },
-  "calendar": {
-    "template_definitions_path": "mcp_calendar/tool_definition_templates.py",
-    "tool_definitions_path": "../mcp_calendar/mcp_server/tool_definitions.py",
-    "backup_dir": "mcp_calendar/backups",
-    "types_files": [
-      "../mcp_calendar/calendar_types.py"
-    ],
-    "language": "python",
-    "host": "0.0.0.0",
-    "port": 8002
-  },
-  "file_handler": {
-    "template_definitions_path": "mcp_file_handler/tool_definition_templates.py",
-    "tool_definitions_path": "../mcp_file_handler/mcp_server/tool_definitions.py",
-    "backup_dir": "mcp_file_handler/backups",
-    "types_files": [],
-    "language": "python",
-    "host": "0.0.0.0",
-    "port": 8003
-  },
-  "outlook": {
-    "template_definitions_path": "mcp_outlook/tool_definition_templates.py",
-    "tool_definitions_path": "../mcp_outlook/mcp_server/tool_definitions.py",
-    "backup_dir": "mcp_outlook/backups",
-    "types_files": [
-      "../mcp_outlook/graph_mail_client.py",
-      "../mcp_outlook/outlook_types.py"
-    ],
-    "language": "python",
-    "host": "0.0.0.0",
-    "port": 8004
   }
 }
