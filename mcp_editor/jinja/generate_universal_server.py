@@ -11,9 +11,10 @@ from typing import Any, Dict, List, Optional
 
 from jinja2 import Environment, FileSystemLoader
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent
-EDITOR_CONFIG_PATH = PROJECT_ROOT / "mcp_editor" / "editor_config.json"
+SCRIPT_DIR = Path(__file__).resolve().parent  # mcp_editor/jinja/
+EDITOR_DIR = SCRIPT_DIR.parent                 # mcp_editor/
+PROJECT_ROOT = Path(os.environ.get("MCP_EDITOR_ROOT", EDITOR_DIR.parent))  # Connector_auth/
+EDITOR_CONFIG_PATH = EDITOR_DIR / "editor_config.json"
 
 
 def load_editor_config() -> Dict[str, Any]:
