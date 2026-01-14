@@ -1,18 +1,79 @@
 """
-Type Extractor Module
+Python Type Extractor Module
 
-Pydantic BaseModel 클래스에서 프로퍼티 정보를 추출하는 모듈.
+Python 프로젝트에서 **데이터 모델(타입 정의)**을 추출하는 모듈.
 mcp_service_scanner.py에서 import하여 사용.
 
-주요 함수:
+## 역할 분담
+
+| 모듈 | 역할 |
+|------|------|
+| mcp_service_scanner.py | 서비스(tool) 스캔 + 파라미터 추출 |
+| extract_types.py | 데이터 모델 추출 (Pydantic BaseModel 등) |
+
+## Pydantic vs Sequelize 비교
+
+| 항목 | Pydantic (Python) | Sequelize (JavaScript) |
+|------|-------------------|------------------------|
+| 역할 | 데이터 모델/검증 | ORM (DB 모델) |
+| 타입 정의 | 클래스 속성 + 타입 힌트 | init() 메서드에 필드 정의 |
+| 용도 | API 스키마, 검증 | DB 테이블 매핑 |
+
+### 예시 비교
+
+Pydantic (Python):
+    class FilterParams(BaseModel):
+        user_email: str = Field(..., description="User email")
+        top: int = Field(50, description="Maximum results")
+        filter: Optional[str] = None
+
+Sequelize (JavaScript):
+    mstEmployee.init({
+        id: { type: DataTypes.INTEGER, primaryKey: true },
+        nameKr: { type: DataTypes.STRING },
+        nameEn: { type: DataTypes.STRING, allowNull: true },
+    }, { sequelize, modelName: 'mstEmployee' });
+
+## 소스 경로 탐지 방식
+
+파일 경로에 "types", "models", 또는 "schema"가 포함되면 자동 파싱:
+
+    for py_file in Path(base_dir).rglob("*.py"):
+        file_str = str(py_file)
+        if "types" in file_str.lower() or "models" in file_str.lower() or "schema" in file_str.lower():
+            classes = extract_class_properties(file_str)
+
+## 경로 흐름
+
+    scan_all_registries()
+            ↓
+    get_source_path_for_profile("outlook")
+            ↓
+    base_dir = "../mcp_outlook"  ← editor_config 또는 컨벤션
+            ↓
+    export_services_to_json(base_dir, ...)
+            ↓
+    extract_types.export_py_types_property(base_dir, ...)
+            ↓
+    Path(base_dir).rglob("*.py")  ← 모든 .py 파일 스캔
+            ↓
+    "types" in path → outlook_types.py 탐지!
+
+## 주요 함수
+
 - extract_class_properties(file_path): 파일 내 모든 BaseModel 클래스 추출
 - extract_single_class(file_path, class_name): 특정 클래스만 추출
+- scan_py_project_types(base_dir): 전체 Python 프로젝트 타입 스캔 (자동 탐지)
+- export_py_types_property(base_dir, server_name, output_dir): types_property JSON 생성
 - map_python_to_json_type(python_type): Python 타입 → JSON Schema 타입 변환
 """
 
 from __future__ import annotations
 
 import ast
+import json
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
@@ -252,3 +313,141 @@ def get_class_names_from_file(file_path: str) -> List[str]:
     """
     all_classes = extract_class_properties(file_path)
     return list(all_classes.keys())
+
+
+# =============================================================================
+# Directory Scanning (자동 타입 탐지)
+# =============================================================================
+
+DEFAULT_SKIP_DIRS = ("node_modules", ".git", "dist", "build", "__pycache__", "venv", ".venv", "env")
+
+
+def scan_py_project_types(
+    base_dir: str,
+    skip_dirs: tuple = DEFAULT_SKIP_DIRS
+) -> Dict[str, Any]:
+    """Scan a Python project for type definitions (Pydantic BaseModel).
+
+    Pydantic BaseModel = Python 데이터 모델 (API 스키마, 검증)
+
+    탐지 방식:
+        - base_dir 하위의 모든 .py 파일 재귀 스캔
+        - 파일 경로에 "types", "models", "schema" 포함 시 파싱
+        - 예: mcp_outlook/outlook_types.py
+
+    Note: Tool parameter 추출은 mcp_service_scanner.py에서 처리함.
+          이 함수는 BaseModel 타입 정의만 추출.
+
+    Args:
+        base_dir: Base directory to scan (예: "../mcp_outlook")
+        skip_dirs: Directory names to skip (node_modules, .git 등)
+
+    Returns:
+        Dictionary with classes:
+        {
+            "classes": {...},        # BaseModel classes (데이터 타입 정의)
+            "all_properties": [...]  # Flattened property list
+        }
+    """
+    result = {
+        "classes": {},
+        "all_properties": []
+    }
+
+    base_path = Path(base_dir)
+    if not base_path.exists():
+        print(f"  Warning: Directory does not exist: {base_dir}")
+        return result
+
+    # Scan for Python files
+    for py_file in base_path.rglob("*.py"):
+        # Skip excluded directories
+        if any(skip in py_file.parts for skip in skip_dirs):
+            continue
+
+        file_str = str(py_file).lower()
+
+        # Look for type definition files
+        # Matches: *_types.py, *types*.py, models/*.py, schema/*.py
+        if "types" in file_str or "models" in file_str or "schema" in file_str:
+            try:
+                classes = extract_class_properties(str(py_file))
+                for class_name, class_info in classes.items():
+                    result["classes"][class_name] = class_info
+            except Exception as e:
+                print(f"  Warning: Could not parse {py_file}: {e}")
+
+    # Build flattened properties list
+    for class_name, class_info in result["classes"].items():
+        for prop in class_info.get("properties", []):
+            result["all_properties"].append({
+                "name": prop.get("name", ""),
+                "type": prop.get("type", "any"),
+                "description": prop.get("description", ""),
+                "source": f"class:{class_name}",
+                "full_path": f"{class_name}.{prop.get('name', '')}",
+                "examples": prop.get("examples", []),
+                "default": prop.get("default")
+            })
+
+    return result
+
+
+def export_py_types_property(
+    base_dir: str,
+    server_name: str,
+    output_dir: str
+) -> str:
+    """Export Python types (Pydantic BaseModel) to types_property_{server_name}.json.
+
+    출력 경로: mcp_{server}/types_property_{server}.json
+
+    BaseModel 클래스를 스캔하여 데이터 스키마 정보 추출:
+        - 클래스 목록 (예: FilterParams, MailMessage 등)
+        - 프로퍼티 (필드명, 타입, 설명, 기본값 등)
+
+    Note: Tool parameter 정보는 registry_{server_name}.json에 포함됨.
+          이 함수는 BaseModel 타입 정의만 추출하여 저장.
+
+    Args:
+        base_dir: Base directory to scan (예: "../mcp_outlook")
+        server_name: Server name for the output file (예: "outlook")
+        output_dir: Output directory path (예: "mcp_editor/mcp_outlook")
+
+    Returns:
+        Path to the generated file (예: mcp_outlook/types_property_outlook.json)
+    """
+    # Scan the project for BaseModel classes
+    scan_result = scan_py_project_types(base_dir)
+
+    # Build output structure compatible with existing API
+    output = {
+        "version": "1.0",
+        "generated_at": datetime.now().isoformat(),
+        "server_name": server_name,
+        "language": "python",
+        "classes": [],  # Pydantic BaseModel classes
+        "properties_by_class": {},
+        "all_properties": scan_result["all_properties"]
+    }
+
+    # Add BaseModel classes
+    for class_name, class_info in scan_result["classes"].items():
+        properties = class_info.get("properties", [])
+        output["classes"].append({
+            "name": class_name,
+            "file": class_info.get("file", ""),
+            "line": class_info.get("line", 0),
+            "type": "pydantic_model",
+            "property_count": len(properties)
+        })
+        output["properties_by_class"][class_name] = properties
+
+    # Save to file
+    output_path = Path(output_dir) / f"types_property_{server_name}.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    print(f"  Exported Python types: {len(scan_result['classes'])} classes")
+
+    return str(output_path)

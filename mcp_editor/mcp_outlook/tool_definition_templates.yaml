@@ -6,7 +6,7 @@
 #   1. 초기 생성: registry_{server}.json (AST 스캐너가 @mcp_service 데코레이터 파싱)
 #   2. 이후 편집: 웹에디터 UI (http://localhost:8094)에서 수정 후 Save
 #
-# 소스 파일: mcp_editor/mcp_service_registry/registry_outlook.json
+# 소스 파일: mcp_editor/service_registry/registry_outlook.json
 # 웹에디터: mcp_editor/tool_editor_web.py
 #
 # 구조 설명:

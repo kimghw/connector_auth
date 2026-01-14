@@ -1,0 +1,66 @@
+# =============================================================================
+# MCP Tool Definition Templates - AUTO-GENERATED
+# =============================================================================
+# Signatures extracted from source code using AST parsing
+#
+# 구조 설명:
+#   - name: MCP 도구 이름 (고유 식별자)
+#   - description: 도구 설명 (에이전트가 도구 선택 시 참고)
+#   - inputSchema: 입력 파라미터 스키마 (JSON Schema 형식)
+#   - mcp_service: 백엔드 서비스 연결 정보
+#   - mcp_service_factors: 내부 파라미터 기본값 설정
+# =============================================================================
+
+tools:
+- name: new_tool_1768316544612
+  description: New tool description
+  mcp_service:
+    name: createUserLicense
+  inputSchema:
+    type: object
+    properties:
+      licenseData:
+        type: object
+        description: employeeLicense parameters
+        properties:
+          id:
+            type: integer
+            description: ''
+            targetParam: id
+          employeeId:
+            type: integer
+            description: ''
+            targetParam: employeeId
+          licenseId:
+            type: integer
+            description: ''
+            targetParam: licenseId
+          issuedDate:
+            type: string
+            description: ''
+            targetParam: issuedDate
+          expiredDate:
+            type: string
+            description: ''
+            targetParam: expiredDate
+          abilityWelding:
+            type: string
+            description: ''
+            targetParam: abilityWelding
+          createdAt:
+            type: string
+            description: ''
+            targetParam: createdAt
+          updatedAt:
+            type: string
+            description: ''
+            targetParam: updatedAt
+          deletedAt:
+            type: string
+            description: ''
+            targetParam: deletedAt
+        required: []
+        targetParam: licenseData
+        baseModel: employeeLicense
+    required:
+    - licenseData

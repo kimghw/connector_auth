@@ -826,7 +826,8 @@ function loadAndDisplayServiceMethodParams(index) {
     if (!paramsDiv || !serviceName) return;
 
     // Load registry to get method parameters
-    fetch('/api/registry')
+    const currentProfile = window.currentProfile || '_default';
+    fetch(`/api/registry?profile=${currentProfile}`)
         .then(response => response.json())
         .then(registry => {
             if (registry && registry.services && registry.services[serviceName]) {

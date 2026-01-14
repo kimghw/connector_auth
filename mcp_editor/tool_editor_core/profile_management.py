@@ -523,7 +523,7 @@ def delete_mcp_server_only(profile_name: str) -> dict:
     This function deletes:
     - mcp_editor/mcp_{profile}/ folder (web editor definitions)
     - mcp_{profile}/mcp_server/ folder (generated server code)
-    - mcp_editor/mcp_service_registry/registry_{profile}.json
+    - mcp_editor/service_registry/registry_{profile}.json
     - Profile entry from editor_config.json
 
     This function KEEPS:

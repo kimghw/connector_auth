@@ -11,7 +11,7 @@ import os
 import json
 
 from .config import BASE_DIR, get_source_path_for_profile
-from mcp_service_registry.mcp_service_scanner import get_services_map, export_services_to_json
+from service_registry.scanner import get_services_map, export_services_to_json
 
 # Module-level cache for service scans
 SERVICE_SCAN_CACHE: dict[tuple[str, str], dict] = {}

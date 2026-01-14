@@ -1220,10 +1220,7 @@ function applySignatureDefaults(index, serviceName) {
         tool.inputSchema = { type: 'object', properties: {}, required: [] };
     }
 
-    const existingProps = Object.keys(tool.inputSchema.properties || {});
-    if (existingProps.length > 0) {
-        return; // avoid overriding when schema already exists
-    }
+    // Always overwrite with new service method parameters
 
     tool.inputSchema.type = 'object';
     tool.inputSchema.properties = {};

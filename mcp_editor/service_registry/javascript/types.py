@@ -1,17 +1,66 @@
 """
 JavaScript Type Extractor Module
 
-JavaScript 프로젝트에서 **타입 정의**를 추출하는 모듈.
+JavaScript 프로젝트에서 **데이터 모델(타입 정의)**을 추출하는 모듈.
 mcp_service_scanner.py에서 import하여 사용.
 
-역할 분담:
-- mcp_service_scanner.py: 서비스(tool) 스캔 + 파라미터 추출 (Zod 스키마 포함)
-- extract_types_js.py: 타입 정의 추출 (Sequelize 모델 등)
+## 역할 분담
 
-지원하는 타입 정의 패턴:
-- Sequelize 모델 (DataTypes.STRING 등) - DB 모델 정의에서 사용
+| 모듈 | 역할 |
+|------|------|
+| mcp_service_scanner.py | 서비스(tool) 스캔 + JSDoc 파라미터 추출 |
+| extract_types_js.py | 데이터 모델 추출 (Sequelize 모델 등) |
 
-주요 함수:
+## Sequelize vs Pydantic 비교
+
+| 항목 | Pydantic (Python) | Sequelize (JavaScript) |
+|------|-------------------|------------------------|
+| 역할 | 데이터 모델/검증 | ORM (DB 모델) |
+| 타입 정의 | 클래스 속성 + 타입 힌트 | init() 메서드에 필드 정의 |
+| 용도 | API 스키마, 검증 | DB 테이블 매핑 |
+
+### 예시 비교
+
+Pydantic (Python):
+    class Employee(BaseModel):
+        id: int
+        name_kr: str
+        name_en: Optional[str] = None
+
+Sequelize (JavaScript):
+    mstEmployee.init({
+        id: { type: DataTypes.INTEGER, primaryKey: true },
+        nameKr: { type: DataTypes.STRING },
+        nameEn: { type: DataTypes.STRING, allowNull: true },
+    }, { sequelize, modelName: 'mstEmployee' });
+
+## 소스 경로 탐지 방식
+
+파일 경로에 "model" 또는 "sequelize"가 포함되면 자동 파싱:
+
+    for js_file in Path(base_dir).rglob("*.js"):
+        file_str = str(js_file)
+        if "model" in file_str.lower() or "sequelize" in file_str.lower():
+            models = extract_sequelize_models_from_file(file_str)
+
+## 경로 흐름
+
+    scan_all_registries()
+            ↓
+    get_source_path_for_profile("asset_management")
+            ↓
+    base_dir = "AssetManagement/asset-api"  ← editor_config 또는 컨벤션
+            ↓
+    export_services_to_json(base_dir, ...)
+            ↓
+    extract_types_js.export_js_types_property(base_dir, ...)
+            ↓
+    Path(base_dir).rglob("*.js")  ← 모든 .js 파일 스캔
+            ↓
+    "model" in path → sequelize/models2/*.js 탐지!
+
+## 주요 함수
+
 - extract_sequelize_models_from_file(file_path): Sequelize 모델 프로퍼티 추출
 - scan_js_project_types(base_dir): 전체 JS 프로젝트 타입 스캔
 - export_js_types_property(base_dir, server_name, output_dir): types_property JSON 생성
@@ -246,18 +295,25 @@ def scan_js_project_types(
 ) -> Dict[str, Any]:
     """Scan a JavaScript project for type definitions (Sequelize models).
 
+    Sequelize 모델 = DB 테이블의 JavaScript 표현 (Pydantic과 유사한 역할)
+
+    탐지 방식:
+        - base_dir 하위의 모든 .js 파일 재귀 스캔
+        - 파일 경로에 "model" 또는 "sequelize" 포함 시 파싱
+        - 예: AssetManagement/asset-api/sequelize/models2/*.js
+
     Note: Tool parameter 추출은 mcp_service_scanner.py에서 처리함.
           이 함수는 Sequelize 모델 타입 정의만 추출.
 
     Args:
-        base_dir: Base directory to scan
-        skip_dirs: Directory names to skip
+        base_dir: Base directory to scan (예: "AssetManagement/asset-api")
+        skip_dirs: Directory names to skip (node_modules, .git 등)
 
     Returns:
         Dictionary with models:
         {
-            "models": {...},         # Sequelize models
-            "all_properties": [...]  # Flattened property list
+            "models": {...},         # Sequelize models (DB 테이블 정의)
+            "all_properties": [...]  # Flattened property list (700+ 프로퍼티)
         }
     """
     result = {
@@ -301,16 +357,22 @@ def export_js_types_property(
 ) -> str:
     """Export JavaScript types (Sequelize models) to types_property_{server_name}.json.
 
+    출력 경로: mcp_{server}/types_property_{server}.json
+
+    Sequelize 모델을 스캔하여 데이터 스키마 정보 추출:
+        - 51개 모델 (예: mstEmployee, employeeCrew 등)
+        - 700개 프로퍼티 (필드명, 타입, nullable 등)
+
     Note: Tool parameter 정보는 registry_{server_name}.json에 포함됨.
           이 함수는 Sequelize 모델 타입 정의만 추출하여 저장.
 
     Args:
-        base_dir: Base directory to scan
-        server_name: Server name for the output file
-        output_dir: Output directory path
+        base_dir: Base directory to scan (예: "AssetManagement/asset-api")
+        server_name: Server name for the output file (예: "asset_management")
+        output_dir: Output directory path (예: "mcp_editor/mcp_asset_management")
 
     Returns:
-        Path to the generated file
+        Path to the generated file (예: mcp_asset_management/types_property_asset_management.json)
     """
     # Scan the project for Sequelize models
     scan_result = scan_js_project_types(base_dir)

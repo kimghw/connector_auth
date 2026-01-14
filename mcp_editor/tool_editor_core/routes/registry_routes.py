@@ -58,7 +58,7 @@ def get_registry():
 
 @registry_bp.route("/api/mcp-services", methods=["GET"])
 def get_mcp_services():
-    """Get available MCP services from registry_{server_name}.json in mcp_service_registry"""
+    """Get available MCP services from registry_{server_name}.json in service_registry"""
     try:
         # Get profile parameter to determine which server
         profiles = list_profile_names()
@@ -112,7 +112,7 @@ def get_mcp_services():
 
                 # Handle new registry format
                 if "services" in data and isinstance(data["services"], dict):
-                    # New registry format from mcp_service_registry
+                    # New registry format from service_registry
                     decorated = []
                     detailed = []
                     # Groups for merged profiles: class_name -> list of services
