@@ -315,7 +315,7 @@ class GraphMailIdBatch:
 
     async def close(self):
         """리소스 정리"""
-        await self.auth_manager.close()
+        await self.token_provider.close()
 
 
 # 테스트 코드

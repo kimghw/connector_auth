@@ -631,53 +631,12 @@ class GraphMailClient:
                 "processing_mode": processing_mode.value,
             }
 
-        # 5. 처리 옵션 준비
-        processing_options = ProcessingOptions(
-            mail_storage=mail_storage,
-            attachment_handling=attachment_handling,
-            output_format=output_format,
-            save_directory=save_directory,
+        # 5. 처리 모드별 처리 (미구현)
+        # TODO: ProcessingOptions, MailProcessorHandler 구현 후 활성화
+        raise NotImplementedError(
+            f"Processing mode '{processing_mode.value}' is not yet implemented. "
+            f"Only ProcessingMode.FETCH_ONLY is currently supported."
         )
-
-        # Get access token for processing
-        access_token = await self.mail_query._get_access_token(user_email)
-        if not access_token:
-            return {
-                "status": "error",
-                "error": f"Failed to get access token for {user_email}",
-                "value": emails,
-                "processing_mode": processing_mode.value,
-                "query_method": QueryMethod.BATCH_ID.value,
-            }
-
-        # 6. 메일 처리
-        processor = MailProcessorHandler(user_email, access_token)
-        processed_results = []
-        errors = []
-
-        for email in emails:
-            try:
-                # 각 메일 처리
-                processed = await processor.process_mail(email)
-                processed_results.append(processed)
-            except Exception as e:
-                errors.append(
-                    {"mail_id": email.get("id", "unknown"), "subject": email.get("subject", "unknown"), "error": str(e)}
-                )
-
-        # 7. 결과 정리
-        return {
-            "status": "success" if processed_results else "error",
-            "value": processed_results,
-            "original_emails": emails,
-            "total": len(emails),
-            "processed_count": len(processed_results),
-            "errors": errors if errors else None,
-            "query_method": QueryMethod.BATCH_ID.value,
-            "processing_mode": processing_mode.value,
-            "mail_storage": mail_storage.value,
-            "attachment_handling": attachment_handling.value,
-        }
 
     def format_results(self, results: Dict[str, Any], verbose: bool = False) -> str:
         """

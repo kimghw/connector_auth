@@ -449,7 +449,7 @@ class BatchAttachmentHandler:
         if save_file:
             storage = get_storage_backend(
                 storage_type=storage_type,
-                auth_manager=self.auth_manager,
+                auth_manager=self.token_provider,
                 user_email=user_email,
                 base_directory=str(self.folder_manager.base_directory),
                 base_folder=onedrive_folder,
@@ -718,7 +718,7 @@ class BatchAttachmentHandler:
 
     async def close(self):
         """리소스 정리"""
-        await self.auth_manager.close()
+        await self.token_provider.close()
 
 class SingleAttachmentHandler:
     """
