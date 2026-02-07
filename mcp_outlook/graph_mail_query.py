@@ -89,6 +89,20 @@ class GraphMailQuery:
             print(f"Token retrieval error for {user_email}: {str(e)}")
             return None
 
+    async def _get_auth_url(self, user_email: str) -> Optional[Dict[str, Any]]:
+        """
+        인증 실패 시 로그인 URL을 생성하여 반환
+
+        Args:
+            user_email: 사용자 이메일
+
+        Returns:
+            auth_required 응답 dict 또는 None
+        """
+        if hasattr(self.token_provider, 'get_auth_url_for_login'):
+            return await self.token_provider.get_auth_url_for_login(user_email)
+        return None
+
     def _get_url_builder(self, user_email: str) -> GraphMailUrlBuilder:
         """
         URL 빌더 인스턴스 반환 (캐싱)
@@ -143,6 +157,9 @@ class GraphMailQuery:
         # Get access token for the user
         access_token = await self._get_access_token(user_email)
         if not access_token:
+            auth_response = await self._get_auth_url(user_email)
+            if auth_response:
+                return auth_response
             raise Exception(f"Failed to get access token for {user_email}")
 
         # Build filter parts using graph_types helper functions
@@ -365,6 +382,9 @@ class GraphMailQuery:
         # Get access token for the user
         access_token = await self._get_access_token(user_email)
         if not access_token:
+            auth_response = await self._get_auth_url(user_email)
+            if auth_response:
+                return auth_response
             raise Exception(f"Failed to get access token for {user_email}")
 
         # Fetch data with the provided URL and apply filtering immediately
@@ -420,6 +440,9 @@ class GraphMailQuery:
         # Get access token for the user
         access_token = await self._get_access_token(user_email)
         if not access_token:
+            auth_response = await self._get_auth_url(user_email)
+            if auth_response:
+                return auth_response
             raise Exception(f"Failed to get access token for {user_email}")
 
         # Get select fields (새 SelectParams 구조에 맞게 처리)

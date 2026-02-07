@@ -189,7 +189,7 @@ TOOL_IMPLEMENTATIONS = {
         "service_class": "MailService",
         "method": "fetch_url"
     },
-    "test_handler ": {
+    "test_handler": {
         "service_class": "MailService",
         "method": "fetch_filter"
     },
@@ -910,8 +910,8 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     # ========================================
     return await mail_service.fetch_url(**call_args)
 
-async def handle_test_handler (args: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle test_handler  tool call"""
+async def handle_test_handler(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle test_handler tool call"""
 
     # ========================================
     # Step 1: Signature 파라미터 수신
@@ -1117,6 +1117,18 @@ class StdioMCPServer:
             # Call the tool handler
             result = await globals()[handler_name](arguments)
 
+            # Check for auth_required response (login URL for LLM)
+            if isinstance(result, dict) and result.get("status") == "auth_required":
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(result, ensure_ascii=False, indent=2)
+                        }
+                    ],
+                    "isError": True
+                }
+
             # Format result for MCP
             if isinstance(result, dict) and "content" in result:
                 return result
@@ -1206,13 +1218,6 @@ class StdioMCPServer:
 
         logger.info(f"Outlook MCP Server STDIO Server started")
         logger.info("Waiting for messages on stdin...")
-
-        # Send server ready notification
-        self.write_message({
-            "jsonrpc": "2.0",
-            "method": "server.ready",
-            "params": {}
-        })
 
         try:
             while self.running:

@@ -137,6 +137,18 @@ class StdioMCPServer:
             # Call the tool handler
             result = await globals()[handler_name](arguments)
 
+            # Check for auth_required response (login URL for LLM)
+            if isinstance(result, dict) and result.get("status") == "auth_required":
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(result, ensure_ascii=False, indent=2)
+                        }
+                    ],
+                    "isError": True
+                }
+
             # Format result for MCP
             if isinstance(result, dict) and "content" in result:
                 return result
@@ -228,13 +240,6 @@ class StdioMCPServer:
 
         logger.info(f"{{ server_title }} STDIO Server started")
         logger.info("Waiting for messages on stdin...")
-
-        # Send server ready notification
-        self.write_message({
-            "jsonrpc": "2.0",
-            "method": "server.ready",
-            "params": {}
-        })
 
         try:
             while self.running:

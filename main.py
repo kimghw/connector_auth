@@ -6,7 +6,7 @@ Azure AD 인증 모듈의 메인 실행 파일입니다.
 import asyncio
 import os
 from dotenv import load_dotenv
-from auth import AuthManager
+from session import AuthManager
 import logging
 
 # Load environment variables

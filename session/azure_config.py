@@ -8,6 +8,10 @@ import sqlite3
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 import logging
+from dotenv import load_dotenv
+
+# .env 파일에서 환경변수 로드
+load_dotenv()
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)

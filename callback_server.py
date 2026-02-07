@@ -12,6 +12,7 @@ import logging
 from aiohttp import web
 from urllib.parse import parse_qs
 import os
+import platform
 from dotenv import load_dotenv
 from typing import Optional
 
@@ -273,13 +274,14 @@ class CallbackServer:
         # 앱 초기화
         await self.init_app()
 
-        # 서버 시작
+        # 서버 시작 - WSL이면 0.0.0.0, 그 외는 localhost
+        bind_host = '0.0.0.0' if 'microsoft' in platform.release().lower() else 'localhost'
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
-        self.site = web.TCPSite(self.runner, 'localhost', self.port)
+        self.site = web.TCPSite(self.runner, bind_host, self.port)
         await self.site.start()
 
-        logger.info(f"Callback server started on http://localhost:{self.port}")
+        logger.info(f"Callback server started on http://{bind_host}:{self.port}")
 
     async def stop(self):
         """서버 종료"""

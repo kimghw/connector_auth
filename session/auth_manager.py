@@ -156,12 +156,14 @@ class AuthManager:
                 'error': str(e)
             }
 
-    async def validate_and_refresh_token(self, email: str) -> Optional[str]:
+    async def validate_and_refresh_token(self, email: str, auto_reauth: bool = False) -> Optional[str]:
         """
         토큰 유효성 확인 및 필요시 자동 갱신
+        refresh_token 갱신 실패 시 auto_reauth=True이면 브라우저 재인증 시도
 
         Args:
             email: 사용자 이메일
+            auto_reauth: refresh 실패 시 브라우저 재인증 자동 시작 여부
 
         Returns:
             유효한 액세스 토큰 또는 None
@@ -170,6 +172,8 @@ class AuthManager:
 
         if not token_info:
             logger.error(f"No token found for {email}")
+            if auto_reauth:
+                return await self._auto_reauth(email)
             return None
 
         # 토큰이 유효한 경우
@@ -183,7 +187,68 @@ class AuthManager:
         if refresh_result['status'] == 'success':
             return refresh_result['access_token']
 
+        # refresh 실패 → 재인증 필요
+        logger.warning(f"Refresh failed for {email}: {refresh_result.get('error', 'unknown')}")
+        if auto_reauth:
+            return await self._auto_reauth(email)
+
         logger.error(f"Failed to get valid token for {email}")
+        return None
+
+    async def get_auth_url_for_login(self, email: str, port: int = 5000) -> Dict[str, Any]:
+        """
+        인증이 필요할 때 로그인 URL을 생성하여 반환 (LLM 전달용)
+        콜백 서버를 자동으로 시작하고 인증 URL을 반환합니다.
+
+        Args:
+            email: 사용자 이메일
+            port: 콜백 서버 포트 (기본 5000)
+
+        Returns:
+            Dict: auth_url, state, message 포함
+        """
+        try:
+            # 콜백 서버 확인 및 시작
+            await self.ensure_callback_server(port)
+
+            # 인증 URL 생성
+            auth_info = self.start_authentication()
+
+            return {
+                'status': 'auth_required',
+                'auth_url': auth_info['auth_url'],
+                'state': auth_info['state'],
+                'email': email,
+                'message': f'인증이 필요합니다. 아래 URL을 브라우저에서 열어 로그인해주세요.\n{auth_info["auth_url"]}'
+            }
+        except Exception as e:
+            logger.error(f"Failed to generate auth URL for {email}: {e}")
+            return {
+                'status': 'error',
+                'error': str(e),
+                'message': f'인증 URL 생성 실패: {str(e)}'
+            }
+
+    async def _auto_reauth(self, email: str) -> Optional[str]:
+        """
+        브라우저 재인증 자동 시작
+
+        Args:
+            email: 사용자 이메일 (로그용)
+
+        Returns:
+            새 액세스 토큰 또는 None
+        """
+        logger.info(f"Starting automatic re-authentication for {email}")
+        result = await self.authenticate_with_browser()
+
+        if result['status'] == 'success':
+            logger.info(f"Re-authentication successful for {result['email']}")
+            new_token_info = self.auth_db.get_token(result['email'])
+            if new_token_info:
+                return new_token_info['access_token']
+
+        logger.error(f"Re-authentication failed: {result.get('error', 'unknown')}")
         return None
 
     def list_users(self) -> List[Dict[str, Any]]:
@@ -449,43 +514,77 @@ class AuthManager:
         logger.info("Auth manager closed")
 
 
-# 사용 예시
-async def example_usage():
-    """AuthManager 사용 예시"""
-    import asyncio
+async def main():
+    """AuthManager 직접 실행 - 인증 및 토큰 관리"""
+    import sys
 
     manager = AuthManager()
 
     try:
-        # 1. 새 사용자 인증
-        print("\n=== Authenticating new user ===")
-        auth_result = await manager.authenticate()
-
-        if auth_result['status'] == 'success':
-            print(f"✅ Authenticated as: {auth_result['email']}")
-
-        # 2. 사용자 목록
-        print("\n=== User list ===")
+        # 기존 인증된 사용자 확인
         users = manager.list_users()
-        for user in users:
-            print(f"- {user['email']}: Token valid={not user.get('token_expired', True)}")
+        if users:
+            print("\n" + "=" * 60)
+            print(" Authenticated Users")
+            print("=" * 60)
+            for user in users:
+                status = "Active" if not user.get('token_expired', True) else "Expired"
+                has_refresh = "Yes" if user.get('has_refresh_token') else "No"
+                print(f"  {user['email']}: [{status}] refresh_token={has_refresh}")
+            print("=" * 60)
 
-        # 3. 토큰 갱신
-        if manager.current_user:
-            print(f"\n=== Refreshing token for {manager.current_user} ===")
-            refresh_result = await manager.refresh_token(manager.current_user)
-            print(f"Result: {refresh_result['status']}")
+            # 토큰 갱신 테스트
+            print("\n[1] Refresh token  [2] New auth  [3] Exit")
+            choice = input("Select: ").strip()
 
-        # 4. 유효한 토큰 가져오기
-        print("\n=== Getting valid token ===")
-        token = await manager.get_current_token()
-        if token:
-            print(f"✅ Got valid token: {token[:20]}...")
+            if choice == '1':
+                email = input("Email to refresh: ").strip()
+                if not email:
+                    email = users[0]['email']
+                print(f"\nRefreshing token for {email}...")
+                token = await manager.validate_and_refresh_token(email, auto_reauth=True)
+                if token:
+                    print(f"Access token: {token[:30]}...")
+                else:
+                    print("Failed to get token.")
+                return
 
+            elif choice == '2':
+                pass  # 아래 인증 플로우 진행
+
+            else:
+                print("Exiting.")
+                return
+
+        # 브라우저 인증 플로우
+        print("\n" + "=" * 60)
+        print(" Azure AD Authentication")
+        print("=" * 60)
+        print("Starting authentication flow...")
+        print("Browser will open automatically.")
+        print("=" * 60)
+
+        result = await manager.authenticate_with_browser()
+
+        if result['status'] == 'success':
+            print(f"\nAuthentication Successful!")
+            print(f"  Email: {result['email']}")
+            user = result.get('user', {})
+            if user.get('display_name'):
+                print(f"  Name: {user['display_name']}")
+        elif result['status'] == 'timeout':
+            print("\nAuthentication timeout. Please try again.")
+        else:
+            print(f"\nAuthentication failed: {result.get('error', 'Unknown error')}")
+
+    except KeyboardInterrupt:
+        print("\nCancelled.")
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        print(f"\nError: {str(e)}")
     finally:
         await manager.close()
 
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(example_usage())
+    asyncio.run(main())

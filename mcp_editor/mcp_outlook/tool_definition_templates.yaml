@@ -1003,7 +1003,7 @@ tools:
         default: true
         has_default: true
         description: 메시지 수신 날짜/시간 (ISO 8601 형식, UTC)
-- name: 'test_handler '
+- name: test_handler
   description: New tool description
   inputSchema:
     type: object
