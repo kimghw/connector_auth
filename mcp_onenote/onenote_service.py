@@ -18,16 +18,6 @@ from .onenote_types import (
     ContentAction,
 )
 
-# mcp_service decorator is only needed for registry scanning, not runtime
-try:
-    from mcp_editor.mcp_service_registry.mcp_service_decorator import mcp_service
-except ImportError:
-    # Define a no-op decorator for runtime when mcp_editor is not available
-    def mcp_service(**kwargs):
-        def decorator(func):
-            return func
-        return decorator
-
 
 class OneNoteService:
     """
@@ -72,15 +62,6 @@ class OneNoteService:
     # 노트북 관련 메서드
     # ========================================================================
 
-    @mcp_service(
-        tool_name="handler_onenote_list_notebooks",
-        server_name="onenote",
-        service_name="list_notebooks",
-        category="onenote_notebook",
-        tags=["query", "notebook"],
-        priority=5,
-        description="OneNote 노트북 목록 조회",
-    )
     async def list_notebooks(
         self,
         user_email: str,
@@ -93,15 +74,6 @@ class OneNoteService:
     # 섹션 관련 메서드
     # ========================================================================
 
-    @mcp_service(
-        tool_name="handler_onenote_manage_sections",
-        server_name="onenote",
-        service_name="manage_sections",
-        category="onenote_section",
-        tags=["manage", "section"],
-        priority=5,
-        description="OneNote 섹션 관리 (생성, 목록 조회)",
-    )
     async def manage_sections(
         self,
         user_email: str,
@@ -128,15 +100,6 @@ class OneNoteService:
         else:
             return {"success": False, "error": f"알 수 없는 action: {action}"}
 
-    @mcp_service(
-        tool_name="handler_onenote_list_sections",
-        server_name="onenote",
-        service_name="list_sections",
-        category="onenote_section",
-        tags=["query", "section"],
-        priority=5,
-        description="OneNote 섹션 목록 조회",
-    )
     async def list_sections(
         self,
         user_email: str,
@@ -147,15 +110,6 @@ class OneNoteService:
         self._ensure_initialized()
         return await self._client.list_sections(user_email, notebook_id, top)
 
-    @mcp_service(
-        tool_name="handler_onenote_create_section",
-        server_name="onenote",
-        service_name="create_section",
-        category="onenote_section",
-        tags=["create", "section"],
-        priority=5,
-        description="OneNote 섹션 생성",
-    )
     async def create_section(
         self,
         user_email: str,
@@ -170,15 +124,6 @@ class OneNoteService:
     # 페이지 관련 메서드
     # ========================================================================
 
-    @mcp_service(
-        tool_name="handler_onenote_list_pages",
-        server_name="onenote",
-        service_name="list_pages",
-        category="onenote_page",
-        tags=["query", "page"],
-        priority=5,
-        description="OneNote 페이지 목록 조회",
-    )
     async def list_pages(
         self,
         user_email: str,
@@ -189,15 +134,6 @@ class OneNoteService:
         self._ensure_initialized()
         return await self._client.list_pages(user_email, section_id, top)
 
-    @mcp_service(
-        tool_name="handler_onenote_manage_page_content",
-        server_name="onenote",
-        service_name="manage_page_content",
-        category="onenote_page",
-        tags=["manage", "page", "content"],
-        priority=5,
-        description="OneNote 페이지 내용 관리 (조회, 생성, 삭제)",
-    )
     async def manage_page_content(
         self,
         user_email: str,
@@ -228,15 +164,6 @@ class OneNoteService:
         else:
             return {"success": False, "error": f"알 수 없는 action: {action}"}
 
-    @mcp_service(
-        tool_name="handler_onenote_get_page_content",
-        server_name="onenote",
-        service_name="get_page_content",
-        category="onenote_page",
-        tags=["query", "page", "content"],
-        priority=5,
-        description="OneNote 페이지 내용 조회",
-    )
     async def get_page_content(
         self,
         user_email: str,
@@ -246,15 +173,6 @@ class OneNoteService:
         self._ensure_initialized()
         return await self._client.get_page_content(user_email, page_id)
 
-    @mcp_service(
-        tool_name="handler_onenote_create_page",
-        server_name="onenote",
-        service_name="create_page",
-        category="onenote_page",
-        tags=["create", "page"],
-        priority=5,
-        description="OneNote 페이지 생성",
-    )
     async def create_page(
         self,
         user_email: str,
@@ -283,15 +201,6 @@ class OneNoteService:
 
         return result
 
-    @mcp_service(
-        tool_name="handler_onenote_edit_page",
-        server_name="onenote",
-        service_name="edit_page",
-        category="onenote_page",
-        tags=["edit", "page"],
-        priority=5,
-        description="OneNote 페이지 편집",
-    )
     async def edit_page(
         self,
         user_email: str,
@@ -336,15 +245,6 @@ class OneNoteService:
 
         return result
 
-    @mcp_service(
-        tool_name="handler_onenote_delete_page",
-        server_name="onenote",
-        service_name="delete_page",
-        category="onenote_page",
-        tags=["delete", "page"],
-        priority=5,
-        description="OneNote 페이지 삭제",
-    )
     async def delete_page(
         self,
         user_email: str,
@@ -364,15 +264,6 @@ class OneNoteService:
     # DB 연동 메서드 (최근 아이템, 동기화)
     # ========================================================================
 
-    @mcp_service(
-        tool_name="handler_onenote_sync_db",
-        server_name="onenote",
-        service_name="sync_db",
-        category="onenote_db",
-        tags=["sync", "db"],
-        priority=5,
-        description="OneNote 전체 페이지를 DB에 동기화",
-    )
     async def sync_db(
         self,
         user_email: str,
@@ -405,15 +296,6 @@ class OneNoteService:
 
         return result
 
-    @mcp_service(
-        tool_name="handler_onenote_get_recent_items",
-        server_name="onenote",
-        service_name="get_recent_items",
-        category="onenote_db",
-        tags=["query", "recent"],
-        priority=5,
-        description="최근 접근한 OneNote 섹션/페이지 조회",
-    )
     async def get_recent_items(
         self,
         user_email: str,
@@ -444,15 +326,6 @@ class OneNoteService:
             "count": len(items),
         }
 
-    @mcp_service(
-        tool_name="handler_onenote_save_section_to_db",
-        server_name="onenote",
-        service_name="save_section_to_db",
-        category="onenote_db",
-        tags=["save", "section", "db"],
-        priority=5,
-        description="섹션 정보를 DB에 저장 (최근 접근 기록)",
-    )
     async def save_section_to_db(
         self,
         user_email: str,
@@ -491,15 +364,6 @@ class OneNoteService:
             return {"success": True, "message": f"섹션 '{section_name}' 저장 완료"}
         return {"success": False, "message": "섹션 저장 실패"}
 
-    @mcp_service(
-        tool_name="handler_onenote_save_page_to_db",
-        server_name="onenote",
-        service_name="save_page_to_db",
-        category="onenote_db",
-        tags=["save", "page", "db"],
-        priority=5,
-        description="페이지 정보를 DB에 저장 (최근 접근 기록)",
-    )
     async def save_page_to_db(
         self,
         user_email: str,
@@ -535,15 +399,6 @@ class OneNoteService:
             return {"success": True, "message": f"페이지 '{page_title}' 저장 완료"}
         return {"success": False, "message": "페이지 저장 실패"}
 
-    @mcp_service(
-        tool_name="handler_onenote_find_section_by_name",
-        server_name="onenote",
-        service_name="find_section_by_name",
-        category="onenote_db",
-        tags=["query", "search", "section"],
-        priority=5,
-        description="이름으로 섹션 검색 (DB에서)",
-    )
     async def find_section_by_name(
         self,
         user_email: str,
@@ -566,15 +421,6 @@ class OneNoteService:
             return {"success": True, "section": section}
         return {"success": False, "message": f"섹션 '{section_name}'을 찾을 수 없습니다."}
 
-    @mcp_service(
-        tool_name="handler_onenote_find_page_by_name",
-        server_name="onenote",
-        service_name="find_page_by_name",
-        category="onenote_db",
-        tags=["query", "search", "page"],
-        priority=5,
-        description="이름으로 페이지 검색 (DB에서)",
-    )
     async def find_page_by_name(
         self,
         user_email: str,
@@ -601,15 +447,6 @@ class OneNoteService:
     # 페이지 요약 관련 메서드
     # ========================================================================
 
-    @mcp_service(
-        tool_name="handler_onenote_summarize_page",
-        server_name="onenote",
-        service_name="summarize_page",
-        category="onenote_summary",
-        tags=["summarize", "page", "ai"],
-        priority=5,
-        description="OneNote 페이지 AI 요약 생성 (전체 요약 + 단락별 요약 + 키워드 추출)",
-    )
     async def summarize_page(
         self,
         user_email: str,
@@ -685,15 +522,6 @@ class OneNoteService:
             "content_hash": summary_result["content_hash"],
         }
 
-    @mcp_service(
-        tool_name="handler_onenote_get_page_summary",
-        server_name="onenote",
-        service_name="get_page_summary",
-        category="onenote_summary",
-        tags=["query", "summary", "page"],
-        priority=5,
-        description="저장된 OneNote 페이지 요약 조회",
-    )
     async def get_page_summary(
         self,
         user_email: str,
@@ -716,15 +544,6 @@ class OneNoteService:
             return {"success": True, **summary}
         return {"success": False, "message": f"페이지 '{page_id}'의 요약이 없습니다."}
 
-    @mcp_service(
-        tool_name="handler_onenote_list_summarized_pages",
-        server_name="onenote",
-        service_name="list_summarized_pages",
-        category="onenote_summary",
-        tags=["query", "summary", "list"],
-        priority=5,
-        description="요약이 생성된 OneNote 페이지 목록 조회",
-    )
     async def list_summarized_pages(
         self,
         user_email: str,
@@ -747,15 +566,6 @@ class OneNoteService:
             "count": len(summaries),
         }
 
-    @mcp_service(
-        tool_name="handler_onenote_search_pages",
-        server_name="onenote",
-        service_name="search_pages",
-        category="onenote_summary",
-        tags=["search", "page", "ai"],
-        priority=5,
-        description="섹션 내 모든 페이지를 AI로 분석하여 질의와 관련된 페이지를 찾고 요약 반환",
-    )
     async def search_pages(
         self,
         user_email: str,
