@@ -4,9 +4,13 @@ OneNote Service - GraphOneNoteClient Facade
 (mcp_outlook/outlook_service.py 구조 참조)
 """
 
+import asyncio
+import logging
 from typing import Dict, Any, Optional, List
 
 from .graph_onenote_client import GraphOneNoteClient
+
+logger = logging.getLogger(__name__)
 from .onenote_db_service import OneNoteDBService
 from .onenote_types import (
     PageAction,
@@ -741,4 +745,145 @@ class OneNoteService:
             "success": True,
             "pages": summaries,
             "count": len(summaries),
+        }
+
+    @mcp_service(
+        tool_name="handler_onenote_search_pages",
+        server_name="onenote",
+        service_name="search_pages",
+        category="onenote_summary",
+        tags=["search", "page", "ai"],
+        priority=5,
+        description="섹션 내 모든 페이지를 AI로 분석하여 질의와 관련된 페이지를 찾고 요약 반환",
+    )
+    async def search_pages(
+        self,
+        user_email: str,
+        query: str,
+        section_id: Optional[str] = None,
+        concurrency: int = 5,
+    ) -> Dict[str, Any]:
+        """
+        섹션 내 페이지를 병렬로 순회하며 질의와 관련된 페이지를 찾아 요약 반환
+
+        Args:
+            user_email: 사용자 이메일
+            query: 검색 질의 (예: "디지털트윈 관련 내용")
+            section_id: 섹션 ID (없으면 전체 페이지 대상)
+            concurrency: 동시 처리 수 (기본 5)
+
+        Returns:
+            관련 페이지 목록과 요약
+        """
+        self._ensure_initialized()
+
+        from .onenote_summarizer import html_to_plain_text, is_sdk_available, _call_claude_sdk, load_config
+
+        if not is_sdk_available():
+            return {"success": False, "skipped": True, "message": "Claude Code SDK가 설치되지 않았습니다."}
+
+        # 1. 페이지 목록 조회
+        pages_result = await self._client.list_pages(user_email, section_id=section_id)
+        if not pages_result.get("success"):
+            return {"success": False, "error": pages_result.get("error", "페이지 목록 조회 실패")}
+
+        pages = pages_result.get("pages", [])
+        if not pages:
+            return {"success": True, "results": [], "count": 0, "message": "페이지가 없습니다."}
+
+        config = load_config()
+
+        # 2. 각 페이지의 콘텐츠를 가져와서 관련성 판단 + 요약 (세마포어로 동시성 제한)
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def _analyze_page(page: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            page_id = page.get("id")
+            page_title = page.get("title", "")
+
+            async with semaphore:
+                # 콘텐츠 가져오기
+                content_result = await self._client.get_page_content(user_email, page_id)
+                if not content_result.get("success"):
+                    return None
+
+                html_content = content_result.get("content", "")
+                plain_text = html_to_plain_text(html_content)
+
+                if not plain_text or len(plain_text.strip()) < 30:
+                    return None
+
+                # SDK로 관련성 판단 + 요약을 한 번에
+                prompt = (
+                    f"다음 페이지 내용이 질의와 관련이 있는지 판단하고, "
+                    f"관련이 있으면 핵심 내용을 3줄 이내로 요약해 주세요.\n\n"
+                    f"[질의]\n{query}\n\n"
+                    f"[페이지 제목]\n{page_title}\n\n"
+                    f"[페이지 내용]\n{plain_text[:6000]}\n\n"
+                    f"반드시 아래 형식으로만 응답하세요:\n"
+                    f"관련여부: 예 또는 아니오\n"
+                    f"요약: (관련이 있는 경우만 요약 작성)\n"
+                )
+
+                response = await _call_claude_sdk(prompt, config)
+                if not response:
+                    return None
+
+                # 응답 파싱
+                lines = response.strip().split("\n")
+                is_relevant = False
+                summary = ""
+
+                for line in lines:
+                    line_stripped = line.strip()
+                    if line_stripped.startswith("관련여부:"):
+                        value = line_stripped.replace("관련여부:", "").strip()
+                        is_relevant = "예" in value or "yes" in value.lower()
+                    elif line_stripped.startswith("요약:"):
+                        summary = line_stripped.replace("요약:", "").strip()
+
+                # 요약이 여러 줄일 수 있음
+                if is_relevant and not summary:
+                    summary_lines = []
+                    found_summary = False
+                    for line in lines:
+                        if line.strip().startswith("요약:"):
+                            found_summary = True
+                            rest = line.strip().replace("요약:", "").strip()
+                            if rest:
+                                summary_lines.append(rest)
+                        elif found_summary:
+                            summary_lines.append(line.strip())
+                    summary = " ".join(summary_lines).strip()
+
+                if is_relevant:
+                    return {
+                        "page_id": page_id,
+                        "page_title": page_title,
+                        "summary": summary,
+                        "web_url": page.get("web_url"),
+                    }
+
+                return None
+
+        # 3. 전체 페이지 병렬 분석
+        tasks = [_analyze_page(page) for page in pages]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # 4. 관련 페이지만 필터링
+        relevant_pages = []
+        errors = 0
+        for r in results:
+            if isinstance(r, Exception):
+                errors += 1
+                logger.warning(f"페이지 분석 오류: {r}")
+            elif r is not None:
+                relevant_pages.append(r)
+
+        return {
+            "success": True,
+            "query": query,
+            "results": relevant_pages,
+            "count": len(relevant_pages),
+            "total_pages_scanned": len(pages),
+            "errors": errors,
         }
