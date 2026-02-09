@@ -49,7 +49,7 @@ class CallbackServer:
 
         # AuthManager가 없으면 독립 실행 모드
         if not auth_manager:
-            from auth import AuthManager
+            from session.auth_manager import AuthManager
             self.auth_manager = AuthManager()
             self.standalone_mode = True
         else:

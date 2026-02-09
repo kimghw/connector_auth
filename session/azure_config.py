@@ -245,10 +245,9 @@ class AzureConfig:
             self.default_scopes = scopes_str.split()
         else:
             self.default_scopes = [
-                "User.Read",
-                "Mail.Read",
-                "Mail.Send",
-                "offline_access"
+                "https://graph.microsoft.com/.default",
+                "offline_access",
+                "openid"
             ]
 
     def save_current_config_to_db(self) -> bool:

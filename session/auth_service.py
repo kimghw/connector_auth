@@ -66,6 +66,14 @@ class AuthService:
                 - auth_url: Azure AD 인증 URL
                 - state: 보안 검증용 state
         """
+        # DB/테이블 존재 보장
+        self.auth_db.ensure_tables()
+        self.auth_db.ensure_default_app()
+
+        # Config가 로드되지 않았으면 다시 로드
+        if not self.config.azure_client_id:
+            self.config.load_config_from_db()
+
         # State 생성
         state = secrets.token_urlsafe(32)
 
@@ -337,9 +345,12 @@ class AuthService:
             refresh_token = token_info.get('refresh_token')
             if not refresh_token:
                 logger.error(f"No refresh token available for {email}")
+                auth_info = self.start_auth_flow()
                 return {
-                    'status': 'error',
-                    'message': 'No refresh token available. Re-authentication required.',
+                    'status': 'auth_required',
+                    'auth_url': auth_info['auth_url'],
+                    'state': auth_info['state'],
+                    'message': f'No refresh token available. 재인증이 필요합니다.\n{auth_info["auth_url"]}',
                     'refreshed': False
                 }
 
@@ -347,9 +358,12 @@ class AuthService:
             created_at = token_info.get('created_at', token_info.get('updated_at'))
             if self.is_refresh_token_expired(created_at):
                 logger.error(f"Refresh token expired for {email}")
+                auth_info = self.start_auth_flow()
                 return {
-                    'status': 'error',
-                    'message': 'Refresh token expired. Re-authentication required.',
+                    'status': 'auth_required',
+                    'auth_url': auth_info['auth_url'],
+                    'state': auth_info['state'],
+                    'message': f'Refresh token 만료. 재인증이 필요합니다.\n{auth_info["auth_url"]}',
                     'refreshed': False
                 }
 
