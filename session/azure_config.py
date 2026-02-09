@@ -11,8 +11,9 @@ import logging
 from dotenv import load_dotenv
 
 # .env 파일에서 환경변수 로드 (프로젝트 루트 기준)
+# Use utf-8-sig encoding to handle Windows BOM (Byte Order Mark)
 _env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
-_env_loaded = load_dotenv(_env_path)
+_env_loaded = load_dotenv(_env_path, encoding="utf-8-sig")
 if not _env_loaded:
     import sys
     print(f"[WARN] .env file not found at: {_env_path}", file=sys.stderr)

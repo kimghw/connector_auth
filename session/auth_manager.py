@@ -12,8 +12,9 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # 환경 변수 로드 (프로젝트 루트 기준)
+# Use utf-8-sig encoding to handle Windows BOM (Byte Order Mark)
 _env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
-load_dotenv(_env_path)
+load_dotenv(_env_path, encoding="utf-8-sig")
 
 from .auth_service import AuthService
 from .auth_database import AuthDatabase

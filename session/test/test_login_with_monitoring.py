@@ -15,7 +15,7 @@ import time
 
 # Load environment variables (프로젝트 루트 기준)
 _env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env")
-load_dotenv(_env_path)
+load_dotenv(_env_path, encoding="utf-8-sig")
 
 # Add parent directories to path
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

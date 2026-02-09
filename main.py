@@ -11,7 +11,7 @@ import logging
 
 # Load environment variables (프로젝트 루트 기준)
 _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-load_dotenv(_env_path)
+load_dotenv(_env_path, encoding="utf-8-sig")
 
 # Configure logging
 logging.basicConfig(

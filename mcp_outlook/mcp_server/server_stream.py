@@ -25,7 +25,7 @@ grandparent_dir = os.path.dirname(parent_dir)
 
 # Load .env from project root before any imports that need env vars
 _env_path = os.path.join(grandparent_dir, ".env")
-load_dotenv(_env_path)
+load_dotenv(_env_path, encoding="utf-8-sig")
 
 # Add paths for imports (generalized for all servers)
 server_module_dir = os.path.join(grandparent_dir, "mcp_outlook")

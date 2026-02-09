@@ -21,10 +21,29 @@ parent_dir = os.path.dirname(current_dir)
 grandparent_dir = os.path.dirname(parent_dir)
 
 # Load .env from project root before any imports that need env vars
+# Use utf-8-sig encoding to handle Windows BOM (Byte Order Mark)
 _env_path = os.path.join(grandparent_dir, ".env")
-_env_loaded = load_dotenv(_env_path)
+_env_loaded = load_dotenv(_env_path, encoding="utf-8-sig")
+
+# BOM safety: strip \ufeff from env vars that may have been corrupted
+for _key in ("AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "AZURE_TENANT_ID", "AZURE_REDIRECT_URI", "AZURE_SCOPES"):
+    _val = os.environ.get(_key)
+    if _val and _val.startswith("\ufeff"):
+        os.environ[_key] = _val.lstrip("\ufeff")
+
 print(f"[DEBUG] .env path: {_env_path}, exists: {os.path.exists(_env_path)}, loaded: {_env_loaded}", file=sys.stderr)
-print(f"[DEBUG] AZURE_CLIENT_ID after load_dotenv: {os.getenv('AZURE_CLIENT_ID')}", file=sys.stderr)
+print(f"[DEBUG] AZURE_CLIENT_ID: {repr(os.getenv('AZURE_CLIENT_ID'))}", file=sys.stderr)
+if not os.getenv('AZURE_CLIENT_ID'):
+    # Try reading .env file directly to diagnose
+    if os.path.exists(_env_path):
+        try:
+            with open(_env_path, 'rb') as f:
+                first_bytes = f.read(100)
+            print(f"[ERROR] AZURE_CLIENT_ID is None despite .env existing! First bytes: {first_bytes[:50]}", file=sys.stderr)
+        except Exception as e:
+            print(f"[ERROR] Cannot read .env: {e}", file=sys.stderr)
+    else:
+        print(f"[ERROR] .env file does not exist at: {_env_path}", file=sys.stderr)
 
 # CRITICAL: Redirect stdout to stderr BEFORE any module imports.
 # STDIO MCP protocol uses stdout exclusively for JSON-RPC messages.
