@@ -22,7 +22,9 @@ grandparent_dir = os.path.dirname(parent_dir)
 
 # Load .env from project root before any imports that need env vars
 _env_path = os.path.join(grandparent_dir, ".env")
-load_dotenv(_env_path)
+_env_loaded = load_dotenv(_env_path)
+print(f"[DEBUG] .env path: {_env_path}, exists: {os.path.exists(_env_path)}, loaded: {_env_loaded}", file=sys.stderr)
+print(f"[DEBUG] AZURE_CLIENT_ID after load_dotenv: {os.getenv('AZURE_CLIENT_ID')}", file=sys.stderr)
 
 # Add paths for imports (generalized for all servers)
 server_module_dir = os.path.join(grandparent_dir, "mcp_outlook")
