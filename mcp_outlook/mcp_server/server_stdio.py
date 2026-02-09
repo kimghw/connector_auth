@@ -13,11 +13,16 @@ import os
 import logging
 import asyncio
 from typing import AsyncIterator
+from dotenv import load_dotenv
 
 # Add parent directories to path for module access
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 grandparent_dir = os.path.dirname(parent_dir)
+
+# Load .env from project root before any imports that need env vars
+_env_path = os.path.join(grandparent_dir, ".env")
+load_dotenv(_env_path)
 
 # Add paths for imports (generalized for all servers)
 server_module_dir = os.path.join(grandparent_dir, "mcp_outlook")
