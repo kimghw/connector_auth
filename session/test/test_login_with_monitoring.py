@@ -28,7 +28,7 @@ from auth import AuthManager, AuthDatabase
 def check_db_state(step_name: str, email: str = None):
     """DB 상태 확인 및 출력"""
     print(f"\n{'='*60}")
-    print(f"📊 DB 상태 확인 - {step_name}")
+    print(f"[STATS] DB 상태 확인 - {step_name}")
     print(f"{'='*60}")
 
     conn = sqlite3.connect("database/auth.db")
@@ -55,7 +55,7 @@ def check_db_state(step_name: str, email: str = None):
                 print(f"  Updated: {user['updated_at']}")
                 print("-" * 50)
         else:
-            print("  ❌ 사용자 정보 없음")
+            print("  [ERROR] 사용자 정보 없음")
 
         # 2. 토큰 정보 확인
         print("\n[2] 토큰 정보 (azure_token_info):")
@@ -99,13 +99,13 @@ def check_db_state(step_name: str, email: str = None):
                     )
                     now = datetime.now(timezone.utc)
                     if now >= expires_at:
-                        print(f"  ⚠️ 토큰 만료됨!")
+                        print(f"  [WARN] 토큰 만료됨!")
                     else:
                         remaining = expires_at - now
-                        print(f"  ✅ 토큰 유효 (남은 시간: {remaining})")
+                        print(f"  [OK] 토큰 유효 (남은 시간: {remaining})")
                 print("-" * 50)
         else:
-            print("  ❌ 토큰 정보 없음")
+            print("  [ERROR] 토큰 정보 없음")
 
         # 3. 통계 정보
         print("\n[3] 전체 통계:")
@@ -129,7 +129,7 @@ def check_db_state(step_name: str, email: str = None):
         print(f"  유효한 토큰 수: {valid_token_count}")
 
     except Exception as e:
-        print(f"❌ DB 조회 오류: {e}")
+        print(f"[ERROR] DB 조회 오류: {e}")
     finally:
         conn.close()
 
@@ -138,7 +138,7 @@ async def test_login_flow():
     """로그인 플로우 테스트 - 단계별 DB 모니터링"""
 
     print("\n" + "="*70)
-    print("🔐 Azure AD 로그인 테스트 (DB 모니터링 포함)")
+    print("[AUTH] Azure AD 로그인 테스트 (DB 모니터링 포함)")
     print("="*70)
 
     auth_manager = AuthManager()
@@ -153,33 +153,33 @@ async def test_login_flow():
         existing_emails = {u['email'] for u in existing_users}
         print(f"\n현재 등록된 사용자: {len(existing_emails)}명")
 
-        input("\n🔵 Enter를 눌러 로그인 시작...")
+        input("\n[>] Enter를 눌러 로그인 시작...")
 
         # Step 2: 인증 URL 생성
         print("\n[Step 2] 인증 URL 생성 중...")
         auth_info = auth_manager.start_authentication()
-        print(f"✅ 인증 URL 생성 완료")
+        print(f"[OK] 인증 URL 생성 완료")
         print(f"   State: {auth_info['state'][:20]}...")
 
         # 콜백 서버 시작
         print("\n[Step 3] 콜백 서버 시작...")
         await auth_manager.ensure_callback_server(port=5000)
-        print("✅ 콜백 서버 실행 중 (http://localhost:5000)")
+        print("[OK] 콜백 서버 실행 중 (http://localhost:5000)")
 
         # Step 4: 브라우저 열기
         print("\n[Step 4] 브라우저에서 인증 페이지 열기...")
-        print(f"🌐 인증 URL: {auth_info['auth_url'][:100]}...")
+        print(f"[URL] 인증 URL: {auth_info['auth_url'][:100]}...")
 
         try:
             webbrowser.open(auth_info['auth_url'])
-            print("✅ 브라우저 열림")
+            print("[OK] 브라우저 열림")
         except Exception as e:
-            print(f"⚠️ 브라우저 자동 실행 실패: {e}")
+            print(f"[WARN] 브라우저 자동 실행 실패: {e}")
             print(f"\n수동으로 접속: {auth_info['auth_url']}")
 
         # Step 5: 인증 대기
         print("\n[Step 5] 사용자 인증 대기 중...")
-        print("⏳ 브라우저에서 로그인을 완료해주세요 (최대 5분)...")
+        print("[WAIT] 브라우저에서 로그인을 완료해주세요 (최대 5분)...")
 
         # 폴링 방식으로 새 사용자 또는 토큰 업데이트 확인
         start_time = asyncio.get_event_loop().time()
@@ -203,7 +203,7 @@ async def test_login_flow():
             new_emails = current_emails - existing_emails
             if new_emails:
                 authenticated_email = list(new_emails)[0]
-                print(f"\n✅ 새 사용자 인증 완료: {authenticated_email}")
+                print(f"\n[OK] 새 사용자 인증 완료: {authenticated_email}")
                 break
 
             # 2. 기존 사용자의 토큰이 업데이트되었는지 확인
@@ -214,12 +214,12 @@ async def test_login_flow():
                     if email in existing_token_times:
                         if current_update_time != existing_token_times[email]:
                             authenticated_email = email
-                            print(f"\n✅ 기존 사용자 재인증 완료: {authenticated_email}")
+                            print(f"\n[OK] 기존 사용자 재인증 완료: {authenticated_email}")
                             break
                     else:
                         # 새로운 토큰이 생성된 경우
                         authenticated_email = email
-                        print(f"\n✅ 토큰 생성 완료: {authenticated_email}")
+                        print(f"\n[OK] 토큰 생성 완료: {authenticated_email}")
                         break
 
             if authenticated_email:
@@ -227,10 +227,10 @@ async def test_login_flow():
 
             # 진행 상황 표시
             elapsed = int(asyncio.get_event_loop().time() - start_time)
-            print(f"  ⏱️ 대기 중... ({elapsed}초)", end='\r')
+            print(f"  [TIME] 대기 중... ({elapsed}초)", end='\r')
 
         if not authenticated_email:
-            print("\n❌ 인증 시간 초과")
+            print("\n[ERROR] 인증 시간 초과")
             return
 
         # Step 6: 인증 직후 DB 상태 확인
@@ -243,23 +243,23 @@ async def test_login_flow():
         token_info = await auth_manager.get_token(authenticated_email)
 
         if token_info:
-            print(f"✅ 토큰 조회 성공")
+            print(f"[OK] 토큰 조회 성공")
             print(f"   Email: {token_info['email']}")
             print(f"   만료 여부: {'만료됨' if token_info['is_expired'] else '유효함'}")
             print(f"   Refresh Token: {'있음' if token_info.get('refresh_token') else '없음'}")
             print(f"   만료 시간: {token_info['expires_at']}")
         else:
-            print("❌ 토큰 조회 실패")
+            print("[ERROR] 토큰 조회 실패")
 
         # Step 8: 토큰 갱신 테스트 (refresh token이 있는 경우)
         if token_info and token_info.get('refresh_token'):
-            input("\n🔵 Enter를 눌러 토큰 갱신 테스트...")
+            input("\n[>] Enter를 눌러 토큰 갱신 테스트...")
 
             print("\n[Step 8] 토큰 갱신 테스트")
             refresh_result = await auth_manager.refresh_token(authenticated_email)
 
             if refresh_result['status'] == 'success':
-                print(f"✅ 토큰 갱신 성공")
+                print(f"[OK] 토큰 갱신 성공")
                 print(f"   새 만료 시간: {refresh_result['expires_at']}")
 
                 # 갱신 후 DB 상태 확인
@@ -267,7 +267,7 @@ async def test_login_flow():
                 await asyncio.sleep(1)  # DB 쓰기 대기
                 check_db_state("토큰 갱신 후", authenticated_email)
             else:
-                print(f"❌ 토큰 갱신 실패: {refresh_result.get('error')}")
+                print(f"[ERROR] 토큰 갱신 실패: {refresh_result.get('error')}")
 
         # Step 10: 최종 통계
         print("\n[Step 10] 최종 상태 요약")
@@ -276,23 +276,23 @@ async def test_login_flow():
         all_users = auth_manager.list_users()
         valid_users = [u for u in all_users if not u.get('token_expired', True)]
 
-        print(f"📊 전체 사용자: {len(all_users)}명")
-        print(f"✅ 유효한 토큰 보유: {len(valid_users)}명")
-        print(f"⚠️ 만료된 토큰: {len(all_users) - len(valid_users)}명")
+        print(f"[STATS] 전체 사용자: {len(all_users)}명")
+        print(f"[OK] 유효한 토큰 보유: {len(valid_users)}명")
+        print(f"[WARN] 만료된 토큰: {len(all_users) - len(valid_users)}명")
 
         print("\n등록된 사용자 목록:")
         for user in all_users:
-            status = "✅" if not user.get('token_expired', True) else "⚠️"
+            status = "[OK]" if not user.get('token_expired', True) else "[WARN]"
             print(f"  {status} {user['email']} - {user.get('display_name', 'N/A')}")
 
     except Exception as e:
-        print(f"\n❌ 테스트 중 오류 발생: {e}")
+        print(f"\n[ERROR] 테스트 중 오류 발생: {e}")
         import traceback
         traceback.print_exc()
     finally:
         # 정리
         await auth_manager.close()
-        print("\n✅ 테스트 완료 - 리소스 정리됨")
+        print("\n[OK] 테스트 완료 - 리소스 정리됨")
 
 
 if __name__ == "__main__":

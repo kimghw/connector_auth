@@ -28,7 +28,7 @@ from auth import AuthManager, AuthDatabase
 def check_db_state(step_name: str, email: str = None):
     """DB 상태 확인 및 출력"""
     print(f"\n{'='*60}")
-    print(f"📊 DB 상태 확인 - {step_name}")
+    print(f"[INFO] DB 상태 확인 - {step_name}")
     print(f"{'='*60}")
 
     conn = sqlite3.connect("database/auth.db")
@@ -44,7 +44,7 @@ def check_db_state(step_name: str, email: str = None):
             cursor.execute("""
                 SELECT user_email,
                        SUBSTR(access_token, 1, 30) || '...' as access_token_preview,
-                       CASE WHEN refresh_token IS NOT NULL THEN '✅ 있음' ELSE '❌ 없음' END as refresh_status,
+                       CASE WHEN refresh_token IS NOT NULL THEN '[OK] 있음' ELSE '[ERROR] 없음' END as refresh_status,
                        access_token_expires_at,
                        updated_at
                 FROM azure_token_info
@@ -54,7 +54,7 @@ def check_db_state(step_name: str, email: str = None):
             cursor.execute("""
                 SELECT user_email,
                        SUBSTR(access_token, 1, 30) || '...' as access_token_preview,
-                       CASE WHEN refresh_token IS NOT NULL THEN '✅ 있음' ELSE '❌ 없음' END as refresh_status,
+                       CASE WHEN refresh_token IS NOT NULL THEN '[OK] 있음' ELSE '[ERROR] 없음' END as refresh_status,
                        access_token_expires_at,
                        updated_at
                 FROM azure_token_info
@@ -79,20 +79,20 @@ def check_db_state(step_name: str, email: str = None):
                 if remaining.total_seconds() > 0:
                     hours = int(remaining.total_seconds() // 3600)
                     minutes = int((remaining.total_seconds() % 3600) // 60)
-                    print(f"  ⏱️ 만료까지: {hours}시간 {minutes}분")
+                    print(f"  [TIME] 만료까지: {hours}시간 {minutes}분")
                 else:
-                    print(f"  ⚠️ 토큰 만료됨!")
+                    print(f"  [WARN] 토큰 만료됨!")
             print("-" * 50)
 
     except Exception as e:
-        print(f"❌ DB 조회 오류: {e}")
+        print(f"[ERROR] DB 조회 오류: {e}")
     finally:
         conn.close()
 
 
 async def fetch_emails_with_token(email: str, access_token: str, count: int = 5):
     """Microsoft Graph API로 이메일 조회"""
-    print(f"\n📧 이메일 조회 중 (상위 {count}개)...")
+    print(f"\n[MAIL] 이메일 조회 중 (상위 {count}개)...")
 
     headers = {
         'Authorization': f'Bearer {access_token}',
@@ -109,7 +109,7 @@ async def fetch_emails_with_token(email: str, access_token: str, count: int = 5)
                     data = await response.json()
                     messages = data.get('value', [])
 
-                    print(f"✅ {len(messages)}개 이메일 조회 성공\n")
+                    print(f"[OK] {len(messages)}개 이메일 조회 성공\n")
                     print("-" * 80)
 
                     for i, msg in enumerate(messages, 1):
@@ -130,24 +130,24 @@ async def fetch_emails_with_token(email: str, access_token: str, count: int = 5)
                     return True
 
                 elif response.status == 401:
-                    print("❌ 인증 실패 - 토큰이 유효하지 않습니다")
+                    print("[ERROR] 인증 실패 - 토큰이 유효하지 않습니다")
                     error_data = await response.text()
                     print(f"   오류: {error_data[:200]}")
                     return False
                 else:
-                    print(f"❌ 이메일 조회 실패 (HTTP {response.status})")
+                    print(f"[ERROR] 이메일 조회 실패 (HTTP {response.status})")
                     error_data = await response.text()
                     print(f"   응답: {error_data[:200]}")
                     return False
 
         except Exception as e:
-            print(f"❌ 이메일 조회 중 오류: {e}")
+            print(f"[ERROR] 이메일 조회 중 오류: {e}")
             return False
 
 
 async def fetch_calendar_events(email: str, access_token: str):
     """캘린더 이벤트 조회"""
-    print(f"\n📅 캘린더 이벤트 조회 중...")
+    print(f"\n[CAL] 캘린더 이벤트 조회 중...")
 
     headers = {
         'Authorization': f'Bearer {access_token}',
@@ -168,14 +168,14 @@ async def fetch_calendar_events(email: str, access_token: str):
                     events = data.get('value', [])
 
                     if events:
-                        print(f"✅ {len(events)}개 이벤트 발견 (향후 7일)\n")
+                        print(f"[OK] {len(events)}개 이벤트 발견 (향후 7일)\n")
                         for event in events[:5]:  # 상위 5개만
                             start_time = event.get('start', {}).get('dateTime', '')
                             if start_time:
                                 dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
                                 start_time = dt.strftime('%m/%d %H:%M')
 
-                            print(f"  📌 {event.get('subject', '제목 없음')}")
+                            print(f"  [EVENT] {event.get('subject', '제목 없음')}")
                             print(f"     시간: {start_time}")
                             location = event.get('location', {}).get('displayName')
                             if location:
@@ -185,11 +185,11 @@ async def fetch_calendar_events(email: str, access_token: str):
                         print("  향후 7일간 예정된 이벤트 없음")
                     return True
                 else:
-                    print(f"❌ 캘린더 조회 실패 (HTTP {response.status})")
+                    print(f"[ERROR] 캘린더 조회 실패 (HTTP {response.status})")
                     return False
 
         except Exception as e:
-            print(f"❌ 캘린더 조회 중 오류: {e}")
+            print(f"[ERROR] 캘린더 조회 중 오류: {e}")
             return False
 
 
@@ -197,7 +197,7 @@ async def test_email_fetch_flow():
     """이메일 조회 플로우 테스트 - 단계별 DB 모니터링"""
 
     print("\n" + "="*80)
-    print("📧 Microsoft Graph API 이메일 조회 테스트 (DB 모니터링 포함)")
+    print("[MAIL] Microsoft Graph API 이메일 조회 테스트 (DB 모니터링 포함)")
     print("="*80)
 
     auth_manager = AuthManager()
@@ -208,14 +208,14 @@ async def test_email_fetch_flow():
         users = auth_manager.list_users()
 
         if not users:
-            print("❌ 인증된 사용자가 없습니다. 먼저 로그인을 진행하세요.")
+            print("[ERROR] 인증된 사용자가 없습니다. 먼저 로그인을 진행하세요.")
             return
 
         print(f"\n인증된 사용자 목록 ({len(users)}명):")
         print("-" * 60)
         for i, user in enumerate(users):
-            status = "✅ 유효" if not user.get('token_expired', True) else "⚠️ 만료"
-            refresh = "🔄" if user.get('has_refresh_token') else "❌"
+            status = "[OK] 유효" if not user.get('token_expired', True) else "[WARN] 만료"
+            refresh = "[REFRESH]" if user.get('has_refresh_token') else "[ERROR]"
             print(f"  [{i+1}] {user['email']} - {status} {refresh}")
 
         # 사용자 선택
@@ -227,11 +227,11 @@ async def test_email_fetch_flow():
                 choice = int(input(f"\n테스트할 사용자 번호 선택 (1-{len(users)}): ")) - 1
                 selected_user = users[choice]
             except (ValueError, IndexError):
-                print("❌ 잘못된 선택")
+                print("[ERROR] 잘못된 선택")
                 return
 
         selected_email = selected_user['email']
-        print(f"\n✅ 선택된 사용자: {selected_email}")
+        print(f"\n[OK] 선택된 사용자: {selected_email}")
 
         # Step 2: 현재 토큰 상태 확인
         print("\n[Step 2] 토큰 상태 확인")
@@ -242,7 +242,7 @@ async def test_email_fetch_flow():
         token_info = await auth_manager.get_token(selected_email)
 
         if not token_info:
-            print("❌ 토큰을 찾을 수 없습니다.")
+            print("[ERROR] 토큰을 찾을 수 없습니다.")
             return
 
         print(f"  토큰 상태: {'만료됨' if token_info['is_expired'] else '유효함'}")
@@ -250,20 +250,20 @@ async def test_email_fetch_flow():
         # 토큰이 만료된 경우 갱신 시도
         if token_info['is_expired']:
             if token_info.get('refresh_token'):
-                print("  🔄 토큰 갱신 시도 중...")
+                print("  [REFRESH] 토큰 갱신 시도 중...")
                 refresh_result = await auth_manager.refresh_token(selected_email)
 
                 if refresh_result['status'] == 'success':
-                    print("  ✅ 토큰 갱신 성공")
+                    print("  [OK] 토큰 갱신 성공")
                     # 갱신된 토큰 다시 가져오기
                     token_info = await auth_manager.get_token(selected_email)
                     check_db_state("토큰 갱신 후", selected_email)
                 else:
-                    print(f"  ❌ 토큰 갱신 실패: {refresh_result.get('error')}")
+                    print(f"  [ERROR] 토큰 갱신 실패: {refresh_result.get('error')}")
                     print("  재인증이 필요합니다.")
                     return
             else:
-                print("  ❌ Refresh token이 없어 갱신 불가")
+                print("  [ERROR] Refresh token이 없어 갱신 불가")
                 print("  재인증이 필요합니다.")
                 return
 
@@ -274,25 +274,25 @@ async def test_email_fetch_flow():
         access_token = token_info['access_token']
 
         # 4-1: 사용자 프로필 조회
-        print("\n👤 사용자 프로필 조회...")
+        print("\n[USER] 사용자 프로필 조회...")
         async with aiohttp.ClientSession() as session:
             headers = {'Authorization': f'Bearer {access_token}'}
             async with session.get('https://graph.microsoft.com/v1.0/me', headers=headers) as response:
                 if response.status == 200:
                     profile = await response.json()
-                    print(f"✅ 사용자: {profile.get('displayName', 'N/A')}")
+                    print(f"[OK] 사용자: {profile.get('displayName', 'N/A')}")
                     print(f"   이메일: {profile.get('mail') or profile.get('userPrincipalName', 'N/A')}")
                     print(f"   직책: {profile.get('jobTitle', 'N/A')}")
                     print(f"   부서: {profile.get('department', 'N/A')}")
                 else:
-                    print(f"❌ 프로필 조회 실패 (HTTP {response.status})")
+                    print(f"[ERROR] 프로필 조회 실패 (HTTP {response.status})")
 
         # 4-2: 이메일 조회
         success = await fetch_emails_with_token(selected_email, access_token, count=5)
 
         if success:
             # 4-3: 캘린더 이벤트 조회 (선택적)
-            choice = input("\n📅 캘린더 이벤트도 조회하시겠습니까? (y/n): ")
+            choice = input("\n[CAL] 캘린더 이벤트도 조회하시겠습니까? (y/n): ")
             if choice.lower() == 'y':
                 await fetch_calendar_events(selected_email, access_token)
 
@@ -309,7 +309,7 @@ async def test_email_fetch_flow():
                     data = await response.json()
                     folders = data.get('value', [])
 
-                    print("📁 메일 폴더 현황:\n")
+                    print("[FOLDER] 메일 폴더 현황:\n")
                     for folder in folders[:10]:  # 상위 10개
                         total = folder.get('totalItemCount', 0)
                         unread = folder.get('unreadItemCount', 0)
@@ -323,21 +323,21 @@ async def test_email_fetch_flow():
 
         # 통계 요약
         print("\n" + "="*60)
-        print("📊 테스트 요약")
+        print("[INFO] 테스트 요약")
         print("="*60)
-        print(f"✅ 테스트 사용자: {selected_email}")
-        print(f"✅ 토큰 상태: 유효함")
-        print(f"✅ Graph API 호출: 성공")
-        print(f"✅ 이메일 조회: 완료")
+        print(f"[OK] 테스트 사용자: {selected_email}")
+        print(f"[OK] 토큰 상태: 유효함")
+        print(f"[OK] Graph API 호출: 성공")
+        print(f"[OK] 이메일 조회: 완료")
 
     except Exception as e:
-        print(f"\n❌ 테스트 중 오류 발생: {e}")
+        print(f"\n[ERROR] 테스트 중 오류 발생: {e}")
         import traceback
         traceback.print_exc()
     finally:
         # 정리
         await auth_manager.close()
-        print("\n✅ 테스트 완료 - 리소스 정리됨")
+        print("\n[OK] 테스트 완료 - 리소스 정리됨")
 
 
 if __name__ == "__main__":

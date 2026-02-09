@@ -52,13 +52,13 @@ def run_app():
                 cwd=jinja_dir
             )
             if result.returncode == 0:
-                print("✅ editor_config.json updated successfully")
+                print("[OK] editor_config.json updated successfully")
             else:
-                print(f"⚠️ Config generation warning: {result.stderr[:200] if result.stderr else 'Unknown'}")
+                print(f"[WARN] Config generation warning: {result.stderr[:200] if result.stderr else 'Unknown'}")
         except Exception as e:
-            print(f"⚠️ Could not auto-generate config: {e}")
+            print(f"[WARN] Could not auto-generate config: {e}")
     else:
-        print(f"⚠️ generate_editor_config.py not found at {generate_config_script}")
+        print(f"[WARN] generate_editor_config.py not found at {generate_config_script}")
 
     # Scan all registries on startup
     print("Scanning MCP service registries...")

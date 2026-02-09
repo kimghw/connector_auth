@@ -45,7 +45,7 @@ class MCPServerScaffold:
         Returns:
             Dictionary with created paths and status
         """
-        print(f"🚀 Creating MCP server project: {server_name}")
+        print(f"[START] Creating MCP server project: {server_name}")
         print("=" * 60)
 
         result = {
@@ -64,7 +64,7 @@ class MCPServerScaffold:
             for directory in [server_dir, mcp_server_dir, backups_dir]:
                 directory.mkdir(parents=True, exist_ok=True)
                 result["created_dirs"].append(str(directory))
-                print(f"✓ Created directory: {directory}")
+                print(f"[OK] Created directory: {directory}")
 
             # 2. Create __init__.py for mcp_server
             init_file = mcp_server_dir / "__init__.py"
@@ -77,7 +77,7 @@ __all__ = ['app', 'MCP_TOOLS']
 '''
             init_file.write_text(init_content)
             result["created_files"].append(str(init_file))
-            print(f"✓ Created: {init_file}")
+            print(f"[OK] Created: {init_file}")
 
             # 3. Create server.py from template
             server_template = self.env.get_template("mcp_server_scaffold_template.jinja2")
@@ -89,7 +89,7 @@ __all__ = ['app', 'MCP_TOOLS']
             server_file = mcp_server_dir / "server.py"
             server_file.write_text(server_content)
             result["created_files"].append(str(server_file))
-            print(f"✓ Created: {server_file}")
+            print(f"[OK] Created: {server_file}")
 
             # 4. Create empty tool_definitions.py
             tool_defs_content = '''"""
@@ -106,7 +106,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             tool_defs_file = mcp_server_dir / "tool_definitions.py"
             tool_defs_file.write_text(tool_defs_content)
             result["created_files"].append(str(tool_defs_file))
-            print(f"✓ Created: {tool_defs_file}")
+            print(f"[OK] Created: {tool_defs_file}")
 
             # 5. Copy mcp_decorators.py from reference
             reference_decorators = self.project_root / "mcp_outlook" / "mcp_server" / "mcp_decorators.py"
@@ -114,7 +114,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 target_decorators = mcp_server_dir / "mcp_decorators.py"
                 shutil.copy2(reference_decorators, target_decorators)
                 result["created_files"].append(str(target_decorators))
-                print(f"✓ Copied: {target_decorators}")
+                print(f"[OK] Copied: {target_decorators}")
 
             # 6. Create run.py
             run_content = f'''#!/usr/bin/env python3
@@ -136,7 +136,7 @@ if __name__ == "__main__":
             run_file.write_text(run_content)
             run_file.chmod(0o755)
             result["created_files"].append(str(run_file))
-            print(f"✓ Created: {run_file}")
+            print(f"[OK] Created: {run_file}")
 
             # 7. Create README.md
             readme_content = f'''# MCP {server_name.title()} Server
@@ -177,7 +177,7 @@ cd ../../mcp_editor
             readme_file = mcp_server_dir / "README.md"
             readme_file.write_text(readme_content)
             result["created_files"].append(str(readme_file))
-            print(f"✓ Created: {readme_file}")
+            print(f"[OK] Created: {readme_file}")
 
             # 8. Create tool_definition templates in mcp_editor
             templates_content = f'''"""
@@ -210,18 +210,18 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             templates_file = self.mcp_editor_dir / f"tool_definition_{server_name}_templates.py"
             templates_file.write_text(templates_content)
             result["created_files"].append(str(templates_file))
-            print(f"✓ Created: {templates_file}")
+            print(f"[OK] Created: {templates_file}")
 
             # 9. Update editor_config.json
             self._update_editor_config(server_name, port)
-            print(f"✓ Updated editor_config.json")
+            print(f"[OK] Updated editor_config.json")
 
             # 10. Create basic Jinja2 template for server generation
             self._create_server_template(server_name)
-            print(f"✓ Created Jinja2 template")
+            print(f"[OK] Created Jinja2 template")
 
             print("\n" + "=" * 60)
-            print(f"✅ Successfully created MCP server: {server_name}")
+            print(f"[OK] Successfully created MCP server: {server_name}")
             print(f"\nNext steps:")
             print(f"  1. cd mcp_{server_name}/mcp_server")
             print(f"  2. python -m venv venv && source venv/bin/activate")
@@ -232,7 +232,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         except Exception as e:
             error_msg = f"Error creating server: {str(e)}"
             result["errors"].append(error_msg)
-            print(f"\n❌ {error_msg}")
+            print(f"\n[ERROR] {error_msg}")
             raise
 
         return result
@@ -304,7 +304,7 @@ def main():
     )
 
     if result["errors"]:
-        print("\n⚠️  Some errors occurred:")
+        print("\n[WARN]  Some errors occurred:")
         for error in result["errors"]:
             print(f"  - {error}")
         return 1

@@ -298,7 +298,7 @@ class BatchAttachmentHandler:
             for i in range(0, len(message_ids), self.max_batch_size)
         ]
 
-        print(f"\n📋 Fetching metadata for {len(message_ids)} emails ({len(batches)} batches)")
+        print(f"\n[META] Fetching metadata for {len(message_ids)} emails ({len(batches)} batches)")
 
         async with aiohttp.ClientSession() as session:
             for batch_num, batch_ids in enumerate(batches, 1):
@@ -366,7 +366,7 @@ class BatchAttachmentHandler:
                             result["messages"].append(metadata)
                             result["total_processed"] += 1
 
-                            print(f"✅ {metadata['subject'][:50]}... ({len(attachments)} attachments)")
+                            print(f"[OK] {metadata['subject'][:50]}... ({len(attachments)} attachments)")
 
                 except Exception as e:
                     result["errors"].append(f"Batch {batch_num} exception: {str(e)}")

@@ -119,14 +119,14 @@ def detect_module_paths(server_name: str, base_dir: str) -> Dict[str, Any]:
     service_files = scan_service_files(source_dir)
 
     if types_files:
-        print(f"    📁 Types files ({len(types_files)}):")
+        print(f"    [DIR] Types files ({len(types_files)}):")
         for f in types_files:
             print(f"        - {f}")
     else:
         print(f"    No types file found for {server_name}")
 
     if service_files:
-        print(f"    📁 Service files ({len(service_files)}):")
+        print(f"    [DIR] Service files ({len(service_files)}):")
         for f in service_files:
             print(f"        - {f}")
 
@@ -183,7 +183,7 @@ def merge_configs(existing_config: Dict[str, Any], new_config: Dict[str, Any],
             # This is a reused or manually added profile - preserve it
             merged[profile_name] = profile_config
             preserved_count += 1
-            print(f"    ↻ Preserved reused profile: {profile_name}")
+            print(f"    [KEEP] Preserved reused profile: {profile_name}")
 
     # 3. For discovered servers, preserve custom values (port, host) if they differ
     for server_name in discovered_servers:
@@ -192,11 +192,11 @@ def merge_configs(existing_config: Dict[str, Any], new_config: Dict[str, Any],
             # Preserve custom port if it was changed from default
             if 'port' in existing_profile and existing_profile['port'] != 8091:
                 merged[server_name]['port'] = existing_profile['port']
-                print(f"    ↻ Preserved custom port for {server_name}: {existing_profile['port']}")
+                print(f"    [KEEP] Preserved custom port for {server_name}: {existing_profile['port']}")
             # Preserve custom host if it was changed
             if 'host' in existing_profile and existing_profile['host'] != "0.0.0.0":
                 merged[server_name]['host'] = existing_profile['host']
-                print(f"    ↻ Preserved custom host for {server_name}: {existing_profile['host']}")
+                print(f"    [KEEP] Preserved custom host for {server_name}: {existing_profile['host']}")
 
     if preserved_count > 0:
         print(f"    Total preserved profiles: {preserved_count}")
@@ -259,7 +259,7 @@ def generate_editor_config(server_names: Set[str], base_dir: str, output_path: s
         # Fallback: write rendered content directly (no merge)
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(rendered_content)
-        print(f"\n✓ Generated {output_path} (without merge)")
+        print(f"\n[OK] Generated {output_path} (without merge)")
         return
 
     # Merge with existing config to preserve reused profiles
@@ -273,7 +273,7 @@ def generate_editor_config(server_names: Set[str], base_dir: str, output_path: s
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(merged_config, f, indent=2, ensure_ascii=False)
 
-    print(f"\n✓ Generated {output_path}")
+    print(f"\n[OK] Generated {output_path}")
     print(f"  Total profiles: {len(merged_config)}")
     print(f"  Profiles: {', '.join(sorted(merged_config.keys()))}")
 
@@ -293,7 +293,7 @@ def main():
     server_names = scan_codebase_for_servers(project_root)
 
     if not server_names:
-        print("\n⚠ No server_name values found in @mcp_service decorators")
+        print("\n[WARN] No server_name values found in @mcp_service decorators")
         print("  Creating default config with 'outlook' server")
         server_names = {"outlook"}
 
@@ -308,7 +308,7 @@ def main():
     template_path = os.path.join(script_dir, "editor_config_template.jinja2")
 
     if not os.path.exists(template_path):
-        print(f"\n❌ Error: Template file not found: {template_path}")
+        print(f"\n[ERROR] Error: Template file not found: {template_path}")
         return
 
     # Backup existing config if it exists
@@ -316,13 +316,13 @@ def main():
         backup_path = config_output_path + ".backup"
         import shutil
         shutil.copy2(config_output_path, backup_path)
-        print(f"\n📦 Backed up existing config to: {backup_path}")
+        print(f"\n[BACKUP] Backed up existing config to: {backup_path}")
 
     # Generate new config using template
     generate_editor_config(server_names, project_root, config_output_path, template_path)
 
     print("\n" + "=" * 60)
-    print("✓ Done!")
+    print("[OK] Done!")
     print("=" * 60)
     print()
     print("Next steps:")

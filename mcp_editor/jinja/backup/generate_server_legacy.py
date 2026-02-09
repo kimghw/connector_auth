@@ -218,8 +218,8 @@ def generate_server(
         f.write(rendered)
 
     # Print summary
-    print(f"\n✅ Generated {output_path} successfully!")
-    print(f"\n📊 Summary:")
+    print(f"\n[OK] Generated {output_path} successfully!")
+    print(f"\n[STATS] Summary:")
     print(f"  - Server: {server_name}")
     print(f"  - Services: {len(context['services'])}")
     print(f"  - Tools mapped: {len(context['tools'])}")
@@ -342,7 +342,7 @@ def main():
                 server_name = part[4:]
                 break
         if not server_name:
-            print("❌ Could not determine server name. Please specify with --server")
+            print("[ERROR] Could not determine server name. Please specify with --server")
             sys.exit(1)
 
     # Find registry file
@@ -350,7 +350,7 @@ def main():
     if not registry_path:
         registry_path = find_registry_file(server_name)
         if not registry_path:
-            print(f"❌ Could not find registry file for server: {server_name}")
+            print(f"[ERROR] Could not find registry file for server: {server_name}")
             print(f"   Please specify with --registry option")
             print(f"   Or generate it using: python -m mcp_editor.mcp_service_registry.scanner --server {server_name}")
             sys.exit(1)
@@ -360,7 +360,7 @@ def main():
     if not tools_path:
         tools_path = find_tools_file(server_name)
         if not tools_path:
-            print(f"❌ Could not find tool definitions for server: {server_name}")
+            print(f"[ERROR] Could not find tool definitions for server: {server_name}")
             print(f"   Please specify with --tools option")
             sys.exit(1)
 
@@ -371,7 +371,7 @@ def main():
 
     # Check if template exists
     if not Path(template_path).exists():
-        print(f"❌ Template file not found: {template_path}")
+        print(f"[ERROR] Template file not found: {template_path}")
         sys.exit(1)
 
     # Create backup if requested
@@ -381,7 +381,7 @@ def main():
         backup_path = output_path.parent / f"{output_path.stem}_backup_{timestamp}{output_path.suffix}"
         import shutil
         shutil.copy2(output_path, backup_path)
-        print(f"📦 Created backup: {backup_path}")
+        print(f"[BACKUP] Created backup: {backup_path}")
 
     # Generate server
     try:
@@ -393,7 +393,7 @@ def main():
             registry_path=registry_path
         )
     except Exception as e:
-        print(f"❌ Error generating server: {e}")
+        print(f"[ERROR] Error generating server: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

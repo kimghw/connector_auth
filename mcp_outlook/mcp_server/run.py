@@ -37,11 +37,11 @@ def setup_session_manager():
         # Create the SessionManager instance if not already created
         if session_manager:
             logger.info("SessionManager found and will be initialized on server startup")
-            print("✓ SessionManager enabled - multi-user support active")
+            print("[OK] SessionManager enabled - multi-user support active")
             return True
     except ImportError:
         logger.info("SessionManager not found - server will run in legacy mode")
-        print("ℹ SessionManager not found - running in single-instance mode")
+        print("[INFO] SessionManager not found - running in single-instance mode")
         return False
 
 

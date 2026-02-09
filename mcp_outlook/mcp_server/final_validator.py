@@ -21,24 +21,24 @@ def validate_tools():
         server_content = f.read()
 
     if "from tool_definitions import MCP_TOOLS" in server_content:
-        print("   ✅ server.py correctly imports MCP_TOOLS from tool_definitions.py")
+        print("   [OK] server.py correctly imports MCP_TOOLS from tool_definitions.py")
     else:
-        print("   ❌ server.py does NOT import MCP_TOOLS from tool_definitions.py")
+        print("   [FAIL] server.py does NOT import MCP_TOOLS from tool_definitions.py")
         return False
 
     # 2. Check that server.py doesn't have its own MCP_TOOLS definition
     print("\n2. Checking for duplicate MCP_TOOLS definitions...")
     if re.search(r"^MCP_TOOLS\s*=\s*\[", server_content, re.MULTILINE):
-        print("   ❌ server.py has its own MCP_TOOLS definition (should use import only)")
+        print("   [FAIL] server.py has its own MCP_TOOLS definition (should use import only)")
         return False
     else:
-        print("   ✅ server.py does not have duplicate MCP_TOOLS definition")
+        print("   [OK] server.py does not have duplicate MCP_TOOLS definition")
 
     # 3. Load tools from tool_definitions.py
     print("\n3. Loading tools from tool_definitions.py...")
     from tool_definitions import MCP_TOOLS
 
-    print(f"   ✅ Loaded {len(MCP_TOOLS)} tools")
+    print(f"   [OK] Loaded {len(MCP_TOOLS)} tools")
 
     tool_names = [tool["name"] for tool in MCP_TOOLS]
     print(f"   Tools: {tool_names}")
@@ -62,19 +62,19 @@ def validate_tools():
     extra_handlers = handlers_found - tools_set
 
     if missing_handlers:
-        print(f"   ❌ Missing handlers for: {sorted(missing_handlers)}")
+        print(f"   [FAIL] Missing handlers for: {sorted(missing_handlers)}")
     else:
-        print("   ✅ All tools have handlers")
+        print("   [OK] All tools have handlers")
 
     if extra_handlers:
-        print(f"   ⚠️  Extra handlers without tools: {sorted(extra_handlers)}")
+        print(f"   [WARN]  Extra handlers without tools: {sorted(extra_handlers)}")
 
     # 5. Check that handle_list_tools uses MCP_TOOLS
     print("\n5. Checking handle_list_tools function...")
     if '"tools": MCP_TOOLS' in server_content:
-        print("   ✅ handle_list_tools correctly returns MCP_TOOLS")
+        print("   [OK] handle_list_tools correctly returns MCP_TOOLS")
     else:
-        print("   ❌ handle_list_tools does not use MCP_TOOLS")
+        print("   [FAIL] handle_list_tools does not use MCP_TOOLS")
         return False
 
     # 6. Validate each tool structure
@@ -102,11 +102,11 @@ def validate_tools():
                 errors.append("inputSchema missing 'required' array")
 
         if errors:
-            print(f"   ❌ {tool.get('name', 'Unknown')}: {', '.join(errors)}")
+            print(f"   [FAIL] {tool.get('name', 'Unknown')}: {', '.join(errors)}")
             all_valid = False
 
     if all_valid:
-        print("   ✅ All tools have valid structure")
+        print("   [OK] All tools have valid structure")
 
     # Final summary
     print("\n" + "=" * 60)
@@ -135,16 +135,16 @@ def validate_tools():
         tool_str = json.dumps(tool).lower()
         for keyword in problematic_keywords:
             if keyword in tool_str:
-                print(f"   ⚠️  Tool '{tool['name']}' contains keyword: '{keyword}'")
+                print(f"   [WARN]  Tool '{tool['name']}' contains keyword: '{keyword}'")
                 issues_found = True
 
     if not issues_found:
-        print("   ✅ No problematic keywords found")
+        print("   [OK] No problematic keywords found")
 
     # Final result
     print("\n" + "=" * 60)
     if all_valid and not missing_handlers and not issues_found:
-        print("✅ VALIDATION PASSED: All checks successful!")
+        print("[OK] VALIDATION PASSED: All checks successful!")
         print("   - Tools properly imported from tool_definitions.py")
         print("   - No duplicate definitions")
         print("   - All tools have handlers")
@@ -152,7 +152,7 @@ def validate_tools():
         print("   - No problematic content detected")
         return True
     else:
-        print("❌ VALIDATION FAILED: Issues detected")
+        print("[FAIL] VALIDATION FAILED: Issues detected")
         return False
 
 
@@ -161,7 +161,7 @@ if __name__ == "__main__":
         result = validate_tools()
         sys.exit(0 if result else 1)
     except Exception as e:
-        print(f"\n❌ Error during validation: {e}")
+        print(f"\n[FAIL] Error during validation: {e}")
         import traceback
 
         traceback.print_exc()

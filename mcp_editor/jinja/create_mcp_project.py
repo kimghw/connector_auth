@@ -54,7 +54,7 @@ class MCPProjectCreator:
         Returns:
             생성 결과 정보
         """
-        print(f"\n🚀 Creating MCP Project: {service_name}")
+        print(f"\n[START] Creating MCP Project: {service_name}")
         print("=" * 60)
 
         result = {
@@ -73,7 +73,7 @@ class MCPProjectCreator:
             for directory in [project_dir, mcp_server_dir]:
                 directory.mkdir(parents=True, exist_ok=True)
                 result["created_dirs"].append(str(directory))
-                print(f"✓ Created directory: {directory.relative_to(self.base_dir)}")
+                print(f"[OK] Created directory: {directory.relative_to(self.base_dir)}")
 
             # 2. __init__.py 파일 생성 (mcp_server)
             self._create_mcp_server_init(mcp_server_dir, service_name)
@@ -118,16 +118,16 @@ class MCPProjectCreator:
 
             # 12. MCP 에디터 템플릿 파일 생성
             self._create_editor_template(service_name)
-            print(f"✓ Created mcp_editor template file")
+            print(f"[OK] Created mcp_editor template file")
 
             # 13. generate_editor_config.py 실행하여 editor_config.json 업데이트
             self._run_generate_editor_config()
-            print(f"✓ Updated mcp_editor/editor_config.json via generate_editor_config.py")
+            print(f"[OK] Updated mcp_editor/editor_config.json via generate_editor_config.py")
 
             print("\n" + "=" * 60)
-            print(f"✅ Successfully created MCP project: {service_name}")
-            print(f"\n📁 Project location: {project_dir.relative_to(self.base_dir)}")
-            print("\n📋 Next steps:")
+            print(f"[OK] Successfully created MCP project: {service_name}")
+            print(f"\n[DIR] Project location: {project_dir.relative_to(self.base_dir)}")
+            print("\n[INFO] Next steps:")
             print(f"  1. cd {project_dir.relative_to(self.base_dir)}")
             print(f"  2. python -m venv venv")
             print(f"  3. source venv/bin/activate  # Windows: venv\\Scripts\\activate")
@@ -140,7 +140,7 @@ class MCPProjectCreator:
         except Exception as e:
             error_msg = f"Error creating project: {str(e)}"
             result["errors"].append(error_msg)
-            print(f"\n❌ {error_msg}")
+            print(f"\n[ERROR] {error_msg}")
             raise
 
         return result
@@ -158,7 +158,7 @@ from .tool_definitions import MCP_TOOLS
 __all__ = ["app", "MCP_TOOLS"]
 '''
         (mcp_server_dir / "__init__.py").write_text(content)
-        print(f"✓ Created: mcp_server/__init__.py")
+        print(f"[OK] Created: mcp_server/__init__.py")
 
     def _create_server_py(self, mcp_server_dir: Path, service_name: str, description: str, port: int):
         """server.py 생성"""
@@ -276,7 +276,7 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port={port})
 '''
         (mcp_server_dir / "server.py").write_text(content)
-        print(f"✓ Created: mcp_server/server.py")
+        print(f"[OK] Created: mcp_server/server.py")
 
     def _create_tool_definitions(self, mcp_server_dir: Path):
         """tool_definitions.py 생성"""
@@ -306,7 +306,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
 ]
 '''
         (mcp_server_dir / "tool_definitions.py").write_text(content)
-        print(f"✓ Created: mcp_server/tool_definitions.py")
+        print(f"[OK] Created: mcp_server/tool_definitions.py")
 
     def _create_run_py(self, mcp_server_dir: Path, port: int):
         """run.py 생성"""
@@ -334,7 +334,7 @@ if __name__ == "__main__":
         run_file = mcp_server_dir / "run.py"
         run_file.write_text(content)
         run_file.chmod(0o755)  # Make executable
-        print(f"✓ Created: mcp_server/run.py")
+        print(f"[OK] Created: mcp_server/run.py")
 
     def _create_service_file(self, project_dir: Path, service_name: str, description: str):
         """서비스 로직 파일 생성"""
@@ -489,7 +489,7 @@ class {service_name.title()}Service:
 {service_name}_service = {service_name.title()}Service()
 '''
         (project_dir / f"{service_name}_service.py").write_text(content)
-        print(f"✓ Created: {service_name}_service.py")
+        print(f"[OK] Created: {service_name}_service.py")
 
     def _create_types_file(self, project_dir: Path, service_name: str):
         """타입 정의 파일 생성"""
@@ -603,7 +603,7 @@ __all__ = [
 ]
 '''
         (project_dir / f"{service_name}_types.py").write_text(content)
-        print(f"✓ Created: {service_name}_types.py")
+        print(f"[OK] Created: {service_name}_types.py")
 
     def _create_project_init(self, project_dir: Path, service_name: str, include_types: bool):
         """프로젝트 루트 __init__.py 생성"""
@@ -623,7 +623,7 @@ __all__ = [
 ]
 '''
         (project_dir / "__init__.py").write_text(content)
-        print(f"✓ Created: __init__.py")
+        print(f"[OK] Created: __init__.py")
 
     def _create_readme(self, project_dir: Path, service_name: str, description: str, port: int, author: str):
         """README.md 생성"""
@@ -631,11 +631,11 @@ __all__ = [
 
 {description or f"MCP (Model Context Protocol) server implementation for {service_name} operations."}
 
-## 📋 Overview
+## [INFO] Overview
 
 This is an MCP server that provides {service_name} functionality through a standardized protocol interface.
 
-## 🚀 Quick Start
+## [START] Quick Start
 
 ### Prerequisites
 
@@ -675,7 +675,7 @@ python run.py
 
 The server will start on `http://localhost:{port}`
 
-## 🛠️ Development
+## Development
 
 ### Project Structure
 
@@ -714,7 +714,7 @@ async def your_method(self, param1: str, param2: int) -> Dict[str, Any]:
     return {{"result": "success"}}
 ```
 
-## 📡 API Endpoints
+## API Endpoints
 
 ### Health Check
 - `GET /health` - Server health status
@@ -724,7 +724,7 @@ async def your_method(self, param1: str, param2: int) -> Dict[str, Any]:
 - `POST /mcp/v1/tools/list` - List available tools
 - `POST /mcp/v1/tools/call` - Execute tool call
 
-## 🧪 Testing
+## Testing
 
 ### Manual Testing
 
@@ -746,7 +746,7 @@ async def your_method(self, param1: str, param2: int) -> Dict[str, Any]:
         -d '{{"name": "tool_name", "arguments": {{}}}}'
    ```
 
-## 📝 Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -758,18 +758,18 @@ Default port: `{port}`
 
 To change the port, edit `mcp_server/run.py` or set the `PORT` environment variable.
 
-## 🤝 Contributing
+## Contributing
 
 1. Implement new features in `{service_name}_service.py`
 2. Define corresponding tools using the MCP Web Editor
 3. Test your implementation
 4. Document your changes
 
-## 📄 License
+## License
 
 [Your License Here]
 
-## 👤 Author
+## Author
 
 {author or "Your Name"}
 
@@ -777,7 +777,7 @@ To change the port, edit `mcp_server/run.py` or set the `PORT` environment varia
 Generated with MCP Project Creator
 '''
         (project_dir / "README.md").write_text(content)
-        print(f"✓ Created: README.md")
+        print(f"[OK] Created: README.md")
 
     def _create_requirements(self, project_dir: Path):
         """requirements.txt 생성"""
@@ -800,7 +800,7 @@ python-json-logger==2.0.7
 # aiofiles==23.2.1
 '''
         (project_dir / "requirements.txt").write_text(content)
-        print(f"✓ Created: requirements.txt")
+        print(f"[OK] Created: requirements.txt")
 
     def _create_env_example(self, project_dir: Path, service_name: str):
         """.env.example 생성"""
@@ -827,14 +827,14 @@ LOG_LEVEL=INFO
 # CACHE_TTL=3600
 '''
         (project_dir / ".env.example").write_text(content)
-        print(f"✓ Created: .env.example")
+        print(f"[OK] Created: .env.example")
 
     def _run_generate_editor_config(self):
         """generate_editor_config.py 스크립트 실행"""
         generate_config_script = self.base_dir / "jinja" / "generate_editor_config.py"
 
         if not generate_config_script.exists():
-            print(f"⚠️ Warning: {generate_config_script} not found, skipping editor config generation")
+            print(f"[WARN] Warning: {generate_config_script} not found, skipping editor config generation")
             return
 
         try:
@@ -846,12 +846,12 @@ LOG_LEVEL=INFO
             )
 
             if result.returncode != 0:
-                print(f"⚠️ Warning: Error running generate_editor_config.py: {result.stderr}")
+                print(f"[WARN] Warning: Error running generate_editor_config.py: {result.stderr}")
             else:
                 # generate_editor_config.py의 출력 숨김 (이미 진행 상황을 표시 중)
                 pass
         except Exception as e:
-            print(f"⚠️ Warning: Failed to run generate_editor_config.py: {str(e)}")
+            print(f"[WARN] Warning: Failed to run generate_editor_config.py: {str(e)}")
 
     def _create_editor_template(self, service_name: str):
         """MCP 에디터 템플릿 파일 생성"""
@@ -920,7 +920,7 @@ Examples:
 
     # 서비스 이름 검증
     if not args.service_name.replace("_", "").isalnum():
-        print("❌ Error: Service name should only contain letters, numbers, and underscores")
+        print("[ERROR] Error: Service name should only contain letters, numbers, and underscores")
         sys.exit(1)
 
     # 프로젝트 생성
@@ -936,13 +936,13 @@ Examples:
         )
 
         if result["errors"]:
-            print("\n⚠️  Some errors occurred during creation:")
+            print("\n[WARN]  Some errors occurred during creation:")
             for error in result["errors"]:
                 print(f"  - {error}")
             sys.exit(1)
 
     except Exception as e:
-        print(f"\n❌ Fatal error: {str(e)}")
+        print(f"\n[ERROR] Fatal error: {str(e)}")
         sys.exit(1)
 
     sys.exit(0)

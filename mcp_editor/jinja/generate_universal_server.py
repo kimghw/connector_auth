@@ -1091,11 +1091,11 @@ def generate_server(
     types_files = service_paths.get('types_files', [])
     service_files = service_paths.get('service_files', [])
     if types_files:
-        print(f"  📁 Types files ({len(types_files)}):")
+        print(f"  [DIR] Types files ({len(types_files)}):")
         for f in types_files:
             print(f"      - {f}")
     if service_files:
-        print(f"  📁 Service files ({len(service_files)}):")
+        print(f"  [DIR] Service files ({len(service_files)}):")
         for f in service_files:
             print(f"      - {f}")
 
@@ -1151,19 +1151,19 @@ def generate_server(
         f.write(rendered)
 
     # Print summary
-    print(f"\n✅ Generated {output_path} successfully!")
-    print(f"\n📊 Summary:")
+    print(f"\n[OK] Generated {output_path} successfully!")
+    print(f"\n[STATS] Summary:")
     print(f"  - Server: {server_name}")
     print(f"  - Protocol: {protocol_type}")
     print(f"  - Services: {len(context['services'])}")
     print(f"  - Tools mapped: {len(context['tools'])}")
     print(f"  - Parameter types: {', '.join(context['param_types'])}")
 
-    print(f"\n🔧 Services:")
+    print(f"\n[TOOL] Services:")
     for service_name, service_info in context['services'].items():
         print(f"  - {service_info['class_name']} ({service_info['module_path']})")
 
-    print(f"\n🛠️ Tool mappings:")
+    print(f"\n[TOOL] Tool mappings:")
     for tool in context['tools']:
         impl = tool.get('implementation', {})
         print(f"  - {tool.get('name', 'unknown')} -> {impl.get('class_name', '?')}.{impl.get('method', '?')}()")
@@ -1247,10 +1247,10 @@ def merge_tool_definitions(source_profiles: List[str], prefix_mode: str = 'auto'
                 tools = getattr(module, 'MCP_TOOLS', [])
                 print(f"    Loaded {len(tools)} tools from {py_path.name}")
             except Exception as e:
-                print(f"⚠️ Warning: Failed to load Python tool definitions for profile '{profile}': {e}")
+                print(f"[WARN] Warning: Failed to load Python tool definitions for profile '{profile}': {e}")
                 continue
         else:
-            print(f"⚠️ Warning: No tool definitions found for profile '{profile}'")
+            print(f"[WARN] Warning: No tool definitions found for profile '{profile}'")
             print(f"    Tried: {yaml_path}")
             print(f"    Tried: {py_path}")
             continue
@@ -1291,7 +1291,7 @@ def merge_tool_definitions(source_profiles: List[str], prefix_mode: str = 'auto'
 
             all_tools.append(tool_copy)
 
-    print(f"📦 Merged {len(all_tools)} tools from {len(source_profiles)} profiles")
+    print(f"[BACKUP] Merged {len(all_tools)} tools from {len(source_profiles)} profiles")
     return all_tools
 
 
@@ -1348,7 +1348,7 @@ def merge_registries(source_profiles: List[str], merged_name: str) -> Dict[str, 
     for profile in source_profiles:
         registry_path = find_registry_file(profile)
         if not registry_path:
-            print(f"⚠️ Warning: Registry not found for profile '{profile}'")
+            print(f"[WARN] Warning: Registry not found for profile '{profile}'")
             continue
 
         with open(registry_path, 'r', encoding='utf-8') as f:
@@ -1375,7 +1375,7 @@ def merge_registries(source_profiles: List[str], merged_name: str) -> Dict[str, 
 
             merged_registry['services'][unique_name] = service_copy
 
-    print(f"📋 Merged {len(merged_registry['services'])} services from {len(source_profiles)} registries")
+    print(f"[INFO] Merged {len(merged_registry['services'])} services from {len(source_profiles)} registries")
     return merged_registry
 
 
@@ -1439,7 +1439,7 @@ def find_type_locations_multi(source_profiles: List[str]) -> Dict[str, str]:
                 except:
                     continue
 
-    print(f"🔍 Found {len(type_locations)} types across {len(source_profiles)} profiles")
+    print(f"[SEARCH] Found {len(type_locations)} types across {len(source_profiles)} profiles")
     return type_locations
 
 
@@ -1494,7 +1494,7 @@ def save_merged_yaml(tools: List[Dict[str, Any]], output_path: Path):
     with open(output_path, 'w', encoding='utf-8') as f:
         yaml.dump(output_data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
-    print(f"💾 Saved merged YAML to: {output_path}")
+    print(f"[SAVE] Saved merged YAML to: {output_path}")
 
 
 def save_merged_registry(registry: Dict[str, Any], output_path: Path):
@@ -1519,7 +1519,7 @@ def save_merged_registry(registry: Dict[str, Any], output_path: Path):
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(registry_copy, f, indent=2, ensure_ascii=False)
 
-    print(f"💾 Saved merged registry to: {output_path}")
+    print(f"[SAVE] Saved merged registry to: {output_path}")
 
 
 def update_editor_config_for_merge(merged_name: str, source_profiles: List[str], port: int):
@@ -1559,10 +1559,10 @@ def update_editor_config_for_merge(merged_name: str, source_profiles: List[str],
             if f not in all_service_files:
                 all_service_files.append(f)
 
-    print(f"  📁 Auto-scanned types files: {len(all_types_files)}")
+    print(f"  [DIR] Auto-scanned types files: {len(all_types_files)}")
     for f in all_types_files:
         print(f"      - {f}")
-    print(f"  📁 Auto-scanned service files: {len(all_service_files)}")
+    print(f"  [DIR] Auto-scanned service files: {len(all_service_files)}")
     for f in all_service_files:
         print(f"      - {f}")
 
@@ -1585,7 +1585,7 @@ def update_editor_config_for_merge(merged_name: str, source_profiles: List[str],
     with open(EDITOR_CONFIG_PATH, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
-    print(f"📝 Updated editor_config.json with merged profile: {merged_name}")
+    print(f"[NOTE] Updated editor_config.json with merged profile: {merged_name}")
 
 
 def generate_merged_server(
@@ -1605,7 +1605,7 @@ def generate_merged_server(
         prefix_mode: Tool name prefix mode ('auto', 'always', 'none')
     """
     print(f"\n{'='*60}")
-    print(f"🔀 MCP Server Merge: {merged_name}")
+    print(f"[MERGE] MCP Server Merge: {merged_name}")
     print(f"{'='*60}")
     print(f"  Source profiles: {', '.join(source_profiles)}")
     print(f"  Port: {port}")
@@ -1614,26 +1614,26 @@ def generate_merged_server(
     print()
 
     # Step 1: Merge tool definitions (YAML)
-    print("📋 Step 1: Merging tool definitions...")
+    print("[INFO] Step 1: Merging tool definitions...")
     merged_tools = merge_tool_definitions(source_profiles, prefix_mode)
 
     # Check for conflicts
     conflicts = check_tool_name_conflicts(merged_tools)
     if conflicts:
-        print(f"⚠️ Tool name conflicts detected (resolved with prefix):")
+        print(f"[WARN] Tool name conflicts detected (resolved with prefix):")
         for conflict in conflicts:
             print(f"    - {conflict['name']}: {', '.join(conflict['profiles'])}")
 
     # Step 2: Merge registries
-    print("\n📋 Step 2: Merging service registries...")
+    print("\n[INFO] Step 2: Merging service registries...")
     merged_registry = merge_registries(source_profiles, merged_name)
 
     # Step 3: Find types across all profiles
-    print("\n📋 Step 3: Scanning types from source profiles...")
+    print("\n[INFO] Step 3: Scanning types from source profiles...")
     type_locations = find_type_locations_multi(source_profiles)
 
     # Step 4: Create output directories and save merged files
-    print("\n📋 Step 4: Creating merged profile files...")
+    print("\n[INFO] Step 4: Creating merged profile files...")
 
     merged_editor_dir = PROJECT_ROOT / "mcp_editor" / f"mcp_{merged_name}"
     merged_server_dir = PROJECT_ROOT / f"mcp_{merged_name}" / "mcp_server"
@@ -1655,7 +1655,7 @@ def generate_merged_server(
     update_editor_config_for_merge(merged_name, source_profiles, port)
 
     # Step 5: Generate server files
-    print("\n📋 Step 5: Generating server files...")
+    print("\n[INFO] Step 5: Generating server files...")
 
     protocols_to_generate = ['rest', 'stdio', 'stream'] if protocol == 'all' else [protocol]
     template_path = str(SCRIPT_DIR / "python" / "universal_server_template.jinja2")
@@ -1706,17 +1706,17 @@ def generate_merged_server(
             with open(output_path, 'w') as f:
                 f.write(rendered)
 
-            print(f"  ✅ Generated: {output_path}")
+            print(f"  [OK] Generated: {output_path}")
             success_count += 1
 
         except Exception as e:
-            print(f"  ❌ Failed to generate {proto}: {e}")
+            print(f"  [ERROR] Failed to generate {proto}: {e}")
             import traceback
             traceback.print_exc()
 
     # Step 6: Print summary
     print(f"\n{'='*60}")
-    print(f"📊 MERGE SUMMARY")
+    print(f"[STATS] MERGE SUMMARY")
     print(f"{'='*60}")
     print(f"  Merged server: {merged_name}")
     print(f"  Source profiles: {', '.join(source_profiles)}")
@@ -1725,7 +1725,7 @@ def generate_merged_server(
     print(f"  Total types: {len(type_locations)}")
     print(f"  Servers generated: {success_count}/{len(protocols_to_generate)}")
     print()
-    print(f"📁 Created files:")
+    print(f"[DIR] Created files:")
     print(f"  - {merged_yaml_path}")
     print(f"  - {merged_registry_path}")
     for proto in protocols_to_generate:
@@ -1733,10 +1733,10 @@ def generate_merged_server(
     print()
 
     if success_count == len(protocols_to_generate):
-        print(f"🎉 Merge completed successfully!")
+        print(f"[DONE] Merge completed successfully!")
         return True
     else:
-        print(f"⚠️ Merge completed with errors")
+        print(f"[WARN] Merge completed with errors")
         return False
 
 
@@ -1805,7 +1805,7 @@ if __name__ == "__main__":
         source_profiles = [p.strip() for p in args.sources.split(',')]
 
         if len(source_profiles) < 2:
-            print("❌ Error: At least 2 source profiles are required for merge")
+            print("[ERROR] Error: At least 2 source profiles are required for merge")
             sys.exit(1)
 
         success = generate_merged_server(
@@ -1824,14 +1824,14 @@ if __name__ == "__main__":
     # Find registry file
     registry_path = args.registry or find_registry_file(args.server_name)
     if not registry_path:
-        print(f"❌ Could not find registry file for server '{args.server_name}'")
+        print(f"[ERROR] Could not find registry file for server '{args.server_name}'")
         print(f"   Searched in: mcp_editor/mcp_service_registry/registry_{args.server_name}.json")
         sys.exit(1)
 
     # Find tools file
     tools_path = args.tools or find_tools_file(args.server_name)
     if not tools_path:
-        print(f"❌ Could not find tool definitions file for server '{args.server_name}'")
+        print(f"[ERROR] Could not find tool definitions file for server '{args.server_name}'")
         print(f"   Searched in: mcp_editor/mcp_{args.server_name}/tool_definition_templates.py")
         sys.exit(1)
 
@@ -1884,7 +1884,7 @@ if __name__ == "__main__":
         # Generate server
         try:
             print(f"\n{'='*60}")
-            print(f"🚀 Generating {protocol.upper()} server...")
+            print(f"[START] Generating {protocol.upper()} server...")
             print(f"{'='*60}")
 
             generate_server(
@@ -1897,20 +1897,20 @@ if __name__ == "__main__":
             )
             success_count += 1
         except Exception as e:
-            print(f"❌ Error generating {protocol} server: {e}")
+            print(f"[ERROR] Error generating {protocol} server: {e}")
             import traceback
             traceback.print_exc()
             failed_protocols.append(protocol)
 
     # Print final summary
     print(f"\n{'='*60}")
-    print(f"📋 GENERATION SUMMARY")
+    print(f"[INFO] GENERATION SUMMARY")
     print(f"{'='*60}")
-    print(f"✅ Successfully generated: {success_count}/{len(protocols_to_generate)} servers")
+    print(f"[OK] Successfully generated: {success_count}/{len(protocols_to_generate)} servers")
 
     if failed_protocols:
-        print(f"❌ Failed protocols: {', '.join(failed_protocols)}")
+        print(f"[ERROR] Failed protocols: {', '.join(failed_protocols)}")
         sys.exit(1)
     else:
-        print(f"🎉 All servers generated successfully!")
+        print(f"[DONE] All servers generated successfully!")
         sys.exit(0)

@@ -401,9 +401,9 @@ def main():
 
         for result in results:
             if result['success']:
-                print(f"✓ {result['file']}")
+                print(f"[OK] {result['file']}")
             else:
-                print(f"✗ {result['file']}: {result['errors']}")
+                print(f"[FAIL] {result['file']}: {result['errors']}")
 
     else:
         result = manager.process(

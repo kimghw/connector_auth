@@ -738,7 +738,7 @@ def generate_editor_config_json(
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
-    print(f"\n✓ Generated {output_path}")
+    print(f"\n[OK] Generated {output_path}")
     print(f"  Total profiles: {len(config)}")
     print(f"  Profiles: {', '.join(config.keys())}")
 
@@ -767,7 +767,7 @@ def main():
     all_server_names = decorator_servers | directory_servers
 
     if not all_server_names:
-        print("\n⚠ No servers found via decorators or directories")
+        print("\n[WARN] No servers found via decorators or directories")
         print("  Creating default config with 'outlook' server")
         all_server_names = {"outlook"}
 
@@ -791,13 +791,13 @@ def main():
         import shutil
 
         shutil.copy2(config_output_path, backup_path)
-        print(f"\n📦 Backed up existing config to: {backup_path}")
+        print(f"\n[BACKUP] Backed up existing config to: {backup_path}")
 
     # Generate new config with full server info
     generate_editor_config_json(all_server_names, project_root, config_output_path, server_infos)
 
     print("\n" + "=" * 60)
-    print("✓ Done!")
+    print("[OK] Done!")
     print("=" * 60)
     print()
     print("Next steps:")

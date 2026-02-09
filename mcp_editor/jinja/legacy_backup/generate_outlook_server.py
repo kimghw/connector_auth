@@ -1124,7 +1124,7 @@ def main():
 
             import shutil
             shutil.copy2(server_path, backup_path)
-            print(f"✅ Created backup: {backup_path}")
+            print(f"[OK] Created backup: {backup_path}")
 
         output_path = server_path
         use_temp = False
@@ -1153,7 +1153,7 @@ def main():
         # Use legacy method (with tools_path for internal_args discovery)
         generate_server(str(template_path), str(output_path), MCP_TOOLS, tools_path=args.tools)
 
-    print(f"\n✅ Generated server successfully!")
+    print(f"\n[OK] Generated server successfully!")
     print(f"   Output: {output_path}")
 
     # Generate mcp_decorators.py if requested
@@ -1162,11 +1162,11 @@ def main():
         # Put decorators in mcp_editor/outlook/ directory, NOT with server.py
         decorators_dir = Path("/home/kimghw/Connector_auth/mcp_editor/outlook")
         decorators_path = copy_mcp_decorators(str(decorators_dir))
-        print(f"✅ Generated mcp_decorators.py")
+        print(f"[OK] Generated mcp_decorators.py")
         print(f"   Output: {decorators_path}")
 
     if use_temp:
-        print(f"\n📋 Next steps:")
+        print(f"\n[INFO] Next steps:")
         print(f"1. Review the generated files:")
         print(f"   cat {output_path}")
         if decorators_path:

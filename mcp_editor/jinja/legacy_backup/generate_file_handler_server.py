@@ -140,9 +140,9 @@ def main():
     success = generate_server(replace=args.replace)
 
     if success:
-        print("\n✓ Server generation completed successfully")
+        print("\n[OK] Server generation completed successfully")
     else:
-        print("\n✗ Server generation failed")
+        print("\n[FAIL] Server generation failed")
         sys.exit(1)
 
 

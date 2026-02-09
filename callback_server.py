@@ -106,7 +106,7 @@ class CallbackServer:
             </head>
             <body>
                 <div class="container">
-                    <h1>❌ Authentication Failed</h1>
+                    <h1>[ERROR] Authentication Failed</h1>
                     <div class="error">
                         <strong>Error:</strong> {error}<br>
                         <strong>Description:</strong> {error_description or 'No additional information'}
@@ -132,7 +132,7 @@ class CallbackServer:
             user_email = token_response.get('user_email')
 
             if user_email:
-                logger.info(f"✅ Authentication successful for user: {user_email}")
+                logger.info(f"[OK] Authentication successful for user: {user_email}")
 
                 # 인증 완료 이벤트 설정
                 self.authenticated_email = user_email
@@ -158,7 +158,7 @@ class CallbackServer:
                 </head>
                 <body>
                     <div class="container">
-                        <h1>✅ Authentication Successful!</h1>
+                        <h1>[OK] Authentication Successful!</h1>
                         <div class="user-info">
                             <strong>Logged in as:</strong> {user_email}
                         </div>
@@ -213,9 +213,9 @@ class CallbackServer:
         </head>
         <body>
             <div class="container">
-                <h1>🔐 Azure OAuth Callback Server</h1>
+                <h1>[KEY] Azure OAuth Callback Server</h1>
                 <div class="status">
-                    <strong>✅ Server is running</strong>
+                    <strong>[OK] Server is running</strong>
                 </div>
                 <div class="info">
                     <strong>Callback URL:</strong> <code>http://localhost:5000/callback</code>
@@ -326,8 +326,8 @@ async def run_standalone_server():
     print("\n" + "="*60)
     print(" Azure Authentication Callback Server")
     print("="*60)
-    print(f"🚀 Starting server on http://localhost:{port}")
-    print(f"📍 Callback URL: http://localhost:{port}/callback")
+    print(f"[START] Starting server on http://localhost:{port}")
+    print(f"[INFO] Callback URL: http://localhost:{port}/callback")
     print("="*60)
     print("\nPress Ctrl+C to stop the server\n")
 

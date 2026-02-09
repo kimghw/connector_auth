@@ -430,7 +430,7 @@ class AuthManager:
                 logger.info("Browser opened successfully")
             except Exception as e:
                 logger.warning(f"Could not open browser: {e}")
-                print(f"\n⚠️ Please manually visit: {auth_info['auth_url']}")
+                print(f"\n[WARN] Please manually visit: {auth_info['auth_url']}")
 
             # 4. 인증 완료 대기
             logger.info(f"Waiting for authentication (timeout: {timeout}s)")

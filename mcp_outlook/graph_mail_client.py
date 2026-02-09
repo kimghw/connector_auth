@@ -231,7 +231,7 @@ class GraphMailClient:
         self._ensure_initialized()
 
         # 1. 메일 가져오기
-        print(f"\n📧 Fetching emails using {query_method.value} method...")
+        print(f"\n[MAIL] Fetching emails using {query_method.value} method...")
         result = await self.build_and_fetch(
             user_email=user_email,
             query_method=query_method,
@@ -247,7 +247,7 @@ class GraphMailClient:
 
         # 2. 에러 체크
         if result.get("has_errors"):
-            print(f"⚠️  Query completed with errors: {len(result.get('errors', []))} errors")
+            print(f"[WARN] Query completed with errors: {len(result.get('errors', []))} errors")
             if return_on_error:
                 return {
                     "status": "error",
@@ -258,13 +258,13 @@ class GraphMailClient:
                 }
 
         if result.get("error"):
-            print(f"❌ Query failed: {result['error']}")
+            print(f"[ERROR] Query failed: {result['error']}")
             return result
 
         # 3. 결과 확인
         emails = result.get("value", [])
         if not emails:
-            print("ℹ️  No emails found")
+            print("[INFO] No emails found")
             return {
                 "status": "success",
                 "message": "No emails found",
@@ -273,7 +273,7 @@ class GraphMailClient:
                 "query_method": query_method.value,
             }
 
-        print(f"✅ Found {len(emails)} email(s)")
+        print(f"[DONE] Found {len(emails)} email(s)")
 
         # 4. 처리 모드에 따라 처리
         if processing_mode == ProcessingMode.FETCH_ONLY:
@@ -287,7 +287,7 @@ class GraphMailClient:
             }
 
         # 5. 추가 처리가 필요한 경우 - BatchAttachmentHandler 사용
-        print(f"\n🔧 Processing emails with mode: {processing_mode.value}")
+        print(f"\n[PROCESS] Processing emails with mode: {processing_mode.value}")
 
         # 첨부파일 처리가 필요한 경우 BatchAttachmentHandler 사용
         processing_modes_with_attachments = [
@@ -319,7 +319,7 @@ class GraphMailClient:
                         convert_to_txt=convert_to_txt,
                         include_body=True,
                     )
-                    print(f"📎 Processed {attachment_result.get('processed', 0)} emails with attachments")
+                    print(f"[ATTACH] Processed {attachment_result.get('processed', 0)} emails with attachments")
                     return {
                         "status": "success",
                         "value": emails,
@@ -329,7 +329,7 @@ class GraphMailClient:
                         "attachment_result": attachment_result,
                     }
                 except Exception as e:
-                    print(f"⚠️ Attachment processing failed: {e}")
+                    print(f"[WARN] Attachment processing failed: {e}")
                     return {
                         "status": "partial",
                         "value": emails,
@@ -375,7 +375,7 @@ class GraphMailClient:
 
         try:
             # 배치 조회 실행
-            print(f"\n📧 Fetching {len(message_ids)} emails using batch method...")
+            print(f"\n[MAIL] Fetching {len(message_ids)} emails using batch method...")
             result = await self.mail_batch.batch_fetch_by_ids(
                 user_email=user_email, message_ids=message_ids, select_params=select_params
             )
@@ -433,7 +433,7 @@ class GraphMailClient:
         try:
             from .mail_attachment import BatchAttachmentHandler
 
-            print(f"\n📋 Fetching metadata for {len(message_ids)} emails...")
+            print(f"\n[META] Fetching metadata for {len(message_ids)} emails...")
             handler = BatchAttachmentHandler()
 
             result = await handler.fetch_metadata_only(
@@ -504,7 +504,7 @@ class GraphMailClient:
             # 입력 타입 판별
             if all(isinstance(item, str) for item in message_attachment_ids):
                 # 메일 ID 리스트 -> 모든 첨부파일 다운로드
-                print(f"\n📧 Downloading all attachments from {len(message_attachment_ids)} emails...")
+                print(f"\n[MAIL] Downloading all attachments from {len(message_attachment_ids)} emails...")
 
                 result = await handler.fetch_and_save(
                     user_email=user_email,
@@ -536,7 +536,7 @@ class GraphMailClient:
 
             elif all(isinstance(item, dict) and "message_id" in item and "attachment_id" in item for item in message_attachment_ids):
                 # 메일/첨부파일 ID 쌍 -> 특정 첨부파일만 다운로드
-                print(f"\n📎 Downloading {len(message_attachment_ids)} specific attachments...")
+                print(f"\n[ATTACH] Downloading {len(message_attachment_ids)} specific attachments...")
 
                 result = await handler.fetch_specific_attachments(
                     user_email=user_email,
@@ -596,19 +596,19 @@ class GraphMailClient:
         self._ensure_initialized()
 
         # 1. 배치로 메일 가져오기
-        print(f"\n📧 Fetching {len(message_ids)} emails using batch method...")
+        print(f"\n[MAIL] Fetching {len(message_ids)} emails using batch method...")
         result = await self.batch_and_fetch(user_email=user_email, message_ids=message_ids, select_params=select_params)
 
         # 2. 에러 체크
         if result.get("status") == "error":
-            print(f"❌ Batch fetch failed: {result.get('error')}")
+            print(f"[ERROR] Batch fetch failed: {result.get('error')}")
             if return_on_error:
                 return result
 
         # 3. 결과 확인
         emails = result.get("value", [])
         if not emails:
-            print("ℹ️  No emails found")
+            print("[INFO]  No emails found")
             return {
                 "status": "success",
                 "message": "No emails found",
@@ -617,7 +617,7 @@ class GraphMailClient:
                 "query_method": QueryMethod.BATCH_ID.value,
             }
 
-        print(f"✅ Found {len(emails)} email(s)")
+        print(f"[DONE] Found {len(emails)} email(s)")
 
         # 4. 처리 모드에 따라 처리
         if processing_mode == ProcessingMode.FETCH_ONLY:
@@ -655,28 +655,28 @@ class GraphMailClient:
         # 상태 확인
         status = results.get("status", "unknown")
         if status == "error":
-            output.append(f"❌ Error: {results.get('error', 'Unknown error')}")
+            output.append(f"[ERROR] Error: {results.get('error', 'Unknown error')}")
             if results.get("errors"):
                 output.append(f"   Details: {len(results['errors'])} errors occurred")
             return "\n".join(output)
 
         # 메일 정보
         emails = results.get("value", [])
-        output.append(f"📧 Emails: {len(emails)}")
+        output.append(f"[MAIL] Emails: {len(emails)}")
 
         # 처리 정보
         if results.get("processing_mode"):
-            output.append(f"🔧 Processing Mode: {results['processing_mode']}")
+            output.append(f"[PROCESS] Processing Mode: {results['processing_mode']}")
 
         # 첨부파일 정보
         if results.get("downloaded_count"):
-            output.append(f"📎 Downloaded Attachments: {results['downloaded_count']}")
+            output.append(f"[ATTACH] Downloaded Attachments: {results['downloaded_count']}")
         if results.get("converted_count"):
-            output.append(f"🔄 Converted Files: {results['converted_count']}")
+            output.append(f"[CONVERT] Converted Files: {results['converted_count']}")
 
         # 필터링 정보
         if results.get("client_filtered"):
-            output.append(f"🔍 Client Filtered: {results.get('filtered_count', 0)} items")
+            output.append(f"[FILTER] Client Filtered: {results.get('filtered_count', 0)} items")
 
         # 메일 목록 (verbose 모드)
         if verbose and emails:

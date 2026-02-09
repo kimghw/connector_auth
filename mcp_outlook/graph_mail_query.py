@@ -534,9 +534,9 @@ class GraphMailQuery:
 
         # For single page requests, still use parallel structure for consistency
         if num_pages == 1:
-            print(f"\n📧 Fetching {total_items} emails (single page)")
+            print(f"\n[MAIL] Fetching {total_items} emails (single page)")
         else:
-            print(f"\n📧 Fetching {total_items} emails in {num_pages} pages ({page_size} per page)")
+            print(f"\n[MAIL] Fetching {total_items} emails in {num_pages} pages ({page_size} per page)")
 
         tasks = []
         semaphore = asyncio.Semaphore(max_concurrent)
@@ -557,17 +557,17 @@ class GraphMailQuery:
                                 filtered_emails = self._apply_client_side_filter(emails, client_filter)
                                 data["value"] = filtered_emails
                                 print(
-                                    f"  ✓ Page {page_num}: Retrieved {len(emails)} emails, kept {len(filtered_emails)} after filtering"
+                                    f"  [OK] Page {page_num}: Retrieved {len(emails)} emails, kept {len(filtered_emails)} after filtering"
                                 )
                             else:
-                                print(f"  ✓ Page {page_num}: Retrieved {len(emails)} emails")
+                                print(f"  [OK] Page {page_num}: Retrieved {len(emails)} emails")
 
                             return data
                         else:
-                            print(f"  ✗ Page {page_num}: Error {response.status}")
+                            print(f"  [FAIL] Page {page_num}: Error {response.status}")
                             return {"value": []}
                 except Exception as e:
-                    print(f"  ✗ Page {page_num}: {str(e)}")
+                    print(f"  [FAIL] Page {page_num}: {str(e)}")
                     return {"value": []}
 
         async with aiohttp.ClientSession() as session:
@@ -595,9 +595,9 @@ class GraphMailQuery:
             if result.get("error"):
                 errors.append(result)
 
-        print(f"✅ Fetched {len(all_emails)} emails in {elapsed:.2f}s")
+        print(f"[DONE] Fetched {len(all_emails)} emails in {elapsed:.2f}s")
         if errors:
-            print(f"⚠️  {len(errors)} page(s) had errors")
+            print(f"[WARN] {len(errors)} page(s) had errors")
 
         return_data = {
             "value": all_emails,
@@ -657,8 +657,8 @@ class GraphMailQuery:
 
             # Format
             read_status = "[READ]" if is_read else "[UNREAD]"
-            attach_icon = "📎" if has_attachments else ""
-            imp_icon = "❗" if importance == "high" else ""
+            attach_icon = "[ATTACH]" if has_attachments else ""
+            imp_icon = "[!]" if importance == "high" else ""
 
             output.append(f"[{idx}] {read_status} {imp_icon}{attach_icon} {subject}")
             output.append(f"    From: {sender_name} <{sender_email}>")

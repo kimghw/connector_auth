@@ -152,7 +152,7 @@ def get_server_name_from_path(path: str) -> str | None:
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(content)
 
-    print(f"\n✓ Generated {output_path}")
+    print(f"\n[OK] Generated {output_path}")
     print(f"  Server names: {', '.join(sorted(server_names))}")
     print(f"  Default server: {default_server}")
 
@@ -172,7 +172,7 @@ def main():
     server_names = scan_codebase_for_servers(project_root)
 
     if not server_names:
-        print("\n⚠ No server_name values found in @mcp_service decorators")
+        print("\n[WARN] No server_name values found in @mcp_service decorators")
         print("  Creating default with 'outlook' server")
         server_names = {"outlook"}
 
@@ -192,13 +192,13 @@ def main():
         backup_filename = f"tool_editor_web_server_mappings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py"
         backup_path = os.path.join(backup_dir, backup_filename)
         shutil.copy2(output_path, backup_path)
-        print(f"\n📦 Backed up existing file to: backups/{backup_filename}")
+        print(f"\n[BACKUP] Backed up existing file to: backups/{backup_filename}")
 
     # Generate new mapping file
     generate_server_mappings(server_names, output_path)
 
     print("\n" + "=" * 60)
-    print("✓ Done!")
+    print("[OK] Done!")
     print("=" * 60)
     print()
     print("Next steps:")

@@ -34,7 +34,7 @@ async def main():
             print("Authenticated Users")
             print("="*60)
             for user in users:
-                status = "✓ Active" if not user.get('token_expired', True) else "✗ Expired"
+                status = "[OK] Active" if not user.get('token_expired', True) else "[FAIL] Expired"
                 print(f"{user['email']}: {status}")
             print("="*60)
 
@@ -57,7 +57,7 @@ async def main():
 
         if result['status'] == 'success':
             print("\n" + "="*60)
-            print("✅ Authentication Successful!")
+            print("[OK] Authentication Successful!")
             print("="*60)
             print(f"Authenticated as: {result['email']}")
             user = result.get('user', {})
@@ -67,13 +67,13 @@ async def main():
                 print(f"Job Title: {user['job_title']}")
             print("="*60)
         elif result['status'] == 'timeout':
-            print("\n⚠️ Authentication timeout. Please try again.")
+            print("\n[WARN] Authentication timeout. Please try again.")
         else:
-            print(f"\n❌ Authentication failed: {result.get('error', 'Unknown error')}")
+            print(f"\n[ERROR] Authentication failed: {result.get('error', 'Unknown error')}")
 
     except Exception as e:
         logger.error(f"Error: {str(e)}")
-        print(f"\n❌ Error: {str(e)}")
+        print(f"\n[ERROR] Error: {str(e)}")
 
     finally:
         # Close the auth manager (콜백 서버도 자동 정리)

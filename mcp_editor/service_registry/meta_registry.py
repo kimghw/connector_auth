@@ -363,9 +363,9 @@ def extract_service_metadata():
     )
 
     if success:
-        print(f"\n✅ Service registry successfully exported to: {output_file}")
+        print(f"\n[OK] Service registry successfully exported to: {output_file}")
     else:
-        print("\n❌ Failed to export service registry")
+        print("\n[ERROR] Failed to export service registry")
         sys.exit(1)
 
 

@@ -42,12 +42,12 @@ class TestResult:
 
     def record_pass(self, name):
         self.passed += 1
-        print(f"  ✓ {name}")
+        print(f"  [PASS] {name}")
 
     def record_fail(self, name, error):
         self.failed += 1
         self.errors.append((name, error))
-        print(f"  ✗ {name}: {error}")
+        print(f"  [FAIL] {name}: {error}")
 
     def summary(self):
         total = self.passed + self.failed

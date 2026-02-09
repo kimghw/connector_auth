@@ -30,7 +30,7 @@ print("템플릿 파일 수정 상태 검증")
 print("=" * 60)
 
 for filename, checks in templates.items():
-    print(f"\n📄 {filename}")
+    print(f"\n[FILE] {filename}")
     print("-" * 40)
     
     if os.path.exists(filename):
@@ -41,15 +41,15 @@ for filename, checks in templates.items():
         for check_name, pattern, should_exist in checks['checks']:
             exists = pattern in content
             if exists == should_exist:
-                print(f"  ✅ {check_name}: {'있음' if exists else '없음'} (정상)")
+                print(f"  [OK] {check_name}: {'있음' if exists else '없음'} (정상)")
             else:
-                print(f"  ❌ {check_name}: {'있음' if exists else '없음'} (오류)")
+                print(f"  [ERROR] {check_name}: {'있음' if exists else '없음'} (오류)")
                 all_passed = False
         
         if all_passed:
-            print(f"  ✨ {filename} 완벽하게 수정됨!")
+            print(f"  [OK] {filename} 완벽하게 수정됨!")
     else:
-        print(f"  ❌ 파일이 존재하지 않음")
+        print(f"  [ERROR] 파일이 존재하지 않음")
 
 print("\n" + "=" * 60)
 print("최종 결과")
