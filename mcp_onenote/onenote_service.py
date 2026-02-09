@@ -1,37 +1,42 @@
 """
-OneNote Service - GraphOneNoteClient Facade
-Graph API 순수 위임 + 하위 모듈 접근자
+OneNote Service - Facade
+MCP 툴 3개 (read_onenote, write_onenote, delete_onenote) 라우팅
++ 하위 모듈 접근자
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 from .graph_onenote_client import GraphOneNoteClient
 from .onenote_db_service import OneNoteDBService
-from .onenote_types import (
-    SectionAction,
-    ContentAction,
-)
+from .onenote_types import ReadAction, WriteAction
 
 logger = logging.getLogger(__name__)
 
 
 class OneNoteService:
     """
-    GraphOneNoteClient의 Facade
+    OneNote Facade — MCP 툴 라우팅 + 하위 모듈 접근자
 
-    - Graph API 순수 위임 (노트북, 섹션, 페이지 조회)
-    - svc.page   → OneNotePageManager (CRUD + DB)
+    MCP 툴 진입점:
+    - read_onenote()   → OneNoteReader (조회)
+    - write_onenote()  → OneNoteWriter (생성/수정)
+    - delete_onenote() → OneNoteDeleter (삭제)
+
+    하위 모듈 접근:
+    - svc.reader → OneNoteReader
+    - svc.writer → OneNoteWriter
+    - svc.deleter → OneNoteDeleter
     - svc.agent  → OneNoteAgent (AI 요약/검색)
-    - svc.db     → OneNoteDBQuery (DB 조회/저장)
     """
 
     def __init__(self):
         self._client: Optional[GraphOneNoteClient] = None
         self._db_service: Optional[OneNoteDBService] = None
-        self._page_manager = None
         self._agent = None
-        self._db_query = None
+        self._reader = None
+        self._writer = None
+        self._deleter = None
         self._initialized = False
 
     async def initialize(self) -> bool:
@@ -44,14 +49,22 @@ class OneNoteService:
 
         if await self._client.initialize():
             from .onenote_agent import OneNoteAgent
-            from .onenote_page import OneNotePageManager
-            from .onenote_db_query import OneNoteDBQuery
+            from .onenote_read import OneNoteReader
+            from .onenote_write import OneNoteWriter
+            from .onenote_delete import OneNoteDeleter
 
             self._agent = OneNoteAgent(self._client, self._db_service)
-            self._page_manager = OneNotePageManager(
+
+            self._writer = OneNoteWriter(
                 self._client, self._db_service, self._agent
             )
-            self._db_query = OneNoteDBQuery(self._db_service)
+            self._deleter = OneNoteDeleter(
+                self._client, self._db_service
+            )
+            self._reader = OneNoteReader(
+                self._client, self._db_service, self._agent, self._writer
+            )
+
             self._initialized = True
             return True
         return False
@@ -69,130 +82,148 @@ class OneNoteService:
         self._initialized = False
 
     # ========================================================================
-    # 노트북 관련 메서드
+    # MCP 툴 진입점 (read / write / delete)
     # ========================================================================
 
-    async def list_notebooks(
+    async def read_onenote(
         self,
         user_email: str,
-    ) -> Dict[str, Any]:
-        """노트북 목록 조회"""
-        self._ensure_initialized()
-        return await self._client.list_notebooks(user_email)
-
-    # ========================================================================
-    # 섹션 관련 메서드
-    # ========================================================================
-
-    async def manage_sections(
-        self,
-        user_email: str,
-        action: SectionAction,
-        notebook_id: Optional[str] = None,
-        section_name: Optional[str] = None,
-        section_id: Optional[str] = None,
-        top: int = 50,
-    ) -> Dict[str, Any]:
-        """섹션 관리 - action에 따라 동작"""
-        self._ensure_initialized()
-
-        if action == SectionAction.CREATE_SECTION:
-            if not notebook_id or not section_name:
-                return {"success": False, "error": "notebook_id와 section_name이 필요합니다."}
-            return await self._client.create_section(user_email, notebook_id, section_name)
-
-        elif action == SectionAction.LIST_SECTIONS:
-            return await self._client.list_sections(user_email, notebook_id, top)
-
-        elif action == SectionAction.LIST_PAGES:
-            return await self._client.list_pages(user_email, section_id, top)
-
-        else:
-            return {"success": False, "error": f"알 수 없는 action: {action}"}
-
-    async def list_sections(
-        self,
-        user_email: str,
-        notebook_id: Optional[str] = None,
-        top: int = 50,
-    ) -> Dict[str, Any]:
-        """섹션 목록 조회"""
-        self._ensure_initialized()
-        return await self._client.list_sections(user_email, notebook_id, top)
-
-    async def create_section(
-        self,
-        user_email: str,
-        notebook_id: str,
-        section_name: str,
-    ) -> Dict[str, Any]:
-        """섹션 생성"""
-        self._ensure_initialized()
-        return await self._client.create_section(user_email, notebook_id, section_name)
-
-    # ========================================================================
-    # 페이지 조회 (순수 위임)
-    # ========================================================================
-
-    async def list_pages(
-        self,
-        user_email: str,
-        section_id: Optional[str] = None,
-        top: int = 50,
-    ) -> Dict[str, Any]:
-        """페이지 목록 조회"""
-        self._ensure_initialized()
-        return await self._client.list_pages(user_email, section_id, top)
-
-    async def manage_page_content(
-        self,
-        user_email: str,
-        action: ContentAction,
+        action: str,
+        keyword: Optional[str] = None,
         page_id: Optional[str] = None,
         section_id: Optional[str] = None,
-        title: Optional[str] = None,
-        content: Optional[str] = None,
+        notebook_id: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        top: int = 50,
     ) -> Dict[str, Any]:
-        """페이지 내용 관리 - action에 따라 동작 (CREATE/DELETE는 PageManager 위임)"""
+        """
+        조회 라우터 — action에 따라 Reader 메서드 위임
+
+        Actions:
+            list_pages: 페이지 목록 조회
+            list_sections: 섹션 목록 조회
+            search: 키워드 기반 페이지 검색
+            get_content: 페이지 본문 조회
+            get_summary: 페이지 요약 조회
+
+        날짜 필터 (ISO 8601 형식, Outlook과 동일):
+            date_from: 시작 날짜 (포함, >= 이 값) 예: "2024-12-01T00:00:00Z"
+            date_to: 종료 날짜 (포함, <= 이 값) 예: "2024-12-31T23:59:59Z"
+        """
         self._ensure_initialized()
 
-        if action == ContentAction.GET:
-            if not page_id:
-                return {"success": False, "error": "page_id가 필요합니다."}
-            return await self._client.get_page_content(user_email, page_id)
+        try:
+            act = ReadAction(action)
+        except ValueError:
+            return {"success": False, "error": f"알 수 없는 action: {action}. "
+                    f"사용 가능: {[a.value for a in ReadAction]}"}
 
-        elif action == ContentAction.CREATE:
+        if act == ReadAction.LIST_PAGES:
+            return await self._reader.list_pages(
+                user_email, section_id, notebook_id, date_from, date_to, top
+            )
+
+        elif act == ReadAction.LIST_SECTIONS:
+            return await self._reader.list_sections(user_email, notebook_id, top)
+
+        elif act == ReadAction.SEARCH:
+            if not keyword:
+                return {"success": False, "error": "search action에는 keyword가 필요합니다."}
+            return await self._reader.search(
+                user_email, keyword, section_id, date_from, date_to, top
+            )
+
+        elif act == ReadAction.GET_CONTENT:
+            if not page_id:
+                return {"success": False, "error": "get_content action에는 page_id가 필요합니다."}
+            return await self._reader.get_content(user_email, page_id)
+
+        elif act == ReadAction.GET_SUMMARY:
+            if not page_id:
+                return {"success": False, "error": "get_summary action에는 page_id가 필요합니다."}
+            return await self._reader.get_summary(user_email, page_id)
+
+    async def write_onenote(
+        self,
+        user_email: str,
+        action: str,
+        content: Optional[str] = None,
+        page_id: Optional[str] = None,
+        section_id: Optional[str] = None,
+        notebook_id: Optional[str] = None,
+        title: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        생성/수정 라우터 — action에 따라 Writer 메서드 위임
+
+        Actions:
+            append: 기존 페이지에 내용 추가 (page_id 없으면 최근 페이지)
+            create_page: 새 페이지 생성
+            create_section: 새 섹션 생성
+        """
+        self._ensure_initialized()
+
+        try:
+            act = WriteAction(action)
+        except ValueError:
+            return {"success": False, "error": f"알 수 없는 action: {action}. "
+                    f"사용 가능: {[a.value for a in WriteAction]}"}
+
+        if act == WriteAction.APPEND:
+            if not content:
+                return {"success": False, "error": "append action에는 content가 필요합니다."}
+            return await self._writer.append(user_email, content, page_id)
+
+        elif act == WriteAction.CREATE_PAGE:
             if not section_id or not title or not content:
-                return {"success": False, "error": "section_id, title, content가 필요합니다."}
-            return await self.page.create_page(user_email, section_id, title, content)
+                return {"success": False, "error": "create_page action에는 section_id, title, content가 필요합니다."}
+            return await self._writer.create_page(user_email, section_id, title, content)
 
-        elif action == ContentAction.DELETE:
-            if not page_id:
-                return {"success": False, "error": "page_id가 필요합니다."}
-            return await self.page.delete_page(user_email, page_id)
+        elif act == WriteAction.CREATE_SECTION:
+            if not notebook_id or not title:
+                return {"success": False, "error": "create_section action에는 notebook_id, title이 필요합니다."}
+            return await self._writer.create_section(user_email, notebook_id, title)
 
-        else:
-            return {"success": False, "error": f"알 수 없는 action: {action}"}
-
-    async def get_page_content(
+    async def delete_onenote(
         self,
         user_email: str,
         page_id: str,
     ) -> Dict[str, Any]:
-        """페이지 내용 조회"""
+        """
+        삭제 라우터 — Deleter에 위임
+        """
         self._ensure_initialized()
-        return await self._client.get_page_content(user_email, page_id)
+
+        if not page_id:
+            return {"success": False, "error": "page_id가 필요합니다."}
+
+        return await self._deleter.delete_page(user_email, page_id)
 
     # ========================================================================
-    # 접근자 (PageManager, Agent, DBQuery)
+    # 접근자
     # ========================================================================
 
     @property
-    def page(self):
-        """OneNotePageManager 인스턴스 반환"""
-        if not self._page_manager:
+    def reader(self):
+        """OneNoteReader 인스턴스 반환"""
+        if not self._reader:
             raise RuntimeError("OneNoteService not initialized. Call initialize() first.")
-        return self._page_manager
+        return self._reader
+
+    @property
+    def writer(self):
+        """OneNoteWriter 인스턴스 반환"""
+        if not self._writer:
+            raise RuntimeError("OneNoteService not initialized. Call initialize() first.")
+        return self._writer
+
+    @property
+    def deleter(self):
+        """OneNoteDeleter 인스턴스 반환"""
+        if not self._deleter:
+            raise RuntimeError("OneNoteService not initialized. Call initialize() first.")
+        return self._deleter
 
     @property
     def agent(self):
@@ -200,10 +231,3 @@ class OneNoteService:
         if not self._agent:
             raise RuntimeError("OneNoteService not initialized. Call initialize() first.")
         return self._agent
-
-    @property
-    def db(self):
-        """OneNoteDBQuery 인스턴스 반환"""
-        if not self._db_query:
-            raise RuntimeError("OneNoteService not initialized. Call initialize() first.")
-        return self._db_query

@@ -31,6 +31,22 @@ class ContentAction(str, Enum):
     DELETE = "delete"
 
 
+class ReadAction(str, Enum):
+    """조회 액션 (read_onenote 툴용)"""
+    LIST_PAGES = "list_pages"
+    LIST_SECTIONS = "list_sections"
+    SEARCH = "search"
+    GET_CONTENT = "get_content"
+    GET_SUMMARY = "get_summary"
+
+
+class WriteAction(str, Enum):
+    """생성/수정 액션 (write_onenote 툴용)"""
+    APPEND = "append"
+    CREATE_PAGE = "create_page"
+    CREATE_SECTION = "create_section"
+
+
 @dataclass
 class NotebookInfo:
     """노트북 정보"""

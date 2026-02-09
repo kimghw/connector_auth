@@ -45,8 +45,6 @@ OneNote 데이터는 `database/onenote.db`에 저장됩니다.
 - `onenote_page_summaries`: AI 요약 데이터 (summary, keywords, content_hash 등)
 - `onenote_page_changes`: 페이지 변경 이력 (action, content_snippet, change_summary, change_keywords 등)
 
-기존 `database/auth.db`에 OneNote 데이터가 있는 경우, 최초 실행 시 자동 마이그레이션됩니다.
-
 ## 기능
 
 ### Graph API 위임 (OneNoteService 직접)

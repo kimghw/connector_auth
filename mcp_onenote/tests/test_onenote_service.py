@@ -1,13 +1,18 @@
 """
 OneNote Service Tests
-리팩토링된 구조 반영:
-- svc.page  → OneNotePageManager (create_page, edit_page, delete_page, sync_db)
-- svc.agent → OneNoteAgent (AI 요약/검색)
-- svc.db    → OneNoteDBQuery (get_recent_items, save_section, save_page, find_*)
+새 CRUD 구조 반영:
+- svc.reader  → OneNoteReader (list_pages, list_sections, search, get_content, get_summary + DB 조회)
+- svc.writer  → OneNoteWriter (append, create_page, create_section, edit_page, sync_db)
+- svc.deleter → OneNoteDeleter (delete_page)
+- svc.agent   → OneNoteAgent (AI 요약/검색)
+
+MCP 툴 라우팅:
+- svc.read_onenote()   → Reader 위임
+- svc.write_onenote()  → Writer 위임
+- svc.delete_onenote() → Deleter 위임
 """
 
 import pytest
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import sys
@@ -15,13 +20,10 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from mcp_onenote.onenote_service import OneNoteService
-from mcp_onenote.onenote_page import OneNotePageManager
-from mcp_onenote.onenote_db_query import OneNoteDBQuery
-from mcp_onenote.onenote_types import (
-    PageAction,
-    SectionAction,
-    ContentAction,
-)
+from mcp_onenote.onenote_read import OneNoteReader
+from mcp_onenote.onenote_write import OneNoteWriter
+from mcp_onenote.onenote_delete import OneNoteDeleter
+from mcp_onenote.onenote_types import PageAction, ReadAction, WriteAction
 
 
 class TestOneNoteService:
@@ -35,26 +37,31 @@ class TestOneNoteService:
     @pytest.fixture
     def mock_client(self):
         """Mock GraphOneNoteClient"""
-        mock = AsyncMock()
-        return mock
+        return AsyncMock()
 
     @pytest.fixture
     def mock_db_service(self):
         """Mock OneNoteDBService"""
-        mock = MagicMock()
-        return mock
+        return MagicMock()
 
     @pytest.fixture
-    def initialized_service(self, service, mock_client, mock_db_service):
-        """초기화된 서비스 (page, db 접근자 포함)"""
+    def mock_agent(self):
+        """Mock OneNoteAgent"""
+        return AsyncMock()
+
+    @pytest.fixture
+    def initialized_service(self, service, mock_client, mock_db_service, mock_agent):
+        """초기화된 서비스 (reader, writer, deleter 접근자 포함)"""
         service._client = mock_client
         service._db_service = mock_db_service
+        service._agent = mock_agent
         service._initialized = True
 
-        service._page_manager = OneNotePageManager(
-            mock_client, mock_db_service
+        service._writer = OneNoteWriter(mock_client, mock_db_service, mock_agent)
+        service._deleter = OneNoteDeleter(mock_client, mock_db_service)
+        service._reader = OneNoteReader(
+            mock_client, mock_db_service, mock_agent, service._writer
         )
-        service._db_query = OneNoteDBQuery(mock_db_service)
 
         return service
 
@@ -65,240 +72,348 @@ class TestOneNoteService:
     @pytest.mark.asyncio
     async def test_initialize(self, service):
         """서비스 초기화 테스트"""
-        with patch.object(service, '_client', new_callable=AsyncMock) as mock_client:
-            mock_client.initialize = AsyncMock(return_value=True)
-            service._client = mock_client
-            service._initialized = True
+        service._initialized = True
+        assert service._initialized is True
 
-            assert service._initialized is True
-
-    @pytest.mark.asyncio
-    async def test_not_initialized_error(self, service):
+    def test_not_initialized_error(self, service):
         """초기화되지 않은 상태에서 호출 시 에러 테스트"""
         with pytest.raises(RuntimeError, match="not initialized"):
-            await service.list_notebooks("test@example.com")
+            service._ensure_initialized()
 
     # ========================================================================
-    # Graph API 순수 위임 테스트 (OneNoteService 직접 메서드)
+    # MCP 툴 라우팅: read_onenote 테스트
     # ========================================================================
 
     @pytest.mark.asyncio
-    async def test_list_notebooks(self, service, mock_client):
-        """노트북 목록 조회 테스트"""
-        mock_client.list_notebooks = AsyncMock(return_value={
-            "success": True,
-            "notebooks": [
-                {"id": "nb1", "display_name": "Notebook 1"},
-                {"id": "nb2", "display_name": "Notebook 2"},
-            ],
-            "count": 2,
-        })
+    async def test_read_onenote_list_pages(self, initialized_service, mock_db_service):
+        """read_onenote - list_pages 라우팅 테스트"""
+        mock_db_service.list_items = MagicMock(return_value=[
+            {
+                "item_id": "p1", "item_name": "Page 1",
+                "section_id": "s1", "section_name": "Sec 1",
+                "notebook_name": "NB 1", "last_accessed": "2026-01-01T00:00:00Z",
+            },
+        ])
 
-        service._client = mock_client
-        service._initialized = True
-
-        result = await service.list_notebooks("test@example.com")
+        result = await initialized_service.read_onenote(
+            user_email="test@example.com",
+            action="list_pages",
+        )
 
         assert result["success"] is True
-        assert result["count"] == 2
-        mock_client.list_notebooks.assert_called_once_with("test@example.com")
+        assert result["count"] == 1
+        assert result["pages"][0]["page_id"] == "p1"
 
     @pytest.mark.asyncio
-    async def test_list_sections(self, service, mock_client):
-        """섹션 목록 조회 테스트"""
+    async def test_read_onenote_list_pages_with_date_filter(self, initialized_service, mock_db_service):
+        """read_onenote - list_pages 날짜 필터 테스트"""
+        mock_db_service.list_items = MagicMock(return_value=[
+            {
+                "item_id": "p1", "item_name": "Page 1",
+                "section_id": "s1", "section_name": "Sec 1",
+                "notebook_name": "NB 1", "last_accessed": "2026-01-15T00:00:00Z",
+            },
+            {
+                "item_id": "p2", "item_name": "Page 2",
+                "section_id": "s1", "section_name": "Sec 1",
+                "notebook_name": "NB 1", "last_accessed": "2025-12-01T00:00:00Z",
+            },
+        ])
+
+        result = await initialized_service.read_onenote(
+            user_email="test@example.com",
+            action="list_pages",
+            date_from="2026-01-01T00:00:00Z",
+            date_to="2026-01-31T23:59:59Z",
+        )
+
+        assert result["success"] is True
+        assert result["count"] == 1
+        assert result["pages"][0]["page_id"] == "p1"
+
+    @pytest.mark.asyncio
+    async def test_read_onenote_list_sections(self, initialized_service, mock_client):
+        """read_onenote - list_sections 라우팅 테스트"""
         mock_client.list_sections = AsyncMock(return_value={
             "success": True,
-            "sections": [
-                {"id": "s1", "display_name": "Section 1"},
-            ],
+            "sections": [{"id": "s1", "display_name": "Section 1"}],
             "count": 1,
         })
 
-        service._client = mock_client
-        service._initialized = True
-
-        result = await service.list_sections("test@example.com", notebook_id="nb1")
+        result = await initialized_service.read_onenote(
+            user_email="test@example.com",
+            action="list_sections",
+            notebook_id="nb1",
+        )
 
         assert result["success"] is True
         assert result["count"] == 1
 
     @pytest.mark.asyncio
-    async def test_create_section(self, service, mock_client):
-        """섹션 생성 테스트"""
-        mock_client.create_section = AsyncMock(return_value={
+    async def test_read_onenote_search(self, initialized_service, mock_agent):
+        """read_onenote - search 라우팅 테스트"""
+        mock_agent.search_pages = AsyncMock(return_value={
             "success": True,
-            "section": {"id": "s_new", "display_name": "New Section"},
+            "results": [
+                {"page_id": "p1", "title": "Found Page", "score": 0.9},
+            ],
+            "count": 1,
         })
 
-        service._client = mock_client
-        service._initialized = True
-
-        result = await service.create_section(
+        result = await initialized_service.read_onenote(
             user_email="test@example.com",
-            notebook_id="nb1",
-            section_name="New Section",
+            action="search",
+            keyword="테스트",
         )
 
         assert result["success"] is True
-        assert result["section"]["display_name"] == "New Section"
+        assert result["count"] == 1
 
     @pytest.mark.asyncio
-    async def test_list_pages(self, service, mock_client):
-        """페이지 목록 조회 테스트"""
-        mock_client.list_pages = AsyncMock(return_value={
-            "success": True,
-            "pages": [
-                {"id": "p1", "title": "Page 1"},
-                {"id": "p2", "title": "Page 2"},
-            ],
-            "count": 2,
-        })
+    async def test_read_onenote_search_no_keyword(self, initialized_service):
+        """read_onenote - search에 keyword 없으면 에러"""
+        result = await initialized_service.read_onenote(
+            user_email="test@example.com",
+            action="search",
+        )
 
-        service._client = mock_client
-        service._initialized = True
-
-        result = await service.list_pages("test@example.com", section_id="s1")
-
-        assert result["success"] is True
-        assert result["count"] == 2
+        assert result["success"] is False
+        assert "keyword" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_get_page_content(self, service, mock_client):
-        """페이지 내용 조회 테스트"""
+    async def test_read_onenote_get_content(self, initialized_service, mock_client):
+        """read_onenote - get_content 라우팅 테스트"""
         mock_client.get_page_content = AsyncMock(return_value={
             "success": True,
             "page_id": "p1",
-            "content": "<html><body>Test content</body></html>",
+            "content": "<html><body>Test</body></html>",
         })
 
-        service._client = mock_client
-        service._initialized = True
-
-        result = await service.get_page_content("test@example.com", "p1")
+        result = await initialized_service.read_onenote(
+            user_email="test@example.com",
+            action="get_content",
+            page_id="p1",
+        )
 
         assert result["success"] is True
         assert "content" in result
 
     @pytest.mark.asyncio
-    async def test_manage_sections_create(self, service, mock_client):
-        """manage_sections - 섹션 생성 테스트"""
-        mock_client.create_section = AsyncMock(return_value={
-            "success": True,
-            "section": {"id": "s_new", "display_name": "Test Section"},
-        })
-
-        service._client = mock_client
-        service._initialized = True
-
-        result = await service.manage_sections(
+    async def test_read_onenote_get_content_no_page_id(self, initialized_service):
+        """read_onenote - get_content에 page_id 없으면 에러"""
+        result = await initialized_service.read_onenote(
             user_email="test@example.com",
-            action=SectionAction.CREATE_SECTION,
-            notebook_id="nb1",
-            section_name="Test Section",
+            action="get_content",
         )
 
-        assert result["success"] is True
+        assert result["success"] is False
+        assert "page_id" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_manage_page_content_get(self, service, mock_client):
-        """manage_page_content - 내용 조회 테스트"""
-        mock_client.get_page_content = AsyncMock(return_value={
+    async def test_read_onenote_get_summary(self, initialized_service, mock_agent):
+        """read_onenote - get_summary 라우팅 테스트"""
+        mock_agent.get_page_summary = AsyncMock(return_value={
             "success": True,
-            "page_id": "p1",
-            "content": "<html><body>Content</body></html>",
+            "summary": "페이지 요약 내용",
         })
 
-        service._client = mock_client
-        service._initialized = True
-
-        result = await service.manage_page_content(
+        result = await initialized_service.read_onenote(
             user_email="test@example.com",
-            action=ContentAction.GET,
+            action="get_summary",
             page_id="p1",
         )
 
         assert result["success"] is True
 
+    @pytest.mark.asyncio
+    async def test_read_onenote_invalid_action(self, initialized_service):
+        """read_onenote - 잘못된 action"""
+        result = await initialized_service.read_onenote(
+            user_email="test@example.com",
+            action="invalid_action",
+        )
+
+        assert result["success"] is False
+        assert "알 수 없는 action" in result["error"]
+
     # ========================================================================
-    # svc.page 테스트 (OneNotePageManager)
+    # MCP 툴 라우팅: write_onenote 테스트
     # ========================================================================
 
     @pytest.mark.asyncio
-    async def test_create_page(self, initialized_service, mock_client, mock_db_service):
-        """페이지 생성 테스트 (svc.page.create_page)"""
+    async def test_write_onenote_append(self, initialized_service, mock_client, mock_db_service):
+        """write_onenote - append 라우팅 테스트"""
+        mock_client.update_page = AsyncMock(return_value={"success": True})
+        mock_db_service.get_summary = MagicMock(return_value=None)
+        mock_db_service.list_items = MagicMock(return_value=[
+            {"item_id": "p1", "item_name": "Test Page", "web_url": "http://example.com"}
+        ])
+        mock_db_service.save_page_change = MagicMock()
+
+        result = await initialized_service.write_onenote(
+            user_email="test@example.com",
+            action="append",
+            content="<p>New content</p>",
+            page_id="p1",
+        )
+
+        assert result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_write_onenote_append_no_content(self, initialized_service):
+        """write_onenote - append에 content 없으면 에러"""
+        result = await initialized_service.write_onenote(
+            user_email="test@example.com",
+            action="append",
+        )
+
+        assert result["success"] is False
+        assert "content" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_write_onenote_create_page(self, initialized_service, mock_client, mock_db_service):
+        """write_onenote - create_page 라우팅 테스트"""
         mock_client.create_page = AsyncMock(return_value={
             "success": True,
-            "page": {"id": "p_new", "title": "New Page"},
+            "page": {
+                "id": "p_new", "title": "New Page",
+                "parent_section_id": "s1",
+            },
         })
 
-        result = await initialized_service.page.create_page(
+        result = await initialized_service.write_onenote(
             user_email="test@example.com",
+            action="create_page",
             section_id="s1",
             title="New Page",
-            content="<p>Hello World</p>",
+            content="<p>Content</p>",
         )
 
         assert result["success"] is True
-        assert result["page"]["title"] == "New Page"
 
     @pytest.mark.asyncio
-    async def test_edit_page_append(self, initialized_service, mock_client, mock_db_service):
-        """페이지 편집(append) 테스트 (svc.page.edit_page)"""
-        mock_client.update_page = AsyncMock(return_value={
-            "success": True,
-        })
-        mock_db_service.get_summary = MagicMock(return_value=None)
+    async def test_write_onenote_create_page_missing_params(self, initialized_service):
+        """write_onenote - create_page에 필수 파라미터 누락 시 에러"""
+        result = await initialized_service.write_onenote(
+            user_email="test@example.com",
+            action="create_page",
+            title="Title Only",
+        )
 
-        result = await initialized_service.page.edit_page(
+        assert result["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_write_onenote_create_section(self, initialized_service, mock_client):
+        """write_onenote - create_section 라우팅 테스트"""
+        mock_client.create_section = AsyncMock(return_value={
+            "success": True,
+            "section": {"id": "s_new", "display_name": "New Section"},
+        })
+
+        result = await initialized_service.write_onenote(
+            user_email="test@example.com",
+            action="create_section",
+            notebook_id="nb1",
+            title="New Section",
+        )
+
+        assert result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_write_onenote_invalid_action(self, initialized_service):
+        """write_onenote - 잘못된 action"""
+        result = await initialized_service.write_onenote(
+            user_email="test@example.com",
+            action="invalid_action",
+        )
+
+        assert result["success"] is False
+        assert "알 수 없는 action" in result["error"]
+
+    # ========================================================================
+    # MCP 툴 라우팅: delete_onenote 테스트
+    # ========================================================================
+
+    @pytest.mark.asyncio
+    async def test_delete_onenote(self, initialized_service, mock_client, mock_db_service):
+        """delete_onenote 라우팅 테스트"""
+        mock_client.delete_page = AsyncMock(return_value={"success": True})
+
+        result = await initialized_service.delete_onenote(
             user_email="test@example.com",
             page_id="p1",
-            action=PageAction.APPEND,
-            content="<p>Appended content</p>",
         )
 
         assert result["success"] is True
+        assert result["deleted_page_id"] == "p1"
 
     @pytest.mark.asyncio
-    async def test_delete_page(self, initialized_service, mock_client, mock_db_service):
-        """페이지 삭제 테스트 (svc.page.delete_page)"""
-        mock_client.delete_page = AsyncMock(return_value={
-            "success": True,
-        })
-
-        result = await initialized_service.page.delete_page(
-            "test@example.com", "p1"
+    async def test_delete_onenote_no_page_id(self, initialized_service):
+        """delete_onenote - page_id 없으면 에러"""
+        result = await initialized_service.delete_onenote(
+            user_email="test@example.com",
+            page_id="",
         )
 
-        assert result["success"] is True
+        assert result["success"] is False
+        assert "page_id" in result["error"]
+
+    # ========================================================================
+    # OneNoteReader 직접 테스트
+    # ========================================================================
 
     @pytest.mark.asyncio
-    async def test_sync_db(self, initialized_service, mock_client, mock_db_service):
-        """DB 동기화 테스트 (svc.page.sync_db)"""
+    async def test_reader_list_pages_empty_triggers_sync(
+        self, initialized_service, mock_client, mock_db_service
+    ):
+        """Reader: DB 비어있으면 sync_db 호출 후 재조회"""
+        # 첫 호출: 빈 목록, 두 번째 호출(sync 후): 데이터 있음
+        mock_db_service.list_items = MagicMock(side_effect=[
+            [],  # 첫 조회
+            [{"item_id": "p1", "item_name": "Page 1",
+              "section_id": "s1", "section_name": "Sec 1",
+              "notebook_name": "NB 1", "last_accessed": "2026-01-01T00:00:00Z"}],
+        ])
         mock_client.list_pages = AsyncMock(return_value={
             "success": True,
             "pages": [{"id": "p1", "title": "Page 1"}],
         })
         mock_db_service.sync_pages_to_db = AsyncMock(return_value={"synced": 1})
 
-        result = await initialized_service.page.sync_db(
-            user_email="test@example.com",
-        )
+        result = await initialized_service.reader.list_pages("test@example.com")
 
         assert result["success"] is True
-        assert result["pages_synced"] == 1
+        assert result["count"] == 1
 
-    # ========================================================================
-    # svc.db 테스트 (OneNoteDBQuery)
-    # ========================================================================
+    @pytest.mark.asyncio
+    async def test_reader_list_pages_notebook_filter(
+        self, initialized_service, mock_db_service
+    ):
+        """Reader: notebook_id 필터링"""
+        mock_db_service.list_items = MagicMock(return_value=[
+            {"item_id": "p1", "item_name": "Page 1", "notebook_id": "nb1",
+             "section_id": "s1", "section_name": "Sec 1",
+             "notebook_name": "NB 1", "last_accessed": "2026-01-01T00:00:00Z"},
+            {"item_id": "p2", "item_name": "Page 2", "notebook_id": "nb2",
+             "section_id": "s2", "section_name": "Sec 2",
+             "notebook_name": "NB 2", "last_accessed": "2026-01-01T00:00:00Z"},
+        ])
 
-    def test_get_recent_items_sections(self, initialized_service, mock_db_service):
-        """최근 섹션 조회 테스트 (svc.db.get_recent_items)"""
+        result = await initialized_service.reader.list_pages(
+            "test@example.com", notebook_id="nb1"
+        )
+
+        assert result["count"] == 1
+        assert result["pages"][0]["page_id"] == "p1"
+
+    def test_reader_get_recent_items(self, initialized_service, mock_db_service):
+        """Reader: 최근 섹션 조회"""
         mock_db_service.get_recent_items = MagicMock(return_value=[
             {"item_id": "s1", "item_name": "Section 1", "item_type": "section"},
             {"item_id": "s2", "item_name": "Section 2", "item_type": "section"},
         ])
 
-        result = initialized_service.db.get_recent_items(
+        result = initialized_service.reader.get_recent_items(
             "test@example.com", "section", 5
         )
 
@@ -308,110 +423,149 @@ class TestOneNoteService:
             "test@example.com", "section", 5
         )
 
-    def test_get_recent_items_pages(self, initialized_service, mock_db_service):
-        """최근 페이지 조회 테스트 (svc.db.get_recent_items)"""
-        mock_db_service.get_recent_items = MagicMock(return_value=[
-            {"item_id": "p1", "item_name": "Page 1", "item_type": "page"},
-        ])
-
-        result = initialized_service.db.get_recent_items(
-            "test@example.com", "page", 5
+    def test_reader_get_recent_items_invalid_type(self, initialized_service):
+        """Reader: 잘못된 item_type"""
+        result = initialized_service.reader.get_recent_items(
+            "test@example.com", "notebook", 5
         )
 
-        assert result["success"] is True
-        assert result["count"] == 1
+        assert result["success"] is False
 
-    def test_save_section_to_db(self, initialized_service, mock_db_service):
-        """섹션 DB 저장 테스트 (svc.db.save_section)"""
-        mock_db_service.save_section = MagicMock(return_value=True)
-
-        result = initialized_service.db.save_section(
-            user_email="test@example.com",
-            notebook_id="nb1",
-            section_id="s1",
-            section_name="Test Section",
-            notebook_name="Test Notebook",
-        )
-
-        assert result["success"] is True
-        mock_db_service.save_section.assert_called_once()
-
-    def test_save_page_to_db(self, initialized_service, mock_db_service):
-        """페이지 DB 저장 테스트 (svc.db.save_page)"""
-        mock_db_service.save_page = MagicMock(return_value=True)
-
-        result = initialized_service.db.save_page(
-            user_email="test@example.com",
-            section_id="s1",
-            page_id="p1",
-            page_title="Test Page",
-        )
-
-        assert result["success"] is True
-        mock_db_service.save_page.assert_called_once()
-
-    def test_find_section_by_name(self, initialized_service, mock_db_service):
-        """이름으로 섹션 검색 테스트 (svc.db.find_section_by_name)"""
+    def test_reader_find_section_by_name(self, initialized_service, mock_db_service):
+        """Reader: 이름으로 섹션 검색"""
         mock_db_service.get_section = MagicMock(return_value={
             "section_id": "s1",
             "section_name": "My Section",
             "notebook_id": "nb1",
         })
 
-        result = initialized_service.db.find_section_by_name(
+        result = initialized_service.reader.find_section_by_name(
             "test@example.com", "My Section"
         )
 
         assert result["success"] is True
         assert result["section"]["section_id"] == "s1"
 
-    def test_find_section_by_name_not_found(self, initialized_service, mock_db_service):
-        """섹션 검색 실패 테스트 (svc.db.find_section_by_name)"""
+    def test_reader_find_section_not_found(self, initialized_service, mock_db_service):
+        """Reader: 섹션 검색 실패"""
         mock_db_service.get_section = MagicMock(return_value=None)
 
-        result = initialized_service.db.find_section_by_name(
+        result = initialized_service.reader.find_section_by_name(
             "test@example.com", "Unknown"
         )
 
         assert result["success"] is False
 
-    def test_find_page_by_name(self, initialized_service, mock_db_service):
-        """이름으로 페이지 검색 테스트 (svc.db.find_page_by_name)"""
+    def test_reader_find_page_by_name(self, initialized_service, mock_db_service):
+        """Reader: 이름으로 페이지 검색"""
         mock_db_service.get_page = MagicMock(return_value={
             "page_id": "p1",
             "page_title": "My Page",
             "section_id": "s1",
         })
 
-        result = initialized_service.db.find_page_by_name(
+        result = initialized_service.reader.find_page_by_name(
             "test@example.com", "My Page"
         )
 
         assert result["success"] is True
         assert result["page"]["page_id"] == "p1"
 
+    def test_reader_get_page_history(self, initialized_service, mock_db_service):
+        """Reader: 페이지 변경 이력 조회"""
+        mock_db_service.get_page_changes = MagicMock(return_value=[
+            {
+                "id": 1, "page_id": "p1", "user_id": "test@example.com",
+                "action": "append", "change_summary": "새 단락 추가",
+                "change_keywords": ["단락", "추가"],
+                "created_at": "2026-02-09T12:00:00",
+            },
+            {
+                "id": 2, "page_id": "p1", "user_id": "test@example.com",
+                "action": "replace", "change_summary": "제목 수정",
+                "change_keywords": ["제목", "수정"],
+                "created_at": "2026-02-09T11:00:00",
+            },
+        ])
+
+        result = initialized_service.reader.get_page_history("p1")
+
+        assert result["success"] is True
+        assert result["count"] == 2
+        assert result["changes"][0]["action"] == "append"
+        assert result["changes"][1]["change_summary"] == "제목 수정"
+
+    def test_reader_get_user_history(self, initialized_service, mock_db_service):
+        """Reader: 사용자별 변경 이력 조회"""
+        mock_db_service.get_user_changes = MagicMock(return_value=[
+            {"page_id": "p1", "action": "append", "change_summary": "내용 추가"},
+        ])
+
+        result = initialized_service.reader.get_user_history("test@example.com")
+
+        assert result["success"] is True
+        assert result["count"] == 1
+
     # ========================================================================
-    # 변경 이력 테스트
+    # OneNoteWriter 직접 테스트
     # ========================================================================
 
     @pytest.mark.asyncio
-    async def test_edit_page_saves_change_history(self, initialized_service, mock_client, mock_db_service):
-        """편집 시 변경 이력 저장 확인"""
+    async def test_writer_create_page(self, initialized_service, mock_client, mock_db_service):
+        """Writer: 페이지 생성 + DB 저장"""
+        mock_client.create_page = AsyncMock(return_value={
+            "success": True,
+            "page": {"id": "p_new", "title": "New Page"},
+        })
+
+        result = await initialized_service.writer.create_page(
+            user_email="test@example.com",
+            section_id="s1",
+            title="New Page",
+            content="<p>Hello World</p>",
+        )
+
+        assert result["success"] is True
+        assert result["page"]["title"] == "New Page"
+        mock_db_service.save_item.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_writer_edit_page_append(self, initialized_service, mock_client, mock_db_service):
+        """Writer: 페이지 편집(append)"""
         mock_client.update_page = AsyncMock(return_value={"success": True})
         mock_db_service.get_summary = MagicMock(return_value=None)
         mock_db_service.list_items = MagicMock(return_value=[
             {"item_id": "p1", "item_name": "Test Page"}
         ])
-        mock_db_service.save_page_change = MagicMock(return_value=True)
+        mock_db_service.save_page_change = MagicMock()
 
-        # agent의 summarize_change mock
-        initialized_service._page_manager._agent = AsyncMock()
-        initialized_service._page_manager._agent.summarize_change = AsyncMock(return_value={
+        result = await initialized_service.writer.edit_page(
+            user_email="test@example.com",
+            page_id="p1",
+            action=PageAction.APPEND,
+            content="<p>Appended content</p>",
+        )
+
+        assert result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_writer_edit_page_saves_change_history(
+        self, initialized_service, mock_client, mock_db_service, mock_agent
+    ):
+        """Writer: 편집 시 변경 이력 저장 확인"""
+        mock_client.update_page = AsyncMock(return_value={"success": True})
+        mock_db_service.get_summary = MagicMock(return_value=None)
+        mock_db_service.list_items = MagicMock(return_value=[
+            {"item_id": "p1", "item_name": "Test Page"}
+        ])
+        mock_db_service.save_page_change = MagicMock()
+
+        mock_agent.summarize_change = AsyncMock(return_value={
             "change_summary": "테스트 내용 추가",
             "change_keywords": ["테스트", "추가"],
         })
 
-        result = await initialized_service.page.edit_page(
+        result = await initialized_service.writer.edit_page(
             user_email="test@example.com",
             page_id="p1",
             action=PageAction.APPEND,
@@ -427,65 +581,117 @@ class TestOneNoteService:
         assert call_kwargs[1]["change_summary"] == "테스트 내용 추가"
         assert call_kwargs[1]["change_keywords"] == ["테스트", "추가"]
 
-    def test_get_page_history(self, initialized_service, mock_db_service):
-        """페이지 변경 이력 조회 확인"""
-        mock_db_service.get_page_changes = MagicMock(return_value=[
-            {
-                "id": 1,
-                "page_id": "p1",
-                "user_id": "test@example.com",
-                "action": "append",
-                "change_summary": "새 단락 추가",
-                "change_keywords": ["단락", "추가"],
-                "created_at": "2026-02-09T12:00:00",
-            },
-            {
-                "id": 2,
-                "page_id": "p1",
-                "user_id": "test@example.com",
-                "action": "replace",
-                "change_summary": "제목 수정",
-                "change_keywords": ["제목", "수정"],
-                "created_at": "2026-02-09T11:00:00",
-            },
+    @pytest.mark.asyncio
+    async def test_writer_append_auto_select_recent_page(
+        self, initialized_service, mock_client, mock_db_service
+    ):
+        """Writer: append에 page_id 없으면 최근 페이지 자동 선택"""
+        mock_db_service.get_recent_items = MagicMock(return_value=[
+            {"item_id": "p_recent", "item_name": "Recent Page"}
         ])
+        mock_client.update_page = AsyncMock(return_value={"success": True})
+        mock_db_service.get_summary = MagicMock(return_value=None)
+        mock_db_service.list_items = MagicMock(return_value=[
+            {"item_id": "p_recent", "item_name": "Recent Page", "web_url": "http://example.com"}
+        ])
+        mock_db_service.save_page_change = MagicMock()
 
-        result = initialized_service.db.get_page_history("p1")
+        result = await initialized_service.writer.append(
+            user_email="test@example.com",
+            content="<p>Auto appended</p>",
+        )
 
         assert result["success"] is True
-        assert result["count"] == 2
-        assert result["changes"][0]["action"] == "append"
-        assert result["changes"][1]["change_summary"] == "제목 수정"
+        assert result["page_id"] == "p_recent"
 
-    def test_get_user_history(self, initialized_service, mock_db_service):
-        """사용자별 변경 이력 조회 확인"""
-        mock_db_service.get_user_changes = MagicMock(return_value=[
-            {"page_id": "p1", "action": "append", "change_summary": "내용 추가"},
-        ])
+    @pytest.mark.asyncio
+    async def test_writer_append_no_recent_page(self, initialized_service, mock_db_service):
+        """Writer: append에 page_id 없고 최근 페이지도 없으면 에러"""
+        mock_db_service.get_recent_items = MagicMock(return_value=[])
 
-        result = initialized_service.db.get_user_history("test@example.com")
+        result = await initialized_service.writer.append(
+            user_email="test@example.com",
+            content="<p>Content</p>",
+        )
+
+        assert result["success"] is False
+        assert "page_id" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_writer_sync_db(self, initialized_service, mock_client, mock_db_service):
+        """Writer: DB 동기화"""
+        mock_client.list_pages = AsyncMock(return_value={
+            "success": True,
+            "pages": [{"id": "p1", "title": "Page 1"}],
+        })
+        mock_db_service.sync_pages_to_db = AsyncMock(return_value={"synced": 1})
+
+        result = await initialized_service.writer.sync_db(
+            user_email="test@example.com",
+        )
 
         assert result["success"] is True
-        assert result["count"] == 1
+        assert result["pages_synced"] == 1
+
+    @pytest.mark.asyncio
+    async def test_writer_create_section(self, initialized_service, mock_client):
+        """Writer: 섹션 생성"""
+        mock_client.create_section = AsyncMock(return_value={
+            "success": True,
+            "section": {"id": "s_new", "display_name": "New Section"},
+        })
+
+        result = await initialized_service.writer.create_section(
+            user_email="test@example.com",
+            notebook_id="nb1",
+            title="New Section",
+        )
+
+        assert result["success"] is True
+
+    # ========================================================================
+    # OneNoteDeleter 직접 테스트
+    # ========================================================================
+
+    @pytest.mark.asyncio
+    async def test_deleter_delete_page(self, initialized_service, mock_client, mock_db_service):
+        """Deleter: 페이지 삭제 + DB/요약 삭제"""
+        mock_client.delete_page = AsyncMock(return_value={"success": True})
+
+        result = await initialized_service.deleter.delete_page(
+            "test@example.com", "p1"
+        )
+
+        assert result["success"] is True
+        assert result["deleted_page_id"] == "p1"
+        mock_db_service.delete_item.assert_called_once_with(
+            user_id="test@example.com", item_id="p1"
+        )
+        mock_db_service.delete_summary.assert_called_once_with(page_id="p1")
 
     # ========================================================================
     # 접근자 테스트
     # ========================================================================
 
-    def test_page_property_not_initialized(self, service):
-        """초기화 전 page 접근 시 에러"""
+    def test_reader_property_not_initialized(self, service):
+        """초기화 전 reader 접근 시 에러"""
         with pytest.raises(RuntimeError, match="not initialized"):
-            _ = service.page
+            _ = service.reader
+
+    def test_writer_property_not_initialized(self, service):
+        """초기화 전 writer 접근 시 에러"""
+        with pytest.raises(RuntimeError, match="not initialized"):
+            _ = service.writer
+
+    def test_deleter_property_not_initialized(self, service):
+        """초기화 전 deleter 접근 시 에러"""
+        with pytest.raises(RuntimeError, match="not initialized"):
+            _ = service.deleter
 
     def test_agent_property_not_initialized(self, service):
         """초기화 전 agent 접근 시 에러"""
         with pytest.raises(RuntimeError, match="not initialized"):
             _ = service.agent
-
-    def test_db_property_not_initialized(self, service):
-        """초기화 전 db 접근 시 에러"""
-        with pytest.raises(RuntimeError, match="not initialized"):
-            _ = service.db
 
 
 if __name__ == "__main__":
