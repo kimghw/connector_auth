@@ -26,6 +26,13 @@ _env_loaded = load_dotenv(_env_path)
 print(f"[DEBUG] .env path: {_env_path}, exists: {os.path.exists(_env_path)}, loaded: {_env_loaded}", file=sys.stderr)
 print(f"[DEBUG] AZURE_CLIENT_ID after load_dotenv: {os.getenv('AZURE_CLIENT_ID')}", file=sys.stderr)
 
+# CRITICAL: Redirect stdout to stderr BEFORE any module imports.
+# STDIO MCP protocol uses stdout exclusively for JSON-RPC messages.
+# Any print() from imported modules (graph_mail_query, graph_mail_client, etc.)
+# would corrupt the JSON-RPC stream and cause "Unexpected token" errors.
+_original_stdout = sys.stdout  # Save for JSON-RPC output
+sys.stdout = sys.stderr  # All print() now goes to stderr
+
 # Add paths for imports (generalized for all servers)
 server_module_dir = os.path.join(grandparent_dir, "mcp_outlook")
 if os.path.isdir(server_module_dir):
@@ -1032,11 +1039,11 @@ class StdioMCPServer:
             return None
 
     def write_message(self, message: Dict[str, Any]):
-        """Write a JSON-RPC message to stdout"""
+        """Write a JSON-RPC message to the real stdout (not stderr)"""
         try:
             json_str = json.dumps(message, ensure_ascii=False)
-            sys.stdout.write(json_str + '\n')
-            sys.stdout.flush()
+            _original_stdout.write(json_str + '\n')
+            _original_stdout.flush()
             logger.debug(f"Sent message: {message}")
         except Exception as e:
             logger.error(f"Error writing message: {e}")
