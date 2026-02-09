@@ -3,6 +3,7 @@ Authentication Manager
 다중 사용자 인증 및 토큰 관리 + 콜백 서버 생애주기 관리
 """
 
+import os
 import logging
 import asyncio
 import webbrowser
@@ -10,8 +11,9 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
-# 환경 변수 로드
-load_dotenv()
+# 환경 변수 로드 (프로젝트 루트 기준)
+_env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+load_dotenv(_env_path)
 
 from .auth_service import AuthService
 from .auth_database import AuthDatabase

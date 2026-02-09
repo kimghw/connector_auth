@@ -10,8 +10,9 @@ from datetime import datetime, timezone
 import logging
 from dotenv import load_dotenv
 
-# .env 파일에서 환경변수 로드
-load_dotenv()
+# .env 파일에서 환경변수 로드 (프로젝트 루트 기준)
+_env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+load_dotenv(_env_path)
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)
