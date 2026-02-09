@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class OneNoteDBService:
     """OneNote 데이터베이스 서비스 (통합 테이블)"""
 
-    def __init__(self, db_path: str = "database/auth.db"):
+    def __init__(self, db_path: str = "database/onenote.db"):
         """
         데이터베이스 초기화
 
@@ -31,7 +31,9 @@ class OneNoteDBService:
             resolved_path = os.path.join(base_dir, resolved_path)
 
         self.db_path = resolved_path
+        os.makedirs(os.path.dirname(resolved_path), exist_ok=True)
         self._ensure_tables()
+        self._migrate_from_auth_db()
         logger.info("✅ OneNoteDBService initialized")
 
     def _ensure_tables(self):
@@ -104,6 +106,95 @@ class OneNoteDBService:
         except Exception as e:
             logger.error(f"❌ 테이블 초기화 실패: {e}")
             raise
+        finally:
+            conn.close()
+
+    def _migrate_from_auth_db(self):
+        """
+        One-time migration: auth.db에서 OneNote 데이터를 onenote.db로 복사.
+        onenote.db 테이블이 비어있고 auth.db에 데이터가 있을 때만 실행.
+        """
+        db_dir = os.path.dirname(self.db_path)
+        auth_db_path = os.path.join(db_dir, "auth.db")
+
+        if not os.path.exists(auth_db_path):
+            return
+
+        # onenote.db에 이미 데이터가 있으면 스킵
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM onenote_items")
+            items_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM onenote_page_summaries")
+            summaries_count = cursor.fetchone()[0]
+
+            if items_count > 0 or summaries_count > 0:
+                return
+        finally:
+            conn.close()
+
+        # auth.db에서 데이터 읽기
+        auth_conn = sqlite3.connect(auth_db_path)
+        try:
+            auth_cursor = auth_conn.cursor()
+
+            # onenote_items 테이블 존재 확인
+            auth_cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='onenote_items'"
+            )
+            if not auth_cursor.fetchone():
+                return
+
+            auth_cursor.execute("SELECT * FROM onenote_items")
+            items_columns = [desc[0] for desc in auth_cursor.description]
+            items_rows = auth_cursor.fetchall()
+
+            # onenote_page_summaries 테이블 (존재하는 경우만)
+            summaries_rows = []
+            summaries_columns = []
+            auth_cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='onenote_page_summaries'"
+            )
+            if auth_cursor.fetchone():
+                auth_cursor.execute("SELECT * FROM onenote_page_summaries")
+                summaries_columns = [desc[0] for desc in auth_cursor.description]
+                summaries_rows = auth_cursor.fetchall()
+
+            if not items_rows and not summaries_rows:
+                return
+
+        finally:
+            auth_conn.close()
+
+        # onenote.db에 데이터 쓰기
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cursor = conn.cursor()
+
+            if items_rows:
+                placeholders = ", ".join(["?"] * len(items_columns))
+                columns_str = ", ".join(items_columns)
+                cursor.executemany(
+                    f"INSERT OR IGNORE INTO onenote_items ({columns_str}) VALUES ({placeholders})",
+                    items_rows,
+                )
+                logger.info(f"✅ auth.db → onenote.db: onenote_items {len(items_rows)}건 마이그레이션")
+
+            if summaries_rows:
+                placeholders = ", ".join(["?"] * len(summaries_columns))
+                columns_str = ", ".join(summaries_columns)
+                cursor.executemany(
+                    f"INSERT OR IGNORE INTO onenote_page_summaries ({columns_str}) VALUES ({placeholders})",
+                    summaries_rows,
+                )
+                logger.info(f"✅ auth.db → onenote.db: onenote_page_summaries {len(summaries_rows)}건 마이그레이션")
+
+            conn.commit()
+            logger.info("✅ auth.db → onenote.db 마이그레이션 완료")
+
+        except Exception as e:
+            logger.error(f"❌ 마이그레이션 실패: {e}")
         finally:
             conn.close()
 

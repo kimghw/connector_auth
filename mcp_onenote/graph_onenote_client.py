@@ -537,6 +537,16 @@ class GraphOneNoteClient:
                 "content": content,
             })
 
+        elif action == PageAction.CLEAN:
+            patch_content.append({
+                "target": target or "body",
+                "action": "replace",
+                "content": "<p></p>",
+            })
+
+        if not patch_content:
+            return {"success": False, "error": f"지원하지 않는 action: {action}"}
+
         endpoint = f"/me/onenote/pages/{page_id}/content"
 
         result = await self._make_request(

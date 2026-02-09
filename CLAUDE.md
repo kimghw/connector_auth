@@ -3,7 +3,8 @@
 ## OneNote DB 관리 (onenote_items 테이블)
 
 ### 테이블 위치
-- `database/auth.db` > `onenote_items` 테이블
+- `database/onenote.db` > `onenote_items`, `onenote_page_summaries` 테이블
+- 최초 실행 시 `auth.db`에서 자동 마이그레이션
 
 ### 컬럼 구조
 | 컬럼 | 설명 |
