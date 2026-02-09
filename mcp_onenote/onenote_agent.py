@@ -530,3 +530,64 @@ class OneNoteAgent:
             "total_pages_scanned": len(pages),
             "errors": errors,
         }
+
+    async def summarize_change(
+        self,
+        page_title: str,
+        action: str,
+        content: str,
+    ) -> Dict[str, Any]:
+        """
+        편집 내용을 AI로 요약 (SDK 1회 호출)
+
+        Args:
+            page_title: 페이지 제목
+            action: 편집 액션 (append, replace 등)
+            content: 편집된 HTML 내용
+
+        Returns:
+            {"change_summary": str, "change_keywords": [str, ...]}
+        """
+        if not is_sdk_available():
+            return {"change_summary": "", "change_keywords": []}
+
+        plain_text = html_to_plain_text(content)
+        if not plain_text or len(plain_text.strip()) < 5:
+            return {
+                "change_summary": f"{action} 작업 수행",
+                "change_keywords": [],
+            }
+
+        config = load_config()
+        prompt = (
+            f"다음은 OneNote 페이지 편집 기록입니다.\n\n"
+            f"[페이지 제목] {page_title}\n"
+            f"[편집 유형] {action}\n"
+            f"[편집 내용]\n{plain_text[:3000]}\n\n"
+            f"반드시 아래 형식으로만 응답하세요:\n"
+            f"요약: (이번 편집에서 무엇을 변경했는지 1줄 요약)\n"
+            f"키워드: (쉼표로 구분된 키워드 3~5개)\n"
+        )
+
+        response = await _call_claude_sdk(prompt, config)
+        if not response:
+            return {
+                "change_summary": f"{action} 작업 수행",
+                "change_keywords": [],
+            }
+
+        # 응답 파싱
+        change_summary = ""
+        change_keywords = []
+        for line in response.strip().split("\n"):
+            line_stripped = line.strip()
+            if line_stripped.startswith("요약:"):
+                change_summary = line_stripped.replace("요약:", "").strip()
+            elif line_stripped.startswith("키워드:"):
+                kw_text = line_stripped.replace("키워드:", "").strip()
+                change_keywords = [kw.strip() for kw in kw_text.split(",") if kw.strip()]
+
+        return {
+            "change_summary": change_summary or f"{action} 작업 수행",
+            "change_keywords": change_keywords[:5],
+        }

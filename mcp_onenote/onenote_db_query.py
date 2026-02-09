@@ -106,3 +106,31 @@ class OneNoteDBQuery:
         if page:
             return {"success": True, "page": page}
         return {"success": False, "message": f"페이지 '{page_title}'을 찾을 수 없습니다."}
+
+    def get_page_history(
+        self,
+        page_id: str,
+        limit: int = 20,
+    ) -> Dict[str, Any]:
+        """페이지 변경 이력 조회 (git log 스타일, 최신순)"""
+        changes = self._db_service.get_page_changes(page_id, limit)
+        return {
+            "success": True,
+            "page_id": page_id,
+            "changes": changes,
+            "count": len(changes),
+        }
+
+    def get_user_history(
+        self,
+        user_email: str,
+        limit: int = 20,
+    ) -> Dict[str, Any]:
+        """사용자별 변경 이력 조회 (최신순)"""
+        changes = self._db_service.get_user_changes(user_email, limit)
+        return {
+            "success": True,
+            "user_id": user_email,
+            "changes": changes,
+            "count": len(changes),
+        }

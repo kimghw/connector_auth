@@ -101,6 +101,28 @@ class OneNoteDBService:
             if "notebook_id" not in columns:
                 cursor.execute("ALTER TABLE onenote_items ADD COLUMN notebook_id TEXT")
                 cursor.execute("ALTER TABLE onenote_items ADD COLUMN notebook_name TEXT")
+            # 페이지 변경 이력 테이블
+            cursor.executescript("""
+                CREATE TABLE IF NOT EXISTS onenote_page_changes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    page_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    content_snippet TEXT,
+                    target TEXT,
+                    content_hash TEXT,
+                    previous_hash TEXT,
+                    change_summary TEXT,
+                    change_keywords TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_page_changes_page
+                    ON onenote_page_changes(page_id, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_page_changes_user
+                    ON onenote_page_changes(user_id, created_at DESC);
+            """)
+
             conn.commit()
             logger.info("✅ onenote_items 테이블 확인/생성 완료")
         except Exception as e:
@@ -711,3 +733,105 @@ class OneNoteDBService:
         } for item in items]
 
         return mapped[0] if limit == 1 else mapped
+
+    # ========================================================================
+    # 페이지 변경 이력 관리
+    # ========================================================================
+
+    def save_page_change(
+        self,
+        page_id: str,
+        user_id: str,
+        action: str,
+        content_snippet: Optional[str] = None,
+        target: Optional[str] = None,
+        content_hash: Optional[str] = None,
+        previous_hash: Optional[str] = None,
+        change_summary: Optional[str] = None,
+        change_keywords: Optional[List[str]] = None,
+    ) -> bool:
+        """페이지 변경 이력 저장"""
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cursor = conn.cursor()
+            now = datetime.now(timezone.utc).isoformat()
+            snippet = content_snippet[:2000] if content_snippet else None
+            cursor.execute("""
+                INSERT INTO onenote_page_changes
+                    (page_id, user_id, action, content_snippet, target,
+                     content_hash, previous_hash, change_summary, change_keywords, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                page_id, user_id, action, snippet, target,
+                content_hash, previous_hash, change_summary,
+                json.dumps(change_keywords, ensure_ascii=False) if change_keywords else None,
+                now,
+            ))
+            conn.commit()
+            logger.info(f"✅ 변경 이력 저장: {page_id} ({action})")
+            return True
+        except Exception as e:
+            logger.error(f"❌ 변경 이력 저장 실패: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def get_page_changes(
+        self,
+        page_id: str,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """페이지 변경 이력 조회 (최신순)"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM onenote_page_changes
+                WHERE page_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (page_id, limit))
+            rows = cursor.fetchall()
+            results = []
+            for row in rows:
+                item = dict(row)
+                if item.get("change_keywords"):
+                    item["change_keywords"] = json.loads(item["change_keywords"])
+                results.append(item)
+            return results
+        except Exception as e:
+            logger.error(f"❌ 변경 이력 조회 실패: {e}")
+            return []
+        finally:
+            conn.close()
+
+    def get_user_changes(
+        self,
+        user_id: str,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """사용자별 변경 이력 조회 (최신순)"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM onenote_page_changes
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (user_id, limit))
+            rows = cursor.fetchall()
+            results = []
+            for row in rows:
+                item = dict(row)
+                if item.get("change_keywords"):
+                    item["change_keywords"] = json.loads(item["change_keywords"])
+                results.append(item)
+            return results
+        except Exception as e:
+            logger.error(f"❌ 사용자 변경 이력 조회 실패: {e}")
+            return []
+        finally:
+            conn.close()

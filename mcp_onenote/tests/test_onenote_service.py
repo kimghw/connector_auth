@@ -391,6 +391,84 @@ class TestOneNoteService:
         assert result["page"]["page_id"] == "p1"
 
     # ========================================================================
+    # 변경 이력 테스트
+    # ========================================================================
+
+    @pytest.mark.asyncio
+    async def test_edit_page_saves_change_history(self, initialized_service, mock_client, mock_db_service):
+        """편집 시 변경 이력 저장 확인"""
+        mock_client.update_page = AsyncMock(return_value={"success": True})
+        mock_db_service.get_summary = MagicMock(return_value=None)
+        mock_db_service.list_items = MagicMock(return_value=[
+            {"item_id": "p1", "item_name": "Test Page"}
+        ])
+        mock_db_service.save_page_change = MagicMock(return_value=True)
+
+        # agent의 summarize_change mock
+        initialized_service._page_manager._agent = AsyncMock()
+        initialized_service._page_manager._agent.summarize_change = AsyncMock(return_value={
+            "change_summary": "테스트 내용 추가",
+            "change_keywords": ["테스트", "추가"],
+        })
+
+        result = await initialized_service.page.edit_page(
+            user_email="test@example.com",
+            page_id="p1",
+            action=PageAction.APPEND,
+            content="<p>새 내용</p>",
+        )
+
+        assert result["success"] is True
+        mock_db_service.save_page_change.assert_called_once()
+
+        call_kwargs = mock_db_service.save_page_change.call_args
+        assert call_kwargs[1]["page_id"] == "p1"
+        assert call_kwargs[1]["action"] == "append"
+        assert call_kwargs[1]["change_summary"] == "테스트 내용 추가"
+        assert call_kwargs[1]["change_keywords"] == ["테스트", "추가"]
+
+    def test_get_page_history(self, initialized_service, mock_db_service):
+        """페이지 변경 이력 조회 확인"""
+        mock_db_service.get_page_changes = MagicMock(return_value=[
+            {
+                "id": 1,
+                "page_id": "p1",
+                "user_id": "test@example.com",
+                "action": "append",
+                "change_summary": "새 단락 추가",
+                "change_keywords": ["단락", "추가"],
+                "created_at": "2026-02-09T12:00:00",
+            },
+            {
+                "id": 2,
+                "page_id": "p1",
+                "user_id": "test@example.com",
+                "action": "replace",
+                "change_summary": "제목 수정",
+                "change_keywords": ["제목", "수정"],
+                "created_at": "2026-02-09T11:00:00",
+            },
+        ])
+
+        result = initialized_service.db.get_page_history("p1")
+
+        assert result["success"] is True
+        assert result["count"] == 2
+        assert result["changes"][0]["action"] == "append"
+        assert result["changes"][1]["change_summary"] == "제목 수정"
+
+    def test_get_user_history(self, initialized_service, mock_db_service):
+        """사용자별 변경 이력 조회 확인"""
+        mock_db_service.get_user_changes = MagicMock(return_value=[
+            {"page_id": "p1", "action": "append", "change_summary": "내용 추가"},
+        ])
+
+        result = initialized_service.db.get_user_history("test@example.com")
+
+        assert result["success"] is True
+        assert result["count"] == 1
+
+    # ========================================================================
     # 접근자 테스트
     # ========================================================================
 

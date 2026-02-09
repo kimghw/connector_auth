@@ -72,10 +72,19 @@ class OneNotePageManager:
         target: Optional[str] = None,
         position: str = "after",
     ) -> Dict[str, Any]:
-        """페이지 편집 + DB 업데이트 + 요약 자동 갱신"""
+        """페이지 편집 + DB 업데이트 + 변경 이력 기록 + 요약 자동 갱신"""
         if not content and action != PageAction.CLEAN:
             return {"success": False, "error": "content가 필요합니다."}
 
+        # 1. 편집 전 content_hash 조회
+        previous_hash = None
+        existing_summary = None
+        if self._db_service:
+            existing_summary = self._db_service.get_summary(page_id)
+            if existing_summary:
+                previous_hash = existing_summary.get("content_hash")
+
+        # 2. Graph API 편집 실행
         result = await self._client.update_page(
             user_email=user_email,
             page_id=page_id,
@@ -94,8 +103,44 @@ class OneNotePageManager:
                 update_accessed=True,
             )
 
-            # 페이지 편집 후 요약 자동 갱신 (기존 요약이 있는 경우만)
-            existing_summary = self._db_service.get_summary(page_id)
+            # 3. AI 변경 요약 생성 + 변경 이력 저장
+            change_summary = ""
+            change_keywords = []
+            if self._agent:
+                try:
+                    # 페이지 제목 조회
+                    page_item = self._db_service.get_item_by_name(user_email, "page", "")
+                    page_title = ""
+                    # item_id로 직접 조회
+                    items = self._db_service.list_items(user_email, item_type="page")
+                    for item in items:
+                        if item.get("item_id") == page_id:
+                            page_title = item.get("item_name", "")
+                            break
+
+                    change_result = await self._agent.summarize_change(
+                        page_title=page_title,
+                        action=action.value,
+                        content=content or "",
+                    )
+                    change_summary = change_result.get("change_summary", "")
+                    change_keywords = change_result.get("change_keywords", [])
+                except Exception as e:
+                    logger.warning(f"⚠️ 변경 요약 생성 실패 (무시): {e}")
+                    change_summary = f"{action.value} 작업 수행"
+
+            self._db_service.save_page_change(
+                page_id=page_id,
+                user_id=user_email,
+                action=action.value,
+                content_snippet=content,
+                target=target,
+                previous_hash=previous_hash,
+                change_summary=change_summary,
+                change_keywords=change_keywords,
+            )
+
+            # 4. 기존 요약 자동 갱신 (기존 요약이 있는 경우만)
             if existing_summary and self._agent:
                 try:
                     await self._agent.summarize_page(user_email, page_id, force_refresh=True)
