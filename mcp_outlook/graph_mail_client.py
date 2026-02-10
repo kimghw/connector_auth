@@ -645,6 +645,61 @@ class GraphMailClient:
             f"Only ProcessingMode.FETCH_ONLY is currently supported."
         )
 
+    async def delete_messages(
+        self,
+        user_email: str,
+        message_ids: List[str],
+    ) -> Dict[str, Any]:
+        """
+        메일을 휴지통(Deleted Items)으로 이동
+
+        Args:
+            user_email: 사용자 이메일
+            message_ids: 삭제할 메일 ID 리스트
+
+        Returns:
+            삭제 결과
+        """
+        self._ensure_initialized()
+
+        if not message_ids:
+            return {
+                "status": "success",
+                "deleted": 0,
+                "total": 0,
+                "message": "No message IDs provided",
+            }
+
+        try:
+            print(f"\n[DELETE] Deleting {len(message_ids)} email(s)...")
+            result = await self.mail_batch.batch_delete_by_ids(
+                user_email=user_email,
+                message_ids=message_ids,
+            )
+
+            if result.get("success"):
+                return {
+                    "status": "success",
+                    "deleted": result.get("deleted", 0),
+                    "failed": result.get("failed", 0),
+                    "total": result.get("total", 0),
+                    "deleted_ids": result.get("deleted_ids", []),
+                    "failed_items": result.get("failed_items"),
+                    "batches_processed": result.get("batches_processed", 0),
+                }
+            else:
+                return {
+                    "status": "error",
+                    "error": result.get("error", "Delete failed"),
+                    "deleted": result.get("deleted", 0),
+                    "failed": result.get("failed", 0),
+                    "total": result.get("total", 0),
+                    "failed_items": result.get("failed_items"),
+                }
+
+        except Exception as e:
+            return {"status": "error", "error": str(e), "deleted": 0}
+
     def format_results(self, results: Dict[str, Any], verbose: bool = False) -> str:
         """
         결과 포맷팅

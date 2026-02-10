@@ -313,6 +313,107 @@ class GraphMailIdBatch:
 
         return result
 
+    async def batch_delete_by_ids(
+        self, user_email: str, message_ids: List[str]
+    ) -> Dict[str, Any]:
+        """
+        여러 메일을 휴지통(Deleted Items)으로 이동
+
+        Graph API DELETE /users/{email}/messages/{id} 를 $batch로 실행.
+        DELETE는 메일을 Deleted Items 폴더로 이동시킨다 (영구 삭제 아님).
+
+        Args:
+            user_email: 사용자 이메일
+            message_ids: 삭제할 메일 ID 리스트
+
+        Returns:
+            삭제 결과 (성공/실패 건수 포함)
+        """
+        if not message_ids:
+            return {"success": True, "deleted": 0, "failed": 0, "total": 0, "message": "No message IDs provided"}
+
+        # 액세스 토큰 획득
+        access_token = await self._get_access_token(user_email)
+        if not access_token:
+            return {"success": False, "error": f"Failed to get access token for {user_email}"}
+
+        # 20개씩 배치로 분할
+        batches = self._split_into_batches(message_ids, self.max_batch_size)
+
+        print(f"[DELETE] Deleting {len(message_ids)} mail(s) in {len(batches)} batch(es)")
+
+        deleted_ids = []
+        failed_items = []
+
+        headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+
+        async with aiohttp.ClientSession() as session:
+            for batch_num, batch_ids in enumerate(batches, 1):
+                print(f"  Processing batch {batch_num}/{len(batches)} ({len(batch_ids)} mails)...")
+
+                # DELETE 배치 요청 생성
+                requests = []
+                for i, mail_id in enumerate(batch_ids):
+                    requests.append(
+                        {
+                            "id": str(i + 1),
+                            "method": "DELETE",
+                            "url": f"/users/{user_email}/messages/{mail_id}",
+                        }
+                    )
+
+                batch_body = {"requests": requests}
+
+                try:
+                    async with session.post(self.batch_url, headers=headers, json=batch_body) as response:
+                        if response.status == 200:
+                            batch_data = await response.json()
+                            responses = batch_data.get("responses", [])
+
+                            for resp in responses:
+                                req_id = resp.get("id")
+                                mail_id = batch_ids[int(req_id) - 1] if req_id else "unknown"
+
+                                if resp.get("status") == 204:
+                                    deleted_ids.append(mail_id)
+                                else:
+                                    error_msg = (
+                                        resp.get("body", {})
+                                        .get("error", {})
+                                        .get("message", "Unknown error")
+                                    )
+                                    failed_items.append(
+                                        {"mail_id": mail_id, "status": resp.get("status"), "error": error_msg}
+                                    )
+
+                            success_count = len([r for r in responses if r.get("status") == 204])
+                            fail_count = len(responses) - success_count
+                            print(f"    Batch {batch_num}: {success_count} deleted, {fail_count} failed")
+                        else:
+                            error_text = await response.text()
+                            print(f"    Batch {batch_num}: Request failed with status {response.status}")
+                            for mail_id in batch_ids:
+                                failed_items.append(
+                                    {"mail_id": mail_id, "status": response.status, "error": error_text[:200]}
+                                )
+
+                except Exception as e:
+                    print(f"    Batch {batch_num}: Exception - {str(e)}")
+                    for mail_id in batch_ids:
+                        failed_items.append({"mail_id": mail_id, "error": str(e)})
+
+        print(f"[DONE] Deleted {len(deleted_ids)}/{len(message_ids)} mails")
+
+        return {
+            "success": len(deleted_ids) > 0,
+            "deleted": len(deleted_ids),
+            "failed": len(failed_items),
+            "total": len(message_ids),
+            "deleted_ids": deleted_ids,
+            "failed_items": failed_items if failed_items else None,
+            "batches_processed": len(batches),
+        }
+
     async def close(self):
         """리소스 정리"""
         await self.token_provider.close()

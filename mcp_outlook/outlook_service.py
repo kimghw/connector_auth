@@ -493,6 +493,37 @@ class MailService:
             onedrive_folder=onedrive_folder,
         )
 
+    @mcp_service(
+        tool_name="handler_mail_delete",
+        server_name="outlook",
+        service_name="delete_mails",
+        category="outlook_mail",
+        tags=["delete", "batch"],
+        priority=5,
+        description="메일을 휴지통(Deleted Items)으로 이동 (1개 이상의 메일 ID 지원)",
+    )
+    async def delete_mails(
+        self,
+        user_email: str,
+        message_ids: List[str],
+    ) -> Dict[str, Any]:
+        """
+        메일을 휴지통으로 이동 - GraphMailClient.delete_messages 위임
+
+        Args:
+            user_email: 사용자 이메일
+            message_ids: 삭제할 메일 ID 리스트 (1개 이상)
+
+        Returns:
+            삭제 결과
+        """
+        self._ensure_initialized()
+
+        return await self._client.delete_messages(
+            user_email=user_email,
+            message_ids=message_ids,
+        )
+
     def format_results(self, results: Dict[str, Any], verbose: bool = False) -> str:
         """결과 포맷팅 위임"""
         self._ensure_initialized()
