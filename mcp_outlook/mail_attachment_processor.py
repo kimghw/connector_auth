@@ -301,7 +301,7 @@ async def process_attachment_original(
             "message_id": message_id,
             "original_name": att_name,
             "content_type": attachment.get("contentType"),
-            "content_bytes": file_content,
+            "content_bytes": base64.b64encode(file_content).decode("ascii"),
             "size": len(file_content)
         })
         print(f"  [ORIGINAL] {att_name} → 메모리 반환 ({len(file_content)} bytes)")

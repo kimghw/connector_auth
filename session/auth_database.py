@@ -54,7 +54,7 @@ class AuthDatabase:
                     schema_sql = f.read()
                     cursor.executescript(schema_sql)
                     conn.commit()
-                    logger.info("✅ Database tables created from schema.sql")
+                    logger.info("Database tables created from schema.sql")
             else:
                 # schema.sql이 없으면 직접 생성
                 cursor.executescript("""
@@ -107,10 +107,10 @@ class AuthDatabase:
                     CREATE INDEX IF NOT EXISTS idx_user_object_id ON azure_user_info(object_id);
                 """)
                 conn.commit()
-                logger.info("✅ Database tables created directly")
+                logger.info("Database tables created directly")
 
         except Exception as e:
-            logger.error(f"❌ Failed to create tables: {e}")
+            logger.error(f"[ERROR] Failed to create tables: {e}")
             raise
         finally:
             conn.close()
@@ -146,10 +146,10 @@ class AuthDatabase:
                     os.getenv('AZURE_REDIRECT_URI', 'http://localhost:5000/callback')
                 ))
                 conn.commit()
-                logger.info(f"✅ Default app registered: {self.default_client_id[:8]}...")
+                logger.info(f"Default app registered: {self.default_client_id[:8]}...")
 
         except Exception as e:
-            logger.error(f"❌ Failed to ensure default app: {e}")
+            logger.error(f"[ERROR] Failed to ensure default app: {e}")
         finally:
             conn.close()
 
@@ -200,11 +200,11 @@ class AuthDatabase:
             ))
 
             conn.commit()
-            logger.info(f"✅ User saved to azure_user_info: {email}")
+            logger.info(f"User saved to azure_user_info: {email}")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Failed to save user: {e}")
+            logger.error(f"[ERROR] Failed to save user: {e}")
             conn.rollback()
             return False
         finally:
@@ -265,11 +265,11 @@ class AuthDatabase:
             ))
 
             conn.commit()
-            logger.info(f"✅ Token saved to azure_token_info for: {email}")
+            logger.info(f"Token saved to azure_token_info for: {email}")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Failed to save token: {e}")
+            logger.error(f"[ERROR] Failed to save token: {e}")
             conn.rollback()
             return False
         finally:
@@ -314,7 +314,7 @@ class AuthDatabase:
             return None
 
         except Exception as e:
-            logger.error(f"❌ Failed to get token: {e}")
+            logger.error(f"[ERROR] Failed to get token: {e}")
             return None
         finally:
             conn.close()
@@ -354,13 +354,13 @@ class AuthDatabase:
             conn.commit()
 
             if cursor.rowcount > 0:
-                logger.info(f"✅ Token deleted for: {email}")
+                logger.info(f"Token deleted for: {email}")
                 return True
 
             return False
 
         except Exception as e:
-            logger.error(f"❌ Failed to delete token: {e}")
+            logger.error(f"[ERROR] Failed to delete token: {e}")
             return False
         finally:
             conn.close()
@@ -388,7 +388,7 @@ class AuthDatabase:
             return dict(row) if row else None
 
         except Exception as e:
-            logger.error(f"❌ Failed to get user: {e}")
+            logger.error(f"[ERROR] Failed to get user: {e}")
             return None
         finally:
             conn.close()
@@ -433,7 +433,7 @@ class AuthDatabase:
             return users
 
         except Exception as e:
-            logger.error(f"❌ Failed to list users: {e}")
+            logger.error(f"[ERROR] Failed to list users: {e}")
             return []
         finally:
             conn.close()
@@ -463,12 +463,12 @@ class AuthDatabase:
             count = cursor.rowcount
 
             if count > 0:
-                logger.info(f"✅ Cleaned up {count} expired tokens")
+                logger.info(f"Cleaned up {count} expired tokens")
 
             return count
 
         except Exception as e:
-            logger.error(f"❌ Failed to cleanup tokens: {e}")
+            logger.error(f"[ERROR] Failed to cleanup tokens: {e}")
             return 0
         finally:
             conn.close()
@@ -508,11 +508,11 @@ class AuthDatabase:
             """)
 
             conn.commit()
-            logger.info("✅ Migration from old tables completed")
+            logger.info("Migration from old tables completed")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Migration failed: {e}")
+            logger.error(f"[ERROR] Migration failed: {e}")
             conn.rollback()
             return False
         finally:

@@ -173,7 +173,12 @@ class BatchAttachmentHandler:
         self.token_provider = token_provider
         self.folder_manager = MailFolderManager(base_directory)
         # metadata_file을 base_directory 안에 저장
-        metadata_path = str(Path(base_directory) / metadata_file)
+        # 상대 경로는 프로젝트 루트 기준으로 변환
+        base_path = Path(base_directory)
+        if not base_path.is_absolute():
+            project_root = Path(__file__).resolve().parent.parent
+            base_path = project_root / base_directory
+        metadata_path = str(base_path / metadata_file)
         self.metadata_manager = MailMetadataManager(metadata_path)
         self.expand_builder = ExpandBuilder()
 
@@ -629,6 +634,7 @@ class BatchAttachmentHandler:
         user_email: str,
         attachments_info: List[Dict[str, str]],
         save_directory: Optional[str] = None,
+        flat_folder: bool = False,
     ) -> Dict[str, Any]:
         """
         특정 첨부파일들을 선택적으로 다운로드 (메일 ID와 첨부파일 ID 지정)
@@ -637,6 +643,7 @@ class BatchAttachmentHandler:
             user_email: 사용자 이메일
             attachments_info: [{"message_id": "...", "attachment_id": "..."}, ...]
             save_directory: 저장 디렉토리
+            flat_folder: True면 하위폴더 없이 save_directory에 바로 저장
 
         Returns:
             처리 결과
@@ -663,6 +670,18 @@ class BatchAttachmentHandler:
 
         handler = SingleAttachmentHandler(access_token)
 
+        # 저장 디렉토리 경로 해석
+        if save_directory:
+            dir_path = Path(save_directory)
+            if not dir_path.is_absolute():
+                project_root = Path(__file__).resolve().parent.parent
+                dir_path = project_root / save_directory
+        else:
+            dir_path = Path(self.folder_manager.base_directory)
+
+        # 메일 정보 캐시 (같은 message_id 첨부파일이 여러 개일 때 중복 API 호출 방지)
+        mail_info_cache: Dict[str, Dict[str, Any]] = {}
+
         for info in attachments_info:
             message_id = info.get("message_id")
             attachment_id = info.get("attachment_id")
@@ -679,10 +698,30 @@ class BatchAttachmentHandler:
                 # 파일명 및 경로 설정
                 file_name = attachment_data.get("name", f"attachment_{attachment_id}")
 
-                if save_directory:
-                    folder_path = Path(save_directory) / message_id[:8]
+                if flat_folder:
+                    # flat_folder: 하위폴더 없이 save_directory에 바로 저장
+                    folder_path = dir_path
                 else:
-                    folder_path = Path(self.folder_manager.base_directory) / message_id[:8]
+                    # 메일 정보 조회 (폴더명 생성용) - 캐시 활용
+                    if message_id not in mail_info_cache:
+                        try:
+                            mail_url = f"https://graph.microsoft.com/v1.0/users/{user_email}/messages/{message_id}?$select=subject,from,receivedDateTime"
+                            async with aiohttp.ClientSession() as session:
+                                async with session.get(mail_url, headers=handler.headers) as resp:
+                                    if resp.status == 200:
+                                        mail_info_cache[message_id] = await resp.json()
+                                    else:
+                                        mail_info_cache[message_id] = {}
+                        except Exception:
+                            mail_info_cache[message_id] = {}
+
+                    # 폴더명: YYYYMMDD_보낸사람_제목
+                    mail_data = mail_info_cache.get(message_id, {})
+                    if mail_data:
+                        folder_name = self.folder_manager.create_folder_name(mail_data)
+                    else:
+                        folder_name = message_id[:8]
+                    folder_path = dir_path / folder_name
 
                 folder_path.mkdir(parents=True, exist_ok=True)
                 file_path = str(folder_path / file_name)

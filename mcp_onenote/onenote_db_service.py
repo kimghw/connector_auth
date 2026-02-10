@@ -33,7 +33,7 @@ class OneNoteDBService:
         self.db_path = resolved_path
         os.makedirs(os.path.dirname(resolved_path), exist_ok=True)
         self._ensure_tables()
-        logger.info("✅ OneNoteDBService initialized")
+        logger.info("OneNoteDBService initialized")
 
     def _ensure_tables(self):
         """OneNote 관련 테이블 생성"""
@@ -123,9 +123,9 @@ class OneNoteDBService:
             """)
 
             conn.commit()
-            logger.info("✅ onenote_items 테이블 확인/생성 완료")
+            logger.info("onenote_items 테이블 확인/생성 완료")
         except Exception as e:
-            logger.error(f"❌ 테이블 초기화 실패: {e}")
+            logger.error(f"[ERROR] 테이블 초기화 실패: {e}")
             raise
         finally:
             conn.close()
@@ -192,11 +192,11 @@ class OneNoteDBService:
             ))
             conn.commit()
 
-            logger.info(f"✅ {item_type} 저장 완료: {item_name}")
+            logger.info(f"{item_type} 저장 완료: {item_name}")
             return True
 
         except Exception as e:
-            logger.error(f"❌ {item_type} 저장 실패: {e}")
+            logger.error(f"[ERROR] {item_type} 저장 실패: {e}")
             return False
         finally:
             conn.close()
@@ -233,7 +233,7 @@ class OneNoteDBService:
             return dict(row) if row else None
 
         except Exception as e:
-            logger.error(f"❌ {item_type} 조회 실패: {e}")
+            logger.error(f"[ERROR] {item_type} 조회 실패: {e}")
             return None
         finally:
             conn.close()
@@ -270,7 +270,7 @@ class OneNoteDBService:
             return [dict(row) for row in rows]
 
         except Exception as e:
-            logger.error(f"❌ 최근 {item_type} 조회 실패: {e}")
+            logger.error(f"[ERROR] 최근 {item_type} 조회 실패: {e}")
             return []
         finally:
             conn.close()
@@ -320,7 +320,7 @@ class OneNoteDBService:
             return [dict(row) for row in rows]
 
         except Exception as e:
-            logger.error(f"❌ 아이템 목록 조회 실패: {e}")
+            logger.error(f"[ERROR] 아이템 목록 조회 실패: {e}")
             return []
         finally:
             conn.close()
@@ -346,12 +346,12 @@ class OneNoteDBService:
             conn.commit()
 
             if cursor.rowcount > 0:
-                logger.info(f"✅ 아이템 삭제 완료: {item_id}")
+                logger.info(f"아이템 삭제 완료: {item_id}")
                 return True
             return False
 
         except Exception as e:
-            logger.error(f"❌ 아이템 삭제 실패: {e}")
+            logger.error(f"[ERROR] 아이템 삭제 실패: {e}")
             return False
         finally:
             conn.close()
@@ -393,7 +393,7 @@ class OneNoteDBService:
             ):
                 synced_count += 1
 
-        logger.info(f"✅ 섹션 동기화 완료: {synced_count}개")
+        logger.info(f"섹션 동기화 완료: {synced_count}개")
         return {"success": True, "synced": synced_count}
 
     async def sync_pages_to_db(
@@ -437,7 +437,7 @@ class OneNoteDBService:
             ):
                 synced_count += 1
 
-        logger.info(f"✅ 페이지 동기화 완료: {synced_count}개")
+        logger.info(f"페이지 동기화 완료: {synced_count}개")
         return {"success": True, "synced": synced_count}
 
     # ========================================================================
@@ -479,10 +479,10 @@ class OneNoteDBService:
                 content_hash, now, now,
             ))
             conn.commit()
-            logger.info(f"✅ 요약 저장 완료: {page_title}")
+            logger.info(f"요약 저장 완료: {page_title}")
             return True
         except Exception as e:
-            logger.error(f"❌ 요약 저장 실패: {e}")
+            logger.error(f"[ERROR] 요약 저장 실패: {e}")
             return False
         finally:
             conn.close()
@@ -507,7 +507,7 @@ class OneNoteDBService:
                 result["keywords"] = json.loads(result["keywords"])
             return result
         except Exception as e:
-            logger.error(f"❌ 요약 조회 실패: {e}")
+            logger.error(f"[ERROR] 요약 조회 실패: {e}")
             return None
         finally:
             conn.close()
@@ -526,7 +526,7 @@ class OneNoteDBService:
             """, (user_id,))
             return [dict(row) for row in cursor.fetchall()]
         except Exception as e:
-            logger.error(f"❌ 요약 목록 조회 실패: {e}")
+            logger.error(f"[ERROR] 요약 목록 조회 실패: {e}")
             return []
         finally:
             conn.close()
@@ -543,7 +543,7 @@ class OneNoteDBService:
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            logger.error(f"❌ 요약 삭제 실패: {e}")
+            logger.error(f"[ERROR] 요약 삭제 실패: {e}")
             return False
         finally:
             conn.close()
@@ -678,10 +678,10 @@ class OneNoteDBService:
                 now,
             ))
             conn.commit()
-            logger.info(f"✅ 변경 이력 저장: {page_id} ({action})")
+            logger.info(f"변경 이력 저장: {page_id} ({action})")
             return True
         except Exception as e:
-            logger.error(f"❌ 변경 이력 저장 실패: {e}")
+            logger.error(f"[ERROR] 변경 이력 저장 실패: {e}")
             return False
         finally:
             conn.close()
@@ -711,7 +711,7 @@ class OneNoteDBService:
                 results.append(item)
             return results
         except Exception as e:
-            logger.error(f"❌ 변경 이력 조회 실패: {e}")
+            logger.error(f"[ERROR] 변경 이력 조회 실패: {e}")
             return []
         finally:
             conn.close()
@@ -741,7 +741,7 @@ class OneNoteDBService:
                 results.append(item)
             return results
         except Exception as e:
-            logger.error(f"❌ 사용자 변경 이력 조회 실패: {e}")
+            logger.error(f"[ERROR] 사용자 변경 이력 조회 실패: {e}")
             return []
         finally:
             conn.close()

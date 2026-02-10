@@ -156,7 +156,12 @@ class LocalStorageBackend(StorageBackend):
         Args:
             base_directory: 기본 저장 디렉토리
         """
-        self.base_directory = Path(base_directory)
+        path = Path(base_directory)
+        if not path.is_absolute():
+            # 상대 경로는 프로젝트 루트 기준으로 변환
+            project_root = Path(__file__).resolve().parent.parent
+            path = project_root / base_directory
+        self.base_directory = path
         self.base_directory.mkdir(parents=True, exist_ok=True)
 
     async def create_folder(self, mail_data: Dict[str, Any]) -> str:

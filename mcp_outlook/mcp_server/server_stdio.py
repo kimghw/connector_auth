@@ -724,6 +724,8 @@ async def handle_mail_attachment_download(args: Dict[str, Any]) -> Dict[str, Any
     message_attachment_ids = args["message_attachment_ids"]
     save_directory_sig = args.get("save_directory")
     save_directory = save_directory_sig if save_directory_sig is not None else 'downloads'
+    flat_folder_sig = args.get("flat_folder")
+    flat_folder = flat_folder_sig if flat_folder_sig is not None else 'disabled'
     skip_duplicates_sig = args.get("skip_duplicates")
     skip_duplicates = skip_duplicates_sig if skip_duplicates_sig is not None else 'enabled'
     save_file_sig = args.get("save_file")
@@ -743,6 +745,7 @@ async def handle_mail_attachment_download(args: Dict[str, Any]) -> Dict[str, Any
     # ========================================
     skip_duplicates = convert_enabled_to_bool(skip_duplicates)
     save_file = convert_enabled_to_bool(save_file)
+    flat_folder = convert_enabled_to_bool(flat_folder)
     convert_to_txt = convert_enabled_to_bool(convert_to_txt)
     include_body = convert_enabled_to_bool(include_body)
 
@@ -753,6 +756,7 @@ async def handle_mail_attachment_download(args: Dict[str, Any]) -> Dict[str, Any
     call_args["user_email"] = user_email
     call_args["message_attachment_ids"] = message_attachment_ids
     call_args["save_directory"] = save_directory
+    call_args["flat_folder"] = flat_folder
     call_args["skip_duplicates"] = skip_duplicates
     call_args["save_file"] = save_file
     call_args["storage_type"] = storage_type

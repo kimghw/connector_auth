@@ -126,7 +126,7 @@ class OneNotePageManager:
                     change_summary = change_result.get("change_summary", "")
                     change_keywords = change_result.get("change_keywords", [])
                 except Exception as e:
-                    logger.warning(f"⚠️ 변경 요약 생성 실패 (무시): {e}")
+                    logger.warning(f"[WARN] 변경 요약 생성 실패 (무시): {e}")
                     change_summary = f"{action.value} 작업 수행"
 
             self._db_service.save_page_change(
@@ -144,9 +144,9 @@ class OneNotePageManager:
             if existing_summary and self._agent:
                 try:
                     await self._agent.summarize_page(user_email, page_id, force_refresh=True)
-                    logger.info(f"✅ 페이지 편집 후 요약 자동 갱신: {page_id}")
+                    logger.info(f"페이지 편집 후 요약 자동 갱신: {page_id}")
                 except Exception as e:
-                    logger.warning(f"⚠️ 페이지 편집 후 요약 갱신 실패 (무시): {e}")
+                    logger.warning(f"[WARN] 페이지 편집 후 요약 갱신 실패 (무시): {e}")
 
         return result
 

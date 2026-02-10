@@ -458,6 +458,7 @@ class GraphMailClient:
         user_email: str,
         message_attachment_ids: Union[List[str], List[Dict[str, str]]],
         save_directory: str = "downloads",
+        flat_folder: bool = False,
         skip_duplicates: bool = True,
         select_params: Optional[SelectParams] = None,
         # 새 옵션 (mail_attachment.py 반영)
@@ -476,6 +477,7 @@ class GraphMailClient:
                 - 메일 ID 리스트: ["msg_id1", "msg_id2"] -> 해당 메일의 모든 첨부파일 다운로드
                 - 첨부파일 ID 쌍 리스트: [{"message_id": "...", "attachment_id": "..."}, ...] -> 특정 첨부파일만 다운로드
             save_directory: 저장 디렉토리
+            flat_folder: True면 하위폴더 없이 save_directory에 바로 저장
             skip_duplicates: 중복 건너뛰기 (메일 ID 리스트일 때만 적용)
             select_params: 선택할 필드 (메일 ID 리스트일 때만 적용)
             save_file: 파일 저장 여부 (False면 메모리 반환만)
@@ -542,6 +544,7 @@ class GraphMailClient:
                     user_email=user_email,
                     attachments_info=message_attachment_ids,
                     save_directory=save_directory,
+                    flat_folder=flat_folder,
                 )
 
                 return {

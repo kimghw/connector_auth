@@ -69,9 +69,9 @@ class TeamsDBManager:
                 CREATE INDEX IF NOT EXISTS idx_teams_chats_is_active ON teams_chats(is_active);
             """)
             conn.commit()
-            logger.info("✅ Teams tables created successfully")
+            logger.info("Teams tables created successfully")
         except Exception as e:
-            logger.error(f"❌ Failed to create Teams tables: {e}")
+            logger.error(f"[ERROR] Failed to create Teams tables: {e}")
             raise
         finally:
             conn.close()
@@ -117,14 +117,14 @@ class TeamsDBManager:
             row = cursor.fetchone()
             if row:
                 chat_id = row[0]
-                logger.info(f"✅ 사용자 '{recipient_name}' 채팅 찾음: {chat_id}")
+                logger.info(f"사용자 '{recipient_name}' 채팅 찾음: {chat_id}")
                 return chat_id
             else:
-                logger.warning(f"⚠️ 사용자 '{recipient_name}' 채팅을 찾을 수 없습니다")
+                logger.warning(f"[WARN] 사용자 '{recipient_name}' 채팅을 찾을 수 없습니다")
                 return None
 
         except Exception as e:
-            logger.error(f"❌ 채팅 검색 오류: {str(e)}")
+            logger.error(f"[ERROR] 채팅 검색 오류: {str(e)}")
             return None
         finally:
             conn.close()
@@ -175,7 +175,7 @@ class TeamsDBManager:
                 row = cursor.fetchone()
                 if row:
                     chat_id = row[0]
-                    logger.info(f"✅ 영문 이름 '{topic_en}'으로 채팅 찾음: {chat_id}")
+                    logger.info(f"영문 이름 '{topic_en}'으로 채팅 찾음: {chat_id}")
                 else:
                     return {"success": False, "message": f"영문 이름 '{topic_en}'으로 채팅을 찾을 수 없습니다"}
 
@@ -192,7 +192,7 @@ class TeamsDBManager:
                 conn.commit()
 
                 if cursor.rowcount > 0:
-                    logger.info(f"✅ 한글 이름 저장: {chat_id} -> {topic_kr}")
+                    logger.info(f"한글 이름 저장: {chat_id} -> {topic_kr}")
                     return {
                         "success": True,
                         "message": f"한글 이름 '{topic_kr}' 저장 완료",
@@ -204,7 +204,7 @@ class TeamsDBManager:
                 return {"success": False, "message": "chat_id 또는 topic_en이 필요합니다"}
 
         except Exception as e:
-            logger.error(f"❌ 한글 이름 저장 오류: {str(e)}")
+            logger.error(f"[ERROR] 한글 이름 저장 오류: {str(e)}")
             return {"success": False, "message": f"오류 발생: {str(e)}"}
         finally:
             conn.close()
@@ -363,7 +363,7 @@ class TeamsDBManager:
                 )
 
             conn.commit()
-            logger.info(f"✅ DB 동기화 완료: {len(chats)}개 채팅, {len(deleted_chat_ids)}개 비활성화")
+            logger.info(f"DB 동기화 완료: {len(chats)}개 채팅, {len(deleted_chat_ids)}개 비활성화")
 
             return {
                 "success": True,
@@ -372,7 +372,7 @@ class TeamsDBManager:
             }
 
         except Exception as e:
-            logger.error(f"❌ DB 동기화 오류: {str(e)}")
+            logger.error(f"[ERROR] DB 동기화 오류: {str(e)}")
             conn.rollback()
             return {"success": False, "error": str(e)}
         finally:
@@ -405,7 +405,7 @@ class TeamsDBManager:
             return [dict(row) for row in rows]
 
         except Exception as e:
-            logger.error(f"❌ 채팅 목록 조회 오류: {str(e)}")
+            logger.error(f"[ERROR] 채팅 목록 조회 오류: {str(e)}")
             return []
         finally:
             conn.close()
@@ -439,7 +439,7 @@ class TeamsDBManager:
             return [dict(row) for row in rows]
 
         except Exception as e:
-            logger.error(f"❌ 채팅 목록 조회 오류: {str(e)}")
+            logger.error(f"[ERROR] 채팅 목록 조회 오류: {str(e)}")
             return []
         finally:
             conn.close()
@@ -462,6 +462,6 @@ class TeamsDBManager:
             )
             conn.commit()
         except Exception as e:
-            logger.warning(f"⚠️ DB 업데이트 실패 (무시): {str(e)}")
+            logger.warning(f"[WARN] DB 업데이트 실패 (무시): {str(e)}")
         finally:
             conn.close()

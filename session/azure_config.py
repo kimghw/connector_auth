@@ -96,13 +96,13 @@ class AzureConfig:
                 # Scopes 로드 (환경변수 폴백)
                 self._load_scopes_from_env()
 
-                logger.info(f"✅ Azure config loaded from DB: client_id={self.azure_client_id[:8]}...")
+                logger.info(f"Azure config loaded from DB: client_id={self.azure_client_id[:8]}...")
                 return True
 
             return False
 
         except Exception as e:
-            logger.error(f"❌ Failed to load config from DB: {e}")
+            logger.error(f"[ERROR] Failed to load config from DB: {e}")
             return False
         finally:
             conn.close()
@@ -123,9 +123,9 @@ class AzureConfig:
         self._load_scopes_from_env()
 
         if self.azure_client_id and self.azure_client_secret:
-            logger.info(f"✅ Azure config loaded from environment: client_id={self.azure_client_id[:8]}...")
+            logger.info(f"Azure config loaded from environment: client_id={self.azure_client_id[:8]}...")
         else:
-            logger.warning("⚠️ Azure config not found in environment variables")
+            logger.warning("[WARN] Azure config not found in environment variables")
 
     def save_app_info(self, app_info: Dict[str, Any]) -> bool:
         """
@@ -162,7 +162,7 @@ class AzureConfig:
                     app_info.get('redirect_uri'),
                     app_info['client_id']
                 ))
-                logger.info(f"✅ Updated Azure app info: {app_info['client_id']}")
+                logger.info(f"Updated Azure app info: {app_info['client_id']}")
             else:
                 # Insert new app
                 cursor.execute("""
@@ -176,13 +176,13 @@ class AzureConfig:
                     app_info.get('tenant_id', 'common'),
                     app_info.get('redirect_uri')
                 ))
-                logger.info(f"✅ Saved new Azure app info: {app_info['client_id']}")
+                logger.info(f"Saved new Azure app info: {app_info['client_id']}")
 
             conn.commit()
             return True
 
         except Exception as e:
-            logger.error(f"❌ Failed to save app info: {e}")
+            logger.error(f"[ERROR] Failed to save app info: {e}")
             conn.rollback()
             return False
         finally:
@@ -213,7 +213,7 @@ class AzureConfig:
             return None
 
         except Exception as e:
-            logger.error(f"❌ Failed to get app info: {e}")
+            logger.error(f"[ERROR] Failed to get app info: {e}")
             return None
         finally:
             conn.close()
@@ -281,10 +281,10 @@ class AzureConfig:
         """
         self.target_client_id = client_id
         if self.load_config_from_db():
-            logger.info(f"✅ Switched to app: {client_id[:8]}...")
+            logger.info(f"Switched to app: {client_id[:8]}...")
             return True
 
-        logger.error(f"❌ Failed to switch to app: {client_id}")
+        logger.error(f"[ERROR] Failed to switch to app: {client_id}")
         return False
 
     def list_all_apps(self) -> List[Dict[str, Any]]:
@@ -303,7 +303,7 @@ class AzureConfig:
             return [dict(row) for row in rows]
 
         except Exception as e:
-            logger.error(f"❌ Failed to list apps: {e}")
+            logger.error(f"[ERROR] Failed to list apps: {e}")
             return []
         finally:
             conn.close()
