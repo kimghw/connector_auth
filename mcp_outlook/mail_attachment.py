@@ -387,6 +387,7 @@ class BatchAttachmentHandler:
         message_ids: List[str],
         select_params: Optional[Any] = None,  # SelectParams 또는 List[str]
         skip_duplicates: bool = True,
+        flat_folder: bool = False,
         save_file: bool = True,
         storage_type: str = "local",
         convert_to_txt: bool = False,
@@ -417,6 +418,7 @@ class BatchAttachmentHandler:
             "skipped_duplicates": 0,
             "saved_mails": [],
             "saved_attachments": [],
+            "saved_folders": [],
             "converted_files": [],
             "body_contents": [],          # save_file=False일 때 본문 내용
             "attachment_contents": [],    # save_file=False일 때 첨부파일 내용
@@ -514,7 +516,8 @@ class BatchAttachmentHandler:
                             mail_data = resp.get("body", {})
                             await self._process_mail_with_options(
                                 mail_data, result, storage, converter,
-                                save_file=save_file, include_body=include_body
+                                save_file=save_file, include_body=include_body,
+                                flat_folder=flat_folder
                             )
 
                 except Exception as e:
@@ -575,7 +578,8 @@ class BatchAttachmentHandler:
         storage: Optional[StorageBackend],
         converter: Optional[ConversionPipeline] = None,
         save_file: bool = True,
-        include_body: bool = True
+        include_body: bool = True,
+        flat_folder: bool = False
     ):
         """
         단일 메일 처리 오케스트레이터 (Storage Backend 및 Converter 옵션 적용)
@@ -602,7 +606,10 @@ class BatchAttachmentHandler:
 
             # Step 1: 저장 모드일 때만 폴더 생성
             if save_file and storage:
-                folder_path = await storage.create_folder(mail_data)
+                if flat_folder:
+                    folder_path = await storage.create_folder_flat()
+                else:
+                    folder_path = await storage.create_folder(mail_data)
 
             # Step 2: 메일 본문 처리 (processor 모듈 호출)
             if include_body:
@@ -618,7 +625,12 @@ class BatchAttachmentHandler:
             )
             saved_files.extend(attachment_saved)
 
-            # Step 4: 메타데이터 저장 (저장 모드일 때만)
+            # Step 4: 폴더 경로 기록
+            if save_file and folder_path:
+                if str(folder_path) not in result.get("saved_folders", []):
+                    result.setdefault("saved_folders", []).append(str(folder_path))
+
+            # Step 5: 메타데이터 저장 (저장 모드일 때만)
             if save_file:
                 self.metadata_manager.add_processed_mail(
                     message_id, mail_data, str(folder_path) if folder_path else "", saved_files
@@ -635,6 +647,8 @@ class BatchAttachmentHandler:
         attachments_info: List[Dict[str, str]],
         save_directory: Optional[str] = None,
         flat_folder: bool = False,
+        storage_type: str = "local",
+        onedrive_folder: str = "/Attachments",
     ) -> Dict[str, Any]:
         """
         특정 첨부파일들을 선택적으로 다운로드 (메일 ID와 첨부파일 ID 지정)
@@ -670,14 +684,27 @@ class BatchAttachmentHandler:
 
         handler = SingleAttachmentHandler(access_token)
 
-        # 저장 디렉토리 경로 해석
-        if save_directory:
-            dir_path = Path(save_directory)
-            if not dir_path.is_absolute():
-                project_root = Path(__file__).resolve().parent.parent
-                dir_path = project_root / save_directory
-        else:
-            dir_path = Path(self.folder_manager.base_directory)
+        # Storage Backend 생성
+        use_onedrive = storage_type == "onedrive"
+        storage = None
+        if use_onedrive:
+            storage = get_storage_backend(
+                storage_type="onedrive",
+                auth_manager=self.token_provider,
+                user_email=user_email,
+                base_folder=onedrive_folder,
+            )
+
+        # 로컬 저장 디렉토리 경로 해석
+        dir_path = None
+        if not use_onedrive:
+            if save_directory:
+                dir_path = Path(save_directory)
+                if not dir_path.is_absolute():
+                    project_root = Path(__file__).resolve().parent.parent
+                    dir_path = project_root / save_directory
+            else:
+                dir_path = Path(self.folder_manager.base_directory)
 
         # 메일 정보 캐시 (같은 message_id 첨부파일이 여러 개일 때 중복 API 호출 방지)
         mail_info_cache: Dict[str, Dict[str, Any]] = {}
@@ -698,43 +725,68 @@ class BatchAttachmentHandler:
                 # 파일명 및 경로 설정
                 file_name = attachment_data.get("name", f"attachment_{attachment_id}")
 
-                if flat_folder:
-                    # flat_folder: 하위폴더 없이 save_directory에 바로 저장
-                    folder_path = dir_path
-                else:
-                    # 메일 정보 조회 (폴더명 생성용) - 캐시 활용
-                    if message_id not in mail_info_cache:
-                        try:
-                            mail_url = f"https://graph.microsoft.com/v1.0/users/{user_email}/messages/{message_id}?$select=subject,from,receivedDateTime"
-                            async with aiohttp.ClientSession() as session:
-                                async with session.get(mail_url, headers=handler.headers) as resp:
-                                    if resp.status == 200:
-                                        mail_info_cache[message_id] = await resp.json()
-                                    else:
-                                        mail_info_cache[message_id] = {}
-                        except Exception:
-                            mail_info_cache[message_id] = {}
+                # 메일 정보 조회 (폴더명 생성용) - 캐시 활용
+                if not flat_folder and message_id not in mail_info_cache:
+                    try:
+                        mail_url = f"https://graph.microsoft.com/v1.0/users/{user_email}/messages/{message_id}?$select=subject,from,receivedDateTime"
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(mail_url, headers=handler.headers) as resp:
+                                if resp.status == 200:
+                                    mail_info_cache[message_id] = await resp.json()
+                                else:
+                                    mail_info_cache[message_id] = {}
+                    except Exception:
+                        mail_info_cache[message_id] = {}
 
-                    # 폴더명: YYYYMMDD_보낸사람_제목
-                    mail_data = mail_info_cache.get(message_id, {})
-                    if mail_data:
-                        folder_name = self.folder_manager.create_folder_name(mail_data)
+                # attachment_data는 이미 위에서 조회됨 (contentBytes 포함)
+                content_bytes = attachment_data.get("contentBytes")
+                if not content_bytes:
+                    raise ValueError("No content bytes in attachment")
+
+                if use_onedrive and storage:
+                    # OneDrive 저장
+                    if flat_folder:
+                        folder_path_str = await storage.create_folder_flat()
                     else:
-                        folder_name = message_id[:8]
-                    folder_path = dir_path / folder_name
+                        mail_data = mail_info_cache.get(message_id, {})
+                        if mail_data:
+                            folder_path_str = await storage.create_folder(mail_data)
+                        else:
+                            folder_path_str = await storage.create_folder_flat(
+                                f"{storage.base_folder}/{message_id[:8]}"
+                            )
 
-                folder_path.mkdir(parents=True, exist_ok=True)
-                file_path = str(folder_path / file_name)
+                    file_content = base64.b64decode(content_bytes)
+                    saved_path = await storage.save_file(
+                        folder_path_str, file_name, file_content,
+                        attachment_data.get("contentType")
+                    )
+                    result_folder_path = folder_path_str
+                else:
+                    # 로컬 저장
+                    if flat_folder:
+                        folder_path = dir_path
+                    else:
+                        mail_data = mail_info_cache.get(message_id, {})
+                        if mail_data:
+                            folder_name = self.folder_manager.create_folder_name(mail_data)
+                        else:
+                            folder_name = message_id[:8]
+                        folder_path = dir_path / folder_name
 
-                # 저장
-                saved_path = await handler.download_attachment(
-                    message_id, attachment_id, file_path, user_email
-                )
+                    folder_path.mkdir(parents=True, exist_ok=True)
+                    file_content = base64.b64decode(content_bytes)
+                    save_file_path = folder_path / file_name
+                    with open(save_file_path, "wb") as f:
+                        f.write(file_content)
+                    saved_path = str(save_file_path)
+                    result_folder_path = str(folder_path)
 
                 result["results"].append({
                     "message_id": message_id,
                     "attachment_id": attachment_id,
                     "file_path": saved_path,
+                    "folder_path": result_folder_path,
                     "name": file_name,
                     "success": True,
                 })

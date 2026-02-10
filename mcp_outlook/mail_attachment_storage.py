@@ -14,6 +14,7 @@ Classes:
 import os
 import re
 import base64
+import asyncio
 import aiohttp
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -102,6 +103,19 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
+    async def create_folder_flat(self, base_path: Optional[str] = None) -> str:
+        """
+        flat_folder 모드: 베이스 폴더만 생성
+
+        Args:
+            base_path: 커스텀 베이스 경로
+
+        Returns:
+            생성된 폴더 경로/식별자
+        """
+        pass
+
+    @abstractmethod
     async def save_file(
         self,
         folder_path: str,
@@ -178,6 +192,26 @@ class LocalStorageBackend(StorageBackend):
         folder_path = self.base_directory / folder_name
         folder_path.mkdir(parents=True, exist_ok=True)
         return str(folder_path)
+
+    async def create_folder_flat(self, base_path: Optional[str] = None) -> str:
+        """
+        flat_folder 모드: base_directory만 사용 (하위폴더 없음)
+
+        Args:
+            base_path: 커스텀 베이스 경로 (None이면 self.base_directory 사용)
+
+        Returns:
+            폴더 경로
+        """
+        if base_path:
+            path = Path(base_path)
+            if not path.is_absolute():
+                project_root = Path(__file__).resolve().parent.parent
+                path = project_root / base_path
+        else:
+            path = self.base_directory
+        path.mkdir(parents=True, exist_ok=True)
+        return str(path)
 
     async def save_file(
         self,
@@ -315,18 +349,28 @@ class OneDriveStorageBackend(StorageBackend):
         self.base_folder = base_folder.strip("/")
         self.graph_url = "https://graph.microsoft.com/v1.0"
 
-    async def _get_access_token(self) -> Optional[str]:
+    MAX_PATH_LENGTH = 400
+
+    async def _get_access_token(self, retry: int = 1) -> Optional[str]:
         """
-        액세스 토큰 획득
+        액세스 토큰 획득 (재시도 포함)
+
+        Args:
+            retry: 재시도 횟수
 
         Returns:
             액세스 토큰 또는 None
         """
-        try:
-            return await self.auth_manager.validate_and_refresh_token(self.user_email)
-        except Exception as e:
-            print(f"토큰 획득 실패: {e}")
-            return None
+        for attempt in range(retry + 1):
+            try:
+                return await self.auth_manager.validate_and_refresh_token(self.user_email)
+            except Exception as e:
+                if attempt < retry:
+                    print(f"토큰 획득 실패, 재시도 ({attempt + 1}/{retry}): {e}")
+                    await asyncio.sleep(1)
+                else:
+                    print(f"토큰 획득 최종 실패: {e}")
+                    return None
 
     async def _ensure_folder_exists(
         self,
@@ -368,7 +412,7 @@ class OneDriveStorageBackend(StorageBackend):
             create_data = {
                 "name": part,
                 "folder": {},
-                "@microsoft.graph.conflictBehavior": "fail"
+                "@microsoft.graph.conflictBehavior": "rename"
             }
 
             async with session.post(create_url, headers=headers, json=create_data) as response:
@@ -391,6 +435,42 @@ class OneDriveStorageBackend(StorageBackend):
         """
         folder_name = self.create_folder_name(mail_data)
         folder_path = f"{self.base_folder}/{folder_name}"
+
+        if len(folder_path) > self.MAX_PATH_LENGTH:
+            # 경로가 너무 길면 제목 축소
+            folder_name = self.create_folder_name({
+                **mail_data,
+                "subject": mail_data.get("subject", "")[:20]
+            })
+            folder_path = f"{self.base_folder}/{folder_name}"
+
+        access_token = await self._get_access_token()
+        if not access_token:
+            raise Exception("Failed to get access token")
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+
+        async with aiohttp.ClientSession() as session:
+            success = await self._ensure_folder_exists(session, headers, folder_path)
+            if not success:
+                raise Exception(f"Failed to create folder: {folder_path}")
+
+        return folder_path
+
+    async def create_folder_flat(self, base_path: Optional[str] = None) -> str:
+        """
+        flat_folder 모드: base_folder만 생성 (하위폴더 없음)
+
+        Args:
+            base_path: 커스텀 베이스 경로 (None이면 self.base_folder 사용)
+
+        Returns:
+            폴더 경로
+        """
+        folder_path = base_path if base_path else self.base_folder
 
         access_token = await self._get_access_token()
         if not access_token:
@@ -530,9 +610,33 @@ class OneDriveStorageBackend(StorageBackend):
                     # 마지막 청크인데 202가 반환된 경우 (비정상)
                     if is_last_chunk:
                         print(f"  [WARN] 마지막 청크인데 202 반환됨, 업로드 세션 상태 확인 필요")
+                        # 마지막 청크 202: 세션 상태 확인
+                        async with session.get(upload_url) as status_resp:
+                            if status_resp.status in [200, 201]:
+                                status_data = await status_resp.json()
+                                web_url = status_data.get("webUrl", file_path)
+                                print(f"  [ONEDRIVE] 업로드 완료 (지연): {filename}")
+                                return web_url
                 else:
                     error_text = await response.text()
                     print(f"  [ERROR] 청크 업로드 실패: {error_text[:100]}")
+
+                    # 1회 재시도
+                    await asyncio.sleep(2)
+                    async with session.put(upload_url, headers=chunk_headers, data=chunk_data) as retry_resp:
+                        if retry_resp.status in [200, 201, 202]:
+                            if retry_resp.status in [200, 201]:
+                                result = await retry_resp.json()
+                                web_url = result.get("webUrl", file_path)
+                                print(f"  [ONEDRIVE] 업로드 완료 (재시도): {filename}")
+                                return web_url
+                            # 202면 계속 진행
+                            uploaded = end
+                            print(f"    청크 {chunk_num + 1}/{total_chunks} 재시도 성공")
+                            continue
+                        else:
+                            retry_error = await retry_resp.text()
+                            print(f"  [ERROR] 청크 재시도도 실패: {retry_error[:100]}")
 
                     # Upload Session 취소
                     await session.delete(upload_url)

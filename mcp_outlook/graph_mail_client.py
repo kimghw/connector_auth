@@ -513,6 +513,7 @@ class GraphMailClient:
                     message_ids=message_attachment_ids,
                     select_params=select_params,
                     skip_duplicates=skip_duplicates,
+                    flat_folder=flat_folder,
                     save_file=save_file,
                     storage_type=storage_type,
                     convert_to_txt=convert_to_txt,
@@ -526,6 +527,7 @@ class GraphMailClient:
                     "total_mails": result.get("total_requested", 0),
                     "processed": result.get("processed", 0),
                     "saved_attachments": result.get("saved_attachments", []),
+                    "saved_folders": result.get("saved_folders", []),
                     "converted_files": result.get("converted_files", []),
                     "body_contents": result.get("body_contents", []),
                     "attachment_contents": result.get("attachment_contents", []),
@@ -545,6 +547,8 @@ class GraphMailClient:
                     attachments_info=message_attachment_ids,
                     save_directory=save_directory,
                     flat_folder=flat_folder,
+                    storage_type=storage_type,
+                    onedrive_folder=onedrive_folder,
                 )
 
                 return {
