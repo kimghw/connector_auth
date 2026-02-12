@@ -44,7 +44,7 @@ class OneNotePageManager:
         content: str,
     ) -> Dict[str, Any]:
         """페이지 생성 + DB 저장"""
-        result = await self._client.create_page(user_email, section_id, title, content)
+        result = await self._client.create_page(section_id, title, content, user_email)
 
         if result.get("success") and self._db_service:
             page = result.get("page", {})
@@ -86,12 +86,12 @@ class OneNotePageManager:
 
         # 2. Graph API 편집 실행
         result = await self._client.update_page(
-            user_email=user_email,
             page_id=page_id,
             action=action,
             content=content or "",
             target=target,
             position=position,
+            user_email=user_email,
         )
 
         if result.get("success") and self._db_service:
@@ -156,7 +156,7 @@ class OneNotePageManager:
         page_id: str,
     ) -> Dict[str, Any]:
         """페이지 삭제 + DB/요약 삭제"""
-        result = await self._client.delete_page(user_email, page_id)
+        result = await self._client.delete_page(page_id, user_email)
 
         if result.get("success") and self._db_service:
             self._db_service.delete_item(user_id=user_email, item_id=page_id)

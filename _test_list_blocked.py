@@ -3,17 +3,35 @@ import asyncio
 import sys
 import os
 import io
+from typing import Optional
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mcp_outlook.outlook_service import MailService
+from session.auth_database import AuthDatabase
+
+
+def get_default_user_email() -> Optional[str]:
+    """auth.db에서 첫 번째 사용자 이메일을 가져옴"""
+    db = AuthDatabase()
+    users = db.list_users()
+    if users:
+        return users[0].get('user_email')
+    return None
+
 
 async def main():
+    # user_email이 없으면 DB에서 가져옴
+    user_email = get_default_user_email()
+    if not user_email:
+        print("[ERROR] No authenticated user found in database")
+        return
+
     svc = MailService()
     await svc.initialize()
     try:
         result = await svc.mail_action(
-            user_email="kimghw@krs.co.kr",
+            user_email=user_email,
             message_ids=[],
             action="list_blocked",
             destination_id="1",

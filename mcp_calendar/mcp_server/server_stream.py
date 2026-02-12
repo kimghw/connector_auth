@@ -518,7 +518,7 @@ async def handle_calendar_view(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 1: Signature 파라미터 수신
     # - LLM으로부터 전달받은 인자 추출
     # ========================================
-    user_email = args["user_email"]
+    user_email = args.get("user_email")
     start_datetime = args["start_datetime"]
     end_datetime = args["end_datetime"]
 
@@ -542,7 +542,7 @@ async def handle_get_event(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 1: Signature 파라미터 수신
     # - LLM으로부터 전달받은 인자 추출
     # ========================================
-    user_email = args["user_email"]
+    user_email = args.get("user_email")
     event_id = args["event_id"]
 
     # ========================================
@@ -564,7 +564,7 @@ async def handle_create_event(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 1: Signature 파라미터 수신
     # - LLM으로부터 전달받은 인자 추출
     # ========================================
-    user_email = args["user_email"]
+    user_email = args.get("user_email")
     subject = args["subject"]
     start = args["start"]
     end = args["end"]
@@ -596,7 +596,7 @@ async def handle_delete_event(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 1: Signature 파라미터 수신
     # - LLM으로부터 전달받은 인자 추출
     # ========================================
-    user_email = args["user_email"]
+    user_email = args.get("user_email")
     event_id = args["event_id"]
 
     # ========================================

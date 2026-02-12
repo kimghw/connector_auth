@@ -23,6 +23,20 @@ from .azure_config import AzureConfig
 logger = logging.getLogger(__name__)
 
 
+def get_default_user_email() -> Optional[str]:
+    """
+    auth.db의 azure_user_info 테이블에서 첫 번째 사용자 이메일을 가져옴
+
+    Returns:
+        첫 번째 사용자의 이메일 또는 None
+    """
+    db = AuthDatabase()
+    users = db.list_users()
+    if users:
+        return users[0].get('user_email') or users[0].get('email')
+    return None
+
+
 class AuthManager:
     """인증 매니저 - 다중 사용자 관리 및 콜백 서버 통합"""
 
@@ -64,16 +78,22 @@ class AuthManager:
         """
         return self.auth_service.start_auth_flow(force_new=True)
 
-    async def get_token(self, email: str) -> Optional[Dict[str, Any]]:
+    async def get_token(self, email: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         특정 사용자의 토큰 조회
 
         Args:
-            email: 사용자 이메일
+            email: 사용자 이메일. None이면 auth.db에서 첫 번째 사용자를 자동으로 가져옴
 
         Returns:
             토큰 정보 또는 None
         """
+        if not email:
+            email = get_default_user_email()
+            if not email:
+                logger.warning("No email provided and no users found in auth.db")
+                return None
+
         token_info = self.auth_db.get_token(email)
 
         if not token_info:
@@ -88,16 +108,25 @@ class AuthManager:
             'is_expired': self.auth_service.is_token_expired(token_info['expires_at'])
         }
 
-    async def refresh_token(self, email: str) -> Dict[str, Any]:
+    async def refresh_token(self, email: Optional[str] = None) -> Dict[str, Any]:
         """
         특정 사용자의 토큰 갱신
 
         Args:
-            email: 사용자 이메일
+            email: 사용자 이메일. None이면 auth.db에서 첫 번째 사용자를 자동으로 가져옴
 
         Returns:
             갱신 결과
         """
+        if not email:
+            email = get_default_user_email()
+            if not email:
+                return {
+                    'status': 'error',
+                    'error': 'No email provided',
+                    'message': 'No email provided and no users found in auth.db'
+                }
+
         try:
             # 기존 토큰 조회
             token_info = self.auth_db.get_token(email)
@@ -159,18 +188,24 @@ class AuthManager:
                 'error': str(e)
             }
 
-    async def validate_and_refresh_token(self, email: str, auto_reauth: bool = False) -> Optional[str]:
+    async def validate_and_refresh_token(self, email: Optional[str] = None, auto_reauth: bool = False) -> Optional[str]:
         """
         토큰 유효성 확인 및 필요시 자동 갱신
         refresh_token 갱신 실패 시 auto_reauth=True이면 브라우저 재인증 시도
 
         Args:
-            email: 사용자 이메일
+            email: 사용자 이메일. None이면 auth.db에서 첫 번째 사용자를 자동으로 가져옴
             auto_reauth: refresh 실패 시 브라우저 재인증 자동 시작 여부
 
         Returns:
             유효한 액세스 토큰 또는 None
         """
+        if not email:
+            email = get_default_user_email()
+            if not email:
+                logger.error("No email provided and no users found in auth.db")
+                return None
+
         token_info = self.auth_db.get_token(email)
 
         if not token_info:
@@ -198,18 +233,21 @@ class AuthManager:
         logger.error(f"Failed to get valid token for {email}")
         return None
 
-    async def get_auth_url_for_login(self, email: str, port: int = 5000) -> Dict[str, Any]:
+    async def get_auth_url_for_login(self, email: Optional[str] = None, port: int = 5000) -> Dict[str, Any]:
         """
         인증이 필요할 때 로그인 URL을 생성하여 반환 (LLM 전달용)
         콜백 서버를 자동으로 시작하고 인증 URL을 반환합니다.
 
         Args:
-            email: 사용자 이메일
+            email: 사용자 이메일. None이면 'unknown'으로 처리
             port: 콜백 서버 포트 (기본 5000)
 
         Returns:
             Dict: auth_url, state, message 포함
         """
+        if not email:
+            email = 'unknown'
+
         try:
             # 콜백 서버 확인 및 시작
             await self.ensure_callback_server(port)
@@ -276,16 +314,22 @@ class AuthManager:
         return users
 
 
-    def remove_user(self, email: str) -> bool:
+    def remove_user(self, email: Optional[str] = None) -> bool:
         """
         사용자 제거 (토큰 삭제)
 
         Args:
-            email: 사용자 이메일
+            email: 사용자 이메일. None이면 auth.db에서 첫 번째 사용자를 자동으로 가져옴
 
         Returns:
             성공 여부
         """
+        if not email:
+            email = get_default_user_email()
+            if not email:
+                logger.error("No email provided and no users found in auth.db")
+                return False
+
         success = self.auth_db.delete_token(email)
 
         if success:
@@ -306,16 +350,25 @@ class AuthManager:
         logger.info(f"Cleaned up {count} expired tokens")
         return count
 
-    def get_token_status(self, email: str) -> Dict[str, Any]:
+    def get_token_status(self, email: Optional[str] = None) -> Dict[str, Any]:
         """
         사용자 토큰 상태 조회
 
         Args:
-            email: 사용자 이메일
+            email: 사용자 이메일. None이면 auth.db에서 첫 번째 사용자를 자동으로 가져옴
 
         Returns:
             토큰 상태 정보
         """
+        if not email:
+            email = get_default_user_email()
+            if not email:
+                return {
+                    'status': 'not_found',
+                    'email': None,
+                    'message': 'No email provided and no users found in auth.db'
+                }
+
         token_info = self.auth_db.get_token(email)
 
         if not token_info:

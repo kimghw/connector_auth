@@ -12,6 +12,7 @@ from .teams_types import (
     ChatType,
     MessageImportance,
 )
+from session.auth_database import AuthDatabase
 
 # mcp_service decorator is only needed for registry scanning, not runtime
 try:
@@ -22,6 +23,20 @@ except ImportError:
         def decorator(func):
             return func
         return decorator
+
+
+def _get_default_user_email() -> Optional[str]:
+    """
+    auth.db의 azure_user_info 테이블에서 첫 번째 user_email을 가져옴
+
+    Returns:
+        첫 번째 등록된 사용자의 이메일 또는 None
+    """
+    db = AuthDatabase()
+    users = db.list_users()
+    if users:
+        return users[0].get('user_email') or users[0].get('email')
+    return None
 
 
 class TeamsService:
@@ -78,11 +93,15 @@ class TeamsService:
     )
     async def list_chats(
         self,
-        user_email: str,
+        user_email: Optional[str] = None,
         limit: int = 50,
     ) -> Dict[str, Any]:
         """채팅 목록 조회"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
         return await self._client.list_chats(user_email, limit)
 
     @mcp_service(
@@ -96,11 +115,15 @@ class TeamsService:
     )
     async def get_chat(
         self,
-        user_email: str,
         chat_id: str,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """특정 채팅 정보 조회"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
         return await self._client.get_chat(user_email, chat_id)
 
     # ========================================================================
@@ -118,12 +141,16 @@ class TeamsService:
     )
     async def get_chat_messages(
         self,
-        user_email: str,
         chat_id: Optional[str] = None,
         limit: int = 50,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """채팅 메시지 목록 조회"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
         return await self._client.get_chat_messages(user_email, chat_id, limit)
 
     @mcp_service(
@@ -137,14 +164,18 @@ class TeamsService:
     )
     async def send_chat_message(
         self,
-        user_email: str,
         content: str,
         chat_id: Optional[str] = None,
         prefix: str = "[claude]",
         content_type: str = "text",
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """채팅에 메시지 전송"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
         return await self._client.send_chat_message(
             user_email=user_email,
             content=content,
@@ -168,10 +199,14 @@ class TeamsService:
     )
     async def list_teams(
         self,
-        user_email: str,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """팀 목록 조회"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
         return await self._client.list_teams(user_email)
 
     @mcp_service(
@@ -185,11 +220,15 @@ class TeamsService:
     )
     async def list_channels(
         self,
-        user_email: str,
         team_id: str,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """채널 목록 조회"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
         return await self._client.list_channels(user_email, team_id)
 
     @mcp_service(
@@ -203,13 +242,17 @@ class TeamsService:
     )
     async def get_channel_messages(
         self,
-        user_email: str,
         team_id: str,
         channel_id: str,
         limit: int = 50,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """채널 메시지 목록 조회"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
         return await self._client.get_channel_messages(user_email, team_id, channel_id, limit)
 
     @mcp_service(
@@ -223,14 +266,18 @@ class TeamsService:
     )
     async def send_channel_message(
         self,
-        user_email: str,
         team_id: str,
         channel_id: str,
         content: str,
         content_type: str = "text",
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """채널에 메시지 전송"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
         return await self._client.send_channel_message(
             user_email=user_email,
             team_id=team_id,
@@ -250,13 +297,17 @@ class TeamsService:
     )
     async def get_message_replies(
         self,
-        user_email: str,
         team_id: str,
         channel_id: str,
         message_id: str,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """메시지 답글 목록 조회"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
         return await self._client.get_message_replies(user_email, team_id, channel_id, message_id)
 
     # ========================================================================
@@ -274,24 +325,28 @@ class TeamsService:
     )
     async def save_korean_name(
         self,
-        user_email: str,
         topic_kr: str,
         chat_id: Optional[str] = None,
         topic_en: Optional[str] = None,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         채팅의 한글 이름을 저장
 
         Args:
-            user_email: 사용자 이메일
             topic_kr: 한글 이름
             chat_id: 채팅 ID (선택)
             topic_en: 영문 이름 (선택, chat_id가 없을 때 검색용)
+            user_email: 사용자 이메일 (선택, 없으면 기본 사용자)
 
         Returns:
             저장 결과
         """
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
         return await self._db_manager.save_korean_name(
             user_id=user_email,
             topic_kr=topic_kr,
@@ -310,20 +365,24 @@ class TeamsService:
     )
     async def save_korean_names_batch(
         self,
-        user_email: str,
         names: List[Dict[str, str]],
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         여러 채팅의 한글 이름을 한 번에 저장
 
         Args:
-            user_email: 사용자 이메일
             names: [{"topic_en": "영문", "topic_kr": "한글"}, ...] 형식의 리스트
+            user_email: 사용자 이메일 (선택, 없으면 기본 사용자)
 
         Returns:
             배치 저장 결과
         """
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
         return await self._db_manager.save_korean_names_batch(
             user_id=user_email,
             names=names,
@@ -340,20 +399,24 @@ class TeamsService:
     )
     async def find_chat_by_name(
         self,
-        user_email: str,
         recipient_name: str,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         사용자 이름으로 채팅 검색
 
         Args:
-            user_email: 사용자 이메일
             recipient_name: 검색할 상대방 이름 (한글 또는 영문)
+            user_email: 사용자 이메일 (선택, 없으면 기본 사용자)
 
         Returns:
             검색된 chat_id
         """
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
         chat_id = await self._db_manager.find_chat_by_name(
             user_id=user_email,
             recipient_name=recipient_name,
@@ -373,20 +436,25 @@ class TeamsService:
     )
     async def sync_chats(
         self,
-        user_email: str,
         limit: int = 50,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         채팅 목록을 조회하고 DB에 동기화
 
         Args:
-            user_email: 사용자 이메일
             limit: 조회할 채팅 개수
+            user_email: 사용자 이메일 (선택, 없으면 기본 사용자)
 
         Returns:
             동기화 결과
         """
         self._ensure_initialized()
+
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
 
         # Graph API에서 채팅 목록 조회
         result = await self._client.list_chats(user_email, limit)
@@ -415,18 +483,22 @@ class TeamsService:
     )
     async def get_chats_without_korean(
         self,
-        user_email: str,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         한글 이름이 없는 채팅 목록 조회
 
         Args:
-            user_email: 사용자 이메일
+            user_email: 사용자 이메일 (선택, 없으면 기본 사용자)
 
         Returns:
             한글 이름이 없는 채팅 목록
         """
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "사용자 이메일이 필요합니다. 로그인이 필요합니다."}
         chats = await self._db_manager.get_chats_without_korean_names(user_email)
         return {
             "success": True,

@@ -17,19 +17,40 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def get_default_user_email() -> Optional[str]:
+    """
+    auth.db의 azure_user_info 테이블에서 첫 번째 사용자 이메일을 가져옴
+
+    Returns:
+        첫 번째 사용자의 이메일 또는 None
+    """
+    from session.auth_database import AuthDatabase
+    db = AuthDatabase()
+    users = db.list_users()
+    if users:
+        return users[0].get('user_email') or users[0].get('email')
+    return None
+
+
 class Session:
     """
     User authentication session
     인증 상태만 관리 (토큰, 만료 시간 등)
     """
 
-    def __init__(self, user_email: str):
+    def __init__(self, user_email: Optional[str] = None):
         """
         Initialize a new session for a user
 
         Args:
-            user_email: User's email address (session identifier)
+            user_email: User's email address (session identifier).
+                       None이면 auth.db에서 첫 번째 사용자를 자동으로 가져옴
         """
+        if not user_email:
+            user_email = get_default_user_email()
+            if not user_email:
+                raise ValueError("No user_email provided and no users found in auth.db")
+
         self.user_email = user_email
         self.created_at = datetime.now()
         self.last_accessed = datetime.now()
@@ -195,17 +216,22 @@ class SessionManager:
 
         logger.info("SessionManager stopped and all sessions cleaned up")
 
-    async def get_or_create_session(self, user_email: str, access_token: Optional[str] = None) -> Session:
+    async def get_or_create_session(self, user_email: Optional[str] = None, access_token: Optional[str] = None) -> Session:
         """
         Get existing session or create a new one for the user
 
         Args:
-            user_email: User's email address
+            user_email: User's email address. None이면 auth.db에서 첫 번째 사용자를 자동으로 가져옴
             access_token: Optional access token for new sessions
 
         Returns:
             User session
         """
+        if not user_email:
+            user_email = get_default_user_email()
+            if not user_email:
+                raise ValueError("No user_email provided and no users found in auth.db")
+
         async with self._lock:
             # Check if session exists and is valid
             if user_email in self.sessions:
@@ -234,16 +260,21 @@ class SessionManager:
 
             return session
 
-    async def get_session(self, user_email: str) -> Optional[Session]:
+    async def get_session(self, user_email: Optional[str] = None) -> Optional[Session]:
         """
         Get existing session without creating a new one
 
         Args:
-            user_email: User's email address
+            user_email: User's email address. None이면 auth.db에서 첫 번째 사용자를 자동으로 가져옴
 
         Returns:
             Session if exists and valid, None otherwise
         """
+        if not user_email:
+            user_email = get_default_user_email()
+            if not user_email:
+                return None
+
         async with self._lock:
             if user_email in self.sessions:
                 session = self.sessions[user_email]
@@ -258,13 +289,18 @@ class SessionManager:
 
             return None
 
-    async def invalidate_session(self, user_email: str):
+    async def invalidate_session(self, user_email: Optional[str] = None):
         """
         Invalidate a user's session (e.g., on token expiry)
 
         Args:
-            user_email: User's email address
+            user_email: User's email address. None이면 auth.db에서 첫 번째 사용자를 자동으로 가져옴
         """
+        if not user_email:
+            user_email = get_default_user_email()
+            if not user_email:
+                return
+
         async with self._lock:
             if user_email in self.sessions:
                 session = self.sessions[user_email]

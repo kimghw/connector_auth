@@ -14,6 +14,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session import AuthManager
+from session.auth_database import AuthDatabase
 from .onenote_types import (
     NotebookInfo,
     SectionInfo,
@@ -24,6 +25,24 @@ from .onenote_types import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def get_default_user_email() -> Optional[str]:
+    """
+    auth.db의 azure_user_info 테이블에서 첫 번째 user_email을 가져온다.
+
+    Returns:
+        첫 번째 사용자의 이메일 또는 None
+    """
+    try:
+        db = AuthDatabase()
+        users = db.list_users()
+        if users:
+            return users[0].get('user_email') or users[0].get('email')
+        return None
+    except Exception as e:
+        logger.error(f"기본 사용자 조회 실패: {e}")
+        return None
 
 
 class GraphOneNoteClient:
@@ -85,17 +104,25 @@ class GraphOneNoteClient:
 
         return entity_id
 
-    async def _get_access_token(self, user_email: str) -> Optional[str]:
+    async def _get_access_token(self, user_email: Optional[str] = None) -> Optional[str]:
         """
         사용자 이메일로 유효한 액세스 토큰 조회 (자동 갱신 포함)
 
         Args:
-            user_email: 사용자 이메일
+            user_email: 사용자 이메일 (None이면 auth.db에서 첫 번째 사용자 사용)
 
         Returns:
             유효한 액세스 토큰 또는 None
         """
         try:
+            # user_email이 없으면 기본 사용자 조회
+            if not user_email:
+                user_email = get_default_user_email()
+                if not user_email:
+                    logger.error("기본 사용자를 찾을 수 없습니다. 로그인이 필요합니다.")
+                    return None
+                logger.info(f"기본 사용자 사용: {user_email}")
+
             token = await self.auth_manager.validate_and_refresh_token(user_email)
             return token
         except Exception as e:
@@ -106,7 +133,7 @@ class GraphOneNoteClient:
         self,
         method: str,
         endpoint: str,
-        user_email: str,
+        user_email: Optional[str] = None,
         json_data: Optional[Dict[str, Any]] = None,
         data: Optional[bytes] = None,
         content_type: str = "application/json",
@@ -118,7 +145,7 @@ class GraphOneNoteClient:
         Args:
             method: HTTP 메서드 (GET, POST, PATCH, DELETE)
             endpoint: API 엔드포인트
-            user_email: 사용자 이메일
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
             json_data: JSON 데이터
             data: 바이너리 데이터
             content_type: Content-Type 헤더
@@ -171,12 +198,12 @@ class GraphOneNoteClient:
     # 노트북 관련 메서드
     # ========================================================================
 
-    async def list_notebooks(self, user_email: str) -> Dict[str, Any]:
+    async def list_notebooks(self, user_email: Optional[str] = None) -> Dict[str, Any]:
         """
         사용자의 노트북 목록 조회
 
         Args:
-            user_email: 사용자 이메일
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
 
         Returns:
             노트북 목록
@@ -200,7 +227,7 @@ class GraphOneNoteClient:
 
     async def list_sections(
         self,
-        user_email: str,
+        user_email: Optional[str] = None,
         notebook_id: Optional[str] = None,
         top: int = 50,
     ) -> Dict[str, Any]:
@@ -208,7 +235,7 @@ class GraphOneNoteClient:
         섹션 목록 조회
 
         Args:
-            user_email: 사용자 이메일
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
             notebook_id: 노트북 ID (없으면 전체 섹션 조회)
             top: 조회할 섹션 개수
 
@@ -236,17 +263,17 @@ class GraphOneNoteClient:
 
     async def create_section(
         self,
-        user_email: str,
         notebook_id: str,
         section_name: str,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         노트북에 새 섹션 생성
 
         Args:
-            user_email: 사용자 이메일
             notebook_id: 노트북 ID
             section_name: 생성할 섹션 이름
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
 
         Returns:
             생성된 섹션 정보
@@ -274,7 +301,7 @@ class GraphOneNoteClient:
     async def _make_request_full_url(
         self,
         url: str,
-        user_email: str,
+        user_email: Optional[str] = None,
         timeout: int = 30,
     ) -> Dict[str, Any]:
         """
@@ -282,7 +309,7 @@ class GraphOneNoteClient:
 
         Args:
             url: 전체 URL (@odata.nextLink)
-            user_email: 사용자 이메일
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
             timeout: 타임아웃 (초)
 
         Returns:
@@ -318,7 +345,7 @@ class GraphOneNoteClient:
 
     async def list_pages(
         self,
-        user_email: str,
+        user_email: Optional[str] = None,
         section_id: Optional[str] = None,
         top: int = 100,
     ) -> Dict[str, Any]:
@@ -326,7 +353,7 @@ class GraphOneNoteClient:
         페이지 목록 조회 (@odata.nextLink 페이징 지원)
 
         Args:
-            user_email: 사용자 이메일
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
             section_id: 섹션 ID (없으면 전체 페이지 조회)
             top: 페이지당 조회 개수 (최대 100)
 
@@ -368,15 +395,15 @@ class GraphOneNoteClient:
 
     async def get_page_content(
         self,
-        user_email: str,
         page_id: str,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         페이지 내용 조회
 
         Args:
-            user_email: 사용자 이메일
             page_id: 페이지 ID
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
 
         Returns:
             페이지 내용 (HTML)
@@ -420,19 +447,19 @@ class GraphOneNoteClient:
 
     async def create_page(
         self,
-        user_email: str,
         section_id: str,
         title: str,
         content: str,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         새 페이지 생성
 
         Args:
-            user_email: 사용자 이메일
             section_id: 섹션 ID
             title: 페이지 제목
             content: 페이지 내용 (HTML)
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
 
         Returns:
             생성된 페이지 정보
@@ -485,23 +512,23 @@ class GraphOneNoteClient:
 
     async def update_page(
         self,
-        user_email: str,
         page_id: str,
         action: PageAction,
         content: str,
         target: Optional[str] = None,
         position: str = "after",
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         페이지 내용 업데이트
 
         Args:
-            user_email: 사용자 이메일
             page_id: 페이지 ID
             action: 작업 유형 (append, prepend, insert, replace)
             content: 추가/변경할 내용 (HTML)
             target: 타겟 요소 ID (예: #p:{guid})
             position: 삽입 위치 (before, after)
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
 
         Returns:
             업데이트 결과
@@ -560,15 +587,15 @@ class GraphOneNoteClient:
 
     async def delete_page(
         self,
-        user_email: str,
         page_id: str,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         페이지 삭제
 
         Args:
-            user_email: 사용자 이메일
             page_id: 페이지 ID
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
 
         Returns:
             삭제 결과

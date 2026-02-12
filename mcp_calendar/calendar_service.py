@@ -30,6 +30,26 @@ except ImportError:
         return decorator
 
 
+def get_default_user_email() -> Optional[str]:
+    """
+    auth.db에서 첫 번째 사용자 이메일 조회
+
+    user_email이 제공되지 않은 경우 기본값으로 사용
+
+    Returns:
+        첫 번째 사용자 이메일 또는 None
+    """
+    try:
+        from session.auth_database import AuthDatabase
+        db = AuthDatabase()
+        users = db.list_users()
+        if users:
+            return users[0].get('user_email')
+    except Exception:
+        pass
+    return None
+
+
 class CalendarService:
     """
     GraphCalendarClient의 Facade
@@ -73,7 +93,7 @@ class CalendarService:
     )
     async def list_events(
         self,
-        user_email: str,
+        user_email: Optional[str] = None,
         filter_params: Optional[EventFilterParams] = None,
         select_params: Optional[EventSelectParams] = None,
         top: int = 50,
@@ -83,7 +103,7 @@ class CalendarService:
         캘린더 이벤트 목록 조회 - GraphCalendarClient.list_events 위임
 
         Args:
-            user_email: 사용자 이메일
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
             filter_params: 필터링 파라미터
             select_params: 선택할 필드
             top: 최대 결과 수
@@ -93,6 +113,12 @@ class CalendarService:
             이벤트 목록
         """
         self._ensure_initialized()
+
+        # user_email이 None인 경우 기본 사용자 이메일 조회
+        if not user_email:
+            user_email = get_default_user_email()
+            if not user_email:
+                return {"error": "No user_email provided and no default user found in database"}
 
         # 기본 정렬 순서
         if orderby is None:
@@ -125,9 +151,9 @@ class CalendarService:
     )
     async def calendar_view(
         self,
-        user_email: str,
-        start_datetime: str,
-        end_datetime: str,
+        user_email: Optional[str] = None,
+        start_datetime: str = "",
+        end_datetime: str = "",
         select_params: Optional[EventSelectParams] = None,
         top: int = 50,
         orderby: Optional[str] = None,
@@ -138,7 +164,7 @@ class CalendarService:
         calendarView 엔드포인트를 사용하여 반복 일정의 인스턴스도 포함
 
         Args:
-            user_email: 사용자 이메일
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
             start_datetime: 시작 날짜/시간 (ISO 8601)
             end_datetime: 종료 날짜/시간 (ISO 8601)
             select_params: 선택할 필드
@@ -149,6 +175,12 @@ class CalendarService:
             이벤트 목록 (반복 일정 인스턴스 포함)
         """
         self._ensure_initialized()
+
+        # user_email이 None인 경우 기본 사용자 이메일 조회
+        if not user_email:
+            user_email = get_default_user_email()
+            if not user_email:
+                return {"error": "No user_email provided and no default user found in database"}
 
         # 기본 정렬 순서
         if orderby is None:
@@ -186,15 +218,15 @@ class CalendarService:
     )
     async def get_event(
         self,
-        user_email: str,
-        event_id: str,
+        user_email: Optional[str] = None,
+        event_id: str = "",
         select_params: Optional[EventSelectParams] = None,
     ) -> Dict[str, Any]:
         """
         특정 이벤트 상세 조회 - GraphCalendarClient.get_event 위임
 
         Args:
-            user_email: 사용자 이메일
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
             event_id: 이벤트 ID
             select_params: 선택할 필드
 
@@ -202,6 +234,12 @@ class CalendarService:
             이벤트 상세 정보
         """
         self._ensure_initialized()
+
+        # user_email이 None인 경우 기본 사용자 이메일 조회
+        if not user_email:
+            user_email = get_default_user_email()
+            if not user_email:
+                return {"error": "No user_email provided and no default user found in database"}
 
         result = await self._client.get_event(
             user_email=user_email,
@@ -229,10 +267,10 @@ class CalendarService:
     )
     async def create_event(
         self,
-        user_email: str,
-        subject: str,
-        start: Union[str, DateTimeTimeZone, Dict[str, str]],
-        end: Union[str, DateTimeTimeZone, Dict[str, str]],
+        user_email: Optional[str] = None,
+        subject: str = "",
+        start: Union[str, DateTimeTimeZone, Dict[str, str]] = "",
+        end: Union[str, DateTimeTimeZone, Dict[str, str]] = "",
         body: Optional[str] = None,
         location: Optional[str] = None,
         attendees: Optional[List[Union[str, Attendee, Dict[str, Any]]]] = None,
@@ -251,7 +289,7 @@ class CalendarService:
         새 캘린더 이벤트 생성 - GraphCalendarClient.create_event 위임
 
         Args:
-            user_email: 사용자 이메일
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
             subject: 이벤트 제목
             start: 시작 날짜/시간
             end: 종료 날짜/시간
@@ -273,6 +311,12 @@ class CalendarService:
             생성된 이벤트 정보
         """
         self._ensure_initialized()
+
+        # user_email이 None인 경우 기본 사용자 이메일 조회
+        if not user_email:
+            user_email = get_default_user_email()
+            if not user_email:
+                return {"error": "No user_email provided and no default user found in database"}
 
         # start/end 타입 변환
         start_dt = self._convert_to_datetime_timezone(start)
@@ -364,8 +408,8 @@ class CalendarService:
     )
     async def update_event(
         self,
-        user_email: str,
-        event_id: str,
+        user_email: Optional[str] = None,
+        event_id: str = "",
         subject: Optional[str] = None,
         start: Optional[Union[str, DateTimeTimeZone, Dict[str, str]]] = None,
         end: Optional[Union[str, DateTimeTimeZone, Dict[str, str]]] = None,
@@ -387,7 +431,7 @@ class CalendarService:
         캘린더 이벤트 수정 - GraphCalendarClient.update_event 위임
 
         Args:
-            user_email: 사용자 이메일
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
             event_id: 이벤트 ID
             subject: 이벤트 제목 (수정할 경우)
             start: 시작 날짜/시간 (수정할 경우)
@@ -410,6 +454,12 @@ class CalendarService:
             수정된 이벤트 정보
         """
         self._ensure_initialized()
+
+        # user_email이 None인 경우 기본 사용자 이메일 조회
+        if not user_email:
+            user_email = get_default_user_email()
+            if not user_email:
+                return {"error": "No user_email provided and no default user found in database"}
 
         # start/end 타입 변환 (None 허용)
         start_dt = self._convert_to_datetime_timezone(start) if start else None
@@ -465,20 +515,26 @@ class CalendarService:
     )
     async def delete_event(
         self,
-        user_email: str,
-        event_id: str,
+        user_email: Optional[str] = None,
+        event_id: str = "",
     ) -> Dict[str, Any]:
         """
         캘린더 이벤트 삭제 - GraphCalendarClient.delete_event 위임
 
         Args:
-            user_email: 사용자 이메일
+            user_email: 사용자 이메일 (None이면 기본 사용자 사용)
             event_id: 이벤트 ID
 
         Returns:
             삭제 결과
         """
         self._ensure_initialized()
+
+        # user_email이 None인 경우 기본 사용자 이메일 조회
+        if not user_email:
+            user_email = get_default_user_email()
+            if not user_email:
+                return {"error": "No user_email provided and no default user found in database"}
 
         result = await self._client.delete_event(
             user_email=user_email,
@@ -506,10 +562,10 @@ class CalendarService:
     )
     async def get_schedule(
         self,
-        user_email: str,
-        schedules: List[str],
-        start_time: Union[str, DateTimeTimeZone, Dict[str, str]],
-        end_time: Union[str, DateTimeTimeZone, Dict[str, str]],
+        user_email: Optional[str] = None,
+        schedules: Optional[List[str]] = None,
+        start_time: Union[str, DateTimeTimeZone, Dict[str, str]] = "",
+        end_time: Union[str, DateTimeTimeZone, Dict[str, str]] = "",
         availability_view_interval: int = 30,
     ) -> Dict[str, Any]:
         """
@@ -518,7 +574,7 @@ class CalendarService:
         여러 사용자의 Free/Busy 정보를 한 번에 조회
 
         Args:
-            user_email: 요청하는 사용자 이메일
+            user_email: 요청하는 사용자 이메일 (None이면 기본 사용자 사용)
             schedules: 조회할 사용자 이메일 리스트
             start_time: 조회 시작 시간
             end_time: 조회 종료 시간
@@ -528,6 +584,16 @@ class CalendarService:
             사용자별 일정 가용성 정보
         """
         self._ensure_initialized()
+
+        # user_email이 None인 경우 기본 사용자 이메일 조회
+        if not user_email:
+            user_email = get_default_user_email()
+            if not user_email:
+                return {"error": "No user_email provided and no default user found in database"}
+
+        # schedules가 None이면 빈 리스트로 초기화
+        if schedules is None:
+            schedules = []
 
         # start_time/end_time 타입 변환
         start_dt = self._convert_to_datetime_timezone(start_time)

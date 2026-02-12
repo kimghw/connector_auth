@@ -36,6 +36,26 @@ sys.path.insert(0, parent_dir)  # For direct module imports
 from mcp_outlook.outlook_types import ExcludeParams, FilterParams, SelectParams
 from mcp_outlook.graph_mail_client import ProcessingMode, QueryMethod
 
+# Import AuthDatabase for default user_email lookup
+from session.auth_database import AuthDatabase
+
+
+def get_default_user_email() -> Optional[str]:
+    """Get default user email from auth.db when not provided.
+
+    Returns the first user's email from azure_user_info table.
+    Used for authentication/token-related operations when user_email is not specified.
+    """
+    try:
+        db = AuthDatabase()
+        users = db.list_users()
+        if users:
+            return users[0].get('user_email') or users[0].get('email')
+        return None
+    except Exception as e:
+        print(f"Failed to get default user email from auth.db: {e}")
+        return None
+
 # Load tool definitions from YAML (Single Source of Truth)
 def _convert_boolean_schema_to_enabled_disabled(schema: Dict[str, Any]) -> Dict[str, Any]:
     """Convert boolean type properties to enabled/disabled enum for OpenAI compatibility.
@@ -548,7 +568,11 @@ async def handle_mail_list_period(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 1: Signature 파라미터 수신
     # - LLM으로부터 전달받은 인자 추출
     # ========================================
-    user_email = args["user_email"]
+    user_email = args.get("user_email")
+    if not user_email:
+        user_email = get_default_user_email()
+        if not user_email:
+            return {"status": "error", "error": "user_email not provided and no default user found in auth.db"}
     DatePeriodFilter_sig = args.get("DatePeriodFilter")
     DatePeriodFilter = DatePeriodFilter_sig if DatePeriodFilter_sig is not None else None
 
@@ -624,7 +648,11 @@ async def handle_mail_list_keyword(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 1: Signature 파라미터 수신
     # - LLM으로부터 전달받은 인자 추출
     # ========================================
-    user_email = args["user_email"]
+    user_email = args.get("user_email")
+    if not user_email:
+        user_email = get_default_user_email()
+        if not user_email:
+            return {"status": "error", "error": "user_email not provided and no default user found in auth.db"}
     search_keywords = args["search_keywords"]
     top_sig = args.get("top")
     top = top_sig if top_sig is not None else 50
@@ -649,7 +677,11 @@ async def handle_mail_query_if_emaidID(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 1: Signature 파라미터 수신
     # - LLM으로부터 전달받은 인자 추출
     # ========================================
-    user_email = args["user_email"]
+    user_email = args.get("user_email")
+    if not user_email:
+        user_email = get_default_user_email()
+        if not user_email:
+            return {"status": "error", "error": "user_email not provided and no default user found in auth.db"}
     message_ids = args["message_ids"]
 
     # ========================================
@@ -671,7 +703,11 @@ async def handle_mail_attachment_meta(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 1: Signature 파라미터 수신
     # - LLM으로부터 전달받은 인자 추출
     # ========================================
-    user_email = args["user_email"]
+    user_email = args.get("user_email")
+    if not user_email:
+        user_email = get_default_user_email()
+        if not user_email:
+            return {"status": "error", "error": "user_email not provided and no default user found in auth.db"}
     message_ids = args["message_ids"]
 
     # ========================================
@@ -693,7 +729,11 @@ async def handle_mail_attachment_download(args: Dict[str, Any]) -> Dict[str, Any
     # Step 1: Signature 파라미터 수신
     # - LLM으로부터 전달받은 인자 추출
     # ========================================
-    user_email = args["user_email"]
+    user_email = args.get("user_email")
+    if not user_email:
+        user_email = get_default_user_email()
+        if not user_email:
+            return {"status": "error", "error": "user_email not provided and no default user found in auth.db"}
     message_attachment_ids = args["message_attachment_ids"]
     save_directory_sig = args.get("save_directory")
     save_directory = save_directory_sig if save_directory_sig is not None else 'downloads'
@@ -745,7 +785,11 @@ async def handle_mail_fetch_filter(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 1: Signature 파라미터 수신
     # - LLM으로부터 전달받은 인자 추출
     # ========================================
-    user_email = args["user_email"]
+    user_email = args.get("user_email")
+    if not user_email:
+        user_email = get_default_user_email()
+        if not user_email:
+            return {"status": "error", "error": "user_email not provided and no default user found in auth.db"}
     filter_params_sig = args.get("filter_params")
     filter_params = filter_params_sig if filter_params_sig is not None else None
     exclude_params_sig = args.get("exclude_params")
@@ -789,7 +833,11 @@ async def handle_mail_fetch_search(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 1: Signature 파라미터 수신
     # - LLM으로부터 전달받은 인자 추출
     # ========================================
-    user_email = args["user_email"]
+    user_email = args.get("user_email")
+    if not user_email:
+        user_email = get_default_user_email()
+        if not user_email:
+            return {"status": "error", "error": "user_email not provided and no default user found in auth.db"}
     search_term = args["search_term"]
     select_params_sig = args.get("select_params")
     select_params = select_params_sig if select_params_sig is not None else None
@@ -829,7 +877,11 @@ async def handle_mail_process_with_download(args: Dict[str, Any]) -> Dict[str, A
     # Step 1: Signature 파라미터 수신
     # - LLM으로부터 전달받은 인자 추출
     # ========================================
-    user_email = args["user_email"]
+    user_email = args.get("user_email")
+    if not user_email:
+        user_email = get_default_user_email()
+        if not user_email:
+            return {"status": "error", "error": "user_email not provided and no default user found in auth.db"}
     filter_params_sig = args.get("filter_params")
     filter_params = filter_params_sig if filter_params_sig is not None else None
     search_term_sig = args.get("search_term")
@@ -873,7 +925,11 @@ async def handle_mail_query_url(args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 1: Signature 파라미터 수신
     # - LLM으로부터 전달받은 인자 추출
     # ========================================
-    user_email = args["user_email"]
+    user_email = args.get("user_email")
+    if not user_email:
+        user_email = get_default_user_email()
+        if not user_email:
+            return {"status": "error", "error": "user_email not provided and no default user found in auth.db"}
     url = args["url"]
     filter_params_sig = args.get("filter_params")
     filter_params = filter_params_sig if filter_params_sig is not None else None
@@ -978,7 +1034,12 @@ async def handle_test_handler (args: Dict[str, Any]) -> Dict[str, Any]:
     # Step 4: Internal 파라미터 추가
     # - LLM에 노출되지 않는 내부 고정값
     # ========================================
-    call_args["user_email"] = string()
+    user_email = args.get("user_email")
+    if not user_email:
+        user_email = get_default_user_email()
+        if not user_email:
+            return {"status": "error", "error": "user_email not provided and no default user found in auth.db"}
+    call_args["user_email"] = user_email
 
     # ========================================
     # Step 5: 서비스 메서드 호출

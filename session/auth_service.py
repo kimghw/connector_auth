@@ -17,6 +17,20 @@ from .auth_database import AuthDatabase
 logger = logging.getLogger(__name__)
 
 
+def get_default_user_email() -> Optional[str]:
+    """
+    auth.db의 azure_user_info 테이블에서 첫 번째 사용자 이메일을 가져옴
+
+    Returns:
+        첫 번째 사용자의 이메일 또는 None
+    """
+    db = AuthDatabase()
+    users = db.list_users()
+    if users:
+        return users[0].get('user_email') or users[0].get('email')
+    return None
+
+
 class AuthService:
     """인증 서비스 - 인증 플로우와 토큰 관리"""
 
@@ -302,12 +316,12 @@ class AuthService:
         expiry_date = created_at + timedelta(days=days)
         return datetime.now(timezone.utc) >= expiry_date
 
-    async def check_and_refresh_if_needed(self, email: str, buffer_seconds: int = 300) -> Dict[str, Any]:
+    async def check_and_refresh_if_needed(self, email: Optional[str] = None, buffer_seconds: int = 300) -> Dict[str, Any]:
         """
         토큰 만료 확인 후 필요시 자동 갱신
 
         Args:
-            email: 사용자 이메일
+            email: 사용자 이메일. None이면 auth.db에서 첫 번째 사용자를 자동으로 가져옴
             buffer_seconds: 버퍼 시간 (기본 5분)
 
         Returns:
@@ -317,6 +331,15 @@ class AuthService:
                 - message: 상태 메시지
                 - refreshed: 갱신 여부
         """
+        if not email:
+            email = get_default_user_email()
+            if not email:
+                return {
+                    'status': 'error',
+                    'message': 'No email provided and no users found in auth.db',
+                    'refreshed': False
+                }
+
         try:
             # 현재 토큰 정보 조회
             token_info = self.auth_db.get_token(email)

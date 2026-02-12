@@ -81,7 +81,7 @@ class OneNoteWriter:
         content: str,
     ) -> Dict[str, Any]:
         """페이지 생성 + DB 저장"""
-        result = await self._client.create_page(user_email, section_id, title, content)
+        result = await self._client.create_page(section_id, title, content, user_email)
 
         if result.get("success") and self._db_service:
             page = result.get("page", {})
@@ -108,9 +108,9 @@ class OneNoteWriter:
     ) -> Dict[str, Any]:
         """새 섹션 생성"""
         return await self._client.create_section(
-            user_email=user_email,
             notebook_id=notebook_id,
             section_name=title,
+            user_email=user_email,
         )
 
     # ========================================================================
@@ -140,12 +140,12 @@ class OneNoteWriter:
 
         # 2. Graph API 편집 실행
         result = await self._client.update_page(
-            user_email=user_email,
             page_id=page_id,
             action=action,
             content=content or "",
             target=target,
             position=position,
+            user_email=user_email,
         )
 
         if result.get("success") and self._db_service:

@@ -11,6 +11,24 @@ from .onedrive_types import (
     ConflictBehavior,
 )
 
+# Default user email helper
+def _get_default_user_email() -> Optional[str]:
+    """
+    auth.db의 azure_user_info 테이블에서 첫 번째 user_email을 가져옴
+
+    Returns:
+        첫 번째 사용자 이메일 또는 None
+    """
+    try:
+        from session.auth_database import AuthDatabase
+        db = AuthDatabase()
+        users = db.list_users()
+        if users:
+            return users[0].get('user_email') or users[0].get('email')
+        return None
+    except Exception:
+        return None
+
 # mcp_service decorator is only needed for registry scanning, not runtime
 try:
     from mcp_editor.mcp_service_registry.mcp_service_decorator import mcp_service
@@ -73,10 +91,14 @@ class OneDriveService:
     )
     async def get_drive_info(
         self,
-        user_email: str,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """드라이브 정보 조회"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "user_email이 필요합니다. 등록된 사용자가 없습니다."}
         return await self._client.get_drive_info(user_email)
 
     # ========================================================================
@@ -94,13 +116,17 @@ class OneDriveService:
     )
     async def list_files(
         self,
-        user_email: str,
+        user_email: Optional[str] = None,
         folder_path: Optional[str] = None,
         search: Optional[str] = None,
         limit: int = 50,
     ) -> Dict[str, Any]:
         """파일/폴더 목록 조회"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "user_email이 필요합니다. 등록된 사용자가 없습니다."}
         return await self._client.list_files(user_email, folder_path, search, limit)
 
     @mcp_service(
@@ -114,11 +140,15 @@ class OneDriveService:
     )
     async def get_item(
         self,
-        user_email: str,
         file_path: str,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """파일/폴더 정보 조회"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "user_email이 필요합니다. 등록된 사용자가 없습니다."}
         return await self._client.get_item(user_email, file_path)
 
     # ========================================================================
@@ -136,12 +166,16 @@ class OneDriveService:
     )
     async def read_file(
         self,
-        user_email: str,
         file_path: str,
+        user_email: Optional[str] = None,
         as_text: bool = True,
     ) -> Dict[str, Any]:
         """파일 내용 읽기"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "user_email이 필요합니다. 등록된 사용자가 없습니다."}
         return await self._client.read_file(user_email, file_path, as_text)
 
     @mcp_service(
@@ -155,14 +189,18 @@ class OneDriveService:
     )
     async def write_file(
         self,
-        user_email: str,
         file_path: str,
         content: str,
+        user_email: Optional[str] = None,
         content_type: str = "text/plain",
         overwrite: bool = True,
     ) -> Dict[str, Any]:
         """파일 쓰기/업로드"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "user_email이 필요합니다. 등록된 사용자가 없습니다."}
 
         conflict_behavior = ConflictBehavior.REPLACE if overwrite else ConflictBehavior.FAIL
 
@@ -185,11 +223,15 @@ class OneDriveService:
     )
     async def delete_file(
         self,
-        user_email: str,
         file_path: str,
+        user_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """파일/폴더 삭제"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "user_email이 필요합니다. 등록된 사용자가 없습니다."}
         return await self._client.delete_file(user_email, file_path)
 
     # ========================================================================
@@ -207,12 +249,16 @@ class OneDriveService:
     )
     async def create_folder(
         self,
-        user_email: str,
         folder_name: str,
+        user_email: Optional[str] = None,
         parent_path: Optional[str] = None,
     ) -> Dict[str, Any]:
         """폴더 생성"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "user_email이 필요합니다. 등록된 사용자가 없습니다."}
         return await self._client.create_folder(user_email, folder_name, parent_path)
 
     # ========================================================================
@@ -230,13 +276,17 @@ class OneDriveService:
     )
     async def copy_file(
         self,
-        user_email: str,
         source_path: str,
         dest_path: str,
+        user_email: Optional[str] = None,
         new_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """파일 복사"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "user_email이 필요합니다. 등록된 사용자가 없습니다."}
         return await self._client.copy_file(user_email, source_path, dest_path, new_name)
 
     @mcp_service(
@@ -250,11 +300,15 @@ class OneDriveService:
     )
     async def move_file(
         self,
-        user_email: str,
         source_path: str,
         dest_path: str,
+        user_email: Optional[str] = None,
         new_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """파일 이동"""
         self._ensure_initialized()
+        if not user_email:
+            user_email = _get_default_user_email()
+        if not user_email:
+            return {"success": False, "error": "user_email이 필요합니다. 등록된 사용자가 없습니다."}
         return await self._client.move_file(user_email, source_path, dest_path, new_name)

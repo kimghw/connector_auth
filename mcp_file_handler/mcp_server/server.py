@@ -29,6 +29,32 @@ from tool_definitions import MCP_TOOLS
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Import AuthDatabase for default user email lookup
+try:
+    from session.auth_database import AuthDatabase
+    AUTH_DB_AVAILABLE = True
+except ImportError:
+    logger.warning("AuthDatabase not found, cannot get default user email")
+    AUTH_DB_AVAILABLE = False
+
+
+def get_default_user_email() -> Optional[str]:
+    """
+    Get default user email from auth.db when user_email is not provided.
+    Returns the first user's email from azure_user_info table.
+    """
+    if not AUTH_DB_AVAILABLE:
+        return None
+    try:
+        db = AuthDatabase()
+        users = db.list_users()
+        if users:
+            return users[0].get('user_email')
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to get default user email: {e}")
+        return None
+
 # Try to import SessionManager - optional feature
 try:
     from session.session_manager import SessionManager
@@ -120,6 +146,12 @@ async def call_tool(request: Request):
         # Get session if available
         session = None
         user_email = arguments.get("user_email")
+
+        # If user_email not provided, try to get default from auth.db
+        if not user_email:
+            user_email = get_default_user_email()
+            if user_email:
+                logger.info(f"Using default user_email from auth.db: {user_email}")
 
         if USE_SESSION_MANAGER and user_email:
             session = await session_manager.get_or_create_session(user_email)

@@ -34,7 +34,7 @@ class OneNoteDeleter:
         page_id: str,
     ) -> Dict[str, Any]:
         """페이지 삭제 + DB/요약 삭제"""
-        result = await self._client.delete_page(user_email, page_id)
+        result = await self._client.delete_page(page_id, user_email)
 
         if result.get("success") and self._db_service:
             self._db_service.delete_item(user_id=user_email, item_id=page_id)

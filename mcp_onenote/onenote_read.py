@@ -164,7 +164,7 @@ class OneNoteReader:
         page_id: str,
     ) -> Dict[str, Any]:
         """특정 페이지 본문 조회"""
-        return await self._client.get_page_content(user_email, page_id)
+        return await self._client.get_page_content(page_id, user_email)
 
     async def get_summary(
         self,

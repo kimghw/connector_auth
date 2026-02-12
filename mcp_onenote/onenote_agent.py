@@ -310,7 +310,7 @@ class OneNoteAgent:
             }
 
         # 1. 페이지 HTML 가져오기
-        content_result = await self._client.get_page_content(user_email, page_id)
+        content_result = await self._client.get_page_content(page_id, user_email)
         if not content_result.get("success"):
             return {
                 "success": False,
@@ -443,7 +443,7 @@ class OneNoteAgent:
 
             async with semaphore:
                 content_result = await self._client.get_page_content(
-                    user_email, page_id
+                    page_id, user_email
                 )
                 if not content_result.get("success"):
                     return None
