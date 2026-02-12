@@ -700,6 +700,123 @@ class GraphMailClient:
         except Exception as e:
             return {"status": "error", "error": str(e), "deleted": 0}
 
+    async def report_not_junk_messages(
+        self,
+        user_email: str,
+        message_ids: List[str],
+    ) -> Dict[str, Any]:
+        """
+        메일을 '정크 아님'으로 신고 (Safe Senders 등록)
+
+        Beta API: POST /users/{email}/messages/{id}/reportMessage
+        body: {"reportAction": "notJunk"}
+
+        Args:
+            user_email: 사용자 이메일
+            message_ids: 신고할 메일 ID 리스트
+
+        Returns:
+            신고 결과
+        """
+        self._ensure_initialized()
+
+        if not message_ids:
+            return {
+                "status": "success",
+                "reported": 0,
+                "total": 0,
+                "message": "No message IDs provided",
+            }
+
+        try:
+            print(f"\n[REPORT] Reporting {len(message_ids)} email(s) as notJunk...")
+            result = await self.mail_batch.batch_report_not_junk_by_ids(
+                user_email=user_email,
+                message_ids=message_ids,
+            )
+
+            if result.get("success"):
+                return {
+                    "status": "success",
+                    "reported": result.get("reported", 0),
+                    "failed": result.get("failed", 0),
+                    "total": result.get("total", 0),
+                    "reported_ids": result.get("reported_ids", []),
+                    "failed_items": result.get("failed_items"),
+                    "batches_processed": result.get("batches_processed", 0),
+                }
+            else:
+                return {
+                    "status": "error",
+                    "error": result.get("error", "Report notJunk failed"),
+                    "reported": result.get("reported", 0),
+                    "failed": result.get("failed", 0),
+                    "total": result.get("total", 0),
+                    "failed_items": result.get("failed_items"),
+                }
+
+        except Exception as e:
+            return {"status": "error", "error": str(e), "reported": 0}
+
+    async def move_messages(
+        self,
+        user_email: str,
+        message_ids: List[str],
+        destination_id: str = "inbox",
+    ) -> Dict[str, Any]:
+        """
+        메일을 지정 폴더로 이동
+
+        Args:
+            user_email: 사용자 이메일
+            message_ids: 이동할 메일 ID 리스트
+            destination_id: 이동할 폴더 (inbox, junkemail, deleteditems, drafts, sentitems 등)
+
+        Returns:
+            이동 결과
+        """
+        self._ensure_initialized()
+
+        if not message_ids:
+            return {
+                "status": "success",
+                "moved": 0,
+                "total": 0,
+                "message": "No message IDs provided",
+            }
+
+        try:
+            print(f"\n[MOVE] Moving {len(message_ids)} email(s) to '{destination_id}'...")
+            result = await self.mail_batch.batch_move_by_ids(
+                user_email=user_email,
+                message_ids=message_ids,
+                destination_id=destination_id,
+            )
+
+            if result.get("success"):
+                return {
+                    "status": "success",
+                    "moved": result.get("moved", 0),
+                    "failed": result.get("failed", 0),
+                    "total": result.get("total", 0),
+                    "moved_ids": result.get("moved_ids", []),
+                    "failed_items": result.get("failed_items"),
+                    "batches_processed": result.get("batches_processed", 0),
+                    "destination": destination_id,
+                }
+            else:
+                return {
+                    "status": "error",
+                    "error": result.get("error", "Move failed"),
+                    "moved": result.get("moved", 0),
+                    "failed": result.get("failed", 0),
+                    "total": result.get("total", 0),
+                    "failed_items": result.get("failed_items"),
+                }
+
+        except Exception as e:
+            return {"status": "error", "error": str(e), "moved": 0}
+
     def format_results(self, results: Dict[str, Any], verbose: bool = False) -> str:
         """
         결과 포맷팅

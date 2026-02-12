@@ -494,35 +494,61 @@ class MailService:
         )
 
     @mcp_service(
-        tool_name="handler_mail_delete",
+        tool_name="handler_mail_action",
         server_name="outlook",
-        service_name="delete_mails",
+        service_name="mail_action",
         category="outlook_mail",
-        tags=["delete", "batch"],
+        tags=["delete", "move", "report", "batch", "action"],
         priority=5,
-        description="메일을 휴지통(Deleted Items)으로 이동 (1개 이상의 메일 ID 지원)",
+        description="메일 ID 기반 액션: delete(휴지통 이동), move(폴더 이동), report_not_junk(Safe Senders 등록)",
     )
-    async def delete_mails(
+    async def mail_action(
         self,
         user_email: str,
         message_ids: List[str],
+        action: str = "delete",
+        destination_id: str = "inbox",
     ) -> Dict[str, Any]:
         """
-        메일을 휴지통으로 이동 - GraphMailClient.delete_messages 위임
+        메일 ID 기반 액션 통합 처리
 
         Args:
             user_email: 사용자 이메일
-            message_ids: 삭제할 메일 ID 리스트 (1개 이상)
+            message_ids: 처리할 메일 ID 리스트 (1개 이상)
+            action: 수행할 액션
+                - "delete": 휴지통(Deleted Items)으로 이동
+                - "move": 지정 폴더로 이동
+                - "report_not_junk": 정크 아님 신고 → Safe Senders 등록 (beta API)
+            destination_id: 이동할 폴더 (action="move"일 때 사용)
+                - well-known name: inbox, junkemail, deleteditems, drafts, sentitems, archive
+                - 또는 폴더 ID 직접 지정
 
         Returns:
-            삭제 결과
+            액션 결과
         """
         self._ensure_initialized()
 
-        return await self._client.delete_messages(
-            user_email=user_email,
-            message_ids=message_ids,
-        )
+        if action == "delete":
+            return await self._client.delete_messages(
+                user_email=user_email,
+                message_ids=message_ids,
+            )
+        elif action == "move":
+            return await self._client.move_messages(
+                user_email=user_email,
+                message_ids=message_ids,
+                destination_id=destination_id,
+            )
+        elif action == "report_not_junk":
+            return await self._client.report_not_junk_messages(
+                user_email=user_email,
+                message_ids=message_ids,
+            )
+        else:
+            return {
+                "status": "error",
+                "error": f"Unknown action: '{action}'. Supported: 'delete', 'move', 'report_not_junk'",
+            }
 
     def format_results(self, results: Dict[str, Any], verbose: bool = False) -> str:
         """결과 포맷팅 위임"""

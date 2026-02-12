@@ -414,6 +414,213 @@ class GraphMailIdBatch:
             "batches_processed": len(batches),
         }
 
+    async def batch_report_not_junk_by_ids(
+        self, user_email: str, message_ids: List[str]
+    ) -> Dict[str, Any]:
+        """
+        여러 메일을 '정크 아님'으로 신고하여 Safe Senders에 등록
+
+        Graph API POST /users/{email}/messages/{id}/reportMessage (beta)
+        body: {"reportAction": "notJunk"}
+
+        Beta API를 사용하므로 batch URL이 beta 엔드포인트로 전환됨.
+
+        Args:
+            user_email: 사용자 이메일
+            message_ids: 신고할 메일 ID 리스트
+
+        Returns:
+            신고 결과 (성공/실패 건수 포함)
+        """
+        if not message_ids:
+            return {"success": True, "reported": 0, "failed": 0, "total": 0, "message": "No message IDs provided"}
+
+        access_token = await self._get_access_token(user_email)
+        if not access_token:
+            return {"success": False, "error": f"Failed to get access token for {user_email}"}
+
+        batches = self._split_into_batches(message_ids, self.max_batch_size)
+        beta_batch_url = "https://graph.microsoft.com/beta/$batch"
+
+        print(f"[REPORT] Reporting {len(message_ids)} mail(s) as notJunk in {len(batches)} batch(es)")
+
+        reported_ids = []
+        failed_items = []
+
+        headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+
+        async with aiohttp.ClientSession() as session:
+            for batch_num, batch_ids in enumerate(batches, 1):
+                print(f"  Processing batch {batch_num}/{len(batches)} ({len(batch_ids)} mails)...")
+
+                requests = []
+                for i, mail_id in enumerate(batch_ids):
+                    requests.append(
+                        {
+                            "id": str(i + 1),
+                            "method": "POST",
+                            "url": f"/users/{user_email}/messages/{mail_id}/reportMessage",
+                            "headers": {"Content-Type": "application/json"},
+                            "body": {"reportAction": "notJunk"},
+                        }
+                    )
+
+                batch_body = {"requests": requests}
+
+                try:
+                    async with session.post(beta_batch_url, headers=headers, json=batch_body) as response:
+                        if response.status == 200:
+                            batch_data = await response.json()
+                            responses = batch_data.get("responses", [])
+
+                            for resp in responses:
+                                req_id = resp.get("id")
+                                mail_id = batch_ids[int(req_id) - 1] if req_id else "unknown"
+                                status_code = resp.get("status")
+
+                                # reportMessage 성공: 202 (Accepted) 또는 204 (No Content)
+                                if status_code in (200, 202, 204):
+                                    reported_ids.append(mail_id)
+                                else:
+                                    error_msg = (
+                                        resp.get("body", {})
+                                        .get("error", {})
+                                        .get("message", "Unknown error")
+                                    )
+                                    failed_items.append(
+                                        {"mail_id": mail_id, "status": status_code, "error": error_msg}
+                                    )
+
+                            success_count = len([r for r in responses if r.get("status") in (200, 202, 204)])
+                            fail_count = len(responses) - success_count
+                            print(f"    Batch {batch_num}: {success_count} reported, {fail_count} failed")
+                        else:
+                            error_text = await response.text()
+                            print(f"    Batch {batch_num}: Request failed with status {response.status}")
+                            for mail_id in batch_ids:
+                                failed_items.append(
+                                    {"mail_id": mail_id, "status": response.status, "error": error_text[:200]}
+                                )
+
+                except Exception as e:
+                    print(f"    Batch {batch_num}: Exception - {str(e)}")
+                    for mail_id in batch_ids:
+                        failed_items.append({"mail_id": mail_id, "error": str(e)})
+
+        print(f"[DONE] Reported {len(reported_ids)}/{len(message_ids)} mails as notJunk")
+
+        return {
+            "success": len(reported_ids) > 0,
+            "reported": len(reported_ids),
+            "failed": len(failed_items),
+            "total": len(message_ids),
+            "reported_ids": reported_ids,
+            "failed_items": failed_items if failed_items else None,
+            "batches_processed": len(batches),
+        }
+
+    async def batch_move_by_ids(
+        self, user_email: str, message_ids: List[str], destination_id: str = "inbox"
+    ) -> Dict[str, Any]:
+        """
+        여러 메일을 지정 폴더로 이동
+
+        Graph API POST /users/{email}/messages/{id}/move 를 $batch로 실행.
+        well-known folder name 사용 가능: inbox, junkemail, deleteditems, drafts, sentitems 등.
+
+        Args:
+            user_email: 사용자 이메일
+            message_ids: 이동할 메일 ID 리스트
+            destination_id: 이동할 폴더 ID 또는 well-known name (기본 "inbox")
+
+        Returns:
+            이동 결과 (성공/실패 건수 포함)
+        """
+        if not message_ids:
+            return {"success": True, "moved": 0, "failed": 0, "total": 0, "message": "No message IDs provided"}
+
+        access_token = await self._get_access_token(user_email)
+        if not access_token:
+            return {"success": False, "error": f"Failed to get access token for {user_email}"}
+
+        batches = self._split_into_batches(message_ids, self.max_batch_size)
+
+        print(f"[MOVE] Moving {len(message_ids)} mail(s) to '{destination_id}' in {len(batches)} batch(es)")
+
+        moved_ids = []
+        failed_items = []
+
+        headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+
+        async with aiohttp.ClientSession() as session:
+            for batch_num, batch_ids in enumerate(batches, 1):
+                print(f"  Processing batch {batch_num}/{len(batches)} ({len(batch_ids)} mails)...")
+
+                requests = []
+                for i, mail_id in enumerate(batch_ids):
+                    requests.append(
+                        {
+                            "id": str(i + 1),
+                            "method": "POST",
+                            "url": f"/users/{user_email}/messages/{mail_id}/move",
+                            "headers": {"Content-Type": "application/json"},
+                            "body": {"destinationId": destination_id},
+                        }
+                    )
+
+                batch_body = {"requests": requests}
+
+                try:
+                    async with session.post(self.batch_url, headers=headers, json=batch_body) as response:
+                        if response.status == 200:
+                            batch_data = await response.json()
+                            responses = batch_data.get("responses", [])
+
+                            for resp in responses:
+                                req_id = resp.get("id")
+                                mail_id = batch_ids[int(req_id) - 1] if req_id else "unknown"
+
+                                if resp.get("status") == 201:
+                                    moved_ids.append(mail_id)
+                                else:
+                                    error_msg = (
+                                        resp.get("body", {})
+                                        .get("error", {})
+                                        .get("message", "Unknown error")
+                                    )
+                                    failed_items.append(
+                                        {"mail_id": mail_id, "status": resp.get("status"), "error": error_msg}
+                                    )
+
+                            success_count = len([r for r in responses if r.get("status") == 201])
+                            fail_count = len(responses) - success_count
+                            print(f"    Batch {batch_num}: {success_count} moved, {fail_count} failed")
+                        else:
+                            error_text = await response.text()
+                            print(f"    Batch {batch_num}: Request failed with status {response.status}")
+                            for mail_id in batch_ids:
+                                failed_items.append(
+                                    {"mail_id": mail_id, "status": response.status, "error": error_text[:200]}
+                                )
+
+                except Exception as e:
+                    print(f"    Batch {batch_num}: Exception - {str(e)}")
+                    for mail_id in batch_ids:
+                        failed_items.append({"mail_id": mail_id, "error": str(e)})
+
+        print(f"[DONE] Moved {len(moved_ids)}/{len(message_ids)} mails to '{destination_id}'")
+
+        return {
+            "success": len(moved_ids) > 0,
+            "moved": len(moved_ids),
+            "failed": len(failed_items),
+            "total": len(message_ids),
+            "moved_ids": moved_ids,
+            "failed_items": failed_items if failed_items else None,
+            "batches_processed": len(batches),
+            "destination": destination_id,
+        }
+
     async def close(self):
         """리소스 정리"""
         await self.token_provider.close()
