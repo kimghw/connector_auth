@@ -1,19 +1,16 @@
 """
-Streaming MCP Server for Calendar MCP Server
-Handles MCP protocol via HTTP streaming (SSE)
+STDIO MCP Server for Calendar MCP Server
+Handles MCP protocol via standard input/output
 Generated from universal template with registry data and protocol selection
 """
 import json
 import yaml
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import sys
 import os
 import logging
-import aiohttp
 import asyncio
 from typing import AsyncIterator
 
@@ -28,6 +25,32 @@ if os.path.isdir(server_module_dir):
     sys.path.insert(0, server_module_dir)  # For server-specific relative imports
 sys.path.insert(0, grandparent_dir)  # For session module and package imports
 sys.path.insert(0, parent_dir)  # For direct module imports
+
+# ============================================================
+# STDIO: Load .env and protect stdout BEFORE any module imports
+# ============================================================
+# CRITICAL: .env must be loaded before importing service modules
+# that may depend on environment variables (e.g., AZURE_CLIENT_ID).
+# stdout must be redirected before importing modules that may call print(),
+# which would corrupt the JSON-RPC stream.
+from dotenv import load_dotenv
+
+_env_path = os.path.join(grandparent_dir, ".env")
+load_dotenv(_env_path, encoding="utf-8-sig")
+
+# BOM safety: strip BOM from all env var values
+for _key, _val in list(os.environ.items()):
+    if _val and _val.startswith("\ufeff"):
+        os.environ[_key] = _val.lstrip("\ufeff")
+
+# Save real stdout for JSON-RPC output, redirect print() to stderr
+_original_stdout = sys.stdout
+if sys.platform == "win32":
+    if hasattr(_original_stdout, 'reconfigure'):
+        _original_stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stdin, 'reconfigure'):
+        sys.stdin.reconfigure(encoding='utf-8')
+sys.stdout = sys.stderr
 
 # Import types dynamically based on type_info
 from mcp_calendar.calendar_types import EventFilterParams, EventSelectParams
@@ -612,309 +635,103 @@ async def handle_delete_event(args: Dict[str, Any]) -> Dict[str, Any]:
     return await calendar_service.delete_event(**call_args)
 
 # ============================================================
-# StreamableHTTP Protocol Implementation for MCP Server
+# STDIO Protocol Implementation for MCP Server
 # ============================================================
 # Note: This template is included by universal_server_template.jinja2
 # All common imports and utilities are defined in the parent template
+# .env loading and stdout redirect are done in the parent template
+# BEFORE module imports to ensure env vars are available early.
 
-from aiohttp import web
-
-# Use the logger from parent template
+# Configure logging for STDIO (stderr to avoid interfering with stdout)
+import sys
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr
+)
 logger = logging.getLogger(__name__)
 
-class StreamableHTTPMCPServer:
-    """MCP StreamableHTTP Protocol Server
+class StdioMCPServer:
+    """MCP STDIO Protocol Server
 
-    HTTP 기반 스트리밍 프로토콜로 청크 단위의 응답을 지원합니다.
-    Transfer-Encoding: chunked를 사용하여 점진적 응답 전송이 가능합니다.
+    Handles MCP protocol communication via standard input/output using JSON-RPC format.
+    Messages are delimited by newlines for easy parsing.
     """
 
     def __init__(self):
-        self.app = web.Application()
-        self.setup_routes()
-        logger.info(f"Calendar MCP Server StreamableHTTP Server initialized")
+        self.running = False
+        self.request_id_counter = 0
+        logger.info(f"Calendar MCP Server STDIO Server initialized")
 
-    def setup_routes(self):
-        """HTTP 라우트 설정"""
-        # MCP Streamable HTTP 단일 엔드포인트 (표준)
-        self.app.router.add_post('/mcp/v1', self.handle_mcp_request)
-        self.app.router.add_get('/mcp/v1', self.handle_sse_connection)  # SSE 연결
-        # Legacy 개별 엔드포인트 (호환성)
-        self.app.router.add_post('/mcp/v1/initialize', self.handle_initialize)
-        self.app.router.add_post('/mcp/v1/tools/list', self.handle_tools_list)
-        self.app.router.add_post('/mcp/v1/tools/call', self.handle_tools_call)
-        # Health check
-        self.app.router.add_get('/health', self.handle_health)
-        # CORS 처리
-        self.app.router.add_route('OPTIONS', '/{path:.*}', self.handle_options)
+    async def read_message(self) -> Optional[Dict[str, Any]]:
+        """Read a single JSON-RPC message from stdin"""
+        try:
+            line = await asyncio.get_event_loop().run_in_executor(None, sys.stdin.readline)
+            if not line:
+                return None
 
-    async def handle_options(self, request: web.Request) -> web.Response:
-        """CORS preflight 요청 처리"""
-        return web.Response(
-            headers={
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type',
-                'Access-Control-Max-Age': '3600'
-            }
-        )
+            message = json.loads(line.strip())
+            logger.debug(f"Received message: {message}")
+            return message
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON received: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error reading message: {e}")
+            return None
 
-    def add_cors_headers(self, response: web.Response) -> web.Response:
-        """CORS 헤더 추가"""
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-        return response
+    def write_message(self, message: Dict[str, Any]):
+        """Write a JSON-RPC message to the real stdout (not stderr)"""
+        try:
+            json_str = json.dumps(message, ensure_ascii=False)
+            _original_stdout.write(json_str + '\n')
+            _original_stdout.flush()
+            logger.debug(f"Sent message: {message}")
+        except Exception as e:
+            logger.error(f"Error writing message: {e}")
 
-    async def handle_health(self, request: web.Request) -> web.Response:
-        """Health check endpoint"""
-        response = web.json_response({
-            "status": "healthy",
-            "server": "calendar",
-            "protocol": "streamableHTTP",
-            "version": "1.0.0"
-        })
-        return self.add_cors_headers(response)
-
-    async def handle_sse_connection(self, request: web.Request) -> web.StreamResponse:
-        """SSE 연결 핸들러 - MCP Streamable HTTP GET 요청 처리"""
-        logger.info("SSE connection established")
-
-        response = web.StreamResponse()
-        response.headers['Content-Type'] = 'text/event-stream'
-        response.headers['Cache-Control'] = 'no-cache'
-        response.headers['Connection'] = 'keep-alive'
-        response.headers['Access-Control-Allow-Origin'] = '*'
-
-        await response.prepare(request)
-
-        # 초기 연결 확인 이벤트 전송
-        init_event = {
+    def send_error(self, request_id: Any, code: int, message: str, data: Any = None):
+        """Send JSON-RPC error response"""
+        error_response = {
             "jsonrpc": "2.0",
-            "method": "connection/ready",
-            "params": {
-                "serverInfo": {
-                    "name": "calendar",
-                    "version": "1.0.0"
-                }
+            "id": request_id,
+            "error": {
+                "code": code,
+                "message": message
             }
         }
-        await response.write(f"data: {json.dumps(init_event)}\n\n".encode())
+        if data is not None:
+            error_response["error"]["data"] = data
+        self.write_message(error_response)
 
-        # SSE 연결 유지 (keep-alive)
-        try:
-            while True:
-                # 30초마다 ping 전송
-                await asyncio.sleep(30)
-                ping_event = {"jsonrpc": "2.0", "method": "ping"}
-                await response.write(f"data: {json.dumps(ping_event)}\n\n".encode())
-        except asyncio.CancelledError:
-            logger.info("SSE connection closed")
-        except Exception as e:
-            logger.error(f"SSE error: {e}")
+    def send_result(self, request_id: Any, result: Any):
+        """Send JSON-RPC success response"""
+        response = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": result
+        }
+        self.write_message(response)
 
-        return response
-
-    async def handle_mcp_request(self, request: web.Request) -> web.Response:
-        """MCP Streamable HTTP 단일 엔드포인트 - JSON-RPC method로 분기"""
-        try:
-            data = await request.json()
-            method = data.get('method', '')
-            request_id = data.get('id')
-            params = data.get('params', {})
-
-            logger.info(f"MCP Request: method={method}, id={request_id}")
-
-            # Method별 분기
-            if method == 'initialize':
-                return await self._handle_initialize(data)
-            elif method == 'tools/list':
-                return await self._handle_tools_list(data)
-            elif method == 'tools/call':
-                return await self._handle_tools_call(data, request)
-            elif method == 'notifications/initialized':
-                # 클라이언트 초기화 완료 알림 - 응답 불필요
-                return web.Response(status=204)
-            elif method == 'ping':
-                response = web.json_response({
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": {}
-                })
-                return self.add_cors_headers(response)
-            else:
-                # MCP 프로토콜: 에러도 HTTP 200으로 응답
-                response = web.json_response({
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "error": {"code": -32601, "message": f"Method not found: {method}"}
-                })
-                return self.add_cors_headers(response)
-
-        except Exception as e:
-            logger.error(f"Error in MCP request: {e}", exc_info=True)
-            return web.json_response(
-                {"jsonrpc": "2.0", "id": None, "error": {"code": -32603, "message": str(e)}}
-            )
-
-    async def _handle_initialize(self, data: dict) -> web.Response:
-        """내부 initialize 처리"""
-        request_id = data.get('id')
-        params = data.get('params', {})
-        client_info = params.get('clientInfo', {})
+    async def handle_initialize(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle initialize request"""
+        client_info = params.get("clientInfo", {})
         logger.info(f"Client connected: {client_info.get('name', 'unknown')}")
 
-        response_data = {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "result": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {
-                    "tools": {}
-                },
-                "serverInfo": {
-                    "name": "calendar",
-                    "version": "1.0.0"
-                }
+        return {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {
+                "tools": {}
+            },
+            "serverInfo": {
+                "name": "calendar",
+                "version": "1.0.0"
             }
         }
-        response = web.json_response(response_data)
-        return self.add_cors_headers(response)
 
-    async def _handle_tools_list(self, data: dict) -> web.Response:
-        """내부 tools/list 처리"""
-        request_id = data.get('id')
-
-        tools_with_streaming = []
-        for tool in MCP_TOOLS:
-            tool_copy = tool.copy()
-            tool_copy['supportsStreaming'] = True
-            tools_with_streaming.append(tool_copy)
-
-        response_data = {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "result": {
-                "tools": tools_with_streaming
-            }
-        }
-        response = web.json_response(response_data)
-        return self.add_cors_headers(response)
-
-    async def _handle_tools_call(self, data: dict, request: web.Request) -> web.Response:
-        """내부 tools/call 처리"""
-        request_id = data.get('id')
-        params = data.get('params', {})
-        tool_name = params.get('name')
-        arguments = params.get('arguments', {})
-
-        if not tool_name:
-            response = web.json_response(
-                {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32602, "message": "Tool name is required"}}
-            )
-            return self.add_cors_headers(response)
-
-        arguments = self.apply_schema_defaults(tool_name, arguments)
-
-        handler_name = f"handle_{tool_name.replace('-', '_')}"
-        if handler_name not in globals():
-            response = web.json_response(
-                {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"}}
-            )
-            return self.add_cors_headers(response)
-
-        try:
-            result = await globals()[handler_name](arguments)
-
-            if isinstance(result, dict) and "content" in result:
-                content = result["content"]
-            elif isinstance(result, str):
-                content = [{"type": "text", "text": result}]
-            else:
-                content = [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]
-
-            response_data = {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {
-                    "content": content
-                }
-            }
-            response = web.json_response(response_data)
-            return self.add_cors_headers(response)
-
-        except Exception as e:
-            logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
-            # MCP 프로토콜: 에러도 HTTP 200으로 응답, JSON-RPC error로 전달
-            response = web.json_response(
-                {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32603, "message": str(e)}}
-            )
-            return self.add_cors_headers(response)
-
-    async def handle_initialize(self, request: web.Request) -> web.Response:
-        """Initialize endpoint - JSON-RPC 2.0 compliant"""
-        try:
-            data = await request.json()
-            request_id = data.get('id')
-            params = data.get('params', {})
-            client_info = params.get('clientInfo', {})
-            logger.info(f"Client connected: {client_info.get('name', 'unknown')}")
-
-            response_data = {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {
-                        "tools": {}
-                    },
-                    "serverInfo": {
-                        "name": "calendar",
-                        "version": "1.0.0"
-                    }
-                }
-            }
-
-            response = web.json_response(response_data)
-            return self.add_cors_headers(response)
-
-        except Exception as e:
-            logger.error(f"Error in initialize: {e}")
-            return web.json_response(
-                {"jsonrpc": "2.0", "id": None, "error": {"code": -32603, "message": str(e)}},
-                status=500
-            )
-
-    async def handle_tools_list(self, request: web.Request) -> web.Response:
-        """List available tools - JSON-RPC 2.0 compliant"""
-        try:
-            data = await request.json()
-            request_id = data.get('id')
-
-            # MCP_TOOLS에 스트리밍 지원 정보 추가
-            tools_with_streaming = []
-            for tool in MCP_TOOLS:
-                tool_copy = tool.copy()
-                tool_copy['supportsStreaming'] = True
-                tools_with_streaming.append(tool_copy)
-
-            response_data = {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {
-                    "tools": tools_with_streaming
-                }
-            }
-
-            response = web.json_response(response_data)
-            return self.add_cors_headers(response)
-
-        except Exception as e:
-            logger.error(f"Error listing tools: {e}")
-            return web.json_response(
-                {"jsonrpc": "2.0", "id": None, "error": {"code": -32603, "message": str(e)}},
-                status=500
-            )
+    async def handle_tools_list(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle tools/list request"""
+        return {"tools": MCP_TOOLS}
 
     def apply_schema_defaults(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Apply default values from inputSchema to arguments if not provided."""
@@ -936,185 +753,158 @@ class StreamableHTTPMCPServer:
 
         return merged_args
 
-    async def handle_tools_call(self, request: web.Request) -> web.Response:
-        """도구 실행 - JSON-RPC 2.0 compliant"""
-        tool_name = None
-        request_id = None
+    async def handle_tools_call(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle tools/call request"""
+        tool_name = params.get("name")
+        arguments = params.get("arguments", {})
+
+        if not tool_name:
+            raise ValueError("Tool name is required")
+
+        # Apply default values from inputSchema
+        arguments = self.apply_schema_defaults(tool_name, arguments)
+
+        # Look up the handler function
+        handler_name = f"handle_{tool_name.replace('-', '_')}"
+        if handler_name not in globals():
+            raise ValueError(f"Unknown tool: {tool_name}")
+
         try:
-            data = await request.json()
-            request_id = data.get('id')
-            params = data.get('params', {})
-            tool_name = params.get('name')
-            arguments = params.get('arguments', {})
-            stream = params.get('stream', False)
+            # Call the tool handler
+            result = await globals()[handler_name](arguments)
 
-            if not tool_name:
-                response = web.json_response(
-                    {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32602, "message": "Tool name is required"}}
-                )
-                return self.add_cors_headers(response)
-
-            # Apply default values from inputSchema
-            arguments = self.apply_schema_defaults(tool_name, arguments)
-
-            # 도구 핸들러 검색
-            handler_name = f"handle_{tool_name.replace('-', '_')}"
-            if handler_name not in globals():
-                response = web.json_response(
-                    {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"}}
-                )
-                return self.add_cors_headers(response)
-
-            if stream:
-                # 스트리밍 응답
-                return await self.stream_tool_response(tool_name, arguments, request)
-            else:
-                # 일반 응답
-                result = await globals()[handler_name](arguments)
-
-                # 결과 포맷팅
-                if isinstance(result, dict) and "content" in result:
-                    content = result["content"]
-                elif isinstance(result, str):
-                    content = [{"type": "text", "text": result}]
-                else:
-                    content = [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]
-
-                response_data = {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": {
-                        "content": content
-                    }
+            # Check for auth_required response (login URL for LLM)
+            if isinstance(result, dict) and result.get("status") == "auth_required":
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(result, ensure_ascii=False, indent=2)
+                        }
+                    ],
+                    "isError": True
                 }
 
-                response = web.json_response(response_data)
-                return self.add_cors_headers(response)
-
-        except ValueError as e:
-            response = web.json_response(
-                {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32602, "message": str(e)}}
-            )
-            return self.add_cors_headers(response)
+            # Format result for MCP
+            if isinstance(result, dict) and "content" in result:
+                return result
+            elif isinstance(result, str):
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": result
+                        }
+                    ]
+                }
+            else:
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(result, ensure_ascii=False, indent=2)
+                        }
+                    ]
+                }
         except Exception as e:
-            logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
-            # MCP 프로토콜: 에러도 HTTP 200으로 응답, JSON-RPC error로 전달
-            response = web.json_response(
-                {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32603, "message": str(e)}}
-            )
-            return self.add_cors_headers(response)
+            logger.error(f"Error executing tool {tool_name}: {e}")
+            raise
 
-    async def stream_tool_response(self, tool_name: str, arguments: dict, request: web.Request) -> web.StreamResponse:
-        """도구 응답을 스트리밍으로 전송"""
-        response = web.StreamResponse()
-        response.headers['Content-Type'] = 'application/x-ndjson'  # Newline Delimited JSON
-        response.headers['Transfer-Encoding'] = 'chunked'
-        response.headers['Cache-Control'] = 'no-cache'
+    async def handle_request(self, request: Dict[str, Any]):
+        """Handle a single JSON-RPC request"""
+        request_id = request.get("id")
+        method = request.get("method")
+        params = request.get("params", {})
 
-        # CORS 헤더 추가
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-
-        await response.prepare(request)
+        if not method:
+            self.send_error(request_id, -32600, "Invalid Request: missing method")
+            return
 
         try:
-            # 도구 핸들러 실행
-            handler_name = f"handle_{tool_name.replace('-', '_')}"
-            handler = globals()[handler_name]
+            # Route to appropriate handler based on method
+            if method == "initialize":
+                result = await self.handle_initialize(params)
+            elif method == "tools/list":
+                result = await self.handle_tools_list(params)
+            elif method == "tools/call":
+                result = await self.handle_tools_call(params)
+            elif method == "shutdown":
+                logger.info("Shutdown requested")
+                self.running = False
+                result = {}
+            elif method == "ping":
+                result = {"pong": True}
+            else:
+                self.send_error(request_id, -32601, f"Method not found: {method}")
+                return
 
-            # 스트리밍 가능한 도구인지 확인
-            if asyncio.iscoroutinefunction(handler):
-                result = await handler(arguments)
+            # Send successful response
+            self.send_result(request_id, result)
 
-                # 결과를 청크로 분할하여 전송 (시뮬레이션)
-                if isinstance(result, str):
-                    # 텍스트를 청크로 분할
-                    chunks = [result[i:i+100] for i in range(0, len(result), 100)]
-                    for i, chunk in enumerate(chunks):
-                        chunk_data = {
-                            "type": "chunk",
-                            "content": chunk,
-                            "index": i,
-                            "done": False
-                        }
-                        await response.write((json.dumps(chunk_data) + '\n').encode('utf-8'))
-                        await asyncio.sleep(0.1)  # 스트리밍 효과
-
-                elif isinstance(result, dict):
-                    # 딕셔너리를 부분적으로 전송
-                    chunk_data = {
-                        "type": "chunk",
-                        "content": result,
-                        "index": 0,
-                        "done": False
-                    }
-                    await response.write((json.dumps(chunk_data) + '\n').encode('utf-8'))
-
-                elif isinstance(result, list):
-                    # 리스트 항목을 하나씩 전송
-                    for i, item in enumerate(result):
-                        chunk_data = {
-                            "type": "chunk",
-                            "content": item,
-                            "index": i,
-                            "done": False
-                        }
-                        await response.write((json.dumps(chunk_data) + '\n').encode('utf-8'))
-                        await asyncio.sleep(0.05)  # 스트리밍 효과
-
-            # 완료 신호
-            end_chunk = {
-                "type": "end",
-                "done": True,
-                "summary": f"Completed {tool_name} execution"
-            }
-            await response.write((json.dumps(end_chunk) + '\n').encode('utf-8'))
-
+        except ValueError as e:
+            self.send_error(request_id, -32602, f"Invalid params: {str(e)}")
         except Exception as e:
-            # 에러 청크 전송
-            error_chunk = {
-                "type": "error",
-                "error": {"code": -32603, "message": str(e)},
-                "done": True
-            }
-            await response.write((json.dumps(error_chunk) + '\n').encode('utf-8'))
-            logger.error(f"Streaming error for {tool_name}: {e}", exc_info=True)
+            logger.error(f"Error handling request: {e}", exc_info=True)
+            self.send_error(request_id, -32603, f"Internal error: {str(e)}")
 
-        finally:
-            await response.write_eof()
+    async def handle_notification(self, notification: Dict[str, Any]):
+        """Handle JSON-RPC notifications (no response expected)"""
+        method = notification.get("method")
+        params = notification.get("params", {})
 
-        return response
+        logger.info(f"Received notification: {method}")
 
-    async def on_startup(self, app):
-        """서버 시작 시 실행"""
-        logger.info(f"Calendar MCP Server StreamableHTTP Server starting on port {app['port']}")
+        # Notifications don't require responses
+        if method == "notifications/initialized":
+            logger.info("Client initialization complete")
+        elif method == "cancelled":
+            logger.info(f"Request cancelled: {params.get('id')}")
+        elif method == "progress":
+            logger.info(f"Progress update: {params}")
+        # Add more notification handlers as needed
 
-        # Initialize services
+    async def run(self):
+        """Main server loop"""
+        self.running = True
+
+        # Initialize services before starting
         if hasattr(calendar_service, 'initialize'):
             await calendar_service.initialize()
             logger.info("CalendarService initialized")
 
-    async def on_cleanup(self, app):
-        """서버 종료 시 정리"""
-        logger.info(f"Calendar MCP Server StreamableHTTP Server shutting down")
+        logger.info(f"Calendar MCP Server STDIO Server started")
+        logger.info("Waiting for messages on stdin...")
 
-    def run(self, host: str = '0.0.0.0', port: int = 8001):
-        """서버 실행"""
-        self.app['port'] = port
-        self.app.on_startup.append(self.on_startup)
-        self.app.on_cleanup.append(self.on_cleanup)
+        try:
+            while self.running:
+                # Read next message
+                message = await self.read_message()
 
-        logger.info(f"Starting Calendar MCP Server StreamableHTTP Server on {host}:{port}")
-        web.run_app(self.app, host=host, port=port, print=lambda _: None)
+                if message is None:
+                    # EOF or error - exit gracefully
+                    logger.info("Input stream closed, shutting down")
+                    break
 
-# 메인 엔트리 포인트
-def handle_streamablehttp(host: str = '0.0.0.0', port: int = 8001):
-    """Handle MCP protocol via StreamableHTTP"""
-    server = StreamableHTTPMCPServer()
-    server.run(host, port)
+                # Check if it's a request or notification
+                if "id" in message:
+                    # Request - requires response
+                    await self.handle_request(message)
+                else:
+                    # Notification - no response needed
+                    await self.handle_notification(message)
+
+        except KeyboardInterrupt:
+            logger.info("Interrupted by user")
+        except Exception as e:
+            logger.error(f"Server error: {e}", exc_info=True)
+        finally:
+            logger.info("Calendar MCP Server STDIO Server stopped")
+
+# Main entry point for STDIO protocol
+async def handle_stdio():
+    """Handle MCP protocol via stdin/stdout"""
+    server = StdioMCPServer()
+    await server.run()
 
 if __name__ == "__main__":
-    # Port can be set via environment variable or defaults to template value
-    port = int(os.environ.get("MCP_SERVER_PORT", 8002))
-    handle_streamablehttp(host="0.0.0.0", port=port)  # StreamableHTTP server
+    asyncio.run(handle_stdio())

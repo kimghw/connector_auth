@@ -830,12 +830,12 @@ class GraphCalendarQuery:
         body: Dict[str, Any] = {
             "subject": params.subject,
             "start": {
-                "dateTime": params.start.date_time,
-                "timeZone": params.start.time_zone,
+                "dateTime": params.start.dateTime,
+                "timeZone": params.start.timeZone,
             },
             "end": {
-                "dateTime": params.end.date_time,
-                "timeZone": params.end.time_zone,
+                "dateTime": params.end.dateTime,
+                "timeZone": params.end.timeZone,
             },
         }
 
@@ -910,14 +910,14 @@ class GraphCalendarQuery:
 
         if params.start is not None:
             body["start"] = {
-                "dateTime": params.start.date_time,
-                "timeZone": params.start.time_zone,
+                "dateTime": params.start.dateTime,
+                "timeZone": params.start.timeZone,
             }
 
         if params.end is not None:
             body["end"] = {
-                "dateTime": params.end.date_time,
-                "timeZone": params.end.time_zone,
+                "dateTime": params.end.dateTime,
+                "timeZone": params.end.timeZone,
             }
 
         if params.body is not None:

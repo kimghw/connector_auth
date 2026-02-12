@@ -10,6 +10,17 @@
         "PYTHONUTF8": "1",
         "PYTHONIOENCODING": "utf-8"
       }
+    },
+    "calendar": {
+      "command": "C:\\connector_auth\\venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\connector_auth\\mcp_calendar\\mcp_server\\server_stdio.py"
+      ],
+      "env": {
+        "PYTHONPATH": "C:\\connector_auth",
+        "PYTHONUTF8": "1",
+        "PYTHONIOENCODING": "utf-8"
+      }
     }
   }
 }

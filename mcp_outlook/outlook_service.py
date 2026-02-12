@@ -4,6 +4,7 @@ Mail Service - GraphMailClient Facade
 """
 
 from typing import Dict, Any, Optional, List, Union
+from datetime import datetime, timedelta
 
 from .graph_mail_client import GraphMailClient, QueryMethod, ProcessingMode
 from .outlook_types import (
@@ -500,7 +501,7 @@ class MailService:
         category="outlook_mail",
         tags=["delete", "move", "report", "batch", "action"],
         priority=5,
-        description="메일 ID 기반 액션: delete(휴지통 이동), move(폴더 이동), report_not_junk(Safe Senders 등록)",
+        description="메일 액션: delete(휴지통), move(폴더 이동), report_not_junk(Safe Senders), list_blocked(차단 메일 조회)",
     )
     async def mail_action(
         self,
@@ -519,9 +520,11 @@ class MailService:
                 - "delete": 휴지통(Deleted Items)으로 이동
                 - "move": 지정 폴더로 이동
                 - "report_not_junk": 정크 아님 신고 → Safe Senders 등록 (beta API)
-            destination_id: 이동할 폴더 (action="move"일 때 사용)
+                - "list_blocked": block@krs.co.kr 발신 메일 리스트 조회
+            destination_id: 이동할 폴더 (action="move"일 때) 또는 조회 개월 수 (action="list_blocked"일 때, 기본 1개월)
                 - well-known name: inbox, junkemail, deleteditems, drafts, sentitems, archive
                 - 또는 폴더 ID 직접 지정
+                - list_blocked: "1", "3" 등 숫자 문자열로 개월 수 지정
 
         Returns:
             액션 결과
@@ -544,10 +547,34 @@ class MailService:
                 user_email=user_email,
                 message_ids=message_ids,
             )
+        elif action == "list_blocked":
+            months = int(destination_id) if destination_id.isdigit() else 1
+            date_from = (datetime.now() - timedelta(days=months * 30)).strftime("%Y-%m-%dT00:00:00Z")
+            filter_params = FilterParams(
+                received_date_from=date_from,
+            )
+            result = await self.query_mail_list(
+                user_email=user_email,
+                filter_params=filter_params,
+                top=500,
+            )
+            # from_address로 포함 필터링 (block@krs.co.kr만 남김)
+            target = "block@krs.co.kr"
+            emails = result.get("emails", [])
+            filtered = [
+                m for m in emails
+                if (m.get("from") or m.get("sender", {}))
+                .get("emailAddress", {})
+                .get("address", "").lower() == target
+                and "스팸 리포트" not in m.get("subject", "")
+            ]
+            result["emails"] = filtered
+            result["total"] = len(filtered)
+            return result
         else:
             return {
                 "status": "error",
-                "error": f"Unknown action: '{action}'. Supported: 'delete', 'move', 'report_not_junk'",
+                "error": f"Unknown action: '{action}'. Supported: 'delete', 'move', 'report_not_junk', 'list_blocked'",
             }
 
     def format_results(self, results: Dict[str, Any], verbose: bool = False) -> str:

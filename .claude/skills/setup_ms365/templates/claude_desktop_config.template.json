@@ -1,9 +1,9 @@
 {
   "mcpServers": {
-    "outlook": {
+    "{server_name}": {
       "command": "C:\\connector_auth\\venv\\Scripts\\python.exe",
       "args": [
-        "C:\\connector_auth\\mcp_outlook\\mcp_server\\server_stdio.py"
+        "C:\\connector_auth\\mcp_{server_name}\\mcp_server\\server_stdio.py"
       ],
       "env": {
         "PYTHONPATH": "C:\\connector_auth",
