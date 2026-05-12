@@ -242,9 +242,11 @@ class AuthDatabase:
                 # ISO 형식으로 통일 (UTC 시간대 명시)
                 refresh_expires_at = (datetime.now(timezone.utc) + timedelta(days=90)).isoformat()
 
-            # azure_token_info에 저장 (개선된 스키마)
+            # azure_token_info에 UPSERT - created_at 보존하여 refresh_token 90일 만료가 매 refresh마다
+            # 리셋되지 않도록 함. 기존 row가 있으면 created_at 그대로, refresh_token_expires_at도
+            # 새 값이 있을 때만 갱신 (없으면 기존 만료 시간 유지)
             cursor.execute("""
-                INSERT OR REPLACE INTO azure_token_info (
+                INSERT INTO azure_token_info (
                     user_email,
                     access_token,
                     refresh_token,
@@ -254,13 +256,21 @@ class AuthDatabase:
                     scope,
                     updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_email) DO UPDATE SET
+                    access_token = excluded.access_token,
+                    refresh_token = COALESCE(excluded.refresh_token, refresh_token),
+                    id_token = COALESCE(excluded.id_token, id_token),
+                    access_token_expires_at = excluded.access_token_expires_at,
+                    refresh_token_expires_at = COALESCE(refresh_token_expires_at, excluded.refresh_token_expires_at),
+                    scope = COALESCE(excluded.scope, scope),
+                    updated_at = CURRENT_TIMESTAMP
             """, (
                 email,
                 token_info.get('access_token'),
                 token_info.get('refresh_token'),
                 token_info.get('id_token'),
                 token_info.get('expires_at'),  # access token 만료 시간
-                refresh_expires_at,  # refresh token 만료 시간 (90일)
+                refresh_expires_at,  # refresh token 만료 시간 (신규 row일 때만 사용)
                 token_info.get('scope')
             ))
 

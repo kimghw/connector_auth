@@ -167,11 +167,10 @@ class AzureConfig:
                 # Insert new app
                 cursor.execute("""
                     INSERT INTO azure_app_config
-                    (client_id, client_id, client_secret, tenant_id, redirect_uri)
-                    VALUES (?, ?, ?, ?, ?)
+                    (client_id, client_secret, tenant_id, redirect_uri)
+                    VALUES (?, ?, ?, ?)
                 """, (
                     app_info['client_id'],
-                    app_info.get('client_id', app_info['client_id']),
                     app_info.get('client_secret'),
                     app_info.get('tenant_id', 'common'),
                     app_info.get('redirect_uri')

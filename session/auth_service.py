@@ -316,6 +316,28 @@ class AuthService:
         expiry_date = created_at + timedelta(days=days)
         return datetime.now(timezone.utc) >= expiry_date
 
+    def is_refresh_expiry_passed(self, refresh_token_expires_at: Any) -> bool:
+        """
+        리프레시 토큰의 절대 만료 시각 비교 (DB의 refresh_token_expires_at 컬럼 기준)
+        save_token에서 한 번만 채워지고 그 후 보존되므로 매 refresh마다 리셋되지 않음.
+
+        Args:
+            refresh_token_expires_at: ISO 형식 문자열 또는 datetime, None이면 만료된 것으로 간주
+
+        Returns:
+            만료 여부
+        """
+        if refresh_token_expires_at is None:
+            return True
+
+        if isinstance(refresh_token_expires_at, str):
+            refresh_token_expires_at = datetime.fromisoformat(refresh_token_expires_at)
+
+        if refresh_token_expires_at.tzinfo is None:
+            refresh_token_expires_at = refresh_token_expires_at.replace(tzinfo=timezone.utc)
+
+        return datetime.now(timezone.utc) >= refresh_token_expires_at
+
     async def check_and_refresh_if_needed(self, email: Optional[str] = None, buffer_seconds: int = 300) -> Dict[str, Any]:
         """
         토큰 만료 확인 후 필요시 자동 갱신
@@ -377,9 +399,8 @@ class AuthService:
                     'refreshed': False
                 }
 
-            # 리프레시 토큰 만료 확인
-            created_at = token_info.get('created_at', token_info.get('updated_at'))
-            if self.is_refresh_token_expired(created_at):
+            # 리프레시 토큰 만료 확인 (refresh_token_expires_at 컬럼 직접 비교)
+            if self.is_refresh_expiry_passed(token_info.get('refresh_token_expires_at')):
                 logger.error(f"Refresh token expired for {email}")
                 auth_info = self.start_auth_flow()
                 return {

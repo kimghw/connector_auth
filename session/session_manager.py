@@ -74,10 +74,11 @@ class Session:
             True if initialization successful
         """
         try:
-            # If no access token provided, try to get from AuthManager
+            # If no access token provided, try to get from shared AuthManager
+            # (싱글톤을 사용해야 per-email refresh lock이 호출 간에 공유됨)
             if not access_token:
-                from session.auth_manager import AuthManager
-                auth_manager = AuthManager()
+                from session.auth_manager import get_default_auth_manager
+                auth_manager = get_default_auth_manager()
 
                 # Try to get valid token (will refresh if expired)
                 access_token = await auth_manager.validate_and_refresh_token(self.user_email)
@@ -106,10 +107,10 @@ class Session:
             True if token refreshed successfully
         """
         try:
-            from session.auth_manager import AuthManager
-            auth_manager = AuthManager()
+            from session.auth_manager import get_default_auth_manager
+            auth_manager = get_default_auth_manager()
 
-            # Refresh token using AuthManager
+            # Refresh token using shared AuthManager (lock 공유)
             new_token = await auth_manager.validate_and_refresh_token(self.user_email)
 
             if new_token:

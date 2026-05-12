@@ -67,6 +67,20 @@ class AuthManager:
         # 4. 콜백 서버 인스턴스 (필요시 생성)
         self.callback_server = None
 
+        # 5. 사용자별 refresh lock (동일 user_email에 대한 동시 refresh가
+        #    같은 refresh_token을 두 번 사용하지 않도록 직렬화)
+        self._refresh_locks: Dict[str, asyncio.Lock] = {}
+        self._refresh_locks_master = asyncio.Lock()
+
+    async def _get_refresh_lock(self, email: str) -> asyncio.Lock:
+        """사용자별 refresh lock 획득. 없으면 생성."""
+        async with self._refresh_locks_master:
+            lock = self._refresh_locks.get(email)
+            if lock is None:
+                lock = asyncio.Lock()
+                self._refresh_locks[email] = lock
+            return lock
+
     def start_authentication(self) -> Dict[str, str]:
         """
         새 사용자 인증 시작 - URL 생성
@@ -145,9 +159,8 @@ class AuthManager:
                     'message': 'Refresh token not available, re-authentication required'
                 }
 
-            # 리프레시 토큰 만료 확인
-            created_at = token_info.get('created_at', token_info.get('updated_at'))
-            if self.auth_service.is_refresh_token_expired(created_at):
+            # 리프레시 토큰 만료 확인 (refresh_token_expires_at 컬럼 직접 비교)
+            if self.auth_service.is_refresh_expiry_passed(token_info.get('refresh_token_expires_at')):
                 return {
                     'status': 'reauth_required',
                     'error': 'Refresh token expired',
@@ -193,6 +206,10 @@ class AuthManager:
         토큰 유효성 확인 및 필요시 자동 갱신
         refresh_token 갱신 실패 시 auto_reauth=True이면 브라우저 재인증 시도
 
+        동일 user_email에 대한 동시 호출은 per-email lock으로 직렬화하여
+        같은 refresh_token을 두 번 사용해 invalid_grant가 나는 race를 방지한다.
+        lock 획득 후 DB를 재조회해, 다른 코루틴이 이미 갱신한 토큰이 유효하면 그대로 사용한다.
+
         Args:
             email: 사용자 이메일. None이면 auth.db에서 첫 번째 사용자를 자동으로 가져옴
             auto_reauth: refresh 실패 시 브라우저 재인증 자동 시작 여부
@@ -206,32 +223,35 @@ class AuthManager:
                 logger.error("No email provided and no users found in auth.db")
                 return None
 
-        token_info = self.auth_db.get_token(email)
+        lock = await self._get_refresh_lock(email)
+        async with lock:
+            # lock 획득 후 DB 재조회 — 다른 코루틴이 이미 갱신했을 수 있음
+            token_info = self.auth_db.get_token(email)
 
-        if not token_info:
-            logger.error(f"No token found for {email}")
+            if not token_info:
+                logger.error(f"No token found for {email}")
+                if auto_reauth:
+                    return await self._auto_reauth(email)
+                return None
+
+            # 토큰이 유효한 경우 (대기 중 다른 코루틴이 갱신했을 수도 있음)
+            if not self.auth_service.is_token_expired(token_info['expires_at']):
+                return token_info['access_token']
+
+            # 토큰 갱신 시도
+            logger.info(f"Token expired for {email}, attempting refresh")
+            refresh_result = await self.refresh_token(email)
+
+            if refresh_result['status'] == 'success':
+                return refresh_result['access_token']
+
+            # refresh 실패 → 재인증 필요
+            logger.warning(f"Refresh failed for {email}: {refresh_result.get('error', 'unknown')}")
             if auto_reauth:
                 return await self._auto_reauth(email)
+
+            logger.error(f"Failed to get valid token for {email}")
             return None
-
-        # 토큰이 유효한 경우
-        if not self.auth_service.is_token_expired(token_info['expires_at']):
-            return token_info['access_token']
-
-        # 토큰 갱신 시도
-        logger.info(f"Token expired for {email}, attempting refresh")
-        refresh_result = await self.refresh_token(email)
-
-        if refresh_result['status'] == 'success':
-            return refresh_result['access_token']
-
-        # refresh 실패 → 재인증 필요
-        logger.warning(f"Refresh failed for {email}: {refresh_result.get('error', 'unknown')}")
-        if auto_reauth:
-            return await self._auto_reauth(email)
-
-        logger.error(f"Failed to get valid token for {email}")
-        return None
 
     async def get_auth_url_for_login(self, email: Optional[str] = None, port: int = 5000) -> Dict[str, Any]:
         """
@@ -381,12 +401,13 @@ class AuthManager:
         # 액세스 토큰 상태
         access_expired = self.auth_service.is_token_expired(token_info['expires_at'])
 
-        # 리프레시 토큰 상태
+        # 리프레시 토큰 상태 (refresh_token_expires_at 컬럼 직접 비교)
         has_refresh = bool(token_info.get('refresh_token'))
         refresh_expired = False
         if has_refresh:
-            created_at = token_info.get('created_at', token_info.get('updated_at'))
-            refresh_expired = self.auth_service.is_refresh_token_expired(created_at)
+            refresh_expired = self.auth_service.is_refresh_expiry_passed(
+                token_info.get('refresh_token_expires_at')
+            )
 
         return {
             'status': 'found',
@@ -570,6 +591,23 @@ class AuthManager:
         await self.auth_service.close()
 
         logger.info("Auth manager closed")
+
+
+_default_auth_manager: Optional[AuthManager] = None
+
+
+def get_default_auth_manager() -> AuthManager:
+    """
+    공유 AuthManager 싱글톤 반환.
+
+    Session 등에서 매 호출마다 AuthManager()를 새로 만들면 per-email refresh lock dict이
+    각 인스턴스마다 독립적이라 lock이 의미가 없다. 동일 프로세스 내에서는 같은 인스턴스를
+    공유해 lock dict, callback_server, aiohttp 세션을 재사용한다.
+    """
+    global _default_auth_manager
+    if _default_auth_manager is None:
+        _default_auth_manager = AuthManager()
+    return _default_auth_manager
 
 
 async def main():
