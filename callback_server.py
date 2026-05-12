@@ -46,6 +46,7 @@ class CallbackServer:
         self.site = None
         self.auth_completed = asyncio.Event()
         self.authenticated_email = None
+        self.auth_error: Optional[str] = None
 
         # AuthManager가 없으면 독립 실행 모드
         if not auth_manager:
@@ -118,9 +119,13 @@ class CallbackServer:
             </body>
             </html>
             """
+            self.auth_error = f"{error}: {error_description or 'No additional information'}"
+            self.auth_completed.set()
             return web.Response(text=html_content, content_type='text/html', status=400)
 
         if not code:
+            self.auth_error = "Missing authorization code"
+            self.auth_completed.set()
             return web.Response(text="Missing authorization code", status=400)
 
         logger.info(f"Processing callback with state: {state[:10]}...")
@@ -191,10 +196,14 @@ class CallbackServer:
                 </body>
                 </html>
                 """
+                self.auth_error = error_msg
+                self.auth_completed.set()
                 return web.Response(text=html_content, content_type='text/html', status=401)
 
         except Exception as e:
             logger.error(f"Error during callback processing: {e}")
+            self.auth_error = f"Server error: {str(e)}"
+            self.auth_completed.set()
             return web.Response(text=f"Server error: {str(e)}", status=500)
 
     async def handle_root(self, request):
@@ -305,9 +314,14 @@ class CallbackServer:
 
         Returns:
             인증된 이메일 또는 None
+
+        Raises:
+            Exception: 콜백에서 에러가 발생한 경우 즉시 raise
         """
         try:
             await asyncio.wait_for(self.auth_completed.wait(), timeout=timeout)
+            if self.auth_error:
+                raise Exception(self.auth_error)
             return self.authenticated_email
         except asyncio.TimeoutError:
             logger.warning("Authentication timeout")
@@ -317,6 +331,7 @@ class CallbackServer:
         """인증 이벤트 초기화"""
         self.auth_completed.clear()
         self.authenticated_email = None
+        self.auth_error = None
 
 
 # 독립 실행을 위한 메인 함수

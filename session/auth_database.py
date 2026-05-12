@@ -454,7 +454,7 @@ class AuthDatabase:
 
             cursor.execute("""
                 DELETE FROM azure_token_info
-                WHERE access_token_expires_at < ?
+                WHERE (refresh_token IS NULL AND access_token_expires_at < ?)
                    OR (refresh_token_expires_at IS NOT NULL
                        AND refresh_token_expires_at < ?)
             """, (now, now))

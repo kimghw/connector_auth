@@ -434,10 +434,10 @@ class AuthManager:
             return True
 
         # 포트가 다른 프로세스에서 사용 중인지 확인
+        # 개인용 도구이므로 외부 점유 시 콜백을 받을 수 없어 실패 처리
         if not self.callback_server.check_port_availability():
-            logger.warning(f"Port {port} is already in use by another process")
-            # 외부 콜백 서버가 실행 중일 수 있으므로 True 반환
-            return True
+            logger.error(f"Port {port} is already in use by another process - cannot receive callback")
+            return False
 
         # 서버 시작
         try:
@@ -479,6 +479,11 @@ class AuthManager:
             auth_info = self.start_authentication()
             logger.info(f"Authentication URL generated with state: {auth_info['state'][:10]}...")
 
+            # 브라우저를 열기 전에 인증 이벤트를 먼저 초기화
+            # (SSO 세션이 살아있으면 브라우저 열자마자 콜백이 올 수 있음)
+            if self.callback_server:
+                self.callback_server.reset_auth_event()
+
             # 3. 브라우저 열기
             logger.info("Opening browser for authentication")
             try:
@@ -493,9 +498,6 @@ class AuthManager:
 
             # CallbackServer의 인증 대기 기능 사용
             if self.callback_server:
-                # 인증 이벤트 초기화
-                self.callback_server.reset_auth_event()
-
                 # 인증 완료 대기
                 authenticated_email = await self.callback_server.wait_for_auth(timeout)
 
