@@ -54,7 +54,7 @@ mcp_todo/
 AZURE_SCOPES=User.Read Mail.Read Mail.Send Mail.ReadWrite Calendars.ReadWrite Tasks.ReadWrite offline_access openid
 ```
 
-스코프 변경 후에는 재인증(`setup-auth-graphapi`)이 필요합니다.
+스코프 변경 후에는 재인증(`ms365_setup_oauth`)이 필요합니다.
 
 ## 실행
 
